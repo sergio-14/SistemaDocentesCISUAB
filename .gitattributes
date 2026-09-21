@@ -1,0 +1,52 @@
+# Force UTF-8 encoding for all text files
+* text eol=lf working-tree-encoding=UTF-8
+
+# JavaScript/React files
+*.js text eol=lf working-tree-encoding=UTF-8
+*.jsx text eol=lf working-tree-encoding=UTF-8
+*.ts text eol=lf working-tree-encoding=UTF-8
+*.tsx text eol=lf working-tree-encoding=UTF-8
+
+# Web files
+*.html text eol=lf working-tree-encoding=UTF-8
+*.css text eol=lf working-tree-encoding=UTF-8
+*.scss text eol=lf working-tree-encoding=UTF-8
+
+# Config files
+*.json text eol=lf working-tree-encoding=UTF-8
+*.yml text eol=lf working-tree-encoding=UTF-8
+*.yaml text eol=lf working-tree-encoding=UTF-8
+*.toml text eol=lf working-tree-encoding=UTF-8
+
+# Shell scripts
+*.sh text eol=lf working-tree-encoding=UTF-8
+*.bat text eol=lf working-tree-encoding=UTF-8
+*.cmd text eol=lf working-tree-encoding=UTF-8
+
+# Python files
+*.py text eol=lf working-tree-encoding=UTF-8
+
+# Markdown
+*.md text eol=lf working-tree-encoding=UTF-8
+
+# Databases and other binary files (never normalize line endings/encoding)
+*.sqlite3 binary -text -eol -working-tree-encoding
+*.sqlite binary -text -eol -working-tree-encoding
+*.db binary -text -eol -working-tree-encoding
+*.xlsx binary -text -eol -working-tree-encoding
+*.xls binary -text -eol -working-tree-encoding
+*.xlsm binary -text -eol -working-tree-encoding
+*.docx binary -text -eol -working-tree-encoding
+*.doc binary -text -eol -working-tree-encoding
+*.pptx binary -text -eol -working-tree-encoding
+*.ppt binary -text -eol -working-tree-encoding
+*.pdf binary -text -eol -working-tree-encoding
+*.zip binary -text -eol -working-tree-encoding
+
+# Images and binary assets (never normalize line endings/encoding)
+*.png binary -text -eol -working-tree-encoding
+*.jpg binary -text -eol -working-tree-encoding
+*.jpeg binary -text -eol -working-tree-encoding
+*.gif binary -text -eol -working-tree-encoding
+*.webp binary -text -eol -working-tree-encoding
+*.ico binary -text -eol -working-tree-encoding

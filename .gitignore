@@ -1,0 +1,73 @@
+# Dependencies
+node_modules/
+backend/venv/
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+
+# Python virtual environment
+.venv/
+backend/venv/
+
+# Database
+backend/db.sqlite3
+backend/dbsss.sqlite3
+backend/backups/
+backend/db_corrupt_*.sqlite3
+
+# Media files
+backend/media/
+
+# Fuentes propietarias (Verdana de Microsoft): no redistribuir en git,
+# cada despliegue debe copiarlas manualmente desde una instalación con
+# licencia (ej. C:\Windows\Fonts\verdana.ttf y verdanab.ttf en Windows).
+backend/fondos/fonts/
+
+# Temporary files
+tmpclaude-*-cwd
+tmpclaude-*-cwd/
+frontend/tmpclaude-*-cwd
+frontend/tmpclaude-*-cwd/
+*.tmp
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Misc
+*.pyc
+.pytest_cache/
+
+# Frontend git backup
+frontend/.git_disabled/
+
+# Claude temp files
+tmpclaude-*-cwd/
+frontend/tmpclaude-*-cwd/

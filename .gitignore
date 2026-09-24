@@ -16,8 +16,12 @@ backend/dbsss.sqlite3
 backend/backups/
 backend/db_corrupt_*.sqlite3
 
-# Media files
+# Media files (archivos subidos por los usuarios: nunca a git)
 backend/media/
+/media/
+
+# Estáticos generados por collectstatic
+backend/staticfiles/
 
 # Fuentes propietarias (Verdana de Microsoft): no redistribuir en git,
 # cada despliegue debe copiarlas manualmente desde una instalación con

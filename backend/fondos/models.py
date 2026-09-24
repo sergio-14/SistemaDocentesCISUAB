@@ -9,10 +9,25 @@ from django.utils import timezone
 from django.conf import settings
 from django.db.models.functions import Lower, Trim
 from simple_history.models import HistoricalRecords
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 import base64
 import hashlib
 import os
+
+
+def _get_image_cipher():
+    """Cifrador de fotos de perfil y logos de carrera.
+
+    Cifra con PROFILE_IMAGE_ENCRYPTION_KEY si está definida y descifra también
+    con la clave derivada de SECRET_KEY, que es la que se usó históricamente,
+    para no perder las imágenes ya guardadas al configurar una clave propia.
+    """
+    legacy_key = base64.urlsafe_b64encode(hashlib.sha256(settings.SECRET_KEY.encode('utf-8')).digest())
+    key_from_env = getattr(settings, 'PROFILE_IMAGE_ENCRYPTION_KEY', '')
+    if not key_from_env:
+        return Fernet(legacy_key)
+    key = key_from_env.encode('utf-8') if isinstance(key_from_env, str) else key_from_env
+    return MultiFernet([Fernet(key), Fernet(legacy_key)])
 
 
 MENSAJE_INCOMPATIBILIDAD_DEDICACION_GESTION = (
@@ -549,13 +564,7 @@ class Carrera(models.Model):
 
     @staticmethod
     def _get_cipher():
-        key_from_env = getattr(settings, 'PROFILE_IMAGE_ENCRYPTION_KEY', '')
-        if key_from_env:
-            key = key_from_env.encode('utf-8') if isinstance(key_from_env, str) else key_from_env
-        else:
-            digest = hashlib.sha256(settings.SECRET_KEY.encode('utf-8')).digest()
-            key = base64.urlsafe_b64encode(digest)
-        return Fernet(key)
+        return _get_image_cipher()
 
     def set_logo_carrera_cifrada(self, uploaded_file):
         image_bytes = uploaded_file.read()
@@ -2049,13 +2058,7 @@ class PerfilUsuario(models.Model):
 
     @staticmethod
     def _get_cipher():
-        key_from_env = getattr(settings, 'PROFILE_IMAGE_ENCRYPTION_KEY', '')
-        if key_from_env:
-            key = key_from_env.encode('utf-8') if isinstance(key_from_env, str) else key_from_env
-        else:
-            digest = hashlib.sha256(settings.SECRET_KEY.encode('utf-8')).digest()
-            key = base64.urlsafe_b64encode(digest)
-        return Fernet(key)
+        return _get_image_cipher()
 
     def set_foto_perfil_cifrada(self, uploaded_file):
         image_bytes = uploaded_file.read()

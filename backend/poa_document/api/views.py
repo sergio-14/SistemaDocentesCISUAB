@@ -6,7 +6,7 @@ import unicodedata
 from openpyxl import load_workbook
 from rest_framework import viewsets, mixins
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
-from rest_framework.permissions import IsAuthenticated, AllowAny, BasePermission, SAFE_METHODS
+from rest_framework.permissions import IsAuthenticated, BasePermission, SAFE_METHODS
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import generics
@@ -3254,7 +3254,7 @@ class ItemCatalogoViewSet(viewsets.ModelViewSet):
 
 class PartidaPresupuestariaViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PartidaCatalogoSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         partidas = (
@@ -3321,7 +3321,7 @@ class ItemCatalogoReadOnlyViewSet(viewsets.ReadOnlyModelViewSet):
 
 class IndicadorCatalogoViewSet(viewsets.ModelViewSet):
     serializer_class = IndicadorCatalogoSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
@@ -3420,7 +3420,7 @@ class IndicadorCatalogoViewSet(viewsets.ModelViewSet):
 
 class IndicadorCatalogoReadOnlyViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = IndicadorCatalogoSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         qs = IndicadorCatalogo.objects.all()

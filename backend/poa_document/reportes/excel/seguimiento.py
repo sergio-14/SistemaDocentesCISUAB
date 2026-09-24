@@ -75,7 +75,8 @@ def _aplicar_estilo(celda, *, encabezado=False, centro=False, negrita=False, tam
 
 
 def _agregar_logo(hoja):
-    ruta = Path(__file__).resolve().parents[4] / 'frontend' / 'public' / 'images' / 'LOGOUAB.png'
+    # El logo vive dentro del backend: en Docker la carpeta frontend/ no existe.
+    ruta = Path(__file__).resolve().parents[1] / 'assets' / 'LOGOUAB.png'
     if not ruta.is_file():
         return
     try:

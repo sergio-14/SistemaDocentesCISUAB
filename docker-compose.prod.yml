@@ -1,0 +1,72 @@
+# ============================================================
+# PRODUCCIÓN (Dokploy / cualquier servidor con proxy HTTPS)
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# - PostgreSQL NO publica puertos: solo el backend lo ve por la red interna.
+# - Backend y frontend solo exponen puertos a la red de Docker; el proxy
+#   (Traefik en Dokploy) es quien los publica con HTTPS en cada dominio:
+#     frontend -> puerto 80      backend -> puerto 8000
+# - Sin bind mounts de código: se ejecuta exactamente la imagen construida.
+# - Archivos subidos en un volumen con nombre (media_data): sobreviven a
+#   redespliegues y a nuevos clones del repositorio.
+# ============================================================
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${DB_NAME:?Falta DB_NAME}
+      - POSTGRES_USER=${DB_USER:?Falta DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:?Falta DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    volumes:
+      - media_data:/app/media
+    expose:
+      - "8000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY:?Falta SECRET_KEY}
+      - DEBUG=False
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:?Falta ALLOWED_HOSTS}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:?Falta CORS_ALLOWED_ORIGINS}
+      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:?Falta CSRF_TRUSTED_ORIGINS}
+      - PROFILE_IMAGE_ENCRYPTION_KEY=${PROFILE_IMAGE_ENCRYPTION_KEY:-}
+      - MEDIA_URL_MAX_AGE=${MEDIA_URL_MAX_AGE:-43200}
+      - SECURE_HSTS_SECONDS=${SECURE_HSTS_SECONDS:-0}
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-3}
+      - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-120}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_URL: ${VITE_API_URL:?Falta VITE_API_URL}
+    restart: unless-stopped
+    expose:
+      - "80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  media_data:

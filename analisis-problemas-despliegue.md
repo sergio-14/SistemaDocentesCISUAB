@@ -28,7 +28,7 @@ Tras las correcciones se levantó el stack de producción completo en local y se
 
 1. Se leyó el código y se reprodujo cada fallo en contenedores con `DEBUG=False`.
 2. Se aplicaron las correcciones.
-3. Se levantó `docker-compose.prod.yml` con valores de producción (dominios `midominio.com` / `api.midominio.com`) y se probó desde la red interna de Docker con las cabeceras que envía Traefik (`Host`, `X-Forwarded-Proto: https`).
+3. Se levantó `docker-compose.prod.yml` con valores de producción (en la primera versión con dos dominios; tras la adaptación a la guía IIISyP, con uno solo, ver sección 9) y se probó desde la red interna de Docker con las cabeceras que envía Traefik (`Host`, `X-Forwarded-Proto: https`).
 4. Se ejecutó la suite de tests del backend: **13/13 pasan** (antes: 12/13).
 
 ---
@@ -187,11 +187,44 @@ No se modificaron modelos de datos ni migraciones.
 
 ---
 
-## 8. Pendiente al desplegar (configuración, no código)
+## 8. Pendientes de despliegue resueltos
 
-- [ ] Cargar las variables de entorno en Dokploy (ver README). Guardar `SECRET_KEY` y `PROFILE_IMAGE_ENCRYPTION_KEY` en un lugar seguro.
-- [ ] Asignar dominios: `frontend` → 80, `backend` → 8000. DNS tipo A hacia el VPS.
-- [ ] Crear el superusuario en el contenedor `backend`.
-- [ ] Configurar backups de la base de datos y del volumen `media_data`.
+| Pendiente | Solución | Verificación |
+|---|---|---|
+| Backups de la BD y de `media_data` | Servicio `backup` en `docker-compose.prod.yml`: `pg_dump` + `tar` de media cada 24 h, conservando 14 días, en el volumen `backups`. El primero 10 min después de arrancar | Backup generado (BD 232 KB + media). **Restauración probada:** se borraron un usuario y un archivo, y se recuperaron los dos |
+| Variables de entorno | Valores con caracteres seguros para Docker/Dokploy, documentados en `.env.example` y el README | Stack de producción levantado con esas variables |
+
+## 9. Adaptación a la guía del VPS IIISyP
+
+Guía: <https://github.com/sergio-14/Documentacion_IIISyP>. Estado después de los cambios:
+
+| Regla de la guía | Antes | Ahora | Verificación |
+|---|---|---|---|
+| Red `dokploy-network` en el servicio que recibe tráfico | ❌ No existía (Traefik daría 502/404) | ✅ Servicio `frontend` | Tráfico simulado de Traefik por `dokploy-network` → 200 |
+| PostgreSQL 16 | ❌ 15 | ✅ 16 en producción y desarrollo; backup con `pg_dump` 16 | `PostgreSQL 16.15`; datos de desarrollo migrados sin pérdida |
+| Usuario no-root | ❌ root | ✅ `app` (UID 10001) | `id` → `uid=10001(app)` |
+| Variables estándar (`DJANGO_*`, `POSTGRES_*`) | ❌ `SECRET_KEY`, `DB_NAME`... | ✅ Nombres estándar; los antiguos se siguen aceptando | Desarrollo y producción arrancan |
+| Un dominio por proyecto, entrando por nginx :80 | ❌ Dos dominios | ✅ nginx reenvía `/api`, `/django-admin`, `/media`, `/static` | SPA, API, admin y media por el mismo dominio |
+| Healthcheck en cada servicio | ⚠️ Solo `db` | ✅ `db`, `backend` (`/health/`), `frontend`, `backup` | Todos `healthy` |
+| Sin `ports:`/`container_name`, volúmenes con nombre, `restart`, `:?` | ✅ | ✅ | `docker compose config` válido |
+
+**Problemas encontrados y resueltos durante la adaptación:**
+
+1. **Choque de rutas `/admin`:** la app React tiene su panel en `/admin`, así que con un solo dominio chocaba con el admin de Django. Se movió el de Django a `/django-admin/`, y los dos enlaces escritos a mano en `fondos/admin.py` pasaron a `reverse()`. Además, `/admin/` es la primera ruta que prueban los bots.
+2. **Volumen de archivos subidos creado como root:** si el servicio `backup` arrancaba antes que el backend, el volumen `media_data` quedaba con dueño root y el backend no-root **no podía guardar ninguna evidencia** (`PermissionError`). Se añadió el servicio de un solo uso `media-permisos`, que ajusta el dueño antes de arrancar el backend y el backup. Verificado desde cero con volúmenes nuevos.
+3. **Límite de subida de nginx (1 MB por defecto):** habría rechazado evidencias y Excel grandes. Ahora es de 50 MB. Verificado: una subida multipart de 1,8 MB pasa, y una de 60 MB se rechaza con 413.
+4. **nginx y el redeploy del backend:** si el backend cambia de IP, un nginx sin resolver dinámico seguiría apuntando a la IP vieja (502). Se añadió `resolver 127.0.0.11`. Verificado forzando un cambio de IP (`172.21.0.3 → 172.21.0.6`) sin reiniciar nginx.
+
+**Diferencias intencionadas con las plantillas de la guía:**
+- `/media/` con URLs firmadas en lugar de público.
+- Superusuario creado a mano en lugar de desde variables de entorno.
+- Archivos Docker dentro de `backend/` y `frontend/` en lugar de `docker/`, porque el proyecto tiene dos aplicaciones.
+
+## 10. Pendiente (solo en el servidor, fuera del código)
+
+- [ ] Cargar las variables de entorno en Dokploy. Guardar `DJANGO_SECRET_KEY` y `PROFILE_IMAGE_ENCRYPTION_KEY` en un lugar seguro.
+- [ ] Dokploy: *Compose Path* `./docker-compose.prod.yml`. Dominio: servicio `frontend`, puerto 80, HTTPS. Un registro DNS tipo A hacia el VPS.
+- [ ] Crear el superusuario **a mano** (`python manage.py createsuperuser` en el contenedor `backend`). No se automatiza a propósito: guardaría la contraseña de administrador en variables de entorno y recrearía la cuenta si se elimina.
+- [ ] Copiar periódicamente los backups **fuera** del servidor (S3, otra máquina).
 - [ ] (Opcional) Copiar las fuentes Verdana/Trebuchet a `backend/fondos/fonts/`.
 - [ ] (Opcional) Activar HSTS cuando HTTPS esté estable.

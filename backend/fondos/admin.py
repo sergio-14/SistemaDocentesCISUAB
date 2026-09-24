@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from .models import (
@@ -79,8 +80,8 @@ class DocenteAdmin(admin.ModelAdmin):
     def datos_laborales_link(self, obj):
         if obj.datos_laborales:
             return format_html(
-                '<a href="/admin/fondos/datoslaborales/{}/change/">{}</a>',
-                obj.datos_laborales.id,
+                '<a href="{}">{}</a>',
+                reverse('admin:fondos_datoslaborales_change', args=[obj.datos_laborales.id]),
                 obj.datos_laborales
             )
         return 'Sin datos laborales'
@@ -532,8 +533,8 @@ class PerfilUsuarioAdmin(admin.ModelAdmin):
         dl = obj.obtener_datos_laborales()
         if dl:
             return format_html(
-                '<a href="/admin/fondos/datoslaborales/{}/change/">{}</a>',
-                dl.id, str(dl)
+                '<a href="{}">{}</a>',
+                reverse('admin:fondos_datoslaborales_change', args=[dl.id]), str(dl)
             )
         return 'Sin datos'
     datos_laborales_link.short_description = 'Datos Lab.'

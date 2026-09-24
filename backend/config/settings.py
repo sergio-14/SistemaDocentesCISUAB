@@ -18,16 +18,27 @@ from decouple import config, Csv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def env(nombre, anterior=None, **kwargs):
+    """Lee una variable con el nombre estándar de la guía IIISyP (DJANGO_*, POSTGRES_*).
+
+    Si no está definida, acepta el nombre anterior del proyecto (SECRET_KEY,
+    DB_NAME, ...) para no romper instalaciones existentes.
+    """
+    if anterior and config(nombre, default=None) is None:
+        return config(anterior, **kwargs)
+    return config(nombre, **kwargs)
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY')
+SECRET_KEY = env('DJANGO_SECRET_KEY', 'SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', default=False, cast=bool)
+DEBUG = env('DJANGO_DEBUG', 'DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', cast=Csv())
+ALLOWED_HOSTS = env('DJANGO_ALLOWED_HOSTS', 'ALLOWED_HOSTS', cast=Csv())
 
 
 # Application definition
@@ -93,11 +104,11 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME'),
-        'USER': config('DB_USER'),
-        'PASSWORD': config('DB_PASSWORD'),
-        'HOST': config('DB_HOST', default='db'),
-        'PORT': config('DB_PORT', default='5432'),
+        'NAME': env('POSTGRES_DB', 'DB_NAME'),
+        'USER': env('POSTGRES_USER', 'DB_USER'),
+        'PASSWORD': env('POSTGRES_PASSWORD', 'DB_PASSWORD'),
+        'HOST': env('POSTGRES_HOST', 'DB_HOST', default='db'),
+        'PORT': env('POSTGRES_PORT', 'DB_PORT', default='5432'),
         'OPTIONS': {
             'options': '-c client_encoding=UTF8',
         },
@@ -162,7 +173,9 @@ STORAGES = {
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS Configuration
 # CORS Configuration
-CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', cast=Csv())
+# En producción frontend y API comparten dominio (no hace falta CORS); en
+# desarrollo Vite (5173) llama al backend (8000) y sí hace falta.
+CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='', cast=Csv())
 
 CORS_ALLOW_METHODS = [            # ← AGREGAR TODO ESTO
     'DELETE',
@@ -231,7 +244,7 @@ PROFILE_IMAGE_ENCRYPTION_KEY = config('PROFILE_IMAGE_ENCRYPTION_KEY', default=''
 # ------------------------------------------------------------
 # Producción detrás de un proxy HTTPS (Traefik / Dokploy)
 # ------------------------------------------------------------
-CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
+CSRF_TRUSTED_ORIGINS = env('DJANGO_CSRF_TRUSTED_ORIGINS', 'CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 if not DEBUG:

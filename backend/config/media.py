@@ -9,6 +9,7 @@ firma es válida y no ha caducado (``MEDIA_URL_MAX_AGE``).
 Como las URLs se generan desde el almacenamiento, cualquier FileField/ImageField
 serializado por la API o mostrado en el admin sale ya firmado.
 """
+import os
 from urllib.parse import quote
 
 from django.conf import settings
@@ -18,6 +19,12 @@ from django.http import Http404
 from django.views.static import serve
 
 _SALT = 'config.media.signed-url'
+
+# Tipos que el navegador puede mostrar sin riesgo. Cualquier otro (html, svg,
+# js, ...) se entrega como descarga: los archivos subidos comparten dominio con
+# la app y un HTML/SVG abierto en línea podría ejecutar código con la sesión
+# del usuario (XSS almacenado).
+_TIPOS_EN_LINEA = {'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf'}
 
 
 def _signer():
@@ -49,4 +56,12 @@ def serve_signed_media(request, path):
     response = serve(request, path, document_root=settings.MEDIA_ROOT)
     response['Cache-Control'] = 'private, max-age=3600'
     response['X-Content-Type-Options'] = 'nosniff'
+    tipo = (response.get('Content-Type') or '').split(';')[0].strip().lower()
+    # Sin scripts aunque el archivo se abra directamente en el navegador. Los PDF
+    # quedan fuera: Chrome no muestra PDFs con "sandbox" y su visor ya los aísla.
+    if tipo != 'application/pdf':
+        response['Content-Security-Policy'] = "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'"
+    if tipo not in _TIPOS_EN_LINEA:
+        nombre = os.path.basename(path).replace('"', '')
+        response['Content-Disposition'] = f'attachment; filename="{nombre}"'
     return response

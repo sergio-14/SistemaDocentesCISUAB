@@ -7,6 +7,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import Docente, DocenteCarrera, Carrera, Materia, FondoTiempo, CategoriaFuncion, Actividad, PerfilUsuario, AsignacionCarrera, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, EvidenciaCargaHoraria
 from .role_context import get_active_assignment, get_effective_profile, serialize_assignment
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
+from .utils.informe_imagenes import CAMPOS_HTML_INFORME, firmar_imagenes_html
 from django.db.models import Sum
 from django.db import transaction
 from decimal import Decimal
@@ -1824,7 +1825,7 @@ class CarreraSerializer(serializers.ModelSerializer):
 
         instance = super().create(validated_data)
         if logo_file:
-            instance.set_logo_carrera_cifrada(logo_file)
+            instance.set_logo_carrera(logo_file)
             instance.save(update_fields=['logo_carrera', 'logo_carrera_cifrada', 'logo_carrera_mime'])
         return instance
 
@@ -1840,7 +1841,7 @@ class CarreraSerializer(serializers.ModelSerializer):
             return instance
 
         if logo_file is not serializers.empty and logo_file is not None:
-            instance.set_logo_carrera_cifrada(logo_file)
+            instance.set_logo_carrera(logo_file)
             instance.save(update_fields=['logo_carrera', 'logo_carrera_cifrada', 'logo_carrera_mime'])
 
         return instance
@@ -2204,7 +2205,7 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
     def get_informe_actual(self, obj):
         """Documento del informe (guardado o precargado con defaults, ver
         _informe_actual_o_borrador)."""
-        return _informe_actual_o_borrador(obj)
+        return _informe_actual_o_borrador(obj, self.context)
 
 
 class FondoTiempoListSerializer(serializers.ModelSerializer):
@@ -2292,7 +2293,7 @@ class PerfilUsuarioSerializer(serializers.ModelSerializer):
         return obj.get_foto_perfil_data_uri()
 
     def get_foto_perfil_es_propia(self, obj):
-        return bool(obj.foto_perfil_cifrada)
+        return obj.tiene_foto_propia
 
     def get_fecha_ingreso(self, obj):
         datos = obj.obtener_datos_laborales()
@@ -2329,7 +2330,7 @@ class FotoPerfilSerializer(serializers.Serializer):
         if incoming is None:
             instance.clear_foto_perfil()
         else:
-            instance.set_foto_perfil_cifrada(incoming)
+            instance.set_foto_perfil(incoming)
 
         instance.save(update_fields=['foto_perfil', 'foto_perfil_cifrada', 'foto_perfil_mime'])
         return instance
@@ -3443,10 +3444,16 @@ class InformeFondoSerializer(serializers.ModelSerializer):
         for campo in CAMPOS_TEXTO_INFORME:
             if not (data.get(campo) or '').strip():
                 data[campo] = defaults.get(campo, '')
+        # Las imágenes del editor se guardan en media con su ruta canónica: se
+        # entregan como URL firmada para que el navegador las pueda cargar.
+        request = self.context.get('request')
+        for campo in CAMPOS_HTML_INFORME:
+            if data.get(campo):
+                data[campo] = firmar_imagenes_html(data[campo], request)
         return data
 
 
-def _informe_actual_o_borrador(fondo):
+def _informe_actual_o_borrador(fondo, context=None):
     """Informe 'parcial' mas reciente del fondo, ya serializado (con los 12
     campos del documento precargados por InformeFondoSerializer). Si el
     docente todavia no guardo ningun borrador, arma un dict sintetico
@@ -3455,7 +3462,7 @@ def _informe_actual_o_borrador(fondo):
     algo que mostrar aunque no exista fila en InformeFondo todavia."""
     informe = fondo.informes.filter(tipo='parcial').order_by('-fecha_elaboracion').first()
     if informe:
-        return InformeFondoSerializer(informe).data
+        return InformeFondoSerializer(informe, context=context or {}).data
     defaults = construir_defaults_informe(fondo)
     return {
         'id': None,
@@ -3790,7 +3797,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     def get_informe_actual(self, obj):
         """Documento del informe (guardado o precargado con defaults, ver
         _informe_actual_o_borrador)."""
-        return _informe_actual_o_borrador(obj)
+        return _informe_actual_o_borrador(obj, self.context)
 
 
 # =====================================================

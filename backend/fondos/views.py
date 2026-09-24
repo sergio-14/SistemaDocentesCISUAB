@@ -415,7 +415,9 @@ class DatosLaboralesViewSet(viewsets.ModelViewSet):
     Solo el superusuario puede gestionar los datos de empleo (vacaciones,
     feriados, antigüedad) de usuarios administrativos puros.
     """
-    queryset = DatosLaborales.objects.all().select_related('docente', 'perfiles')
+    # "perfiles" es una relación inversa (FK desde PerfilUsuario): va en
+    # prefetch_related; con select_related la consulta fallaba (error 500).
+    queryset = DatosLaborales.objects.all().select_related('docente').prefetch_related('perfiles')
     serializer_class = DatosLaboralesSerializer
     permission_classes = [IsFullAdmin]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -424,7 +426,7 @@ class DatosLaboralesViewSet(viewsets.ModelViewSet):
     ordering = ['-fecha_creacion']
 
     def get_queryset(self):
-        return DatosLaborales.objects.all().select_related('docente', 'perfiles')
+        return DatosLaborales.objects.all().select_related('docente').prefetch_related('perfiles')
 
 
 class CarreraViewSet(viewsets.ModelViewSet):
@@ -3249,8 +3251,9 @@ class HistorialFondoViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['fondo_tiempo', 'tipo_cambio', 'usuario']
-    ordering_fields = ['-fecha_creacion']
-    ordering = ['-fecha_creacion']
+    # El modelo HistorialFondo usa el campo "fecha" (no "fecha_creacion").
+    ordering_fields = ['fecha']
+    ordering = ['-fecha']
     
     def get_queryset(self):
         """Filtrar historial según el usuario"""

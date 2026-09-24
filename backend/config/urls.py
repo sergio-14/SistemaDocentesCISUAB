@@ -7,9 +7,13 @@ from rest_framework_simplejwt.views import (
 from poa_document.api.views import ReporteGeneralPOAView
 from fondos.views import CustomTokenObtainPairView
 from config.media import serve_signed_media
+from config.health import health
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    # Con un solo dominio, /admin/ pertenece a la app React (panel de administración);
+    # el admin de Django vive en /django-admin/.
+    path('django-admin/', admin.site.urls),
+    path('health/', health, name='health'),
     path('api/', include('fondos.urls')),
     path('api/poa/', include('poa_document.api.urls')),
     path('api/reportes/generar-reporte-general/', ReporteGeneralPOAView.as_view(), name='reporte-general-poa'),

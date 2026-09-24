@@ -11,15 +11,24 @@ import time
 
 import psycopg2
 
+def env(nombre, anterior, defecto=None):
+    """Nombre estándar de la guía IIISyP (POSTGRES_*) o, si falta, el anterior (DB_*)."""
+    valor = os.environ.get(nombre) or os.environ.get(anterior) or defecto
+    if valor is None:
+        print(f"Falta la variable {nombre}.", file=sys.stderr)
+        sys.exit(1)
+    return valor
+
+
 intentos = int(os.environ.get("DB_WAIT_ATTEMPTS", "30"))
 for intento in range(1, intentos + 1):
     try:
         psycopg2.connect(
-            host=os.environ.get("DB_HOST", "db"),
-            port=os.environ.get("DB_PORT", "5432"),
-            user=os.environ["DB_USER"],
-            password=os.environ["DB_PASSWORD"],
-            dbname=os.environ["DB_NAME"],
+            host=env("POSTGRES_HOST", "DB_HOST", "db"),
+            port=env("POSTGRES_PORT", "DB_PORT", "5432"),
+            user=env("POSTGRES_USER", "DB_USER"),
+            password=env("POSTGRES_PASSWORD", "DB_PASSWORD"),
+            dbname=env("POSTGRES_DB", "DB_NAME"),
             connect_timeout=5,
         ).close()
         print("Base de datos disponible.")
@@ -35,7 +44,7 @@ EOF
 echo "Ejecutando migraciones..."
 python manage.py migrate --noinput
 
-case "$(echo "${DEBUG:-False}" | tr '[:upper:]' '[:lower:]')" in
+case "$(echo "${DJANGO_DEBUG:-${DEBUG:-False}}" | tr '[:upper:]' '[:lower:]')" in
     true|1|yes|on)
         echo "DEBUG activo: arrancando servidor de desarrollo de Django..."
         exec python manage.py runserver 0.0.0.0:8000

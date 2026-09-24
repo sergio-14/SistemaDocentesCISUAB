@@ -590,7 +590,7 @@ class EvidenciaArchivo(models.Model):
     ]
     evidencia = models.ForeignKey(Evidencia, on_delete=models.CASCADE, related_name='archivos')
     tipo = models.CharField(max_length=16, choices=TIPOS, default='imagen')
-    archivo = models.FileField(upload_to='evidencias/%Y/%m', null=True, blank=True)
+    archivo = models.FileField(upload_to='poa/evidencias/%Y/%m', null=True, blank=True)
     url = models.URLField(null=True, blank=True)
     creado_en = models.DateTimeField(auto_now_add=True)
 

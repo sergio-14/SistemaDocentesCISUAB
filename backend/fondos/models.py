@@ -12,6 +12,7 @@ from simple_history.models import HistoricalRecords
 from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 import base64
 import hashlib
+import mimetypes
 import os
 
 
@@ -28,6 +29,66 @@ def _get_image_cipher():
         return Fernet(legacy_key)
     key = key_from_env.encode('utf-8') if isinstance(key_from_env, str) else key_from_env
     return MultiFernet([Fernet(key), Fernet(legacy_key)])
+
+
+# ================================================================
+# Imágenes de perfil y logos de carrera en MEDIA
+#
+# Se guardan como archivos organizados por carpeta:
+#   media/carreras/carrera_<id>/logo.<ext>
+#   media/usuarios/usuario_<id>/foto_perfil.<ext>
+# La API las sigue entregando como data URI (mismo contrato que antes), así
+# que el frontend y los PDF no cambian. Las imágenes antiguas guardadas
+# cifradas en la BD se siguen leyendo hasta pasarlas a media con
+# `python manage.py organizar_media`.
+# ================================================================
+
+def _extension_imagen(filename, mime=''):
+    ext = os.path.splitext(filename or '')[1].lower()
+    if ext:
+        return ext
+    return mimetypes.guess_extension(mime or '') or '.jpg'
+
+
+def logo_carrera_upload_path(instance, filename):
+    return f'carreras/carrera_{instance.pk or "nueva"}/logo{_extension_imagen(filename)}'
+
+
+def foto_perfil_upload_path(instance, filename):
+    return f'usuarios/usuario_{instance.user_id or "sin_usuario"}/foto_perfil{_extension_imagen(filename)}'
+
+
+def _imagen_a_data_uri(field_file, mime=''):
+    """Lee un ImageField del almacenamiento y lo devuelve como data URI."""
+    if not field_file or not field_file.name:
+        return None
+    try:
+        with field_file.storage.open(field_file.name, 'rb') as archivo:
+            contenido = archivo.read()
+    except OSError:
+        return None
+    mime = mime or mimetypes.guess_type(field_file.name)[0] or 'image/jpeg'
+    return f"data:{mime};base64,{base64.b64encode(contenido).decode('ascii')}"
+
+
+def _descifrar_imagen_legado(cifrada, mime=''):
+    """Data URI de una imagen del almacenamiento antiguo (cifrada en la BD)."""
+    if not cifrada:
+        return None
+    try:
+        contenido = _get_image_cipher().decrypt(bytes(cifrada))
+    except InvalidToken:
+        return None
+    return f"data:{mime or 'image/jpeg'};base64,{base64.b64encode(contenido).decode('ascii')}"
+
+
+def _guardar_imagen(field_file, uploaded_file):
+    """Reemplaza el archivo de un ImageField por la imagen subida."""
+    if not uploaded_file or not getattr(uploaded_file, 'size', 0):
+        raise ValidationError("La imagen está vacía.")
+    if field_file and field_file.name:
+        field_file.delete(save=False)
+    field_file.save(os.path.basename(uploaded_file.name or 'imagen'), uploaded_file, save=False)
 
 
 MENSAJE_INCOMPATIBILIDAD_DEDICACION_GESTION = (
@@ -521,7 +582,8 @@ class Carrera(models.Model):
         blank=True,
         help_text='Fecha oficial de la resolución ministerial o universitaria',
     )
-    logo_carrera = models.ImageField(upload_to='carreras/', null=True, blank=True)
+    logo_carrera = models.ImageField(upload_to=logo_carrera_upload_path, null=True, blank=True)
+    # Almacenamiento antiguo (cifrado en la BD). Solo lectura: ver organizar_media.
     logo_carrera_cifrada = models.BinaryField(null=True, blank=True, editable=False)
     logo_carrera_mime = models.CharField(max_length=64, blank=True, default='')
     activo = models.BooleanField(default=True)
@@ -562,25 +624,11 @@ class Carrera(models.Model):
         if self.fecha_resolucion and self.fecha_resolucion > timezone.now().date():
             raise ValidationError({'fecha_resolucion': 'La fecha de resolución no puede ser futura.'})
 
-    @staticmethod
-    def _get_cipher():
-        return _get_image_cipher()
-
-    def set_logo_carrera_cifrada(self, uploaded_file):
-        image_bytes = uploaded_file.read()
-        if not image_bytes:
-            raise ValidationError("La imagen está vacía.")
-
-        mime_type = getattr(uploaded_file, 'content_type', '') or 'image/jpeg'
-        encrypted = self._get_cipher().encrypt(image_bytes)
-
-        self.logo_carrera_cifrada = encrypted
-        self.logo_carrera_mime = mime_type
-
-        # Compatibilidad: limpiar almacenamiento físico anterior.
-        if self.logo_carrera and self.logo_carrera.name:
-            self.logo_carrera.delete(save=False)
-        self.logo_carrera = None
+    def set_logo_carrera(self, uploaded_file):
+        """Guarda el logo en media/carreras/carrera_<id>/ (reemplaza el anterior)."""
+        _guardar_imagen(self.logo_carrera, uploaded_file)
+        self.logo_carrera_mime = getattr(uploaded_file, 'content_type', '') or ''
+        self.logo_carrera_cifrada = None
 
     def clear_logo_carrera(self):
         if self.logo_carrera and self.logo_carrera.name:
@@ -590,17 +638,10 @@ class Carrera(models.Model):
         self.logo_carrera_mime = ''
 
     def get_logo_carrera_data_uri(self):
-        if not self.logo_carrera_cifrada:
-            return None
-
-        try:
-            decrypted = self._get_cipher().decrypt(bytes(self.logo_carrera_cifrada))
-        except InvalidToken:
-            return None
-
-        b64_image = base64.b64encode(decrypted).decode('ascii')
-        mime = self.logo_carrera_mime or 'image/jpeg'
-        return f"data:{mime};base64,{b64_image}"
+        return (
+            _imagen_a_data_uri(self.logo_carrera, self.logo_carrera_mime)
+            or _descifrar_imagen_legado(self.logo_carrera_cifrada, self.logo_carrera_mime)
+        )
 
 
 class Materia(models.Model):
@@ -1275,15 +1316,15 @@ class CategoriaFuncion(models.Model):
 
 
 def evidencia_upload_path(instance, filename):
-    """Genera la ruta de archivo: /uploads/docente_id/gestion_YYYY/categoria/filename"""
+    """Ruta: fondos/evidencias_actividades/docente_<id>/gestion_<año>/<categoria>/<archivo>"""
     try:
         fondo = instance.categoria.fondo_tiempo
         docente_id = fondo.docente.id
         gestion = fondo.gestion
         categoria_tipo = instance.categoria.tipo
-        return f'uploads/docente_{docente_id}/gestion_{gestion}/{categoria_tipo}/{filename}'
+        return f'fondos/evidencias_actividades/docente_{docente_id}/gestion_{gestion}/{categoria_tipo}/{filename}'
     except Exception:
-        return f'uploads/uncategorized/{filename}'
+        return f'fondos/evidencias_actividades/sin_clasificar/{filename}'
 
 class Actividad(models.Model):
     """
@@ -1488,14 +1529,31 @@ class CargaHoraria(models.Model):
 
 
 def evidencia_carga_horaria_upload_path(instance, filename):
-    """Genera la ruta: /evidencias_carga/docente_id/gestion_YYYY/categoria/carga_id/filename"""
+    """Ruta: fondos/evidencias_carga/docente_<id>/gestion_<año>/<categoria>/actividad_<id>/<archivo>"""
     try:
         carga = instance.carga_horaria
         docente_id = carga.docente_id
         gestion = carga.calendario.gestion if carga.calendario_id else 'sin_gestion'
-        return f'evidencias_carga/docente_{docente_id}/gestion_{gestion}/{carga.categoria}/{carga.id}/{filename}'
+        return f'fondos/evidencias_carga/docente_{docente_id}/gestion_{gestion}/{carga.categoria}/actividad_{carga.id}/{filename}'
     except Exception:
-        return f'evidencias_carga/uncategorized/{filename}'
+        return f'fondos/evidencias_carga/sin_clasificar/{filename}'
+
+
+def _carpeta_informe(instance):
+    """Carpeta de un informe: fondos/informes/docente_<id>/gestion_<año>"""
+    try:
+        fondo = instance.fondo_tiempo
+        return f'fondos/informes/docente_{fondo.docente_id}/gestion_{fondo.gestion}'
+    except Exception:
+        return 'fondos/informes/sin_clasificar'
+
+
+def informe_adjunto_upload_path(instance, filename):
+    return f'{_carpeta_informe(instance)}/adjuntos/{filename}'
+
+
+def informe_evidencia_upload_path(instance, filename):
+    return f'{_carpeta_informe(instance)}/evidencias/{filename}'
 
 
 class EvidenciaCargaHoraria(models.Model):
@@ -1729,13 +1787,13 @@ class InformeFondo(models.Model):
     fecha_evaluacion = models.DateField(null=True, blank=True)
     evaluado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='informes_evaluados')
     archivo_adjunto = models.FileField(
-        upload_to='informes_evidencia/',
+        upload_to=informe_adjunto_upload_path,
         null=True,
         blank=True,
         help_text="Archivo de evidencia adjunto al informe (PDF, ZIP, etc.)"
     )
     evidencia = models.FileField(
-        upload_to='evidencias/',
+        upload_to=informe_evidencia_upload_path,
         null=True,
         blank=True,
         help_text="Evidencia digital del informe final (PDF/Imagen)"
@@ -1749,6 +1807,26 @@ class InformeFondo(models.Model):
     
     def __str__(self):
         return f"Informe {self.get_tipo_display()} - {self.fondo_tiempo.docente.nombre_completo}"
+
+    def save(self, *args, **kwargs):
+        # Las imágenes insertadas en el editor llegan en base64: se guardan como
+        # archivos en media y en la BD queda solo la ruta (ver informe_imagenes).
+        from fondos.utils.informe_imagenes import extraer_imagenes_informe, limpiar_imagenes_huerfanas
+
+        cambiados = extraer_imagenes_informe(self)
+        if cambiados and kwargs.get('update_fields') is not None:
+            kwargs['update_fields'] = set(kwargs['update_fields']) | set(cambiados)
+        super().save(*args, **kwargs)
+        limpiar_imagenes_huerfanas(self)
+
+
+@receiver(post_delete, sender=InformeFondo)
+def limpiar_imagenes_de_informe_borrado(sender, instance, **kwargs):
+    from fondos.utils.informe_imagenes import limpiar_imagenes_huerfanas
+    try:
+        limpiar_imagenes_huerfanas(instance)
+    except FondoTiempo.DoesNotExist:
+        pass
 
 
 class InformeAsignaturaEjecutada(models.Model):
@@ -1950,7 +2028,8 @@ class PerfilUsuario(models.Model):
     rol = models.CharField(max_length=20, choices=ROLES, default='docente')
     carrera = models.ForeignKey(Carrera, on_delete=models.SET_NULL, null=True, blank=True)
     telefono = models.CharField(max_length=20, blank=True)
-    foto_perfil = models.ImageField(upload_to='perfiles/', null=True, blank=True)
+    foto_perfil = models.ImageField(upload_to=foto_perfil_upload_path, null=True, blank=True)
+    # Almacenamiento antiguo (cifrado en la BD). Solo lectura: ver organizar_media.
     foto_perfil_cifrada = models.BinaryField(null=True, blank=True, editable=False)
     foto_perfil_mime = models.CharField(max_length=64, blank=True, default='')
     debe_cambiar_password = models.BooleanField(default=True, help_text="Indica si el usuario debe cambiar su contraseña en el próximo inicio de sesión")
@@ -2056,25 +2135,11 @@ class PerfilUsuario(models.Model):
     def get_carrera_activa_id(self):
         return self.carrera_id
 
-    @staticmethod
-    def _get_cipher():
-        return _get_image_cipher()
-
-    def set_foto_perfil_cifrada(self, uploaded_file):
-        image_bytes = uploaded_file.read()
-        if not image_bytes:
-            raise ValidationError("La imagen está vacía.")
-
-        mime_type = getattr(uploaded_file, 'content_type', '') or 'image/jpeg'
-        encrypted = self._get_cipher().encrypt(image_bytes)
-
-        self.foto_perfil_cifrada = encrypted
-        self.foto_perfil_mime = mime_type
-
-        # Limpieza de compatibilidad: elimina el archivo físico si existía en el almacenamiento antiguo.
-        if self.foto_perfil and self.foto_perfil.name:
-            self.foto_perfil.delete(save=False)
-        self.foto_perfil = None
+    def set_foto_perfil(self, uploaded_file):
+        """Guarda la foto en media/usuarios/usuario_<id>/ (reemplaza la anterior)."""
+        _guardar_imagen(self.foto_perfil, uploaded_file)
+        self.foto_perfil_mime = getattr(uploaded_file, 'content_type', '') or ''
+        self.foto_perfil_cifrada = None
 
     def clear_foto_perfil(self):
         if self.foto_perfil and self.foto_perfil.name:
@@ -2083,29 +2148,24 @@ class PerfilUsuario(models.Model):
         self.foto_perfil_cifrada = None
         self.foto_perfil_mime = ''
 
+    @property
+    def tiene_foto_propia(self):
+        return bool((self.foto_perfil and self.foto_perfil.name) or self.foto_perfil_cifrada)
+
     def get_foto_perfil_data_uri(self):
-        # Intenta primero con la foto propia del usuario
-        if self.foto_perfil_cifrada:
-            try:
-                decrypted = self._get_cipher().decrypt(bytes(self.foto_perfil_cifrada))
-                b64_image = base64.b64encode(decrypted).decode('ascii')
-                mime = self.foto_perfil_mime or 'image/jpeg'
-                return f"data:{mime};base64,{b64_image}"
-            except InvalidToken:
-                pass
-        
-        # Si no tiene foto propia, intenta usar la de su carrera asignada
-        if self.carrera and self.carrera.logo_carrera_cifrada:
-            try:
-                # Usa el mismo cipher para desencriptar el logo de carrera
-                decrypted = self._get_cipher().decrypt(bytes(self.carrera.logo_carrera_cifrada))
-                b64_image = base64.b64encode(decrypted).decode('ascii')
-                mime = self.carrera.logo_carrera_mime or 'image/jpeg'
-                return f"data:{mime};base64,{b64_image}"
-            except InvalidToken:
-                pass
-        
-        # Sin foto propia ni carrera asignada, devuelve None
+        # Primero la foto propia del usuario (archivo en media o, si aún no se
+        # migró, la del almacenamiento cifrado antiguo).
+        propia = (
+            _imagen_a_data_uri(self.foto_perfil, self.foto_perfil_mime)
+            or _descifrar_imagen_legado(self.foto_perfil_cifrada, self.foto_perfil_mime)
+        )
+        if propia:
+            return propia
+
+        # Si no tiene foto propia, usa el logo de su carrera asignada.
+        if self.carrera:
+            return self.carrera.get_logo_carrera_data_uri()
+
         return None
 
 

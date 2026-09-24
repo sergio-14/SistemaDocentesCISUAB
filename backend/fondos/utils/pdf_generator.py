@@ -18,6 +18,7 @@ from html.parser import HTMLParser
 from django.db.models import Sum
 from fondos.models import CargaHoraria
 from fondos.utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
+from fondos.utils.informe_imagenes import leer_imagen as leer_imagen_informe
 
 # Verdana no es una de las 14 fuentes estandar de PDF: hay que registrarla a
 # partir de los .ttf reales. Son fuentes propietarias de Microsoft (no se
@@ -331,11 +332,12 @@ class _InformeHTMLParser(HTMLParser):
         return '•  '
 
     def _insertar_imagen(self, attrs_dict, alineacion):
-        match = _DATA_IMG_RE.match(attrs_dict.get('src', '') or '')
-        if not match:
+        # La imagen puede venir como archivo en media (informes actuales) o como
+        # data URI base64 (informes guardados antes de pasar las imágenes a media).
+        img_bytes = leer_imagen_informe(attrs_dict.get('src', '') or '')
+        if not img_bytes:
             return
         try:
-            img_bytes = base64.b64decode(match.group('data'))
             imagen = Image(io.BytesIO(img_bytes))
             max_ancho = self.ancho_disponible
 

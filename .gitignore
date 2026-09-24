@@ -49,6 +49,9 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+# Cualquier variante con secretos (.env.production, .env.staging...); la plantilla sí se sube
+.env.*
+!.env.example
 
 # Build outputs
 dist/

@@ -1,66 +1,147 @@
 # ============================================================
-# ENTORNO DE DESARROLLO LOCAL
-# Recarga en caliente de Django y Vite. NO usar en un servidor:
-# para producción usar docker-compose.prod.yml.
+# PRODUCCIÓN — Dokploy (guía IIISyP: github.com/sergio-14/Documentacion_IIISyP)
+#
+# Dokploy > Compose Path: ./docker-compose.prod.yml
+# Dokploy > Domains:      Service "frontend", Port 80, HTTPS (Let's Encrypt)
+#
+# Un solo dominio: el nginx del servicio "frontend" es la única entrada y
+# reenvía /api, /django-admin, /media y /static al backend por la red interna.
+#
+# - Sin "ports:" ni "container_name" (reglas 4 y 5).
+# - PostgreSQL 16 sin puerto publicado (reglas 1 y 6).
+# - Datos en volúmenes con nombre (regla 7).
+# - Backend con usuario no-root (regla 8).
+# - restart + healthcheck en cada servicio (regla 10).
+#
+# Prueba local: requiere la red externa de Dokploy
+#   docker network create dokploy-network
+#   docker compose -f docker-compose.prod.yml --env-file .env.production.local up -d --build
 # ============================================================
 services:
   db:
     image: postgres:16-alpine
-    volumes:
-      - postgres16_data:/var/lib/postgresql/data
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      # Solo accesible desde este equipo (para clientes SQL locales).
-      - "127.0.0.1:5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB:?Falta POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?Falta POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+
+  # Tarea de un solo uso: el backend corre sin root (UID 10001) y el volumen de
+  # archivos subidos puede haberse creado como root (por otro servicio o por un
+  # despliegue anterior). Ajusta el dueño antes de arrancar backend y backup.
+  media-permisos:
+    image: alpine:3.20
+    restart: "no"
+    volumes:
+      - media_data:/app/media
+    command: ["sh", "-c", "find /app/media ! -user 10001 -exec chown 10001:10001 {} +"]
 
   backend:
     build:
       context: ./backend
-    volumes:
-      - ./backend:/app
-      - ./media:/app/media
-    ports:
-      - "8000:8000"
+    restart: unless-stopped
     environment:
-      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
-      DJANGO_DEBUG: ${DJANGO_DEBUG:-True}
-      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS}
-      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Falta DJANGO_SECRET_KEY}
+      DJANGO_DEBUG: "False"
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?Falta DJANGO_ALLOWED_HOSTS}
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:?Falta DJANGO_CSRF_TRUSTED_ORIGINS}
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
       PROFILE_IMAGE_ENCRYPTION_KEY: ${PROFILE_IMAGE_ENCRYPTION_KEY:-}
+      MEDIA_URL_MAX_AGE: ${MEDIA_URL_MAX_AGE:-43200}
+      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-120}
+    volumes:
+      - media_data:/app/media
+    expose:
+      - "8000"
+    healthcheck:
+      # Usa el primer host permitido: Django rechaza (400) hosts fuera de ALLOWED_HOSTS.
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os,urllib.request as r; h=os.environ['DJANGO_ALLOWED_HOSTS'].split(',')[0].strip(); r.urlopen(r.Request('http://127.0.0.1:8000/health/', headers={'Host': h}), timeout=5)"
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
     depends_on:
       db:
         condition: service_healthy
+      media-permisos:
+        condition: service_completed_successfully
 
   frontend:
     build:
       context: ./frontend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    ports:
-      - "5173:5173"
-    environment:
-      VITE_API_URL: ${VITE_API_URL}
-      CHOKIDAR_USEPOLLING: "true"
-      WATCHPACK_POLLING: "true"
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_URL: ${VITE_API_URL:?Falta VITE_API_URL}
+    restart: unless-stopped
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    # Único servicio que recibe tráfico de Traefik.
+    networks:
+      - default
+      - dokploy-network
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+
+  # Backup periódico de la BD y de media_data en el volumen "backups".
+  # Los backups quedan en el mismo servidor: copiarlos también fuera
+  # (ver README, "Backups").
+  backup:
+    build:
+      context: ./backup
+    restart: unless-stopped
+    volumes:
+      - backups:/backups
+      - media_data:/media:ro
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB}
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      BACKUP_FIRST_DELAY_MINUTES: ${BACKUP_FIRST_DELAY_MINUTES:-10}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h db -U $${PGUSER} -d $${PGDATABASE}"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      db:
+        condition: service_healthy
+      media-permisos:
+        condition: service_completed_successfully
 
 volumes:
-  # PostgreSQL 16 no puede abrir datos de la 15: volumen nuevo. El anterior
-  # (postgres_data) se puede borrar cuando ya no haga falta.
-  postgres16_data:
+  postgres_data:
+  media_data:
+  backups:
+
+networks:
+  dokploy-network:
+    external: true

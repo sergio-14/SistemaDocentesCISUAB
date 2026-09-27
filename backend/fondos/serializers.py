@@ -795,9 +795,11 @@ def _validar_reglas_asignaciones_usuario(bloques, docente_por_defecto=None):
     if len(autoridades) > 1:
         raise serializers.ValidationError({'asignaciones': MENSAJE_CONFLICTO_AUTORIDAD})
 
-    # Gestión y docencia van en la misma carrera (igual que el frontend).
+    # Director, Jefe de Estudios e Instituto solo pueden ser docentes de su misma
+    # carrera (igual que el frontend). Un docente sin cargo sí puede estar en dos.
+    carreras_cargo = {item['carrera'].id for item in asignaciones if item['rol'] in ROLES_UNICOS_POR_CARRERA}
     carreras_docencia = {item['carrera'].id for item in asignaciones if item['rol'] == 'docente'}
-    if autoridades and carreras_docencia - {autoridades[0]['carrera'].id}:
+    if carreras_cargo and carreras_docencia - carreras_cargo:
         raise serializers.ValidationError({'asignaciones': MENSAJE_DOCENTE_OTRA_CARRERA})
 
 

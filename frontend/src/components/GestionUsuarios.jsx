@@ -120,6 +120,8 @@ const MENSAJE_AUTORIDAD_UNICA = 'Un usuario no puede tener más de un cargo de a
 const MENSAJE_DOCENTE_OTRA_CARRERA = 'La carga docente de un cargo de autoridad debe pertenecer a su misma carrera (dedicación exclusiva UABJB).';
 const MENSAJE_CARRERA_PENDIENTE = 'Debe seleccionar una carrera para la asignación actual antes de agregar otra.';
 const ROLES_MANDO_UABJB = ['director', 'jefe_estudios'];
+// Cargos que solo pueden ser docentes de su misma carrera (incluye al Instituto).
+const ROLES_CARGO_CARRERA = ['director', 'jefe_estudios', 'iiisyp'];
 
 const ROL_LABELS = {
   iiisyp: '🔬 Instituto de investigación',
@@ -1863,18 +1865,18 @@ const initialData = {
       }
     }
 
-    // --- Regla 5: DEDICACIÓN EXCLUSIVA (mando + docente en misma carrera) ---
-    // La carga docente de un rol de mando debe pertenecer obligatoriamente a su
-    // misma carrera asignada. No puede haber Docente en Carrera B si hay Director en Carrera A.
+    // --- Regla 5: DEDICACIÓN EXCLUSIVA (cargo + docente en misma carrera) ---
+    // La carga docente de Director, Jefe de Estudios o Instituto debe pertenecer a su
+    // misma carrera. No puede haber Docente en Carrera B si hay un cargo en Carrera A.
     if (rolTrim === 'docente') {
-      const mandoEnOtraCarrera = todasAsignaciones.some(
-        (item) => ROLES_MANDO_UABJB.includes(item.rol) && item.carrera !== carreraTrim
+      const cargoEnOtraCarrera = todasAsignaciones.some(
+        (item) => ROLES_CARGO_CARRERA.includes(item.rol) && item.carrera !== carreraTrim
       );
-      if (mandoEnOtraCarrera) {
+      if (cargoEnOtraCarrera) {
         return { valida: false, mensaje: MENSAJE_DOCENTE_OTRA_CARRERA };
       }
     }
-    if (esRolMando) {
+    if (ROLES_CARGO_CARRERA.includes(rolTrim)) {
       const docenteEnOtraCarrera = todasAsignaciones.some(
         (item) => item.rol === 'docente' && item.carrera !== carreraTrim
       );
@@ -2171,10 +2173,10 @@ const initialData = {
         return;
       }
 
-      // Safety net: Dedicación exclusiva (docente + mando en carreras distintas)
+      // Safety net: Dedicación exclusiva (docente + cargo de carrera en carreras distintas)
       const hayDocente = primeraAsignacion.rol === 'docente' || segundaAsignacion.rol === 'docente';
-      const hayMando = primeraMando || segundaMando;
-      if (hayDocente && hayMando && !mismaCarrera) {
+      const hayCargo = [primeraAsignacion.rol, segundaAsignacion.rol].some((rol) => ROLES_CARGO_CARRERA.includes(rol));
+      if (hayDocente && hayCargo && !mismaCarrera) {
         toast.error(MENSAJE_DOCENTE_OTRA_CARRERA, { className: 'toast-brinco' });
         setIsSubmitting(false);
         return;

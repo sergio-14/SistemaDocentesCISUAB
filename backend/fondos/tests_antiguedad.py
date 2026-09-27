@@ -5,7 +5,7 @@
 3. La unicidad de Director, Jefe de Estudios e Instituto (IIISyP) ya no está en
    PerfilUsuario: se valida con las asignaciones activas.
 Además: la regla de combinaciones confirmada (docente en dos carreras sí;
-cargo de gestión con docencia en otra carrera no).
+Director, Jefe de Estudios o Instituto con docencia en otra carrera no).
 """
 from datetime import date
 
@@ -209,6 +209,40 @@ class ReglaDeCombinacionesTests(UsuariosBaseTestCase):
         response = self.client.post('/api/usuarios/', datos, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_el_instituto_no_puede_ser_docente_de_otra_carrera(self):
+        datos = self.datos_usuario(
+            'instituto_docente_ajeno', 'iiisyp', self.carrera, 'DC-6',
+            asignaciones=[{'rol': 'docente', 'carrera': self.otra_carrera.pk}],
+        )
+
+        response = self.client.post('/api/usuarios/', datos, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('asignaciones', response.data)
+        self.assertFalse(User.objects.filter(username='instituto_docente_ajeno').exists())
+
+    def test_el_instituto_puede_ser_docente_de_su_misma_carrera(self):
+        datos = self.datos_usuario(
+            'instituto_docente_propio', 'iiisyp', self.carrera, 'DC-7',
+            asignaciones=[{'rol': 'docente', 'carrera': self.carrera.pk}],
+        )
+
+        response = self.client.post('/api/usuarios/', datos, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_al_editar_el_instituto_tampoco_suma_docencia_en_otra_carrera(self):
+        instituto = self.crear_usuario('instituto_edita', 'iiisyp', carrera=self.carrera, ci='DC-8')
+
+        response = self.client.patch(
+            f'/api/usuarios/{instituto.pk}/',
+            {'asignaciones': [{'rol': 'docente', 'carrera': self.otra_carrera.pk}]},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(AsignacionCarrera.objects.filter(user=instituto, rol='docente').exists())
 
     def test_un_director_puede_ser_docente_de_su_misma_carrera(self):
         datos = self.datos_usuario(

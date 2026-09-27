@@ -2076,15 +2076,8 @@ class PerfilUsuario(models.Model):
     class Meta:
         verbose_name = "Perfil de Usuario"
         verbose_name_plural = "Perfiles de Usuarios"
-        constraints = [
-            models.UniqueConstraint(
-                fields=['carrera', 'rol'],
-                name='unico_iiisyp_por_carrera',
-                condition=models.Q(rol='iiisyp', activo=True)
-            ),
-            # Director y Jefe de Estudios únicos por carrera: se valida con las
-            # AsignacionCarrera activas (validar_unicidad_cargo_por_carrera).
-        ]
+        # Director, Jefe de Estudios e Instituto (IIISyP) únicos por carrera: se
+        # valida con las AsignacionCarrera activas (validar_unicidad_cargo_por_carrera).
 
     def __str__(self):
         username = self.user.username if self.user else 'Sin usuario'

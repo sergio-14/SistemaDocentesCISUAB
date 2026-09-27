@@ -2,7 +2,8 @@
 
 1. La antigüedad son años COMPLETOS cumplidos al inicio de la gestión del fondo.
 2. Con menos de 1 año de antigüedad no hay días de vacación.
-3. La unicidad de Director y Jefe de Estudios ya no está en PerfilUsuario.
+3. La unicidad de Director, Jefe de Estudios e Instituto (IIISyP) ya no está en
+   PerfilUsuario: se valida con las asignaciones activas.
 Además: la regla de combinaciones confirmada (docente en dos carreras sí;
 cargo de gestión con docencia en otra carrera no).
 """
@@ -11,7 +12,7 @@ from datetime import date
 from django.contrib.auth.models import User
 from rest_framework import status
 
-from .models import CalendarioAcademico, DatosLaborales, Docente, FondoTiempo, PerfilUsuario
+from .models import AsignacionCarrera, CalendarioAcademico, DatosLaborales, Docente, FondoTiempo, PerfilUsuario
 from .tests_usuarios_auditoria import UsuariosBaseTestCase
 
 
@@ -85,6 +86,7 @@ class UnicidadFueraDelPerfilTests(UsuariosBaseTestCase):
 
         self.assertNotIn('unico_director_por_carrera', nombres)
         self.assertNotIn('unico_jefe_por_carrera', nombres)
+        self.assertNotIn('unico_iiisyp_por_carrera', nombres)
 
     def test_dos_perfiles_director_de_la_misma_carrera_no_rompen_la_base(self):
         # Datos antiguos incoherentes ya no dan IntegrityError: manda la asignación.
@@ -106,6 +108,53 @@ class UnicidadFueraDelPerfilTests(UsuariosBaseTestCase):
         self.assertEqual(primero.status_code, status.HTTP_201_CREATED, primero.data)
         self.assertEqual(segundo.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(User.objects.filter(username='director_dos').exists())
+
+
+class UnicidadDelInstitutoTests(UsuariosBaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(self.superuser)
+
+    def _crear_instituto(self, username, carrera, ci):
+        return self.client.post('/api/usuarios/', self.datos_usuario(username, 'iiisyp', carrera, ci), format='json')
+
+    def test_un_instituto_por_carrera(self):
+        primero = self._crear_instituto('instituto_uno', self.carrera, 'I-1')
+        segundo = self._crear_instituto('instituto_dos', self.carrera, 'I-2')
+
+        self.assertEqual(primero.status_code, status.HTTP_201_CREATED, primero.data)
+        self.assertEqual(segundo.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(User.objects.filter(username='instituto_dos').exists())
+
+    def test_cada_carrera_tiene_su_instituto(self):
+        self.assertEqual(self._crear_instituto('instituto_a', self.carrera, 'I-3').status_code, status.HTTP_201_CREATED)
+        otra = self._crear_instituto('instituto_b', self.otra_carrera, 'I-4')
+
+        self.assertEqual(otra.status_code, status.HTTP_201_CREATED, otra.data)
+
+    def test_se_valida_con_la_asignacion_no_con_el_perfil(self):
+        # Instituto como asignación secundaria: su perfil dice 'docente'.
+        titular = self.crear_usuario('instituto_secundario', 'docente', carrera=self.carrera)
+        AsignacionCarrera.objects.create(user=titular, carrera=self.carrera, rol='iiisyp')
+
+        response = self._crear_instituto('instituto_nuevo', self.carrera, 'I-5')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_una_asignacion_inactiva_no_ocupa_el_cargo(self):
+        anterior = self.crear_usuario('instituto_anterior', 'docente', carrera=self.carrera)
+        AsignacionCarrera.objects.create(user=anterior, carrera=self.carrera, rol='iiisyp', activo=False)
+
+        response = self._crear_instituto('instituto_libre', self.carrera, 'I-6')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_dos_perfiles_iiisyp_de_la_misma_carrera_no_rompen_la_base(self):
+        for username in ('perfil_iiisyp_1', 'perfil_iiisyp_2'):
+            usuario = User.objects.create_user(username, password='x')
+            PerfilUsuario.objects.filter(user=usuario).update(rol='iiisyp', carrera=self.carrera, activo=True)
+
+        self.assertEqual(PerfilUsuario.objects.filter(rol='iiisyp', carrera=self.carrera, activo=True).count(), 2)
 
 
 class ReglaDeCombinacionesTests(UsuariosBaseTestCase):
@@ -138,6 +187,28 @@ class ReglaDeCombinacionesTests(UsuariosBaseTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(User.objects.filter(username='director_docente_ajeno').exists())
+
+    def test_un_jefe_de_estudios_no_puede_ser_docente_de_otra_carrera(self):
+        datos = self.datos_usuario(
+            'jefe_docente_ajeno', 'jefe_estudios', self.carrera, 'DC-4',
+            asignaciones=[{'rol': 'docente', 'carrera': self.otra_carrera.pk}],
+        )
+
+        response = self.client.post('/api/usuarios/', datos, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('asignaciones', response.data)
+        self.assertFalse(User.objects.filter(username='jefe_docente_ajeno').exists())
+
+    def test_un_jefe_de_estudios_puede_ser_docente_de_su_misma_carrera(self):
+        datos = self.datos_usuario(
+            'jefe_docente_propio', 'jefe_estudios', self.carrera, 'DC-5',
+            asignaciones=[{'rol': 'docente', 'carrera': self.carrera.pk}],
+        )
+
+        response = self.client.post('/api/usuarios/', datos, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def test_un_director_puede_ser_docente_de_su_misma_carrera(self):
         datos = self.datos_usuario(

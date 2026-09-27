@@ -43,6 +43,7 @@ from .serializers import (
     CustomTokenObtainPairSerializer, EvidenciaCargaHorariaSerializer,
     # Validadores estructurales de asignación (blindaje de reactivación, normativa UABJB)
     validar_unicidad_cargo_por_carrera,
+    ROLES_UNICOS_POR_CARRERA,
     _validar_fondo_tiempo_contractual_doble_rol,
     datos_registrados_usuario,
     docente_del_usuario,
@@ -3668,7 +3669,7 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         for bloque in bloques:
             rol = bloque.get('rol')
             carrera = bloque.get('carrera')
-            if rol in ('director', 'jefe_estudios') and carrera:
+            if rol in ROLES_UNICOS_POR_CARRERA and carrera:
                 try:
                     validar_unicidad_cargo_por_carrera(
                         carrera=carrera,

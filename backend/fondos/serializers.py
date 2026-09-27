@@ -355,19 +355,25 @@ def _validar_fondo_tiempo_contractual_doble_rol(bloques, docente_por_defecto=Non
             )
         })
 
+# Cargos que solo puede tener una persona por carrera.
+ROLES_UNICOS_POR_CARRERA = ('director', 'jefe_estudios', 'iiisyp')
+
+
 def validar_unicidad_cargo_por_carrera(carrera, rol, exclude_user_id=None):
     """
-    Garantiza que solo exista un Director o Jefe de Estudios activo por carrera.
+    Garantiza que solo exista un Director, un Jefe de Estudios y un Instituto
+    (IIISyP) activos por carrera.
 
     Se valida con las AsignacionCarrera activas (el cargo puede ser la
     asignación secundaria de un usuario, que su perfil no refleja).
     """
-    if rol not in ['director', 'jefe_estudios'] or not carrera:
+    if rol not in ROLES_UNICOS_POR_CARRERA or not carrera:
         return
 
     cargos = {
         'director': 'Director',
         'jefe_estudios': 'Jefe de Estudios',
+        'iiisyp': 'Instituto (IIISyP)',
     }
 
     queryset = AsignacionCarrera.objects.filter(
@@ -2689,10 +2695,10 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
 
         data['ci'] = ci_normalizado or None
 
-        # Validar unicidad de cargos por carrera (director, jefe_estudios)
+        # Validar unicidad de cargos por carrera (director, jefe_estudios, iiisyp)
         for bloque in bloques:
             bloque_rol = bloque.get('rol')
-            if bloque_rol in ['director', 'jefe_estudios']:
+            if bloque_rol in ROLES_UNICOS_POR_CARRERA:
                 validar_unicidad_cargo_por_carrera(_resolver_carrera_asignacion(bloque.get('carrera')) or data.get('carrera'), bloque_rol)
 
         if data.get('docente') and not data['docente'].activo:
@@ -3105,7 +3111,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
             _validar_carrera_en_bloques([{'rol': rol, 'carrera': carrera_final}] + list(asignaciones))
             for bloque in bloques:
                 bloque_rol = bloque.get('rol')
-                if bloque_rol in ['director', 'jefe_estudios']:
+                if bloque_rol in ROLES_UNICOS_POR_CARRERA:
                     if 'carrera' in bloque and bloque.get('carrera') is None:
                         raise serializers.ValidationError({'carrera': 'Los administradores, directores y jefes de estudio deben tener una carrera asignada.'})
                     if bloque is bloques[0] and 'carrera' not in data and not carrera_actual:

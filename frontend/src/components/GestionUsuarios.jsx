@@ -114,14 +114,13 @@ const TrashIcon = (props) => (
 // Mensajes descriptivos para validación en caliente (Normativa UABJB)
 const MENSAJE_DUPLICADO = 'Esta combinación de Rol y Carrera ya se encuentra asignada.';
 const MENSAJE_LIMITE_ASIGNACIONES = 'Un usuario no puede tener más de 2 asignaciones en el sistema (Normativa de Fondo de Tiempo).';
-const MENSAJE_AUTORIDAD_MULTIPLE = 'No se puede asignar un cargo de autoridad (Director/Jefe) en múltiples carreras.';
-const MENSAJE_CONFLICTO_AUTORIDAD = 'Conflicto de Autoridad: Un usuario no puede ser Director y Jefe de Estudios de la misma carrera.';
-const MENSAJE_AUTORIDAD_UNICA = 'Un usuario no puede tener más de un cargo de autoridad (Director o Jefe de Estudios) en el sistema (Normativa UABJB).';
+const MENSAJE_AUTORIDAD_MULTIPLE = 'No se puede asignar un cargo de mando (Director, Jefe de Estudios o Instituto) en múltiples carreras.';
+const MENSAJE_CONFLICTO_AUTORIDAD = 'Conflicto de Autoridad: Un usuario no puede tener dos cargos de mando (Director, Jefe de Estudios o Instituto) en la misma carrera.';
+const MENSAJE_AUTORIDAD_UNICA = 'Un usuario no puede tener más de un cargo de mando (Director, Jefe de Estudios o Instituto) en el sistema (Normativa UABJB).';
 const MENSAJE_DOCENTE_OTRA_CARRERA = 'La carga docente de un cargo de autoridad debe pertenecer a su misma carrera (dedicación exclusiva UABJB).';
 const MENSAJE_CARRERA_PENDIENTE = 'Debe seleccionar una carrera para la asignación actual antes de agregar otra.';
-const ROLES_MANDO_UABJB = ['director', 'jefe_estudios'];
-// Cargos que solo pueden ser docentes de su misma carrera (incluye al Instituto).
-const ROLES_CARGO_CARRERA = ['director', 'jefe_estudios', 'iiisyp'];
+// Cargos de mando: un solo cargo por usuario, y solo pueden ser docentes de su misma carrera.
+const ROLES_MANDO_UABJB = ['director', 'jefe_estudios', 'iiisyp'];
 
 const ROL_LABELS = {
   iiisyp: '🔬 Instituto de investigación',
@@ -1870,13 +1869,13 @@ const initialData = {
     // misma carrera. No puede haber Docente en Carrera B si hay un cargo en Carrera A.
     if (rolTrim === 'docente') {
       const cargoEnOtraCarrera = todasAsignaciones.some(
-        (item) => ROLES_CARGO_CARRERA.includes(item.rol) && item.carrera !== carreraTrim
+        (item) => ROLES_MANDO_UABJB.includes(item.rol) && item.carrera !== carreraTrim
       );
       if (cargoEnOtraCarrera) {
         return { valida: false, mensaje: MENSAJE_DOCENTE_OTRA_CARRERA };
       }
     }
-    if (ROLES_CARGO_CARRERA.includes(rolTrim)) {
+    if (ROLES_MANDO_UABJB.includes(rolTrim)) {
       const docenteEnOtraCarrera = todasAsignaciones.some(
         (item) => item.rol === 'docente' && item.carrera !== carreraTrim
       );
@@ -2151,7 +2150,7 @@ const initialData = {
           carrera: String(asignacionesExtra[0].carrera || '').trim(),
         }
       : null;
-    const esRolMando = (rol) => ['director', 'jefe_estudios'].includes(String(rol || '').trim());
+    const esRolMando = (rol) => ROLES_MANDO_UABJB.includes(String(rol || '').trim());
 
     if (segundaAsignacion) {
       const mismaCombinacion = primeraAsignacion.rol === segundaAsignacion.rol && primeraAsignacion.carrera === segundaAsignacion.carrera;
@@ -2166,7 +2165,7 @@ const initialData = {
       const primeraMando = esRolMando(primeraAsignacion.rol);
       const segundaMando = esRolMando(segundaAsignacion.rol);
 
-      // Safety net: DOS roles de mando (Director + Jefe) — prohibido por normativa UABJB
+      // Safety net: DOS roles de mando (Director, Jefe o Instituto) — prohibido por normativa UABJB
       if (primeraMando && segundaMando) {
         toast.error(MENSAJE_AUTORIDAD_UNICA, { className: 'toast-brinco' });
         setIsSubmitting(false);
@@ -2175,7 +2174,7 @@ const initialData = {
 
       // Safety net: Dedicación exclusiva (docente + cargo de carrera en carreras distintas)
       const hayDocente = primeraAsignacion.rol === 'docente' || segundaAsignacion.rol === 'docente';
-      const hayCargo = [primeraAsignacion.rol, segundaAsignacion.rol].some((rol) => ROLES_CARGO_CARRERA.includes(rol));
+      const hayCargo = [primeraAsignacion.rol, segundaAsignacion.rol].some((rol) => ROLES_MANDO_UABJB.includes(rol));
       if (hayDocente && hayCargo && !mismaCarrera) {
         toast.error(MENSAJE_DOCENTE_OTRA_CARRERA, { className: 'toast-brinco' });
         setIsSubmitting(false);

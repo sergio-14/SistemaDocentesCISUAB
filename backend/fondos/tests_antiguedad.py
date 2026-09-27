@@ -157,6 +157,57 @@ class UnicidadDelInstitutoTests(UsuariosBaseTestCase):
         self.assertEqual(PerfilUsuario.objects.filter(rol='iiisyp', carrera=self.carrera, activo=True).count(), 2)
 
 
+class UnSoloCargoDeMandoTests(UsuariosBaseTestCase):
+    """Director, Jefe de Estudios e Instituto: un solo cargo de mando por usuario."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(self.superuser)
+
+    def test_el_instituto_no_se_combina_con_otro_cargo(self):
+        casos = {
+            'director_misma_carrera': ('director', self.carrera),
+            'director_otra_carrera': ('director', self.otra_carrera),
+            'jefe_misma_carrera': ('jefe_estudios', self.carrera),
+            'jefe_otra_carrera': ('jefe_estudios', self.otra_carrera),
+        }
+        for i, (caso, (rol, carrera)) in enumerate(casos.items()):
+            with self.subTest(caso=caso):
+                username = f'mando_{i}'
+                datos = self.datos_usuario(
+                    username, 'iiisyp', self.carrera, f'MU-{i}',
+                    asignaciones=[{'rol': rol, 'carrera': carrera.pk}],
+                )
+
+                response = self.client.post('/api/usuarios/', datos, format='json')
+
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn('asignaciones', response.data)
+                self.assertFalse(User.objects.filter(username=username).exists())
+
+    def test_al_editar_no_se_suma_el_instituto_a_un_director(self):
+        director = self.crear_usuario('director_mando', 'director', carrera=self.carrera, is_staff=True, ci='MU-9')
+
+        response = self.client.patch(
+            f'/api/usuarios/{director.pk}/',
+            {'asignaciones': [{'rol': 'iiisyp', 'carrera': self.carrera.pk}]},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(AsignacionCarrera.objects.filter(user=director, rol='iiisyp').exists())
+
+    def test_director_y_jefe_siguen_sin_combinarse(self):
+        datos = self.datos_usuario(
+            'director_jefe', 'director', self.carrera, 'MU-10',
+            asignaciones=[{'rol': 'jefe_estudios', 'carrera': self.carrera.pk}],
+        )
+
+        response = self.client.post('/api/usuarios/', datos, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
 class ReglaDeCombinacionesTests(UsuariosBaseTestCase):
     def setUp(self):
         super().setUp()

@@ -615,7 +615,7 @@ def _validar_limite_asignaciones_usuario(bloques):
 ROLES_AUTORIDAD_ASIGNACION = {'director', 'jefe_estudios'}
 ROLES_GESTION_DEDICACION = {'director', 'jefe_estudios', 'iiisyp'}
 MENSAJE_ASIGNACION_INVALIDA = 'Esta combinaci\u00f3n de roles no es v\u00e1lida seg\u00fan las reglas de asignaci\u00f3n del sistema'
-MENSAJE_CONFLICTO_AUTORIDAD = 'Un usuario no puede tener m\u00e1s de un cargo de gesti\u00f3n (Director o Jefe de Estudios).'
+MENSAJE_CONFLICTO_AUTORIDAD = 'Un usuario no puede tener más de un cargo de mando (Director, Jefe de Estudios o Instituto).'
 MENSAJE_INCOMPATIBILIDAD_DEDICACION = 'Seg\u00fan normativa UABJB, los cargos de gesti\u00f3n (Director/Jefe) solo son compatibles con docencia a Tiempo Horario. No se permite dedicaci\u00f3n Tiempo Completo o Medio Tiempo.'
 MENSAJE_DOCENTE_DEDICACION_EXCLUSIVA = 'Los usuarios con rol docente deben registrar dedicacion a Tiempo Horario.'
 MENSAJE_DOCENTE_OTRA_CARRERA = 'La carga docente de un cargo de autoridad debe pertenecer a su misma carrera (dedicación exclusiva UABJB).'
@@ -787,11 +787,10 @@ def _validar_reglas_asignaciones_usuario(bloques, docente_por_defecto=None):
     if len(set(claves)) != len(claves):
         raise serializers.ValidationError({'asignaciones': MENSAJE_ASIGNACION_INVALIDA})
 
-    autoridades = [item for item in asignaciones if item['rol'] in ROLES_AUTORIDAD_ASIGNACION]
+    autoridades = [item for item in asignaciones if item['rol'] in ROLES_UNICOS_POR_CARRERA]
 
-    # Regla estricta: un usuario no puede tener más de UN cargo de gestión,
-    # sin importar la carrera (director + director, jefe_estudios + jefe_estudios,
-    # o director + jefe_estudios en cualquier combinación de carreras).
+    # Regla estricta: un usuario no puede tener más de UN cargo de mando
+    # (Director, Jefe de Estudios o Instituto), sin importar la carrera.
     if len(autoridades) > 1:
         raise serializers.ValidationError({'asignaciones': MENSAJE_CONFLICTO_AUTORIDAD})
 

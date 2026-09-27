@@ -27,13 +27,23 @@ test('calcularHorasFondo coincide con el backend', () => {
   }
 });
 
-test('días de vacación según antigüedad', () => {
+test('días de vacación según antigüedad (igual que el backend)', () => {
+  assert.equal(diasVacacionPorAntiguedad(0), 0);
+  assert.equal(diasVacacionPorAntiguedad(1), 15);
   assert.equal(diasVacacionPorAntiguedad(4), 15);
+  assert.equal(diasVacacionPorAntiguedad(5), 20);
   assert.equal(diasVacacionPorAntiguedad(7), 20);
+  assert.equal(diasVacacionPorAntiguedad(10), 30);
   assert.equal(diasVacacionPorAntiguedad(12), 30);
 });
 
-test('antigüedad por gestión', () => {
-  assert.equal(calcularAntiguedad('2014-01-15', 2026), 12);
-  assert.equal(calcularAntiguedad('', 2026), null);
+test('antigüedad en años completos a la fecha de referencia', () => {
+  // Mismos casos que backend/fondos/tests_antiguedad.py
+  assert.equal(calcularAntiguedad('2014-03-10', '2026-03-09'), 11);
+  assert.equal(calcularAntiguedad('2014-03-10', '2026-03-10'), 12);
+  assert.equal(calcularAntiguedad('2014-03-10', '2026-01-01'), 11);
+  assert.equal(calcularAntiguedad('2016-03-01', '2026-02-01'), 9);
+  assert.equal(calcularAntiguedad('2016-03-01', '2026-03-15'), 10);
+  assert.equal(calcularAntiguedad('2025-06-01', '2026-02-01'), 0);
+  assert.equal(calcularAntiguedad('', '2026-01-01'), null);
 });

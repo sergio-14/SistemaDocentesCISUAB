@@ -112,8 +112,9 @@ class Command(BaseCommand):
         vinculo = DocenteCarrera.objects.filter(docente=docente, carrera=fondo.carrera, activo=True).first()
         dedicacion_texto = vinculo.get_dedicacion_display() if vinculo else '(sin vinculo activo con esta carrera)'
         datos = getattr(docente, 'datos_laborales', None)
-        antiguedad = datos.calcular_antiguedad(fondo.gestion) if datos else None
-        dias_vacacion = datos.calcular_dias_vacacion(fondo.gestion) if datos else None
+        referencia = fondo.fecha_referencia_antiguedad()
+        antiguedad = datos.calcular_antiguedad(referencia) if datos else None
+        dias_vacacion = datos.calcular_dias_vacacion(referencia) if datos else None
 
         self.stdout.write('DATOS DEL DOCENTE:')
         self.stdout.write(f'  - Nombre: {docente.nombre_completo}')

@@ -45,7 +45,8 @@ class VacacionesEnElFondoTests(UsuariosBaseTestCase):
         usuario = self.crear_usuario(username, 'docente', carrera=self.carrera)
         docente = self.crear_docente(f'CI-{username}', usuario=usuario, dedicacion='horario_40')
         docente.vinculos_carrera.update(dedicacion=dedicacion)
-        DatosLaborales.objects.filter(pk=docente.datos_laborales_id).update(fecha_ingreso=date(2026 - anios, 1, 15))
+        # Sin calendario, la antigüedad se mide al 1 de enero de la gestión: años exactos.
+        DatosLaborales.objects.filter(pk=docente.datos_laborales_id).update(fecha_ingreso=date(2026 - anios, 1, 1))
         return FondoTiempo.objects.create(docente=Docente.objects.get(pk=docente.pk), carrera=self.carrera, gestion=2026)
 
     def test_el_fondo_descuenta_vacaciones_segun_antiguedad(self):

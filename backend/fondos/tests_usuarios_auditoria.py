@@ -77,7 +77,8 @@ class FechaIngresoYVacacionesTests(UsuariosBaseTestCase):
         casos = {4: 15, 7: 20, 12: 30}
         for anios, dias in casos.items():
             with self.subTest(antiguedad=anios):
-                fecha = date(hoy.year - anios, 1, 15)
+                # 1 de enero: a partir de hoy ya se cumplieron los años completos.
+                fecha = date(hoy.year - anios, 1, 1)
 
                 response = self._crear_docente_por_api(f'docente_{anios}', fecha)
 
@@ -101,10 +102,10 @@ class FechaIngresoYVacacionesTests(UsuariosBaseTestCase):
 
     def test_editar_la_fecha_recalcula_las_vacaciones(self):
         hoy = date.today()
-        response = self._crear_docente_por_api('docente_edita', date(hoy.year - 4, 1, 15))
+        response = self._crear_docente_por_api('docente_edita', date(hoy.year - 4, 1, 1))
         docente_id = response.data['id']
 
-        nueva = date(hoy.year - 12, 3, 1)
+        nueva = date(hoy.year - 12, 1, 1)
         response = self.client.patch(f'/api/docentes/{docente_id}/', {'fecha_ingreso': nueva.isoformat()}, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)

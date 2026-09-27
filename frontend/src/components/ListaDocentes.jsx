@@ -780,10 +780,10 @@ function ListaDocentes({ sidebarCollapsed = false }) {
    * cálculo que el backend (calcular_horas_fondo): utils/horasFondo.js.
    * Con un cargo de gestión la jornada contractual es la del cargo (40 h/sem).
    */
-  const calcularHorasEfectivas = (dedicacion, fechaIngreso, { tieneRolGestion = false, horasFeriadosGestion = null, gestion = null } = {}) => {
+  const calcularHorasEfectivas = (dedicacion, fechaIngreso, { tieneRolGestion = false, horasFeriadosGestion = null, fechaReferencia = null } = {}) => {
     const horasDedicacion = horasSemanalesDedicacion(dedicacion);
     if (!horasDedicacion) return null;
-    const antiguedad = calcularAntiguedad(fechaIngreso, gestion);
+    const antiguedad = calcularAntiguedad(fechaIngreso, fechaReferencia);
     if (antiguedad === null) return null;
 
     const horasSemana = Math.min(
@@ -851,6 +851,21 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     horas_contrato_semanales: null,
     activo: true,
   });
+
+  // La antigüedad del fondo se mide al inicio de la gestión (calendario académico
+  // activo de la carrera). La vista previa usa la misma fecha para dar lo mismo.
+  const [fechaInicioGestion, setFechaInicioGestion] = useState(null);
+  useEffect(() => {
+    setFechaInicioGestion(null);
+    if (!formData.carrera) return undefined;
+    let vigente = true;
+    api.get('/calendarios/activo/', { params: { carrera: formData.carrera } })
+      .then((response) => { if (vigente) setFechaInicioGestion(response.data?.fecha_inicio || null); })
+      .catch(() => {
+        // Sin calendario activo: se usa el 1 de enero, igual que un fondo sin calendario.
+      });
+    return () => { vigente = false; };
+  }, [formData.carrera]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -2257,8 +2272,9 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                                 const horas = calcularHorasEfectivas(formData.dedicacion, formData.fecha_ingreso, {
                                   tieneRolGestion: usuarioFormularioTieneRolGestion,
                                   horasFeriadosGestion: formData.horas_feriados_gestion,
+                                  fechaReferencia: fechaInicioGestion,
                                 });
-                                const antiguedad = calcularAntiguedad(formData.fecha_ingreso) ?? 0;
+                                const antiguedad = calcularAntiguedad(formData.fecha_ingreso, fechaInicioGestion) ?? 0;
                                 const label = ETIQUETAS_DEDICACION[formData.dedicacion] || formData.dedicacion;
                                 if (formData.dedicacion === 'dedicacion_exclusiva') {
                                   return 'Docente con dedicacion exclusiva - exento de distribucion de tiempo';

@@ -3897,7 +3897,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
 
     def get_antiguedad(self, obj):
         if obj.docente:
-            return obj.docente.calcular_antiguedad(obj.gestion)
+            return obj.docente.calcular_antiguedad(obj.fecha_referencia_antiguedad())
         return 0
 
     def get_puede_editar(self, obj):

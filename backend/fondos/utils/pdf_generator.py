@@ -785,7 +785,7 @@ class FondoPDFGenerator:
         horas_feriados = fondo.horas_feriados
         horas_efectivas = float(fondo.horas_efectivas)
         
-        dias_vacacion = fondo.docente.calcular_dias_vacacion(fondo.gestion) if fondo.docente else 0
+        dias_vacacion = fondo.docente.calcular_dias_vacacion(fondo.fecha_referencia_antiguedad()) if fondo.docente else 0
         semanas_clase = SEMANAS_CLASES_AULA
         funciones_sustantivas = horas_efectivas - total_clases_aula
 

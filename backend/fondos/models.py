@@ -1,4 +1,5 @@
 from django.db import models
+from datetime import date
 from decimal import Decimal
 from django.core.validators import MinValueValidator, MaxValueValidator, MinLengthValidator, FileExtensionValidator
 from django.core.exceptions import ValidationError
@@ -160,6 +161,15 @@ HORAS_SEMANALES_DEDICACION = {
 }
 
 
+def fecha_referencia_antiguedad(valor=None):
+    """Fecha a la que se mide la antigüedad: una fecha, una gestión (1 de enero) o hoy."""
+    if valor is None:
+        return timezone.now().date()
+    if isinstance(valor, int):
+        return date(valor, 1, 1)
+    return valor.date() if hasattr(valor, 'date') and callable(valor.date) else valor
+
+
 class DatosLaborales(models.Model):
     """
     'ADN Laboral' universal para cualquier persona que trabaja en la U.A.B.J.B.
@@ -205,25 +215,33 @@ class DatosLaborales(models.Model):
     def __str__(self):
         return f"{self.ci} - Ingreso: {self.fecha_ingreso}"
 
-    def calcular_antiguedad(self, gestion=None):
-        """Calcula la antigüedad en años para una gestión dada."""
-        if not gestion:
-            gestion = timezone.now().year
+    def calcular_antiguedad(self, fecha_referencia=None):
+        """Años COMPLETOS cumplidos a la fecha de referencia (mira día y mes).
+
+        fecha_referencia: una fecha, una gestión (año: se toma el 1 de enero) o
+        None (hoy). Para un fondo se usa el inicio de su gestión
+        (FondoTiempo.fecha_referencia_antiguedad).
+        """
+        referencia = fecha_referencia_antiguedad(fecha_referencia)
         if not self.fecha_ingreso:
             return 0
-        return max(0, gestion - self.fecha_ingreso.year)
+        ingreso = self.fecha_ingreso
+        anios = referencia.year - ingreso.year - ((referencia.month, referencia.day) < (ingreso.month, ingreso.day))
+        return max(0, anios)
 
-    def calcular_dias_vacacion(self, gestion=None):
+    def calcular_dias_vacacion(self, fecha_referencia=None):
         """Días hábiles de vacación según antigüedad (Art. 11 y 24).
 
-        De 1 a 5 años: 15; de 5 a 10 años: 20; desde 10 años: 30.
+        Menos de 1 año: 0; de 1 a 5 años: 15; de 5 a 10 años: 20; desde 10 años: 30.
         """
-        antiguedad = self.calcular_antiguedad(gestion)
+        antiguedad = self.calcular_antiguedad(fecha_referencia)
         if antiguedad >= 10:
             return 30
-        elif antiguedad >= 5:
+        if antiguedad >= 5:
             return 20
-        return 15  # De 1 a 5 años (y por defecto)
+        if antiguedad >= 1:
+            return 15
+        return 0
 
     def save(self, *args, **kwargs):
         # Los días de vacación no se escriben a mano: salen de la fecha de ingreso.
@@ -365,17 +383,17 @@ class Docente(models.Model):
             self.datos_laborales.horas_feriados_gestion = value
             self.datos_laborales.save()
 
-    def calcular_antiguedad(self, gestion=None):
-        """Calcula la antigüedad en años para una gestión dada."""
+    def calcular_antiguedad(self, fecha_referencia=None):
+        """Años completos de antigüedad (ver DatosLaborales.calcular_antiguedad)."""
         if self.datos_laborales:
-            return self.datos_laborales.calcular_antiguedad(gestion)
+            return self.datos_laborales.calcular_antiguedad(fecha_referencia)
         return 0
 
-    def calcular_dias_vacacion(self, gestion=None):
-        """Calcula días de vacación según antigüedad (Art. 11 y 24)."""
+    def calcular_dias_vacacion(self, fecha_referencia=None):
+        """Días de vacación según antigüedad (Art. 11 y 24)."""
         if self.datos_laborales:
-            return self.datos_laborales.calcular_dias_vacacion(gestion)
-        return 15
+            return self.datos_laborales.calcular_dias_vacacion(fecha_referencia)
+        return 0
 
 
 class DocenteCarrera(models.Model):
@@ -1015,6 +1033,12 @@ class FondoTiempo(models.Model):
             activo=True
         ).first()
 
+    def fecha_referencia_antiguedad(self):
+        """Inicio de la gestión del fondo: el del calendario académico o el 1 de enero."""
+        if self.calendario_academico_id and self.calendario_academico.fecha_inicio:
+            return self.calendario_academico.fecha_inicio
+        return fecha_referencia_antiguedad(self.gestion)
+
     def _calcular_horas_fondo(self):
         """Contrato, vacaciones, feriados y horas efectivas del docente en esta gestión.
 
@@ -1026,7 +1050,7 @@ class FondoTiempo(models.Model):
             return None
         return calcular_horas_fondo(
             horas_semana,
-            self.docente.calcular_dias_vacacion(self.gestion),
+            self.docente.calcular_dias_vacacion(self.fecha_referencia_antiguedad()),
             self.docente.horas_feriados_gestion,
         )
 
@@ -2058,16 +2082,8 @@ class PerfilUsuario(models.Model):
                 name='unico_iiisyp_por_carrera',
                 condition=models.Q(rol='iiisyp', activo=True)
             ),
-            models.UniqueConstraint(
-                fields=['carrera', 'rol'],
-                name='unico_director_por_carrera',
-                condition=models.Q(rol='director', activo=True)
-            ),
-            models.UniqueConstraint(
-                fields=['carrera', 'rol'],
-                name='unico_jefe_por_carrera',
-                condition=models.Q(rol='jefe_estudios', activo=True)
-            ),
+            # Director y Jefe de Estudios únicos por carrera: se valida con las
+            # AsignacionCarrera activas (validar_unicidad_cargo_por_carrera).
         ]
 
     def __str__(self):
@@ -2114,19 +2130,19 @@ class PerfilUsuario(models.Model):
         datos = self.obtener_datos_laborales()
         return datos.horas_feriados_gestion if datos else 0
 
-    def calcular_antiguedad(self, gestion=None):
-        """Calcula la antigüedad en años."""
+    def calcular_antiguedad(self, fecha_referencia=None):
+        """Años completos de antigüedad (ver DatosLaborales.calcular_antiguedad)."""
         datos = self.obtener_datos_laborales()
         if datos:
-            return datos.calcular_antiguedad(gestion)
+            return datos.calcular_antiguedad(fecha_referencia)
         return 0
 
-    def calcular_dias_vacacion(self, gestion=None):
-        """Calcula días de vacación según antigüedad (Art. 11 y 24)."""
+    def calcular_dias_vacacion(self, fecha_referencia=None):
+        """Días de vacación según antigüedad (Art. 11 y 24)."""
         datos = self.obtener_datos_laborales()
         if datos:
-            return datos.calcular_dias_vacacion(gestion)
-        return 15
+            return datos.calcular_dias_vacacion(fecha_referencia)
+        return 0
 
     # ================================================================
     # Métodos existentes

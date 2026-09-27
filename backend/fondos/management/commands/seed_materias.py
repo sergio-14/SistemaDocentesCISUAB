@@ -82,7 +82,7 @@ class Command(BaseCommand):
     @transaction.atomic
     def handle(self, *args, **options):
         nombre_carrera = options['carrera'].strip()
-        FacultadCatalogo.objects.get_or_create(nombre=CARRERA_FACULTAD)
+        facultad, _ = FacultadCatalogo.objects.get_or_create(nombre=CARRERA_FACULTAD)
 
         carrera = Carrera.objects.filter(nombre__iexact=nombre_carrera).first()
         carrera_created = False
@@ -91,7 +91,7 @@ class Command(BaseCommand):
                 codigo=CARRERA_CODIGO,
                 defaults={
                     'nombre': nombre_carrera,
-                    'facultad': CARRERA_FACULTAD,
+                    'facultad': facultad,
                     'activo': True,
                 },
             )

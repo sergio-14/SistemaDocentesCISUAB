@@ -680,7 +680,7 @@ const FilterCarreras = ({
     const term = searchTerm.toLowerCase();
     const nombre = String(carrera.nombre || '').toLowerCase();
     const codigo = String(carrera.codigo || '').toLowerCase();
-    const facultad = String(carrera.facultad_nombre || '').toLowerCase();
+    const facultad = String(carrera.facultad || '').toLowerCase();
     return nombre.includes(term) || codigo.includes(term) || facultad.includes(term);
   });
 

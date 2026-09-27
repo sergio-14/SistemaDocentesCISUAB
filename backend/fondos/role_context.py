@@ -76,9 +76,11 @@ def get_active_careers_for_user(user, request=None):
     if user.is_superuser:
         return Carrera.objects.filter(activo=True)
 
+    # Devuelve la carrera aunque esté inactiva: el usuario puede seguir viendo su
+    # histórico. Las escrituras las bloquea CarreraInactivaSoloLecturaMixin.
     assignment = get_active_assignment(request)
     if assignment and assignment.carrera_id:
-        return Carrera.objects.filter(id=assignment.carrera_id, activo=True)
+        return Carrera.objects.filter(id=assignment.carrera_id)
 
     perfil = getattr(user, 'perfil', None)
     if not perfil:

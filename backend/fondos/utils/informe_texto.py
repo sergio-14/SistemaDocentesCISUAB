@@ -110,7 +110,7 @@ def cargo_gestion_docente(fondo):
     etiqueta = _etiqueta_gestion_docente(fondo)
     if not etiqueta:
         return None
-    siglas_facultad = _siglas_facultad(fondo.carrera.facultad)
+    siglas_facultad = _siglas_facultad(fondo.carrera.facultad.nombre)
     return f'{etiqueta} - {fondo.carrera.codigo} – {siglas_facultad} - U.A.B.J.B.'
 
 

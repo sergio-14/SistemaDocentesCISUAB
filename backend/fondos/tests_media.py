@@ -13,7 +13,7 @@ from django.core.management import call_command
 from django.test import TestCase, override_settings
 from PIL import Image
 
-from fondos.models import Carrera, PerfilUsuario, _get_image_cipher
+from fondos.models import Carrera, FacultadCatalogo, PerfilUsuario, _get_image_cipher
 from poa_document.models import (
     Actividad as ActividadPOA,
     DocumentoPOA,
@@ -38,7 +38,7 @@ class MediaTestCase(TestCase):
         self.media_root = tempfile.mkdtemp()
         self.override = override_settings(MEDIA_ROOT=self.media_root)
         self.override.enable()
-        self.carrera = Carrera.objects.create(nombre='Carrera Media', codigo='CMED', facultad='Prueba')
+        self.carrera = Carrera.objects.create(nombre='Carrera Media', codigo='CMED', facultad=FacultadCatalogo.objects.get_or_create(nombre='Prueba')[0])
         self.user = User.objects.create_user('usuario_media', password='x')
         self.perfil = PerfilUsuario.objects.get(user=self.user)
 

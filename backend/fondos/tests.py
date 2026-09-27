@@ -4,7 +4,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth.models import User
-from .models import Docente, Carrera, FondoTiempo, CalendarioAcademico, InformeFondo
+from .models import Docente, Carrera, FacultadCatalogo, FondoTiempo, CalendarioAcademico, InformeFondo
 
 # Estos tests no se ejecutaban (la app no tenía __init__.py y el descubrimiento
 # de tests la omitía) y quedaron desactualizados respecto al modelo actual:
@@ -21,8 +21,8 @@ MOTIVO_DESACTUALIZADO = (
 class FondoTiempoEvaluationTests(APITestCase):
     def setUp(self):
         # Crear Carreras
-        self.carrera_sistemas = Carrera.objects.create(nombre="Ingeniería de Sistemas", codigo="SIS", facultad="Ciencia y Tecnología")
-        self.carrera_derecho = Carrera.objects.create(nombre="Derecho", codigo="DER", facultad="Ciencias Jurídicas")
+        self.carrera_sistemas = Carrera.objects.create(nombre="Ingeniería de Sistemas", codigo="SIS", facultad=FacultadCatalogo.objects.get_or_create(nombre="Ciencia y Tecnología")[0])
+        self.carrera_derecho = Carrera.objects.create(nombre="Derecho", codigo="DER", facultad=FacultadCatalogo.objects.get_or_create(nombre="Ciencias Jurídicas")[0])
 
         # Crear Docentes
         self.docente_sistemas = Docente.objects.create(nombres="Juan", apellido_paterno="Perez", ci="123", carrera=self.carrera_sistemas, categoria="catedratico", dedicacion="tiempo_completo")
@@ -109,12 +109,12 @@ class UsuarioCargoUnicoTests(APITestCase):
         self.carrera_sistemas = Carrera.objects.create(
             nombre="Ingeniería de Sistemas",
             codigo="SIS",
-            facultad="Ciencia y Tecnología",
+            facultad=FacultadCatalogo.objects.get_or_create(nombre="Ciencia y Tecnología")[0],
         )
         self.carrera_derecho = Carrera.objects.create(
             nombre="Derecho",
             codigo="DER",
-            facultad="Ciencias Jurídicas",
+            facultad=FacultadCatalogo.objects.get_or_create(nombre="Ciencias Jurídicas")[0],
         )
 
         self.admin_user = User.objects.create_user(

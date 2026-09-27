@@ -822,7 +822,7 @@ class FondoPDFGenerator:
         altura_hasta_feriados = sum(col3_table._rowHeights[:5])
 
         # Columna 1
-        facultad_texto = fondo.carrera.facultad.title() if fondo.carrera else "Facultad de Ingeniería y Tecnología"
+        facultad_texto = fondo.carrera.facultad.nombre.title() if fondo.carrera else "Facultad de Ingeniería y Tecnología"
         carrera_texto = fondo.carrera.nombre.title() if fondo.carrera else "Carrera"
         nombre_docente = fondo.docente.nombre_completo.title() if fondo.docente else "Docente"
 

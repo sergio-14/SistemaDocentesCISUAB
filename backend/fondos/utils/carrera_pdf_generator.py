@@ -180,13 +180,13 @@ class CarreraPDFGenerator:
                 Paragraph('ACTUALIZADO', styles['label']),
             ],
             [
-                Paragraph(escape(CarreraPDFGenerator._texto(carrera.facultad)), styles['value']),
+                Paragraph(escape(CarreraPDFGenerator._texto(carrera.facultad.nombre)), styles['value']),
                 Paragraph(escape(CarreraPDFGenerator._texto(carrera.responsable)), styles['value']),
                 Paragraph(CarreraPDFGenerator._fecha(carrera.fecha_actualizacion), styles['value']),
             ],
             [
-                Paragraph('RESOLUCION', styles['label']),
-                Paragraph('FECHA RESOLUCION', styles['label']),
+                Paragraph('RESOLUCION DE CREACION (HCU)', styles['label']),
+                Paragraph('FECHA RESOLUCION DE CREACION (HCU)', styles['label']),
                 Paragraph('ESTADO', styles['label']),
             ],
             [

@@ -4,7 +4,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import Docente, DocenteCarrera, Carrera, Materia, FondoTiempo, CategoriaFuncion, Actividad, PerfilUsuario, AsignacionCarrera, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, EvidenciaCargaHoraria
+from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, CategoriaFuncion, Actividad, PerfilUsuario, AsignacionCarrera, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, EvidenciaCargaHoraria
 from .role_context import get_active_assignment, get_effective_profile, serialize_assignment
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from .utils.informe_imagenes import CAMPOS_HTML_INFORME, firmar_imagenes_html
@@ -1753,6 +1753,17 @@ class DatosLaboralesSerializer(serializers.ModelSerializer):
 
 
 class CarreraSerializer(serializers.ModelSerializer):
+    # La API usa el nombre de la facultad; en la base es una relación con FacultadCatalogo.
+    facultad = serializers.SlugRelatedField(
+        slug_field='nombre',
+        queryset=FacultadCatalogo.objects.all(),
+        error_messages={
+            'required': 'La facultad es obligatoria y no puede estar vacía.',
+            'null': 'La facultad es obligatoria y no puede estar vacía.',
+            'does_not_exist': 'La facultad seleccionada no es valida.',
+            'invalid': 'La facultad seleccionada no es valida.',
+        },
+    )
     logo_carrera = serializers.SerializerMethodField(read_only=True)
     logo_carrera_file = serializers.ImageField(write_only=True, required=False, allow_null=True)
     remove_logo_carrera = serializers.BooleanField(write_only=True, required=False, default=False)
@@ -1777,12 +1788,20 @@ class CarreraSerializer(serializers.ModelSerializer):
             'logo_carrera_file',
             'remove_logo_carrera',
         ]
+        # 'responsable' lo llena la señal al asignar un Director de Carrera.
+        read_only_fields = ['responsable']
 
     def get_logo_carrera(self, obj):
         return obj.get_logo_carrera_data_uri()
 
     def validate(self, attrs):
         instance = getattr(self, 'instance', None)
+
+        # El logo es obligatorio al crear; al editar se puede dejar el que ya tiene.
+        if instance is None and not attrs.get('logo_carrera_file'):
+            raise serializers.ValidationError({
+                'logo_carrera_file': 'El logo de carrera es obligatorio para crear una nueva carrera.'
+            })
 
         codigo = attrs.get('codigo', getattr(instance, 'codigo', ''))
         codigo_normalizado = (codigo or '').strip().upper()
@@ -1792,29 +1811,20 @@ class CarreraSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'codigo': 'El codigo de carrera debe tener al menos 2 caracteres.'})
         attrs['codigo'] = codigo_normalizado
 
-        facultad = attrs.get('facultad', getattr(instance, 'facultad', ''))
-        facultad_normalizada = (facultad or '').strip()
-        if not facultad_normalizada:
-            raise serializers.ValidationError({'facultad': 'La facultad es obligatoria y no puede estar vacía.'})
-        facultades_validas = set(Carrera.get_facultad_values())
-        if facultad_normalizada not in facultades_validas:
-            raise serializers.ValidationError({'facultad': 'La facultad seleccionada no es valida.'})
-        attrs['facultad'] = facultad_normalizada
-
         resolucion = attrs.get('resolucion_ministerial', getattr(instance, 'resolucion_ministerial', ''))
         if not (resolucion or '').strip():
             raise serializers.ValidationError({
-                'resolucion_ministerial': 'Debe registrar la resolución ministerial/universitaria de la carrera.'
+                'resolucion_ministerial': 'Debe registrar la resolución de creación (HCU) de la carrera.'
             })
 
         fecha_resolucion = attrs.get('fecha_resolucion', getattr(instance, 'fecha_resolucion', None))
         if not fecha_resolucion:
             raise serializers.ValidationError({
-                'fecha_resolucion': 'Debe registrar la fecha de resolución de la carrera.'
+                'fecha_resolucion': 'Debe registrar la fecha de resolución de creación (HCU) de la carrera.'
             })
         if fecha_resolucion and fecha_resolucion > timezone.now().date():
             raise serializers.ValidationError({
-                'fecha_resolucion': 'La fecha de resolución no puede ser futura.'
+                'fecha_resolucion': 'La fecha de resolución de creación (HCU) no puede ser futura.'
             })
 
         return attrs

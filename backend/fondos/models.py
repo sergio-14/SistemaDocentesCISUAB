@@ -565,7 +565,7 @@ class Carrera(models.Model):
     
     nombre = models.CharField(max_length=200, unique=True)
     codigo = models.CharField(max_length=20, unique=True, validators=[MinLengthValidator(2)])
-    facultad = models.CharField(max_length=200)
+    facultad = models.ForeignKey(FacultadCatalogo, on_delete=models.PROTECT, related_name='carreras')
     mision = models.TextField(blank=True, default='')
     vision = models.TextField(blank=True, default='')
     perfil_profesional = models.TextField(blank=True, default='', help_text='Descripción del perfil profesional del egresado')
@@ -593,36 +593,24 @@ class Carrera(models.Model):
     class Meta:
         verbose_name = "Carrera"
         verbose_name_plural = "Carreras"
-        ordering = ['facultad', 'nombre']
+        ordering = ['facultad__nombre', 'nombre']
     
     def __str__(self):
         return f"{self.nombre} - {self.facultad}"
 
-    @classmethod
-    def get_facultad_values(cls):
-        # Solo devolver facultades del catálogo editable
-        # Sin valores por defecto - el usuario las gestiona manualmente
-        return list(
-            FacultadCatalogo.objects.order_by('nombre').values_list('nombre', flat=True)
-        )
-
     def clean(self):
         super().clean()
         self.codigo = (self.codigo or '').strip().upper()
-        self.facultad = (self.facultad or '').strip()
 
         if not self.codigo:
             raise ValidationError({'codigo': 'El codigo de carrera es obligatorio.'})
-        if not (self.facultad or '').strip():
-            raise ValidationError({'facultad': 'La facultad es obligatoria y no puede estar vacía.'})
-        
-        # Validar facultad solo si hay facultades en el catálogo
-        facultades_validas = set(self.get_facultad_values())
-        if facultades_validas and self.facultad not in facultades_validas:
-            raise ValidationError({'facultad': 'La facultad seleccionada no es valida.'})
-        
+
         if self.fecha_resolucion and self.fecha_resolucion > timezone.now().date():
-            raise ValidationError({'fecha_resolucion': 'La fecha de resolución no puede ser futura.'})
+            raise ValidationError({'fecha_resolucion': 'La fecha de resolución de creación (HCU) no puede ser futura.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def set_logo_carrera(self, uploaded_file):
         """Guarda el logo en media/carreras/carrera_<id>/ (reemplaza el anterior)."""
@@ -1971,7 +1959,7 @@ class AsignacionCarrera(models.Model):
     ]
 
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='asignaciones_carrera')
-    carrera = models.ForeignKey(Carrera, on_delete=models.SET_NULL, null=True, blank=True, related_name='asignaciones_carrera')
+    carrera = models.ForeignKey(Carrera, on_delete=models.PROTECT, null=True, blank=True, related_name='asignaciones_carrera')
     rol = models.CharField(max_length=20, choices=ROLES)
     docente = models.ForeignKey(Docente, on_delete=models.SET_NULL, null=True, blank=True, related_name='asignaciones_carrera')
     activo = models.BooleanField(default=True)
@@ -2026,7 +2014,7 @@ class PerfilUsuario(models.Model):
 
     ci = models.CharField(max_length=20, blank=True, null=True, unique=True, verbose_name='Cedula de Identidad')
     rol = models.CharField(max_length=20, choices=ROLES, default='docente')
-    carrera = models.ForeignKey(Carrera, on_delete=models.SET_NULL, null=True, blank=True)
+    carrera = models.ForeignKey(Carrera, on_delete=models.PROTECT, null=True, blank=True)
     telefono = models.CharField(max_length=20, blank=True)
     foto_perfil = models.ImageField(upload_to=foto_perfil_upload_path, null=True, blank=True)
     # Almacenamiento antiguo (cifrado en la BD). Solo lectura: ver organizar_media.

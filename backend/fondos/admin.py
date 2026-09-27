@@ -117,8 +117,15 @@ DocenteAdmin.inlines = [DocenteCarreraInline]
 class CarreraAdmin(admin.ModelAdmin):
     list_display = ['nombre', 'codigo', 'facultad', 'activo']
     list_filter = ['facultad', 'activo']
-    search_fields = ['nombre', 'codigo', 'facultad']
-    ordering = ['facultad', 'nombre']
+    search_fields = ['nombre', 'codigo', 'facultad__nombre']
+    ordering = ['facultad__nombre', 'nombre']
+
+    # Crear y eliminar carreras es solo del superusuario, igual que en la API.
+    def has_add_permission(self, request):
+        return request.user.is_superuser
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser
 
 
 # =====================================================

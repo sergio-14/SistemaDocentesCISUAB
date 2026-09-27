@@ -577,7 +577,7 @@ function parseDisplayDate(display) {
   return d;
 }
 
-const DatePickerField = ({ label, name, value, onDateChange, error, required, maxIsoDate, pulse = 0 }) => {
+const DatePickerField = ({ label, name, value, onDateChange, error, required, maxIsoDate, pulse = 0, disabled = false }) => {
   const [open, setOpen] = useState(false);
   const [isPulsing, setIsPulsing] = useState(false);
   const [openQuickPicker, setOpenQuickPicker] = useState(null);
@@ -667,7 +667,7 @@ const DatePickerField = ({ label, name, value, onDateChange, error, required, ma
 
   const commitDate = (dateObj) => {
     if (isOverMaxDate(dateObj)) {
-      toast.error('La fecha de resolución no puede ser futura.');
+      toast.error('La fecha de resolución de creación (HCU) no puede ser futura.');
       return;
     }
     const iso = toIsoDate(dateObj);
@@ -698,7 +698,7 @@ const DatePickerField = ({ label, name, value, onDateChange, error, required, ma
       const parsed = parseDisplayDate(formatted);
       if (parsed) {
         if (isOverMaxDate(parsed)) {
-          toast.error('La fecha de resolución no puede ser futura.');
+          toast.error('La fecha de resolución de creación (HCU) no puede ser futura.');
           return;
         }
         onDateChange(name, toIsoDate(parsed));
@@ -718,7 +718,7 @@ const DatePickerField = ({ label, name, value, onDateChange, error, required, ma
     const parsed = parseDisplayDate(inputValue);
     if (parsed) {
       if (isOverMaxDate(parsed)) {
-        toast.error('La fecha de resolución no puede ser futura.');
+        toast.error('La fecha de resolución de creación (HCU) no puede ser futura.');
         setInputValue(formatDisplayDate(value));
         return;
       }
@@ -745,13 +745,15 @@ const DatePickerField = ({ label, name, value, onDateChange, error, required, ma
           value={inputValue}
           onChange={handleManualInputChange}
           onBlur={handleManualInputBlur}
-          className="w-full bg-transparent text-slate-800 dark:text-white px-4 py-2.5 pr-12 rounded-xl focus:outline-none"
+          disabled={disabled}
+          className="w-full bg-transparent text-slate-800 dark:text-white px-4 py-2.5 pr-12 rounded-xl focus:outline-none disabled:cursor-not-allowed disabled:text-slate-500 dark:disabled:text-slate-400"
           aria-label={label}
         />
         <button
           type="button"
           onClick={() => setOpen((prev) => !prev)}
-          className="absolute right-1.5 top-1/2 h-8 w-8 rounded-lg border border-[#3A56AF]/40 bg-[#2C4AAE] text-white hover:bg-[#233C8F] transition-colors"
+          disabled={disabled}
+          className="absolute right-1.5 top-1/2 h-8 w-8 rounded-lg border border-[#3A56AF]/40 bg-[#2C4AAE] text-white hover:bg-[#233C8F] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ transform: 'translateY(-50%)' }}
           aria-label={`Abrir calendario de ${label}`}
         >
@@ -761,7 +763,7 @@ const DatePickerField = ({ label, name, value, onDateChange, error, required, ma
         </button>
       </div>
 
-      {open && (
+      {open && !disabled && (
         <div
           className="absolute z-50 mt-2 w-[268px] max-w-[calc(100vw-2rem)] rounded-xl border border-[#7F97E8]/45 bg-[#2C4AAE] backdrop-blur-xl shadow-2xl p-2.5"
           onMouseDown={(e) => e.stopPropagation()}
@@ -1096,13 +1098,13 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
   const [carreraToDelete, setCarreraToDelete] = useState(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteImpact, setDeleteImpact] = useState({
-    loading: false,
-    materias: 0,
-    semestres: 0,
-    informes: 0,
-    failed: false,
+    detalle: [],
+    detail: '',
   });
   const [showDependencyWarningModal, setShowDependencyWarningModal] = useState(false);
+  // Si la carrera ya tiene datos asociados, su identidad (nombre, código, facultad,
+  // resolución y fecha) no se puede cambiar. null = sin datos.
+  const [identidadBloqueada, setIdentidadBloqueada] = useState(null);
   const createLogoInputRef = useRef(null);
   const suppressUpdateToastRef = useRef(false);
 
@@ -1258,8 +1260,20 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     setIsCreating(!isCreating);
   };
 
+  const cargarBloqueoIdentidad = async (carrera) => {
+    setIdentidadBloqueada(null);
+    try {
+      const response = await api.get(`/carreras/${carrera.id}/dependencias/`);
+      setIdentidadBloqueada(response.data?.tiene_datos ? (response.data.detalle || []) : null);
+    } catch (err) {
+      // El backend valida igual al guardar; aquí solo es una ayuda visual.
+      console.error('No se pudo verificar los datos asociados de la carrera:', err);
+    }
+  };
+
   const abrirModalEditar = (carrera) => {
     setCarreraSeleccionada(carrera);
+    cargarBloqueoIdentidad(carrera);
     setIsViewMode(false);
     suppressUpdateToastRef.current = false;
     setFormData({
@@ -1285,6 +1299,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
 
   const abrirModalVer = (carrera) => {
     setCarreraSeleccionada(carrera);
+    cargarBloqueoIdentidad(carrera);
     setIsViewMode(true);
     suppressUpdateToastRef.current = false;
     setFormData({
@@ -1347,7 +1362,6 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     payload.append('vision', formData.vision || '');
     payload.append('perfil_profesional', formData.perfil_profesional || '');
     payload.append('objetivo_carrera', formData.objetivo_carrera || '');
-    payload.append('responsable', formData.responsable || '');
     payload.append('activo', String(Boolean(formData.activo)));
 
     if (logoFile) {
@@ -1435,13 +1449,13 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     }
 
     if (!String(formData.resolucion_ministerial || '').trim()) {
-      newErrors.resolucion_ministerial = ['Este campo es obligatorio: resolución ministerial.'];
+      newErrors.resolucion_ministerial = ['Este campo es obligatorio: resolución de creación (HCU).'];
     }
 
     if (!String(formData.fecha_resolucion || '').trim()) {
-      newErrors.fecha_resolucion = ['Este campo es obligatorio: fecha de resolución.'];
+      newErrors.fecha_resolucion = ['Este campo es obligatorio: fecha de resolución de creación (HCU).'];
     } else if (formData.fecha_resolucion > FECHA_MAXIMA_HOY) {
-      newErrors.fecha_resolucion = ['La fecha de resolución no puede ser futura.'];
+      newErrors.fecha_resolucion = ['La fecha de resolución de creación (HCU) no puede ser futura.'];
     }
 
     if (requireLogo && !logoFile) {
@@ -1598,11 +1612,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
   const openDependencyWarning = (carrera, impactData, customDetail) => {
     setCarreraToDelete(carrera);
     setDeleteImpact({
-      loading: false,
-      materias: impactData?.materias || 0,
-      semestres: impactData?.semestres || 0,
-      informes: impactData?.informes || 0,
-      failed: false,
+      detalle: Array.isArray(impactData?.detalle) ? impactData.detalle : [],
       detail: customDetail || '',
     });
     setShowDependencyWarningModal(true);
@@ -1618,22 +1628,12 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
       const deps = response.data || {};
       if (deps.can_delete) {
         setCarreraToDelete(carrera);
-        setDeleteImpact({
-          loading: false,
-          materias: deps.materias || 0,
-          semestres: deps.semestres || 0,
-          informes: deps.informes || 0,
-          failed: false,
-        });
+        setDeleteImpact({ detalle: [], detail: '' });
         setShowDeleteModal(true);
         return;
       }
 
-      openDependencyWarning(
-        carrera,
-        deps,
-        `ERROR DE INTEGRIDAD: No se puede eliminar la carrera ${carrera.nombre} porque aún tiene ${deps.materias || 0} materias e informes vinculados.`
-      );
+      openDependencyWarning(carrera, deps);
     } catch (err) {
       console.error('Error verificando dependencias de carrera:', err);
       toast.error('No se pudo verificar dependencias de la carrera. Intenta nuevamente.');
@@ -1644,13 +1644,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     setShowDeleteModal(false);
     setCarreraToDelete(null);
     setDeleteConfirmText('');
-    setDeleteImpact({
-      loading: false,
-      materias: 0,
-      semestres: 0,
-      informes: 0,
-      failed: false,
-    });
+    setDeleteImpact({ detalle: [], detail: '' });
   };
 
   const confirmarEliminar = async () => {
@@ -1667,10 +1661,10 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     } catch (err) {
       console.error(err);
       const apiData = err.response?.data;
-      if (apiData?.code === 'protected_error') {
-        const deps = apiData?.dependencias || {};
+      if (apiData?.code === 'protected_error' || apiData?.code === 'dependency_exists') {
+        const carrera = carreraToDelete;
         closeDeleteModal();
-        openDependencyWarning(carreraToDelete, deps, apiData?.detail);
+        openDependencyWarning(carrera, apiData?.dependencias || {}, apiData?.detail);
         return;
       }
       toast.error('Error al eliminar: ' + (apiData?.detail || err.message));
@@ -1836,21 +1830,21 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
 
                         <div>
                           <InputFieldPulse
-                            label="Resolución Ministerial"
+                            label="Resolución de Creación (HCU)"
                             name="resolucion_ministerial"
                             value={formData.resolucion_ministerial}
                             onChange={handleChange}
                             required
                             error={errors.resolucion_ministerial}
                             pulse={errorPulse.resolucion_ministerial || 0}
-                            placeholder="Ej: RM 123/2020"
+                            placeholder="Ej: Res. HCU 123/2020"
                           />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <DatePickerField
-                          label="Fecha de Resolución"
+                          label="Fecha de Resolución de Creación (HCU)"
                           name="fecha_resolucion"
                           value={formData.fecha_resolucion}
                           onDateChange={handleDateChange}
@@ -2278,12 +2272,18 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
             </div>
 
             <form onSubmit={handleUpdateSubmit} noValidate className="px-6 py-5 max-h-[calc(90vh-76px)] overflow-y-auto">
+              {identidadBloqueada && (
+                <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100">
+                  Esta carrera ya tiene datos asociados ({identidadBloqueada.map((item) => `${item.etiqueta}: ${item.cantidad}`).join(', ')}).
+                  El nombre, el código, la facultad, la Resolución de Creación (HCU) y su fecha no se pueden cambiar.
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-5 gap-5 items-start">
                 <div className="md:col-span-3 space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Nombre de la Carrera {errors.nombre && <span className="text-red-500">*</span>}</label>
-                      <input type="text" name="nombre" value={formData.nombre} onChange={handleChange} onFocus={() => setErrors(prev => prev.nombre ? ({ ...prev, nombre: undefined }) : prev)} required placeholder="Ej: Ingeniería de Sistemas" className={`w-full px-4 py-2.5 rounded-xl border-2 ${errors.nombre ? ERROR_FIELD_BORDER_CLASS : 'border-slate-300 dark:border-slate-600'} bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 placeholder:text-xs placeholder:italic transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:shadow-md`} />
+                      <input type="text" name="nombre" value={formData.nombre} onChange={handleChange} onFocus={() => setErrors(prev => prev.nombre ? ({ ...prev, nombre: undefined }) : prev)} required disabled={!puedeEditarEstructura() || Boolean(identidadBloqueada)} placeholder="Ej: Ingeniería de Sistemas" className={`w-full px-4 py-2.5 rounded-xl border-2 ${errors.nombre ? ERROR_FIELD_BORDER_CLASS : 'border-slate-300 dark:border-slate-600'} bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 placeholder:text-xs placeholder:italic transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:shadow-md disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-400`} />
                       {errors.nombre && <p className="text-xs text-red-600 mt-1">{getErrorMessage(errors.nombre)}</p>}
                     </div>
 
@@ -2303,7 +2303,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                       searchable
                       options={facultadOptions}
                       error={errors.facultad}
-                      disabled={!puedeEditarEstructura()}
+                      disabled={!puedeEditarEstructura() || Boolean(identidadBloqueada)}
                       placeholder="Seleccione una facultad..."
                     />
                   </div>
@@ -2311,7 +2311,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Código {errors.codigo && <span className="text-red-500">*</span>}</label>
-                      <input type="text" name="codigo" value={formData.codigo} onChange={handleChange} onFocus={() => setErrors(prev => prev.codigo ? ({ ...prev, codigo: undefined }) : prev)} required disabled={!puedeEditarEstructura()} placeholder="Ej: IS" className={`w-full px-4 py-2.5 rounded-xl border-2 ${errors.codigo ? ERROR_FIELD_BORDER_CLASS : 'border-slate-300 dark:border-slate-600'} bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 placeholder:text-xs placeholder:italic transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:shadow-md disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-400`} />
+                      <input type="text" name="codigo" value={formData.codigo} onChange={handleChange} onFocus={() => setErrors(prev => prev.codigo ? ({ ...prev, codigo: undefined }) : prev)} required disabled={!puedeEditarEstructura() || Boolean(identidadBloqueada)} placeholder="Ej: IS" className={`w-full px-4 py-2.5 rounded-xl border-2 ${errors.codigo ? ERROR_FIELD_BORDER_CLASS : 'border-slate-300 dark:border-slate-600'} bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 placeholder:text-xs placeholder:italic transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:shadow-md disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-400`} />
                       {errors.codigo && <p className="text-xs text-red-600 mt-1">{getErrorMessage(errors.codigo)}</p>}
                       {!puedeEditarEstructura() && (
                         <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
@@ -2321,21 +2321,22 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Resolución Ministerial {errors.resolucion_ministerial && <span className="text-red-500">*</span>}</label>
-                      <input type="text" name="resolucion_ministerial" value={formData.resolucion_ministerial} onChange={handleChange} onFocus={() => setErrors(prev => prev.resolucion_ministerial ? ({ ...prev, resolucion_ministerial: undefined }) : prev)} required placeholder="Ej: RM 123/2020" className={`w-full px-4 py-2.5 rounded-xl border-2 ${errors.resolucion_ministerial ? ERROR_FIELD_BORDER_CLASS : 'border-slate-300 dark:border-slate-600'} bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 placeholder:text-xs placeholder:italic transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:shadow-md`} />
+                      <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Resolución de Creación (HCU) {errors.resolucion_ministerial && <span className="text-red-500">*</span>}</label>
+                      <input type="text" name="resolucion_ministerial" value={formData.resolucion_ministerial} onChange={handleChange} onFocus={() => setErrors(prev => prev.resolucion_ministerial ? ({ ...prev, resolucion_ministerial: undefined }) : prev)} required disabled={Boolean(identidadBloqueada)} placeholder="Ej: Res. HCU 123/2020" className={`w-full px-4 py-2.5 rounded-xl border-2 ${errors.resolucion_ministerial ? ERROR_FIELD_BORDER_CLASS : 'border-slate-300 dark:border-slate-600'} bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 placeholder:text-xs placeholder:italic transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:shadow-md disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-400`} />
                       {errors.resolucion_ministerial && <p className="text-xs text-red-600 mt-1">{getErrorMessage(errors.resolucion_ministerial)}</p>}
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <DatePickerField
-                      label="Fecha de Resolución"
+                      label="Fecha de Resolución de Creación (HCU)"
                       name="fecha_resolucion"
                       value={formData.fecha_resolucion}
                       onDateChange={handleDateChange}
                       required
                       error={errors.fecha_resolucion}
                       maxIsoDate={FECHA_MAXIMA_HOY}
+                      disabled={Boolean(identidadBloqueada)}
                     />
 
                     {/* Responsable: solo visible si ya tiene valor */}
@@ -2485,18 +2486,10 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
             </div>
             <div className="px-5 py-4 space-y-3 text-slate-700 dark:text-slate-200">
               <p className="text-sm leading-relaxed">
-                ¿Estás seguro de eliminar esta carrera? Esta acción es irreversible y eliminará TODOS los semestres, materias e informes de docentes vinculados.
+                ¿Estás seguro de eliminar esta carrera? No tiene datos asociados, pero la eliminación es irreversible.
               </p>
               <div className="rounded-lg border border-red-700/70 bg-red-200/70 dark:bg-red-500/10 px-3 py-2 text-sm text-red-900 dark:text-red-200">
                 Carrera objetivo: <strong className="text-red-900 dark:text-red-300">{carreraToDelete?.nombre}</strong>
-              </div>
-              <div className="rounded-lg border-2 border-red-700 bg-red-100 px-3 py-2 text-sm font-bold text-red-950 dark:border-red-600 dark:bg-red-950/35 dark:text-red-100">
-                Advertencia: se borraran semestres, materias, informes de docentes y todos los registros asociados a esta carrera.
-              </div>
-              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100">
-                {deleteImpact.loading && 'Calculando impacto de eliminación...'}
-                {!deleteImpact.loading && !deleteImpact.failed && `Se eliminarán ${deleteImpact.materias} materias, ${deleteImpact.semestres} semestres y ${deleteImpact.informes} informes.`}
-                {!deleteImpact.loading && deleteImpact.failed && 'No se pudo calcular el conteo de daños en este momento.'}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
@@ -2543,18 +2536,28 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
             <div className="px-5 py-4 border-b border-red-400 dark:border-slate-700/70 bg-gradient-to-r from-red-400 via-red-200 to-red-50 dark:from-red-900/30 dark:via-slate-900 dark:to-slate-900">
               <h4 className="text-lg font-bold text-red-900 dark:text-red-300 flex items-center gap-2">
                 <span>⛔</span>
-                Error de Integridad
+                No se puede eliminar
               </h4>
             </div>
             <div className="px-5 py-4 space-y-3 text-slate-700 dark:text-slate-200">
               <p className="text-sm leading-relaxed">
-                {deleteImpact.detail || `ERROR DE INTEGRIDAD: No se puede eliminar la carrera ${carreraToDelete.nombre} porque aún tiene ${deleteImpact.materias} materias e informes vinculados.`}
+                No se puede eliminar la carrera <strong>{carreraToDelete.nombre}</strong> porque tiene datos asociados.
               </p>
-              <div className="rounded-lg border border-red-700/70 bg-red-200/70 dark:bg-red-500/10 px-3 py-2 text-sm text-red-900 dark:text-red-100">
-                Dependencias detectadas: {deleteImpact.materias} materias, {deleteImpact.semestres} semestres, {deleteImpact.informes} informes.
-              </div>
+              {deleteImpact.detalle.length > 0 ? (
+                <ul className="rounded-lg border border-red-700/70 bg-red-200/70 dark:bg-red-500/10 px-3 py-2 text-sm text-red-900 dark:text-red-100 list-disc list-inside space-y-0.5">
+                  {deleteImpact.detalle.map((item) => (
+                    <li key={item.clave}>{item.etiqueta}: <strong>{item.cantidad}</strong></li>
+                  ))}
+                </ul>
+              ) : (
+                deleteImpact.detail && (
+                  <div className="rounded-lg border border-red-700/70 bg-red-200/70 dark:bg-red-500/10 px-3 py-2 text-sm text-red-900 dark:text-red-100">
+                    {deleteImpact.detail}
+                  </div>
+                )
+              )}
               <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100">
-                Para poder eliminar esta carrera, primero debes mover o eliminar manualmente todos sus registros asociados para evitar la pérdida accidental de datos.
+                Si la carrera ya no se usa, desactívala: sus datos quedan como histórico de solo lectura.
               </div>
             </div>
             <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700/70 flex justify-end bg-slate-50 dark:bg-slate-950/70">

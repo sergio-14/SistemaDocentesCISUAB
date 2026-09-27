@@ -1,7 +1,7 @@
 from rest_framework import viewsets, filters, status, generics, serializers as drf_serializers
 from rest_framework.decorators import action, api_view, permission_classes, renderer_classes
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser, BasePermission
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, BasePermission, SAFE_METHODS
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.auth.models import User
@@ -11,7 +11,7 @@ from rest_framework.exceptions import PermissionDenied
 from django.http import HttpResponse, JsonResponse, FileResponse
 from django.db import transaction, IntegrityError
 from django.db.models import Prefetch, ProtectedError, prefetch_related_objects, Q, Sum
-from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError as DjangoValidationError
 from django.core.cache import cache
 from datetime import datetime, date
 from decimal import Decimal, InvalidOperation
@@ -25,7 +25,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import (
     Docente, Carrera, Materia, FondoTiempo, CategoriaFuncion, PerfilUsuario, CargaHoraria,
     CalendarioAcademico, Proyecto, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo,
-    SaldoVacacionesGestion, FacultadCatalogo, DatosLaborales, DocenteCarrera, EvidenciaCargaHoraria
+    SaldoVacacionesGestion, FacultadCatalogo, DatosLaborales, DocenteCarrera, EvidenciaCargaHoraria,
+    AsignacionCarrera,
 )
 from .serializers import (
     DocenteSerializer, CarreraSerializer, MateriaSerializer, FondoTiempoSerializer,
@@ -109,6 +110,100 @@ def _sincronizar_estado_usuario_huerfano(user):
     user.asignaciones_carrera.filter(rol='docente', activo=True).update(activo=False)
     return user
 
+
+# Atributos por los que un objeto llega a su carrera, en orden de preferencia.
+_RUTAS_A_CARRERA = ('carrera', 'fondo_tiempo', 'fondo', 'calendario_academico', 'calendario', 'carga_horaria', 'materia')
+
+
+def _carrera_de_objeto(obj, profundidad=0):
+    """Carrera a la que pertenece obj (fondo, materia, carga horaria, informe...), o None."""
+    if obj is None or profundidad > 4:
+        return None
+    if isinstance(obj, Carrera):
+        return obj
+    for atributo in _RUTAS_A_CARRERA:
+        try:
+            relacionado = getattr(obj, atributo, None)
+        except ObjectDoesNotExist:
+            relacionado = None
+        if relacionado is not None and hasattr(relacionado, '_meta'):
+            return _carrera_de_objeto(relacionado, profundidad + 1)
+    return None
+
+
+class CarreraInactivaSoloLecturaMixin:
+    """Una carrera desactivada queda como histórico de solo lectura.
+
+    Quien no es superusuario puede ver sus datos, pero cualquier escritura
+    (POST/PUT/PATCH/DELETE, incluidas las acciones personalizadas) se rechaza si
+    toca una carrera inactiva: la del objeto de la URL, la de las relaciones que
+    vienen en el cuerpo o la carrera en la que el usuario está trabajando.
+    """
+
+    MENSAJE_CARRERA_INACTIVA = 'La carrera está inactiva: sus datos son de solo lectura.'
+
+    # Campos del cuerpo de la petición que apuntan (directa o indirectamente) a una carrera.
+    _CAMPOS_CON_CARRERA = {
+        'carrera': Carrera,
+        'fondo_tiempo': FondoTiempo,
+        'fondo': FondoTiempo,
+        'calendario_academico': CalendarioAcademico,
+        'calendario': CalendarioAcademico,
+        'materia': Materia,
+        'carga_horaria': CargaHoraria,
+    }
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        user = request.user
+        if request.method in SAFE_METHODS or not user or not user.is_authenticated or user.is_superuser:
+            return
+        for carrera in self._carreras_afectadas(request):
+            if carrera is not None and not carrera.activo:
+                raise PermissionDenied(self.MENSAJE_CARRERA_INACTIVA)
+
+    @staticmethod
+    def _buscar(modelo, pk):
+        try:
+            return modelo._default_manager.filter(pk=pk).first()
+        except (ValueError, TypeError, DjangoValidationError):
+            return None
+
+    def _relaciones_en_cuerpo(self, request):
+        data = request.data
+        bloques = [data] if hasattr(data, 'get') else []
+        asignaciones = data.get('asignaciones') if hasattr(data, 'get') else None
+        if isinstance(asignaciones, str):
+            try:
+                asignaciones = json.loads(asignaciones)
+            except ValueError:
+                asignaciones = None
+        if isinstance(asignaciones, list):
+            bloques.extend(item for item in asignaciones if isinstance(item, dict))
+
+        for bloque in bloques:
+            for campo, modelo in self._CAMPOS_CON_CARRERA.items():
+                valor = bloque.get(campo)
+                if valor not in (None, ''):
+                    yield _carrera_de_objeto(self._buscar(modelo, valor))
+
+    def _carreras_afectadas(self, request):
+        # 1) El objeto de la URL (detalle y acciones detail=True).
+        lookup = self.lookup_url_kwarg or self.lookup_field
+        if lookup in self.kwargs:
+            modelo = self.queryset.model
+            yield _carrera_de_objeto(self._buscar(modelo, self.kwargs[lookup]))
+
+        # 2) Relaciones enviadas en el cuerpo (al crear o reasignar).
+        yield from self._relaciones_en_cuerpo(request)
+
+        # 3) La carrera en la que trabaja el usuario (X-Active-Assignment o su perfil):
+        #    si todas sus carreras están inactivas, no puede escribir nada.
+        carreras = _obtener_carreras_activas_usuario(request.user, request)
+        if carreras.exists() and not carreras.filter(activo=True).exists():
+            yield carreras.first()
+
+
 class IsFullAdmin(BasePermission):
     """
     Permite acceso solo a usuarios autenticados que sean superusuarios.
@@ -139,7 +234,7 @@ class IsFullAdminOrDirectorCarrera(BasePermission):
             or (hasattr(request.user, 'perfil') and request.user.perfil.rol == 'director')
         ))
 
-class DocenteViewSet(viewsets.ModelViewSet):
+class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     queryset = Docente.objects.select_related('user', 'datos_laborales').prefetch_related('vinculos_carrera__carrera').all()
     serializer_class = DocenteSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -429,12 +524,12 @@ class DatosLaboralesViewSet(viewsets.ModelViewSet):
         return DatosLaborales.objects.all().select_related('docente').prefetch_related('perfiles')
 
 
-class CarreraViewSet(viewsets.ModelViewSet):
+class CarreraViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     queryset = Carrera.objects.all()
     serializer_class = CarreraSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [filters.SearchFilter]
-    search_fields = ['nombre', 'codigo', 'facultad']
+    search_fields = ['nombre', 'codigo', 'facultad__nombre']
 
     def get_queryset(self):
         queryset = Carrera.objects.all()
@@ -506,30 +601,72 @@ class CarreraViewSet(viewsets.ModelViewSet):
         return super().create(request, *args, **kwargs)
 
     def _build_dependency_counts(self, carrera):
-        materias_qs = Materia.objects.filter(carrera=carrera)
-        materias_count = materias_qs.count()
-        semestres_count = materias_qs.values('semestre').distinct().count()
+        # Todo lo que apunta a Carrera. Una carrera solo se puede eliminar si todo es 0.
+        from poa_document.models import UsuarioPOA, ProgramaPOA, OrdenCompraPOA
+
         fondos_qs = FondoTiempo.objects.filter(carrera=carrera)
-        fondos_count = fondos_qs.count()
-        informes_count = InformeFondo.objects.filter(fondo_tiempo__in=fondos_qs).count()
-        perfiles_qs = PerfilUsuario.objects.filter(carrera=carrera)
-        usuarios_count = perfiles_qs.filter(user__isnull=False).count()
-        docentes_count = perfiles_qs.filter(docente__isnull=False).count()
-        return {
-            'materias': materias_count,
-            'semestres': semestres_count,
-            'fondos': fondos_count,
-            'informes': informes_count,
-            'usuarios': usuarios_count,
-            'docentes': docentes_count,
-            'can_delete': (
-                materias_count == 0
-                and informes_count == 0
-                and fondos_count == 0
-                and usuarios_count == 0
-                and docentes_count == 0
-            ),
-        }
+        dependencias = [
+            ('materias', 'Materias', Materia.objects.filter(carrera=carrera).count()),
+            ('fondos', 'Fondos de tiempo', fondos_qs.count()),
+            ('informes', 'Informes', InformeFondo.objects.filter(fondo_tiempo__in=fondos_qs).count()),
+            ('docentes_vinculados', 'Docentes vinculados', DocenteCarrera.objects.filter(carrera=carrera).count()),
+            ('asignaciones', 'Asignaciones de usuarios', AsignacionCarrera.objects.filter(carrera=carrera).count()),
+            ('perfiles', 'Perfiles de usuario', PerfilUsuario.objects.filter(carrera=carrera).count()),
+            ('calendarios', 'Calendarios académicos', CalendarioAcademico.objects.filter(carrera=carrera).count()),
+            ('usuarios_poa', 'Usuarios POA', UsuarioPOA.objects.filter(carrera=carrera).count()),
+            ('programas_poa', 'Programas POA', ProgramaPOA.objects.filter(carrera=carrera).count()),
+            ('ordenes_compra_poa', 'Órdenes de compra POA', OrdenCompraPOA.objects.filter(carrera=carrera).count()),
+        ]
+        counts = {clave: cantidad for clave, _etiqueta, cantidad in dependencias}
+        counts['detalle'] = [
+            {'clave': clave, 'etiqueta': etiqueta, 'cantidad': cantidad}
+            for clave, etiqueta, cantidad in dependencias
+            if cantidad > 0
+        ]
+        counts['tiene_datos'] = bool(counts['detalle'])
+        counts['can_delete'] = not counts['tiene_datos']
+        return counts
+
+    @staticmethod
+    def _texto_dependencias(counts):
+        return ', '.join(f"{item['etiqueta']}: {item['cantidad']}" for item in counts['detalle'])
+
+    # Datos que identifican a la carrera en documentos oficiales. Si la carrera ya
+    # tiene datos asociados no se pueden cambiar; el resto (misión, visión,
+    # perfil, objetivo, logo) sigue editable.
+    CAMPOS_IDENTIDAD = {
+        'nombre': 'el nombre',
+        'codigo': 'el código',
+        'facultad': 'la facultad',
+        'resolucion_ministerial': 'la Resolución de Creación (HCU)',
+        'fecha_resolucion': 'la fecha de resolución de creación (HCU)',
+    }
+
+    @staticmethod
+    def _valor_identidad(valor):
+        if isinstance(valor, str):
+            return valor.strip()
+        return getattr(valor, 'pk', valor)
+
+    def _validar_campos_identidad(self, carrera, validated_data):
+        cambiados = [
+            campo for campo in self.CAMPOS_IDENTIDAD
+            if campo in validated_data
+            and self._valor_identidad(validated_data[campo]) != self._valor_identidad(getattr(carrera, campo))
+        ]
+        if not cambiados:
+            return
+        counts = self._build_dependency_counts(carrera)
+        if not counts['tiene_datos']:
+            return
+        texto = self._texto_dependencias(counts)
+        raise drf_serializers.ValidationError({
+            campo: (
+                f'No se puede cambiar {self.CAMPOS_IDENTIDAD[campo]} de la carrera porque ya tiene '
+                f'datos asociados ({texto}).'
+            )
+            for campo in cambiados
+        })
 
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
     def dependencias(self, request, pk=None):
@@ -611,7 +748,7 @@ class CarreraViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        if Carrera.objects.filter(facultad__iexact=facultad.nombre).exists():
+        if Carrera.objects.filter(facultad=facultad).exists():
             return Response(
                 {'detail': 'No se puede eliminar una facultad que ya está asignada a una carrera.'},
                 status=status.HTTP_409_CONFLICT,
@@ -630,10 +767,8 @@ class CarreraViewSet(viewsets.ModelViewSet):
                 {
                     'code': 'dependency_exists',
                     'detail': (
-                        f"No se puede eliminar la carrera {carrera.nombre}. "
-                        f"Debe estar totalmente vacía "
-                        f"(materias: {counts['materias']}, fondos: {counts['fondos']}, informes: {counts['informes']}, "
-                        f"usuarios: {counts['usuarios']}, docentes: {counts['docentes']})."
+                        f"No se puede eliminar la carrera {carrera.nombre} porque tiene datos asociados "
+                        f"({self._texto_dependencias(counts)})."
                     ),
                     'dependencias': counts,
                 },
@@ -644,15 +779,11 @@ class CarreraViewSet(viewsets.ModelViewSet):
             carrera.delete()
             return Response({'detail': 'Carrera eliminada correctamente.'}, status=status.HTTP_200_OK)
         except ProtectedError:
+            # Relación nueva que el conteo todavía no conoce: la base de datos la protege igual.
             return Response(
                 {
                     'code': 'protected_error',
-                    'detail': (
-                        f"ERROR DE INTEGRIDAD: No se puede eliminar la carrera {carrera.nombre} "
-                        f"porque tiene dependencias activas "
-                        f"(materias: {counts['materias']}, fondos: {counts['fondos']}, informes: {counts['informes']}, "
-                        f"usuarios: {counts['usuarios']}, docentes: {counts['docentes']})."
-                    ),
+                    'detail': f"No se puede eliminar la carrera {carrera.nombre} porque tiene datos asociados.",
                     'dependencias': counts,
                 },
                 status=status.HTTP_409_CONFLICT,
@@ -665,25 +796,7 @@ class CarreraViewSet(viewsets.ModelViewSet):
 
         # Superusuario: edición total de carrera.
         if self._is_superuser(user):
-            # 1) Bloquear cambio de codigo si ya tiene datos asociados
-            codigo = request.data.get('codigo', None)
-            if codigo is not None and codigo != instance.codigo:
-                counts_codigo = self._build_dependency_counts(instance)
-                if (
-                    counts_codigo['materias'] > 0
-                    or counts_codigo['fondos'] > 0
-                    or counts_codigo['docentes'] > 0
-                ):
-                    raise drf_serializers.ValidationError({
-                        'codigo': (
-                            f'No se puede cambiar el codigo de la carrera "{instance.nombre}" '
-                            f'porque ya tiene datos asociados '
-                            f'({counts_codigo["materias"]} materias, {counts_codigo["fondos"]} fondos, '
-                            f'{counts_codigo["docentes"]} docentes vinculados).'
-                        )
-                    })
-
-            # 2) Desactivar carrera: advertir con conteo pero permitir
+            # Desactivar carrera: advertir con conteo pero permitir
             raw_activo = request.data.get('activo', None)
             if raw_activo is not None:
                 normalized = str(raw_activo).strip().lower()
@@ -691,24 +804,16 @@ class CarreraViewSet(viewsets.ModelViewSet):
 
                 if instance.activo and not next_activo:
                     counts = self._build_dependency_counts(instance)
-                    if (
-                        counts['materias'] > 0
-                        or counts['informes'] > 0
-                        or counts['fondos'] > 0
-                        or counts['usuarios'] > 0
-                        or counts['docentes'] > 0
-                    ):
+                    if counts['tiene_datos']:
                         # Se permite desactivar pero con advertencia en la respuesta
                         request._desactivar_warning = (
                             f'Advertencia: se está desactivando la carrera "{instance.nombre}" '
-                            f'que tiene datos activos: '
-                            f'{counts["materias"]} materias, {counts["fondos"]} fondos, '
-                            f'{counts["informes"]} informes, {counts["usuarios"]} usuarios, '
-                            f'{counts["docentes"]} docentes.'
+                            f'que tiene datos asociados: {self._texto_dependencias(counts)}.'
                         )
 
             serializer = self.get_serializer(instance, data=request.data, partial=partial)
             serializer.is_valid(raise_exception=True)
+            self._validar_campos_identidad(instance, serializer.validated_data)
             self.perform_update(serializer)
 
             response_data = serializer.data.copy()
@@ -730,7 +835,6 @@ class CarreraViewSet(viewsets.ModelViewSet):
                 'vision',
                 'perfil_profesional',
                 'objetivo_carrera',
-                'responsable',
                 'logo_carrera_file',
                 'remove_logo_carrera',
             }
@@ -746,6 +850,7 @@ class CarreraViewSet(viewsets.ModelViewSet):
 
             serializer = self.get_serializer(instance, data=data, partial=True)
             serializer.is_valid(raise_exception=True)
+            self._validar_campos_identidad(instance, serializer.validated_data)
             self.perform_update(serializer)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -779,7 +884,7 @@ class CarreraViewSet(viewsets.ModelViewSet):
         return self.update(request, *args, **kwargs)
 
 
-class MateriaViewSet(viewsets.ModelViewSet):
+class MateriaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     queryset = Materia.objects.select_related('carrera').all()
     serializer_class = MateriaSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -787,15 +892,6 @@ class MateriaViewSet(viewsets.ModelViewSet):
     search_fields = ['nombre', 'sigla', 'carrera__nombre']
     ordering_fields = ['semestre', 'nombre', 'carrera']
     ordering = ['carrera', 'semestre', 'nombre']
-
-    def _usuario_carrera_inactiva(self):
-        user = self.request.user
-        if user.is_superuser:
-            return False
-        if hasattr(user, 'perfil') and user.perfil:
-            carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
-            return carreras_activas.exists() and not carreras_activas.filter(activo=True).exists()
-        return False
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -805,9 +901,6 @@ class MateriaViewSet(viewsets.ModelViewSet):
         if user.is_superuser:
             return queryset
 
-        if self._usuario_carrera_inactiva():
-            return queryset.none()
-        
         # Jefe de Estudios y Director ven materias de su carrera
         if hasattr(user, 'perfil') and user.perfil.rol in ['jefe_estudios', 'director']:
             carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
@@ -819,15 +912,11 @@ class MateriaViewSet(viewsets.ModelViewSet):
         return queryset
 
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy'] and self._usuario_carrera_inactiva():
-            raise PermissionDenied('Acceso bloqueado: tu carrera está inactiva.')
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsAdminOrDirector()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
-        if self._usuario_carrera_inactiva():
-            raise PermissionDenied('Acceso bloqueado: tu carrera está inactiva.')
         carrera = serializer.validated_data.get('carrera')
         if carrera and not carrera.activo:
             raise PermissionDenied('No se puede crear una materia en una carrera inactiva.')
@@ -849,7 +938,7 @@ class MateriaViewSet(viewsets.ModelViewSet):
         return self.update(request, *args, **kwargs)
 
 
-class CargaHorariaViewSet(viewsets.ModelViewSet):
+class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     """
     ViewSet para la asignación de horas por parte de Jefes de Estudio y Admins.
     - Jefes/Admins: CRUD completo.
@@ -865,22 +954,10 @@ class CargaHorariaViewSet(viewsets.ModelViewSet):
     ordering_fields = ['calendario__gestion', 'docente', 'horas', 'dia_semana', 'hora_inicio']
     ordering = ['-calendario__gestion']
 
-    def _usuario_carrera_inactiva(self):
-        user = self.request.user
-        if user.is_superuser:
-            return False
-        if hasattr(user, 'perfil') and user.perfil:
-            carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
-            return carreras_activas.exists() and not carreras_activas.filter(activo=True).exists()
-        return False
-
     def get_permissions(self):
         """
         Super Admin y Jefes de Estudio pueden crear, editar o borrar.
         """
-        if self._usuario_carrera_inactiva():
-            raise PermissionDenied('Acceso bloqueado: tu carrera está inactiva.')
-
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             user = self.request.user
             if not user.is_superuser:
@@ -899,9 +976,6 @@ class CargaHorariaViewSet(viewsets.ModelViewSet):
         except Exception:
             perfil = None
         queryset = super().get_queryset()
-
-        if self._usuario_carrera_inactiva():
-            return queryset.none()
 
         if not perfil:
             return queryset
@@ -954,7 +1028,7 @@ class CargaHorariaViewSet(viewsets.ModelViewSet):
 # EVIDENCIA DE CARGA HORARIA VIEWSET
 # =====================================================
 
-class EvidenciaCargaHorariaViewSet(viewsets.ModelViewSet):
+class EvidenciaCargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     """
     Archivos de evidencia que el docente adjunta a cada actividad de su
     carga horaria mientras el fondo esta 'en_ejecucion'.
@@ -1030,7 +1104,7 @@ class EvidenciaCargaHorariaViewSet(viewsets.ModelViewSet):
 # CALENDARIO ACADÉMICO VIEWSET
 # =====================================================
 
-class CalendarioAcademicoViewSet(viewsets.ModelViewSet):
+class CalendarioAcademicoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     """ViewSet para gestionar calendarios académicos"""
     queryset = CalendarioAcademico.objects.select_related('carrera').all()
     serializer_class = CalendarioAcademicoSerializer
@@ -1154,7 +1228,7 @@ class CalendarioAcademicoViewSet(viewsets.ModelViewSet):
         )
 
 
-class FondoTiempoViewSet(viewsets.ModelViewSet):
+class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     """
     ViewSet con sistema híbrido de permisos:
     - Admin: puede editar solo borradores, cambiar estados, archivar
@@ -1167,14 +1241,6 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
-    def _usuario_carrera_inactiva(self, user):
-        if user.is_superuser:
-            return False
-        if hasattr(user, 'perfil') and user.perfil:
-            carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
-            return carreras_activas.exists() and not carreras_activas.filter(activo=True).exists()
-        return False
-    
     def get_queryset(self):
         """
         Filtrar fondos según el usuario:
@@ -1188,9 +1254,6 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
             perfil = _obtener_perfil_efectivo(user, self.request)
         except Exception:
             perfil = None
-
-        if self._usuario_carrera_inactiva(user):
-            return queryset.none()
 
         def aplicar_filtros_query_params(qs):
             docente_id = self.request.query_params.get('docente')
@@ -1236,9 +1299,6 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
             'docente', 'carrera', 'calendario_academico', 'aprobado_por', 'validado_por'
         )
 
-        if self._usuario_carrera_inactiva(self.request.user):
-            queryset = queryset.none()
-        
         # 2. Aplicar filtros según la acción
         if self.action in ['retrieve', 'restaurar', 'destroy', 'generar_pdf_oficial', 'generar_pdf_informe']:
             # Acciones que permiten ver archivados (con validación de dueño)
@@ -1420,9 +1480,6 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         Aplica reglas de negocio para la creación de Fondos de Tiempo.
         Según Reglamento (Art. 9, 14), la creación es responsabilidad de Jefatura, no del Docente.
         """
-        if self._usuario_carrera_inactiva(request.user):
-            raise PermissionDenied('Acceso bloqueado: tu carrera está inactiva.')
-
         user = self.request.user
         try:
             perfil = _obtener_perfil_efectivo(user, request)
@@ -2663,9 +2720,9 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
             errores.append('La planificación no tiene carrera asociada.')
         else:
             if not (carrera.resolucion_ministerial or '').strip():
-                errores.append('Falta la Resolución Ministerial de la carrera.')
+                errores.append('Falta la Resolución de Creación (HCU) de la carrera.')
             if not carrera.fecha_resolucion:
-                errores.append('Falta la Fecha de Resolución de la carrera.')
+                errores.append('Falta la Fecha de Resolución de Creación (HCU) de la carrera.')
             if not (carrera.logo_carrera_cifrada or carrera.logo_carrera):
                 errores.append('Falta el logo oficial de la carrera.')
 
@@ -2756,22 +2813,10 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         checklist = self._build_checklist_salud_pdf(fondo)
         return Response(checklist, status=status.HTTP_200_OK)
         
-class FondoTiempoDistribucionAccessMixin:
+class FondoTiempoDistribucionAccessMixin(CarreraInactivaSoloLecturaMixin):
     permission_classes = [IsAuthenticated]
 
-    def _usuario_carrera_inactiva(self):
-        user = self.request.user
-        if user.is_superuser:
-            return False
-        if hasattr(user, 'perfil') and user.perfil:
-            carreras_activas = _obtener_carreras_activas_usuario(user)
-            return carreras_activas.exists() and not carreras_activas.filter(activo=True).exists()
-        return False
-
     def get_permissions(self):
-        if self._usuario_carrera_inactiva():
-            raise PermissionDenied('Acceso bloqueado: tu carrera está inactiva.')
-
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             user = self.request.user
             perfil = _obtener_perfil_efectivo(user, self.request)
@@ -2802,9 +2847,6 @@ class FondoTiempoDistribucionAccessMixin:
     def _filtrar_por_rol(self, queryset, fondo_path):
         user = self.request.user
         perfil = _obtener_perfil_efectivo(user, self.request)
-
-        if self._usuario_carrera_inactiva():
-            return queryset.none()
 
         if user.is_superuser:
             return queryset
@@ -2862,7 +2904,7 @@ class CategoriaFuncionViewSet(FondoTiempoDistribucionAccessMixin, viewsets.Model
 # PROYECTO VIEWSET
 # =====================================================
 
-class ProyectoViewSet(viewsets.ModelViewSet):
+class ProyectoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     """ViewSet para gestionar proyectos (Art. 14-17)"""
     queryset = Proyecto.objects.select_related(
         'fondo_tiempo', 'categoria', 'fondo_tiempo__docente'
@@ -2937,7 +2979,7 @@ class ProyectoViewSet(viewsets.ModelViewSet):
 # INFORME FONDO VIEWSET
 # =====================================================
 
-class InformeFondoViewSet(viewsets.ModelViewSet):
+class InformeFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     """ViewSet para gestionar informes (Art. 28)"""
     queryset = InformeFondo.objects.select_related(
         'fondo_tiempo', 'elaborado_por', 'evaluado_por',
@@ -3000,7 +3042,7 @@ class InformeFondoViewSet(viewsets.ModelViewSet):
 # OBSERVACIÓN FONDO VIEWSET
 # =====================================================
 
-class ObservacionFondoViewSet(viewsets.ModelViewSet):
+class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     """ViewSet para gestionar hilos de observaciones"""
     queryset = ObservacionFondo.objects.select_related(
         'fondo_tiempo', 'resuelta_por',
@@ -3273,7 +3315,7 @@ class HistorialFondoViewSet(viewsets.ReadOnlyModelViewSet):
 # VIEWSET PARA GESTIÓN DE USUARIOS
 # ============================================
 
-class UsuarioViewSet(viewsets.ModelViewSet):
+class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     """
     ViewSet para gestión completa de usuarios.
     Solo usuarios administradores pueden crear, editar y eliminar usuarios.

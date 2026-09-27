@@ -412,6 +412,22 @@ def usuario_tiene_uso_de_rol(user, perfil_actual=None):
     )
 
 
+def ficha_docente_pendiente(user):
+    """True si el usuario tiene rol docente activo pero todavía no tiene ficha de docente.
+
+    No lo desactiva: sus cargos funcionan normal y solo su parte docente queda
+    pendiente (sin ficha no hay fondo de tiempo ni carga horaria).
+    """
+    if not user or user.is_superuser:
+        return False
+    perfil = PerfilUsuario.objects.filter(user=user).first()
+    tiene_docencia = (
+        AsignacionCarrera.objects.filter(user=user, rol='docente', activo=True).exists()
+        or (perfil is not None and perfil.rol == 'docente')
+    )
+    return tiene_docencia and docente_del_usuario(user) is None
+
+
 def docente_del_usuario(user):
     perfil = PerfilUsuario.objects.filter(user=user).select_related('docente').first()
     if perfil and perfil.docente_id:
@@ -2480,14 +2496,19 @@ class UsuarioSerializer(serializers.ModelSerializer):
     asignaciones = serializers.SerializerMethodField()
     asignaciones_activas = serializers.SerializerMethodField()
     asignacion_activa = serializers.SerializerMethodField()
+    # Aviso "Falta crear la ficha de docente" (no bloquea al usuario).
+    ficha_docente_pendiente = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'nombre_completo',
               'is_staff', 'is_superuser', 'is_active', 'date_joined', 'perfil',
               'ci', 'carrera_codigo', 'telefono', 'asignaciones',
-              'asignaciones_activas', 'asignacion_activa']
+              'asignaciones_activas', 'asignacion_activa', 'ficha_docente_pendiente']
         read_only_fields = ['id', 'date_joined']
+
+    def get_ficha_docente_pendiente(self, obj):
+        return ficha_docente_pendiente(obj)
 
     def get_perfil(self, obj):
         """

@@ -92,8 +92,8 @@ class CreacionAtomicaTests(UsuariosBaseTestCase):
         self._assert_no_quedo_nada()
 
     def test_falla_despues_de_guardar_en_la_vista(self):
-        # Falla ya fuera del serializer (sincronización final de la vista).
-        with mock.patch('fondos.views._sincronizar_estado_usuario_huerfano', side_effect=RuntimeError('falla')):
+        # Falla ya fuera del serializer (la vista relee el usuario para responder).
+        with mock.patch('fondos.views.UsuarioViewSet._releer_usuario', side_effect=RuntimeError('falla')):
             with self.assertRaises(RuntimeError):
                 self.client.post('/api/usuarios/', self.datos, format='json')
 

@@ -92,40 +92,6 @@ def _docentes_por_carreras(carreras):
     return Docente.objects.filter(asignaciones_carrera__carrera__in=carreras, asignaciones_carrera__activo=True).distinct()
 
 
-def _usuario_docente_sin_vinculo(user):
-    if not user or user.is_superuser:
-        return False
-    perfil = getattr(user, 'perfil', None)
-    if not (perfil and perfil.rol == 'docente' and not perfil.docente_id):
-        return False
-
-    tiene_rol_autoridad = user.asignaciones_carrera.filter(rol__in=['director', 'jefe_estudios', 'iiisyp']).exists()
-    return not tiene_rol_autoridad
-
-
-def _sincronizar_estado_usuario_huerfano(user):
-    if not _usuario_docente_sin_vinculo(user):
-        return user
-
-    updates_user = []
-    if user.is_active:
-        user.is_active = False
-        updates_user.append('is_active')
-    if user.is_staff:
-        user.is_staff = False
-        updates_user.append('is_staff')
-    if updates_user:
-        user.save(update_fields=updates_user)
-
-    perfil = getattr(user, 'perfil', None)
-    if perfil and perfil.activo:
-        perfil.activo = False
-        perfil.save(update_fields=['activo'])
-
-    user.asignaciones_carrera.filter(rol='docente', activo=True).update(activo=False)
-    return user
-
-
 class CarreraInactivaSoloLecturaMixin(CarreraInactivaSoloLecturaBase):
     """Solo lectura para carreras inactivas en el módulo de fondos (ver fondos/solo_lectura.py)."""
 
@@ -3453,8 +3419,9 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         # Releer de la base: el objeto guardado conserva en caché el perfil que la
         # señal crea con rol 'docente', y la respuesta mostraba un rol que no se marcó.
+        # Un rol docente sin ficha no desactiva al usuario: queda "pendiente de
+        # ficha" (ver ficha_docente_pendiente) y sus cargos funcionan normal.
         user = self._releer_usuario(serializer.save())
-        user = _sincronizar_estado_usuario_huerfano(user)
 
         # Retornar con el serializer de lectura
         output_serializer = UsuarioSerializer(user, context={'request': request})
@@ -3482,8 +3449,6 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
-        user = _sincronizar_estado_usuario_huerfano(user)
-
         # Retornar con el serializer de lectura
         output_serializer = UsuarioSerializer(user, context={'request': request})
         return Response(output_serializer.data)
@@ -3493,13 +3458,9 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         page = self.paginate_queryset(queryset)
 
         if page is not None:
-            for user in page:
-                _sincronizar_estado_usuario_huerfano(user)
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
 
-        for user in queryset:
-            _sincronizar_estado_usuario_huerfano(user)
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
     
@@ -3647,13 +3608,6 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         es_reactivacion = not user.is_active
 
         if es_reactivacion:
-            # Validación mínima previa: debe tener vínculo docente
-            if _usuario_docente_sin_vinculo(user):
-                return Response(
-                    {'error': 'No se puede reactivar este usuario hasta que se le asigne un docente vinculado.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
             # Blindaje estructural de reactivación (normativa UABJB)
             error_reactivacion = self._validar_reactivacion_asignaciones(user)
             if error_reactivacion:
@@ -3681,7 +3635,7 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
 
             user.asignaciones_carrera.filter(rol='docente', activo=False).update(activo=True)
 
-        user = _sincronizar_estado_usuario_huerfano(self._releer_usuario(user))
+        user = self._releer_usuario(user)
 
         output_serializer = UsuarioSerializer(user, context={'request': request})
         return Response(output_serializer.data)

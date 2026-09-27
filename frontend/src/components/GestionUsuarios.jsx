@@ -200,20 +200,11 @@ const obtenerTextoCarrerasUsuario = (usuario) => {
   return carreras.join(' / ');
 };
 
-const ROLES_AUTORIDAD = ['director', 'jefe_estudios', 'iiisyp'];
-
 const usuarioTieneRolDocente = (usuario) => obtenerRolesUsuario(usuario).includes('docente');
-const usuarioTieneVinculoDocente = (usuario) => Boolean(usuario?.perfil?.docente_id || usuario?.perfil?.docente);
 
-const usuarioTienePerfilDocentePendiente = (usuario) => {
-  const roles = obtenerRolesUsuario(usuario);
-  return (
-    roles.length > 1
-    && roles.includes('docente')
-    && roles.some((rol) => ROLES_AUTORIDAD.includes(rol))
-    && !usuarioTieneVinculoDocente(usuario)
-  );
-};
+// Rol docente sin ficha de docente (lo calcula el backend). No desactiva al usuario:
+// sus cargos funcionan y solo su parte docente queda pendiente de ficha.
+const usuarioTienePerfilDocentePendiente = (usuario) => Boolean(usuario?.ficha_docente_pendiente);
 
 const AnimatedInlineMessage = ({ show, message, wrapperClassName = '', messageClassName = '' }) => {
   const [shouldRender, setShouldRender] = useState(show);
@@ -1182,7 +1173,7 @@ function GestionUsuarios({ isDark, sidebarCollapsed = false, user, hasSidebar = 
   });
   
   // Usuarios huerfanos: sin perfil o con cualquier rol docente sin docente vinculado
-  const esUsuarioHuerfano = (u) => !u?.perfil || (usuarioTieneRolDocente(u) && !usuarioTieneVinculoDocente(u));
+  const esUsuarioHuerfano = (u) => !u?.perfil || usuarioTienePerfilDocentePendiente(u);
   const hayOrfanos = usuarios.length > 0 && usuarios.some(esUsuarioHuerfano);
 
   useEffect(() => {
@@ -1371,8 +1362,6 @@ function GestionUsuarios({ isDark, sidebarCollapsed = false, user, hasSidebar = 
 
   const docentesActivosDisponibles = docentesDisponibles.filter((docente) => docente?.activo !== false);
   const docentesPorId = new Map(docentes.map((docente) => [String(docente.id), docente]));
-  const usuarioEsDocenteSinVinculo = (usuario) => Boolean(usuarioTieneRolDocente(usuario) && !usuarioTieneVinculoDocente(usuario));
-
   const usuarioTieneDocenteInactivo = (usuario) => {
     if (!usuarioTieneRolDocente(usuario)) return false;
     const docenteId = usuario?.perfil?.docente_id || usuario?.perfil?.docente;
@@ -2385,9 +2374,7 @@ const initialData = {
     : (usuario?.nombre_completo || '-'));
   const obtenerEstadoUsuario = (usuario) => {
     if (!usuario) return '-';
-    const docenteSinVinculo = usuarioEsDocenteSinVinculo(usuario);
     if (usuario.is_superuser) return 'Protegido';
-    if (docenteSinVinculo) return 'Sin vinculo docente';
     return usuario.is_active ? 'Activo' : 'Inactivo';
   };
   const obtenerTextoCarrerasDetalleUsuario = (usuario) => {
@@ -2788,9 +2775,9 @@ const initialData = {
               <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                 {usuariosFiltrados.map(usuario => (
                   (() => {
-                    const docenteSinVinculo = usuarioEsDocenteSinVinculo(usuario);
                     const perfilDocentePendiente = usuarioTienePerfilDocentePendiente(usuario);
-                    const filaInactiva = (usuario.is_active === false || (docenteSinVinculo && !perfilDocentePendiente)) && !usuario.is_superuser;
+                    // Solo el estado real del usuario: la falta de ficha de docente no lo inactiva.
+                    const filaInactiva = usuario.is_active === false && !usuario.is_superuser;
                     const textoFila = filaInactiva ? 'text-red-700 dark:text-red-300' : 'text-slate-700 dark:text-slate-300';
                     const textoPrincipal = filaInactiva ? 'font-bold text-red-700 dark:text-red-300' : 'font-bold text-slate-800 dark:text-white';
                     return (
@@ -2829,12 +2816,7 @@ const initialData = {
                         )}
                         {perfilDocentePendiente && (
                           <div className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-                            ⚠️ Perfil Docente Pendiente
-                          </div>
-                        )}
-                        {docenteSinVinculo && !perfilDocentePendiente && (
-                          <div className="text-xs font-semibold text-red-700 dark:text-red-400">
-                            Estado: ⚠️ Sin perfil docente vinculado
+                            ⚠️ Falta crear la ficha de docente
                           </div>
                         )}
                       </div>
@@ -2896,16 +2878,14 @@ const initialData = {
                       <div className="flex items-center justify-center gap-3">
                         {!usuario.is_superuser && (
                           <ToggleSwitch
-                            isActive={!docenteSinVinculo && usuario.is_active}
-                            disabled={!puedeCambiarEstadoUsuario(usuario) || (docenteSinVinculo && !perfilDocentePendiente)}
+                            isActive={usuario.is_active}
+                            disabled={!puedeCambiarEstadoUsuario(usuario)}
                             onChange={() => puedeCambiarEstadoUsuario(usuario) && handleToggleActivo(usuario)}
                           />
                         )}
                         <span className="text-sm font-semibold">
                           {usuario.is_superuser
                             ? <span className="text-amber-600 dark:text-amber-400 italic">protegido</span>
-                            : docenteSinVinculo
-                            ? <span className="text-red-800 dark:text-red-400 font-black italic tracking-wide">sin vínculo docente</span>
                             : usuario.is_active
                             ? <span className="text-emerald-600 dark:text-emerald-400 italic">Activo</span>
                             : <span className="text-red-800 dark:text-red-400 font-black italic tracking-wide">inactivo</span>
@@ -2968,7 +2948,6 @@ const initialData = {
           const rolesDetalle = obtenerRolesUsuario(usuarioDetalle);
           const puedeEditarDetalle = puedeEditarUsuario(usuarioDetalle);
           const puedeEliminarDetalle = puedeEliminarUsuarios() && !usuarioDetalle.is_superuser;
-          const docenteSinVinculoDetalle = usuarioEsDocenteSinVinculo(usuarioDetalle);
           const perfilDocentePendienteDetalle = usuarioTienePerfilDocentePendiente(usuarioDetalle);
           const docenteInactivoDetalle = usuarioTieneDocenteInactivo(usuarioDetalle);
           const correoDetalle = usuarioDetalle.email || usuarioDetalle.correo || '-';
@@ -3058,11 +3037,10 @@ const initialData = {
                       </div>
                     </div>
 
-                    {(!usuarioDetalle.perfil || perfilDocentePendienteDetalle || docenteSinVinculoDetalle) && (
+                    {(!usuarioDetalle.perfil || perfilDocentePendienteDetalle) && (
                       <div className="mt-4 md:mt-6 rounded-md border border-amber-300 bg-amber-50 p-3 md:p-4 text-xs md:text-sm font-semibold text-amber-900 dark:border-amber-700 dark:bg-amber-900/25 dark:text-amber-100">
                         {!usuarioDetalle.perfil && <p>Sin perfil asignado.</p>}
-                        {perfilDocentePendienteDetalle && <p>Perfil docente pendiente de vincular.</p>}
-                        {docenteSinVinculoDetalle && !perfilDocentePendienteDetalle && <p>Sin perfil docente vinculado.</p>}
+                        {perfilDocentePendienteDetalle && <p>Falta crear la ficha de docente: su parte docente (fondo de tiempo y carga horaria) queda pendiente. Sus demás roles funcionan normal.</p>}
                       </div>
                     )}
                   </div>

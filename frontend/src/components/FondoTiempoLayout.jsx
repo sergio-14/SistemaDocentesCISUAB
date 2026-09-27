@@ -4,6 +4,7 @@ import Sidebar from './Sidebar';
 import ThemeToggle from './ThemeToggle';
 import { useActiveRole } from '../contexts/ActiveRoleContext';
 import AvisoCarreraInactiva from './common/AvisoCarreraInactiva';
+import AvisoFichaDocentePendiente from './common/AvisoFichaDocentePendiente';
 
 const FondoTiempoLayout = ({ 
     user, 
@@ -70,6 +71,7 @@ const FondoTiempoLayout = ({
             >
                 <div className="min-h-full bg-blue-50 dark:bg-slate-900">
                     <AvisoCarreraInactiva className="sticky top-0 z-30 mx-4 mt-4 md:mx-8" />
+                    <AvisoFichaDocentePendiente className="mx-4 mt-4 md:mx-8" />
                     {/* Las rutas anidadas (ListaFondos, DetalleFondo, etc.) se renderizarán aquí */}
                     <Outlet />
                 </div>

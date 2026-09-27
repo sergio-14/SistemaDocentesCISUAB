@@ -39,6 +39,7 @@ def serialize_assignment(assignment):
         'carrera': assignment.carrera_id,
         'carrera_nombre': assignment.carrera.nombre if assignment.carrera else None,
         'carrera_codigo': assignment.carrera.codigo if assignment.carrera else None,
+        'carrera_activa': assignment.carrera.activo if assignment.carrera else None,
         'docente': assignment.docente_id,
         'docente_nombre': assignment.docente.nombre_completo if assignment.docente else None,
         'activo': assignment.activo,

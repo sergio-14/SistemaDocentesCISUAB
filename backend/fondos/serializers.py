@@ -1378,6 +1378,7 @@ class DocenteSerializer(serializers.ModelSerializer):
                 'carrera': asignacion.carrera_id,
                 'carrera_nombre': asignacion.carrera.nombre if asignacion.carrera else None,
                 'carrera_codigo': asignacion.carrera.codigo if asignacion.carrera else None,
+                'carrera_activa': asignacion.carrera.activo if asignacion.carrera else None,
                 'docente': asignacion.docente_id,
                 'activo': asignacion.activo,
             })
@@ -2464,6 +2465,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
                 'carrera': asignacion.carrera_id,
                 'carrera_nombre': asignacion.carrera.nombre if asignacion.carrera else None,
                 'carrera_codigo': asignacion.carrera.codigo if asignacion.carrera else None,
+                'carrera_activa': asignacion.carrera.activo if asignacion.carrera else None,
                 'docente': asignacion.docente_id,
                 'docente_nombre': asignacion.docente.nombre_completo if asignacion.docente else None,
                 'activo': asignacion.activo,

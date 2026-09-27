@@ -379,7 +379,7 @@ const MateriaList = ({ isDark, sidebarCollapsed = false }) => {
                             </div>
 
                             {canEdit && (
-                                <Link
+                                <Link data-escritura
                                     to="/fondo-tiempo/materias/nueva"
                                     className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 flex items-center justify-center gap-2"
                                 >
@@ -444,7 +444,7 @@ const MateriaList = ({ isDark, sidebarCollapsed = false }) => {
                                                 >
                                                     <FaEdit size={18} />
                                                 </Link>
-                                                <button
+                                                <button data-escritura
                                                     onClick={() => handleDelete(materia)}
                                                     className="text-red-500 hover:text-red-400 dark:text-red-400 dark:hover:text-red-300 transition-all duration-200 hover:scale-110"
                                                     title="Eliminar"
@@ -470,7 +470,7 @@ const MateriaList = ({ isDark, sidebarCollapsed = false }) => {
                             {materias.length > 0 ? 'Intenta seleccionar otro semestre o "Todos".' : 'Comienza agregando tu primera materia al sistema.'}
                         </p>
                         {canEdit && (
-                            <Link 
+                            <Link data-escritura 
                                 to="/fondo-tiempo/materias/nueva" 
                                 className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
                             >

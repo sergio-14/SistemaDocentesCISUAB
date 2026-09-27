@@ -2444,7 +2444,7 @@ const initialData = {
                 />
               </div>
               {puedeGestionarUsuarios() && (
-                <button
+                <button data-escritura
                   onClick={handleToggleCreateForm}
                   className="gestion-usuarios-create-btn px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 flex items-center gap-2"
                 >

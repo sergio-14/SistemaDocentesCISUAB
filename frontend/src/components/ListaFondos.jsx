@@ -211,7 +211,7 @@ function ListaFondos({ isDark }) {
             <div className="flex items-center gap-4">
               {puedeCrear && (
                 <>
-                  <button
+                  <button data-escritura
                     type="button"
                     onClick={() => setShowMassiveModal(true)}
                     className="inline-flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg transition-all"
@@ -219,7 +219,7 @@ function ListaFondos({ isDark }) {
                     <SparklesIcon className="w-5 h-5" />
                     <span>Generar Fondos Masivamente</span>
                   </button>
-                  <Link
+                  <Link data-escritura
                     to="/fondo-tiempo/nuevo-fondo"
                     className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
                   >
@@ -360,7 +360,7 @@ function ListaFondos({ isDark }) {
             </p>
             {puedeCrear && (
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                <button
+                <button data-escritura
                   type="button"
                   onClick={() => setShowMassiveModal(true)}
                   className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg transition-all"
@@ -368,7 +368,7 @@ function ListaFondos({ isDark }) {
                   <SparklesIcon className="w-5 h-5" />
                   <span>Generar Fondos Masivamente</span>
                 </button>
-                <Link
+                <Link data-escritura
                   to="/fondo-tiempo/nuevo-fondo"
                   className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
                 >

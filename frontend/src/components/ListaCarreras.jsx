@@ -1102,8 +1102,9 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     detail: '',
   });
   const [showDependencyWarningModal, setShowDependencyWarningModal] = useState(false);
-  // Si la carrera ya tiene datos asociados, su identidad (nombre, código, facultad,
-  // resolución y fecha) no se puede cambiar. null = sin datos.
+  // Si la carrera ya tiene datos académicos (materias, fondos, informes, docentes o
+  // calendarios), su identidad (nombre, código, facultad, resolución y fecha) no se
+  // puede cambiar. null = sin datos académicos.
   const [identidadBloqueada, setIdentidadBloqueada] = useState(null);
   const createLogoInputRef = useRef(null);
   const suppressUpdateToastRef = useRef(false);
@@ -1264,7 +1265,10 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     setIdentidadBloqueada(null);
     try {
       const response = await api.get(`/carreras/${carrera.id}/dependencias/`);
-      setIdentidadBloqueada(response.data?.tiene_datos ? (response.data.detalle || []) : null);
+      const deps = response.data || {};
+      setIdentidadBloqueada(
+        deps.tiene_datos_academicos ? (deps.detalle || []).filter((item) => item.academico) : null
+      );
     } catch (err) {
       // El backend valida igual al guardar; aquí solo es una ayuda visual.
       console.error('No se pudo verificar los datos asociados de la carrera:', err);
@@ -2241,7 +2245,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                 Cerrar
               </button>
               {puedeEditarInformacionCarrera() && (
-                <button
+                <button data-escritura
                   type="button"
                   onClick={() => setIsViewMode(false)}
                   className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all shadow-md"
@@ -2274,7 +2278,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
             <form onSubmit={handleUpdateSubmit} noValidate className="px-6 py-5 max-h-[calc(90vh-76px)] overflow-y-auto">
               {identidadBloqueada && (
                 <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100">
-                  Esta carrera ya tiene datos asociados ({identidadBloqueada.map((item) => `${item.etiqueta}: ${item.cantidad}`).join(', ')}).
+                  Esta carrera ya tiene datos académicos ({identidadBloqueada.map((item) => `${item.etiqueta}: ${item.cantidad}`).join(', ')}).
                   El nombre, el código, la facultad, la Resolución de Creación (HCU) y su fecha no se pueden cambiar.
                 </div>
               )}

@@ -6,6 +6,7 @@ import { useTheme } from '../../useTheme';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import PoaBreadcrumb from './components/PoaBreadcrumb';
+import AvisoCarreraInactiva from '../../components/common/AvisoCarreraInactiva';
 import ChatFlotantePOA from './components/ChatFlotantePOA';
 import GestionSelectorModal from './components/GestionSelectorModal';
 import { getUsuariosPOA } from '../../apis/poa.api';
@@ -189,6 +190,7 @@ function POAApp({ user }) {
 
         {/* Contenido central */}
         <section className={`poa-main-surface flex flex-col items-stretch justify-start flex-1 min-h-0 overflow-y-auto ${isHome ? 'pt-2 md:pt-2 pb-6' : 'pt-28 md:pt-16 pb-6'} ${isHome ? 'px-4 md:px-6 lg:px-8' : isEvidenciasPage ? 'px-4 md:px-8 lg:px-10' : (isActividadesPage || isPresupuestosPage || isObjetivosPage) ? 'px-2 md:px-4' : 'px-4 md:px-20'} w-full`}>
+          <AvisoCarreraInactiva className="mb-4" />
           <PoaBreadcrumb />
           <Outlet context={{ user, poaRoles, poaPermissions }} />
         </section>

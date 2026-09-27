@@ -1,7 +1,7 @@
 from rest_framework import viewsets, filters, status, generics, serializers as drf_serializers
 from rest_framework.decorators import action, api_view, permission_classes, renderer_classes
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser, BasePermission, SAFE_METHODS
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, BasePermission
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.auth.models import User
@@ -11,7 +11,7 @@ from rest_framework.exceptions import PermissionDenied
 from django.http import HttpResponse, JsonResponse, FileResponse
 from django.db import transaction, IntegrityError
 from django.db.models import Prefetch, ProtectedError, prefetch_related_objects, Q, Sum
-from django.core.exceptions import ObjectDoesNotExist, ValidationError as DjangoValidationError
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.cache import cache
 from datetime import datetime, date
 from decimal import Decimal, InvalidOperation
@@ -46,6 +46,7 @@ from .serializers import (
     _validar_fondo_tiempo_contractual_doble_rol,
 )
 from .role_context import get_effective_profile, get_active_careers_for_user
+from .solo_lectura import CarreraInactivaSoloLecturaMixin as CarreraInactivaSoloLecturaBase
 
 
 def _obtener_perfil_usuario(user):
@@ -111,39 +112,10 @@ def _sincronizar_estado_usuario_huerfano(user):
     return user
 
 
-# Atributos por los que un objeto llega a su carrera, en orden de preferencia.
-_RUTAS_A_CARRERA = ('carrera', 'fondo_tiempo', 'fondo', 'calendario_academico', 'calendario', 'carga_horaria', 'materia')
+class CarreraInactivaSoloLecturaMixin(CarreraInactivaSoloLecturaBase):
+    """Solo lectura para carreras inactivas en el módulo de fondos (ver fondos/solo_lectura.py)."""
 
-
-def _carrera_de_objeto(obj, profundidad=0):
-    """Carrera a la que pertenece obj (fondo, materia, carga horaria, informe...), o None."""
-    if obj is None or profundidad > 4:
-        return None
-    if isinstance(obj, Carrera):
-        return obj
-    for atributo in _RUTAS_A_CARRERA:
-        try:
-            relacionado = getattr(obj, atributo, None)
-        except ObjectDoesNotExist:
-            relacionado = None
-        if relacionado is not None and hasattr(relacionado, '_meta'):
-            return _carrera_de_objeto(relacionado, profundidad + 1)
-    return None
-
-
-class CarreraInactivaSoloLecturaMixin:
-    """Una carrera desactivada queda como histórico de solo lectura.
-
-    Quien no es superusuario puede ver sus datos, pero cualquier escritura
-    (POST/PUT/PATCH/DELETE, incluidas las acciones personalizadas) se rechaza si
-    toca una carrera inactiva: la del objeto de la URL, la de las relaciones que
-    vienen en el cuerpo o la carrera en la que el usuario está trabajando.
-    """
-
-    MENSAJE_CARRERA_INACTIVA = 'La carrera está inactiva: sus datos son de solo lectura.'
-
-    # Campos del cuerpo de la petición que apuntan (directa o indirectamente) a una carrera.
-    _CAMPOS_CON_CARRERA = {
+    campos_con_carrera = {
         'carrera': Carrera,
         'fondo_tiempo': FondoTiempo,
         'fondo': FondoTiempo,
@@ -153,55 +125,13 @@ class CarreraInactivaSoloLecturaMixin:
         'carga_horaria': CargaHoraria,
     }
 
-    def initial(self, request, *args, **kwargs):
-        super().initial(request, *args, **kwargs)
-        user = request.user
-        if request.method in SAFE_METHODS or not user or not user.is_authenticated or user.is_superuser:
-            return
-        for carrera in self._carreras_afectadas(request):
-            if carrera is not None and not carrera.activo:
-                raise PermissionDenied(self.MENSAJE_CARRERA_INACTIVA)
-
-    @staticmethod
-    def _buscar(modelo, pk):
-        try:
-            return modelo._default_manager.filter(pk=pk).first()
-        except (ValueError, TypeError, DjangoValidationError):
-            return None
-
-    def _relaciones_en_cuerpo(self, request):
-        data = request.data
-        bloques = [data] if hasattr(data, 'get') else []
-        asignaciones = data.get('asignaciones') if hasattr(data, 'get') else None
-        if isinstance(asignaciones, str):
-            try:
-                asignaciones = json.loads(asignaciones)
-            except ValueError:
-                asignaciones = None
-        if isinstance(asignaciones, list):
-            bloques.extend(item for item in asignaciones if isinstance(item, dict))
-
-        for bloque in bloques:
-            for campo, modelo in self._CAMPOS_CON_CARRERA.items():
-                valor = bloque.get(campo)
-                if valor not in (None, ''):
-                    yield _carrera_de_objeto(self._buscar(modelo, valor))
-
-    def _carreras_afectadas(self, request):
-        # 1) El objeto de la URL (detalle y acciones detail=True).
-        lookup = self.lookup_url_kwarg or self.lookup_field
-        if lookup in self.kwargs:
-            modelo = self.queryset.model
-            yield _carrera_de_objeto(self._buscar(modelo, self.kwargs[lookup]))
-
-        # 2) Relaciones enviadas en el cuerpo (al crear o reasignar).
-        yield from self._relaciones_en_cuerpo(request)
-
-        # 3) La carrera en la que trabaja el usuario (X-Active-Assignment o su perfil):
-        #    si todas sus carreras están inactivas, no puede escribir nada.
+    def carreras_de_contexto(self, request):
+        # Carrera de X-Active-Assignment o del perfil: si todas sus carreras están
+        # inactivas, el usuario no puede escribir nada.
         carreras = _obtener_carreras_activas_usuario(request.user, request)
         if carreras.exists() and not carreras.filter(activo=True).exists():
-            yield carreras.first()
+            return [carreras.first()]
+        return []
 
 
 class IsFullAdmin(BasePermission):
@@ -619,20 +549,29 @@ class CarreraViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         ]
         counts = {clave: cantidad for clave, _etiqueta, cantidad in dependencias}
         counts['detalle'] = [
-            {'clave': clave, 'etiqueta': etiqueta, 'cantidad': cantidad}
+            {'clave': clave, 'etiqueta': etiqueta, 'cantidad': cantidad, 'academico': clave in self.DEPENDENCIAS_ACADEMICAS}
             for clave, etiqueta, cantidad in dependencias
             if cantidad > 0
         ]
         counts['tiene_datos'] = bool(counts['detalle'])
+        counts['tiene_datos_academicos'] = any(item['academico'] for item in counts['detalle'])
         counts['can_delete'] = not counts['tiene_datos']
         return counts
 
+    # Datos académicos: si existen, la identidad de la carrera queda fija porque ya
+    # aparece en documentos. Usuarios, perfiles y POA no la bloquean (sí impiden borrar).
+    DEPENDENCIAS_ACADEMICAS = {'materias', 'fondos', 'informes', 'docentes_vinculados', 'calendarios'}
+
     @staticmethod
-    def _texto_dependencias(counts):
-        return ', '.join(f"{item['etiqueta']}: {item['cantidad']}" for item in counts['detalle'])
+    def _texto_dependencias(counts, solo_academicas=False):
+        return ', '.join(
+            f"{item['etiqueta']}: {item['cantidad']}"
+            for item in counts['detalle']
+            if item['academico'] or not solo_academicas
+        )
 
     # Datos que identifican a la carrera en documentos oficiales. Si la carrera ya
-    # tiene datos asociados no se pueden cambiar; el resto (misión, visión,
+    # tiene datos académicos no se pueden cambiar; el resto (misión, visión,
     # perfil, objetivo, logo) sigue editable.
     CAMPOS_IDENTIDAD = {
         'nombre': 'el nombre',
@@ -657,13 +596,13 @@ class CarreraViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         if not cambiados:
             return
         counts = self._build_dependency_counts(carrera)
-        if not counts['tiene_datos']:
+        if not counts['tiene_datos_academicos']:
             return
-        texto = self._texto_dependencias(counts)
+        texto = self._texto_dependencias(counts, solo_academicas=True)
         raise drf_serializers.ValidationError({
             campo: (
                 f'No se puede cambiar {self.CAMPOS_IDENTIDAD[campo]} de la carrera porque ya tiene '
-                f'datos asociados ({texto}).'
+                f'datos académicos ({texto}).'
             )
             for campo in cambiados
         })

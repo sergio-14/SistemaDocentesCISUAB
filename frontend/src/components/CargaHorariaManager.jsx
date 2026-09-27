@@ -846,7 +846,7 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
                     {/* Botón - pegado al fondo con mt-auto */}
                     <div className="mt-5">
                         {!isReadOnly && (
-                        <button type="submit"
+                        <button data-escritura type="submit"
                             disabled={submitDisabled}
                             className={`w-full py-3 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-2 transition-all ${
                                 submitDisabled

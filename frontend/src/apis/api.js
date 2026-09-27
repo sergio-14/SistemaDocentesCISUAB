@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_URL } from './apiConfig';
+import { bloquearEscrituraSiSoloLectura } from '../utils/soloLectura';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -30,7 +31,7 @@ api.interceptors.request.use(
     if (activeCareerId) {
       config.headers['X-Active-Carrera'] = activeCareerId;
     }
-    return config;
+    return bloquearEscrituraSiSoloLectura(config);
   },
   (error) => {
     return Promise.reject(error);

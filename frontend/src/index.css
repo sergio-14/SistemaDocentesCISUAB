@@ -3067,3 +3067,9 @@ body .observacion-modal-overlay {
     flex-direction: column;
   }
 }
+
+/* Carrera desactivada: se ocultan los botones que crean o editan datos
+   (marcados con data-escritura). El backend bloquea igual cualquier escritura. */
+html[data-solo-lectura="true"] [data-escritura] {
+  display: none !important;
+}

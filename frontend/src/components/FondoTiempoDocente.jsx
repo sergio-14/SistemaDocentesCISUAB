@@ -179,7 +179,7 @@ const FondoTiempoDocente = ({ isDark }) => {
 
                         {/* Botón Acción */}
                         {puedeCrearNuevoFondo && (
-                            <button
+                            <button data-escritura
                                 onClick={() => navigate('/fondo-tiempo/nuevo-fondo', { state: { docenteId: docente?.id, docenteNombre: nombreCompleto || 'Sin nombre' } })}
                                 className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
                             >

@@ -2278,7 +2278,7 @@ function ListaCalendarios() {
                   />
                 </div>
               )}
-            <button
+            <button data-escritura
               onClick={() => abrirModal()}
               className="w-full sm:w-auto px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 flex items-center justify-center gap-2"
             >

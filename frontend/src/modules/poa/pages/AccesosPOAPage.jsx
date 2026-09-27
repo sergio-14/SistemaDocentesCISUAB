@@ -170,7 +170,7 @@ export default function AccesosPOAPage() {
               Administra al usuario responsable de elaborar documentos POA.
             </p>
           </div>
-          <button
+          <button data-escritura
             onClick={() => { setEditTarget(null); setShowModal(true); }}
             className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-blue-700"
           >
@@ -248,7 +248,7 @@ export default function AccesosPOAPage() {
               <p className="mx-auto mt-1 max-w-md text-sm text-slate-500 dark:text-slate-300">
                 Asigna un elaborador para que el modulo POA tenga un responsable activo.
               </p>
-              <button
+              <button data-escritura
                 onClick={() => { setEditTarget(null); setShowModal(true); }}
                 className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-md transition hover:bg-blue-700"
               >

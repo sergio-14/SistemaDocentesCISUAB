@@ -405,14 +405,47 @@ class CarreraInactivaSoloLecturaTests(CarreraBaseTestCase):
     def test_superusuario_puede_reactivar_la_carrera(self):
         self.client.force_authenticate(self.superuser)
 
-        response = self.client.patch(
-            f'/api/carreras/{self.carrera.pk}/', {'activo': True, 'mision': 'Reactivada'}, format='json',
-        )
+        response = self.client.patch(f'/api/carreras/{self.carrera.pk}/', {'activo': True}, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.carrera.refresh_from_db()
         self.assertTrue(self.carrera.activo)
-        self.assertEqual(self.carrera.mision, 'Reactivada')
+
+        # Ya activa, se puede editar el resto.
+        response = self.client.patch(f'/api/carreras/{self.carrera.pk}/', {'mision': 'Reactivada'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_reactivar_con_otros_campos_se_rechaza(self):
+        self.client.force_authenticate(self.superuser)
+        peticiones = {
+            'patch con misión': lambda: self.client.patch(
+                f'/api/carreras/{self.carrera.pk}/', {'activo': True, 'mision': 'Reactivada'}, format='json',
+            ),
+            'put completo': lambda: self.client.put(
+                f'/api/carreras/{self.carrera.pk}/',
+                {
+                    'activo': 'true', 'nombre': self.carrera.nombre, 'codigo': self.carrera.codigo,
+                    'facultad': self.facultad.nombre, 'resolucion_ministerial': self.carrera.resolucion_ministerial,
+                    'fecha_resolucion': '2020-01-01', 'logo_carrera_file': _logo(),
+                },
+                format='multipart',
+            ),
+            'otros campos sin activo': lambda: self.client.patch(
+                f'/api/carreras/{self.carrera.pk}/', {'activo': True, 'nombre': 'Otro'}, format='json',
+            ),
+        }
+        for caso, peticion in peticiones.items():
+            with self.subTest(caso=caso):
+                response = peticion()
+
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertEqual(response.data['code'], 'reactivar_primero')
+                self.assertEqual(response.data['detail'], 'Primero reactive la carrera y luego edítela.')
+
+        self.carrera.refresh_from_db()
+        self.assertFalse(self.carrera.activo)
+        self.assertEqual(self.carrera.mision, '')
+        self.assertFalse(self.carrera.logo_carrera)
 
     def test_la_excepcion_de_reactivar_es_solo_del_superusuario(self):
         director = self.crear_usuario('director_reactiva', 'director', is_staff=True)

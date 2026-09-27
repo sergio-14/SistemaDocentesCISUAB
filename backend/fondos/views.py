@@ -499,7 +499,8 @@ class CarreraViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         return bool(user and user.is_authenticated and user.is_superuser)
 
     def permite_escritura_en_carrera_inactiva(self, request):
-        # Única excepción al solo lectura: el superusuario edita la carrera para reactivarla.
+        # Única excepción al solo lectura: el superusuario reactiva la carrera
+        # (update() rechaza que esa petición cambie algo más que `activo`).
         activo = str(request.data.get('activo', '')).strip().lower() if hasattr(request.data, 'get') else ''
         return (
             self._is_superuser(request.user)
@@ -749,6 +750,20 @@ class CarreraViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
 
         # Superusuario: edición total de carrera.
         if self._is_superuser(user):
+            # Carrera inactiva: la única escritura permitida es reactivarla, sola.
+            # Editar el resto se hace después, con la carrera ya activa.
+            if not instance.activo:
+                otros_campos = sorted(set(request.data.keys()) - {'activo'})
+                if otros_campos:
+                    return Response(
+                        {
+                            'code': 'reactivar_primero',
+                            'detail': 'Primero reactive la carrera y luego edítela.',
+                            'campos': otros_campos,
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
             # Desactivar carrera: advertir con conteo pero permitir
             raw_activo = request.data.get('activo', None)
             if raw_activo is not None:

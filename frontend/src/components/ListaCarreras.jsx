@@ -1521,6 +1521,10 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     }
 
     setErrors({});
+    if (reactivandoCarrera) {
+      await reactivarCarrera();
+      return;
+    }
     const newErrors = validateCarreraForm({ requireLogo: false });
     if (Object.keys(newErrors).length > 0) {
       toast.error('Completa los campos obligatorios marcados en rojo.');
@@ -1563,6 +1567,30 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
         let errorMsg = apiData?.detail || err.message;
         toast.error('Error al actualizar: ' + errorMsg);
       }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // La reactivación va sola: el backend rechaza que cambie algo más que `activo`.
+  const reactivarCarrera = async () => {
+    if (!formData.activo) {
+      toast.error('La carrera está desactivada. Actívala con el interruptor para reactivarla.');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const response = await api.patch(`/carreras/${carreraSeleccionada.id}/`, { activo: true });
+      suppressUpdateToastRef.current = false;
+      toast.success('Carrera reactivada. Ahora puedes editarla.');
+      window.dispatchEvent(new Event(EVENTO_CARRERAS_ACTUALIZADAS));
+      if (response.data?.id) {
+        setCarreras((prev) => prev.map((carrera) => (carrera.id === response.data.id ? response.data : carrera)));
+        setCarreraSeleccionada(response.data);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al reactivar: ' + (err.response?.data?.detail || err.message));
     } finally {
       setIsSubmitting(false);
     }
@@ -1685,6 +1713,8 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
   const puedeEditarEstructura = () => esSuperusuario();
   const soloEditarLogo = () => !esSuperusuario() && rolActual === 'jefe_estudios';
   const puedeGestionarFacultades = () => esSuperusuario();
+  // Carrera inactiva en edición: solo se puede reactivar (el backend rechaza cambiar otros campos).
+  const reactivandoCarrera = carreraSeleccionada?.activo === false;
 
   const handleDescargarFichaPdf = async () => {
     if (!carreraSeleccionada?.id) return;
@@ -2282,7 +2312,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
               {carreraSeleccionada.activo === false && (
                 <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-800 dark:text-red-100">
                   🔒 Esta carrera está desactivada y es de solo lectura, también para el superusuario.
-                  Para guardar cambios, actívala con el interruptor del logo y luego actualiza.
+                  Primero reactívala con el interruptor del logo y pulsa Actualizar; después podrás editar el resto.
                 </div>
               )}
               {identidadBloqueada && (
@@ -2292,7 +2322,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                 </div>
               )}
               <div className="grid grid-cols-1 md:grid-cols-5 gap-5 items-start">
-                <div className="md:col-span-3 space-y-4">
+                <fieldset disabled={reactivandoCarrera} className="md:col-span-3 space-y-4 min-w-0">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Nombre de la Carrera {errors.nombre && <span className="text-red-500">*</span>}</label>
@@ -2361,7 +2391,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                     )}
                   </div>
 
-                </div>
+                </fieldset>
 
                 <div className="md:col-span-2 h-full">
                   <div className={`rounded-xl border p-4 h-full flex flex-col ${
@@ -2376,7 +2406,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                       )}
                     </div>
 
-                    <input type="file" accept="image/*" onChange={handleLogoChange} className="hidden" id="editar-logo-carrera-file" />
+                    <input type="file" accept="image/*" onChange={handleLogoChange} className="hidden" id="editar-logo-carrera-file" disabled={reactivandoCarrera} />
 
                     <div className="flex-1 flex items-center justify-center">
                       <div className={`mx-auto w-40 h-40 rounded-full overflow-hidden border shadow-md relative group ${
@@ -2397,7 +2427,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                                 <span className="text-[10px] font-bold">CAMBIAR</span>
                               </label>
                               <div className="w-px h-full bg-white/20" />
-                              <button type="button" onClick={handleRemoveLogo} className="w-1/2 h-full bg-red-600/65 hover:bg-red-600/85 backdrop-blur-md flex flex-col items-center justify-center cursor-pointer text-white">
+                              <button type="button" onClick={handleRemoveLogo} disabled={reactivandoCarrera} className="w-1/2 h-full bg-red-600/65 hover:bg-red-600/85 backdrop-blur-md flex flex-col items-center justify-center cursor-pointer text-white">
                                 <span className="text-[10px] font-bold">BORRAR</span>
                               </button>
                             </>
@@ -2419,7 +2449,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
 
                 </div>
 
-                <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <fieldset disabled={reactivandoCarrera} className="md:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
                   <ExpandableTextField
                     label="Misión"
                     name="mision"
@@ -2439,9 +2469,9 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                     placeholder="Visión institucional de la carrera"
                     rows={3}
                   />
-                </div>
+                </fieldset>
 
-                <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <fieldset disabled={reactivandoCarrera} className="md:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
                   <ExpandableTextField
                     label="Perfil Profesional"
                     name="perfil_profesional"
@@ -2461,7 +2491,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                     placeholder="Objetivo general de la carrera"
                     rows={3}
                   />
-                </div>
+                </fieldset>
 
               </div>
 

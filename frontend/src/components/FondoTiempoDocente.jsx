@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
 import { puedeCrearFondoTiempo } from '../utils/fondoTiempoPermissions';
+import { ETIQUETAS_DEDICACION } from '../utils/dedicaciones';
 
 // debug: ayuda a asegurar que esta versión se está usando
 console.log('FondoTiempoDocente component loaded (redesign v2).');
@@ -128,16 +129,8 @@ const FondoTiempoDocente = ({ isDark }) => {
     // categoria y dedicacion ahora vienen del primer vínculo
     const primerVinculo = docente?.vinculos?.[0] || null;
     const categoria = primerVinculo?.categoria || 'N/A';
-    const dedicacionLabels = {
-        tiempo_completo: 'Tiempo Completo',
-        medio_tiempo: 'Medio Tiempo',
-        horario_16: 'Horario 16hrs/sem',
-        horario_24: 'Horario 24hrs/sem',
-        horario_40: 'Horario 40hrs/sem',
-        horario_48: 'Horario 48hrs/sem',
-    };
     const dedicacion = primerVinculo?.dedicacion || 'N/A';
-    const dedicacionLabel = dedicacionLabels[dedicacion] || dedicacion;
+    const dedicacionLabel = ETIQUETAS_DEDICACION[dedicacion] || dedicacion;
     const puedeCrear = puedeCrearFondoTiempo(user);
     const tieneFondoPeriodoActivo = Boolean(calendarioActivo?.id && fondos.length > 0);
     const puedeCrearNuevoFondo = puedeCrear && !tieneFondoPeriodoActivo;

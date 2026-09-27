@@ -44,6 +44,9 @@ from .serializers import (
     # Validadores estructurales de asignación (blindaje de reactivación, normativa UABJB)
     validar_unicidad_cargo_por_carrera,
     _validar_fondo_tiempo_contractual_doble_rol,
+    datos_registrados_usuario,
+    docente_del_usuario,
+    texto_datos_registrados,
 )
 from .role_context import get_effective_profile, get_active_careers_for_user
 from .solo_lectura import CarreraInactivaSoloLecturaMixin as CarreraInactivaSoloLecturaBase
@@ -124,6 +127,10 @@ class CarreraInactivaSoloLecturaMixin(CarreraInactivaSoloLecturaBase):
         'materia': Materia,
         'carga_horaria': CargaHoraria,
     }
+
+    def es_rol_solo_lectura(self, request):
+        perfil = _obtener_perfil_efectivo(request.user, request)
+        return bool(perfil and perfil.rol == 'iiisyp')
 
     def carreras_de_contexto(self, request):
         # Carrera de X-Active-Assignment o del perfil: si todas sus carreras están
@@ -869,8 +876,8 @@ class MateriaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         if user.is_superuser:
             return queryset
 
-        # Jefe de Estudios y Director ven materias de su carrera
-        if hasattr(user, 'perfil') and user.perfil.rol in ['jefe_estudios', 'director']:
+        # Jefe de Estudios, Director e Instituto ven materias de su carrera
+        if hasattr(user, 'perfil') and user.perfil.rol in ['jefe_estudios', 'director', 'iiisyp']:
             carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
             if carreras_activas.exists():
                 queryset = queryset.filter(carrera__in=carreras_activas)
@@ -948,7 +955,7 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
         if not perfil:
             return queryset
 
-        if perfil.rol in ['director', 'jefe_estudios']:
+        if perfil.rol in ['director', 'jefe_estudios', 'iiisyp']:
             carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
             if carreras_activas.exists():
                 docentes_carrera = _docentes_por_carreras(carreras_activas)
@@ -2822,7 +2829,7 @@ class FondoTiempoDistribucionAccessMixin(CarreraInactivaSoloLecturaMixin):
         if not perfil:
             return queryset.none()
 
-        if perfil.rol in ['director', 'jefe_estudios']:
+        if perfil.rol in ['director', 'jefe_estudios', 'iiisyp']:
             carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
             if carreras_activas.exists():
                 return queryset.filter(**{f'{fondo_path}__carrera__in': carreras_activas})
@@ -3402,110 +3409,83 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
     
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
+    def dependencias(self, request, pk=None):
+        """Datos registrados del usuario: si hay alguno no se puede eliminar y su identidad queda fija."""
+        return Response(datos_registrados_usuario(self.get_object()), status=status.HTTP_200_OK)
+
     def destroy(self, request, *args, **kwargs):
         """
-        BORRADO CONTROLADO DE USUARIO
-        Bloquea eliminación si existe huella operativa para proteger no repudio.
-        Si no hay actividad ni fondos, permite borrado físico total.
+        BORRADO CONTROLADO DE USUARIO (misma regla que Carrera)
+        - Con datos registrados (fondos, informes, cargas, saldos, POA...): no se
+          elimina, solo se desactiva.
+        - Sin datos: se borra el usuario junto con sus asignaciones, su perfil y su
+          ficha de docente, sin dejar registros huérfanos.
         """
-        from .models import PerfilUsuario, InformeFondo, MensajeObservacion, SaldoVacacionesGestion, CargaHoraria
-        from poa_document.models import HistorialDocumentoPOA
-        
         user = self.get_object()
-        
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"Intentando eliminar usuario: {user.username} (ID: {user.id})")
-        
-        # 0. Validación de Seguridad: Impedir eliminar superusuarios
+
         if user.is_superuser:
             return Response(
                 {'error': 'No se puede eliminar a un superusuario por seguridad. Debe hacerlo desde la consola.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # ============================================
-        # CHEQUEO DE HUELLA OPERATIVA (NO REPUDIO)
-        # ============================================
-        mensajes_count = MensajeObservacion.objects.filter(autor=user).count()
-        informes_count = InformeFondo.objects.filter(elaborado_por=user).count()
-        cargas_autoria_count = CargaHoraria.objects.filter(creado_por=user).count()
-        poa_count = HistorialDocumentoPOA.objects.filter(usuario=user).count()
-
-        if any([mensajes_count > 0, informes_count > 0, cargas_autoria_count > 0, poa_count > 0]):
+        datos = datos_registrados_usuario(user)
+        if datos['tiene_datos']:
             return Response(
-                {'error': 'Este usuario tiene actividad registrada en el sistema. No puede eliminarse, solo desactivarse.'},
-                status=status.HTTP_400_BAD_REQUEST
+                {
+                    'code': 'dependency_exists',
+                    'error': (
+                        f'No se puede eliminar al usuario {user.username} porque tiene datos registrados '
+                        f'({texto_datos_registrados(datos)}). Desactívelo en su lugar.'
+                    ),
+                    'dependencias': datos,
+                },
+                status=status.HTTP_409_CONFLICT,
             )
-        
-        # ============================================
-        # CHEQUEO DE ACTIVIDAD - Tablas Hijas del Docente
-        # ============================================
-        
-        # Obtener el docente vinculado al usuario (si existe)
-        docente = None
-        if hasattr(user, 'perfil') and user.perfil:
-            docente = user.perfil.docente
-            logger.info(f"Usuario {user.username} tiene docente: {docente.id if docente else None}")
 
-        if docente:
-            # 1. Verificar Fondos de Tiempo (cualquier estado)
-            fondos_count = FondoTiempo.objects.filter(docente=docente).count()
-            logger.info(f"Fondos de Tiempo: {fondos_count}")
-            if fondos_count > 0:
-                return Response(
-                    {'error': f'No se puede eliminar: El docente vinculado tiene {fondos_count} Fondo(s) de Tiempo. Desactívelo en su lugar.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # 2. Verificar Saldos de Vacaciones
-            saldos_count = SaldoVacacionesGestion.objects.filter(docente=docente).count()
-            logger.info(f"Saldos de Vacaciones: {saldos_count}")
-            if saldos_count > 0:
-                return Response(
-                    {'error': f'No se puede eliminar: El docente tiene {saldos_count} registro(s) de saldo de vacaciones. Desactívelo en su lugar.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # 3. Verificar Cargas Horarias
-            cargas_count = CargaHoraria.objects.filter(docente=docente).count()
-            logger.info(f"Cargas Horarias: {cargas_count}")
-            if cargas_count > 0:
-                return Response(
-                    {'error': f'No se puede eliminar: El docente tiene {cargas_count} Carga(s) Horaria(s). Desactívelo en su lugar.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-        else:
-            logger.info("Usuario no tiene docente vinculado")
-
-        # ============================================
-        # CASO A: USUARIO LIMPIO - BORRADO SEGURO
-        # ============================================
         try:
             with transaction.atomic():
-                logger.info(f"Iniciando borrado de usuario {user.username}")
-
-                user_id = user.id
-                perfil = PerfilUsuario.objects.filter(user=user).select_related('docente').first()
-
-                user.delete()
-                if perfil:
-                    perfil.refresh_from_db()
-                    if perfil.user_id is None:
-                        perfil.delete()
-                logger.info(f"Usuario {user.username} (ID: {user_id}) eliminado exitosamente")
-
-                return Response(
-                    {'success': 'Usuario eliminado correctamente.'},
-                    status=status.HTTP_204_NO_CONTENT
-                )
-
-        except Exception as e:
-            logger.error(f"Error al eliminar usuario {user.username}: {str(e)}", exc_info=True)
+                self._eliminar_usuario_sin_datos(user)
+        except ProtectedError:
+            # Algún registro nuevo que datos_registrados_usuario todavía no cuenta.
             return Response(
-                {'error': f'Error interno al eliminar usuario: {str(e)}'},
-                status=status.HTTP_400_BAD_REQUEST
+                {
+                    'code': 'protected_error',
+                    'error': f'No se puede eliminar al usuario {user.username} porque tiene datos registrados. Desactívelo en su lugar.',
+                },
+                status=status.HTTP_409_CONFLICT,
             )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @staticmethod
+    def _eliminar_usuario_sin_datos(user):
+        perfil = PerfilUsuario.objects.filter(user=user).select_related('docente').first()
+        docente = docente_del_usuario(user)
+        datos_laborales_ids = {
+            perfil.datos_laborales_id if perfil else None,
+            docente.datos_laborales_id if docente else None,
+        } - {None}
+
+        # La ficha de docente es de esta persona salvo que otro usuario la use.
+        if docente and (
+            (docente.user_id and docente.user_id != user.id)
+            or PerfilUsuario.objects.filter(docente=docente, user__isnull=False).exclude(user=user).exists()
+        ):
+            docente = None
+
+        AsignacionCarrera.objects.filter(user=user).delete()
+        PerfilUsuario.objects.filter(user=user).delete()
+        if docente:
+            AsignacionCarrera.objects.filter(docente=docente, user__isnull=True).delete()
+            PerfilUsuario.objects.filter(docente=docente, user__isnull=True).delete()
+            docente.delete()  # sus vínculos DocenteCarrera caen en cascada
+        user.delete()
+
+        # Datos laborales que ya no usa nadie (la ficha de docente borrada o el perfil).
+        DatosLaborales.objects.filter(
+            pk__in=datos_laborales_ids, docente__isnull=True, perfiles__isnull=True,
+        ).delete()
 
     @action(detail=True, methods=['post'], permission_classes=[IsFullAdminOrDirectorCarrera])
     def cambiar_password(self, request, pk=None):
@@ -3593,14 +3573,14 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         perfil = PerfilUsuario.objects.filter(user=user).select_related('docente').first()
 
         if user.is_active is False:
-            # Desactivar usuario: también desactivar docente y asignaciones docentes
+            # Desactivar usuario: también su docente. Sus asignaciones (todas, incluidos
+            # los cargos de gestión) las libera la señal guardar_perfil_usuario.
             if perfil and perfil.docente and perfil.docente.activo:
                 perfil.docente.activo = False
                 perfil.docente.save(update_fields=['activo'])
-
-            user.asignaciones_carrera.filter(rol='docente', activo=True).update(activo=False)
         else:
-            # Reactivar usuario: también activar docente y asignaciones docentes
+            # Reactivar usuario: también activar docente y asignaciones docentes.
+            # Los cargos de gestión no vuelven solos: pudieron asignarse a otra persona.
             if perfil and perfil.docente and not perfil.docente.activo:
                 perfil.docente.activo = True
                 perfil.docente.save(update_fields=['activo'])

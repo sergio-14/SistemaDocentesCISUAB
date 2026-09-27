@@ -23,6 +23,7 @@ from rest_framework.permissions import SAFE_METHODS
 from .models import Carrera
 
 MENSAJE_CARRERA_INACTIVA = 'La carrera está inactiva: sus datos son de solo lectura.'
+MENSAJE_ROL_SOLO_LECTURA = 'El Instituto (IIISyP) solo tiene acceso de lectura.'
 
 # Atributos por los que un objeto llega a su carrera, en orden de preferencia.
 # Cubre fondos (fondo, calendario, carga horaria, materia) y POA (documento,
@@ -60,10 +61,15 @@ class CarreraInactivaSoloLecturaMixin:
     """
 
     MENSAJE_CARRERA_INACTIVA = MENSAJE_CARRERA_INACTIVA
+    MENSAJE_ROL_SOLO_LECTURA = MENSAJE_ROL_SOLO_LECTURA
     campos_con_carrera = {'carrera': Carrera}
 
     def carreras_de_contexto(self, request):
         return []
+
+    def es_rol_solo_lectura(self, request):
+        """True si el rol con el que trabaja el usuario solo puede ver (Instituto IIISyP)."""
+        return False
 
     def permite_escritura_en_carrera_inactiva(self, request):
         return False
@@ -73,6 +79,8 @@ class CarreraInactivaSoloLecturaMixin:
         user = request.user
         if request.method in SAFE_METHODS or not user or not user.is_authenticated:
             return
+        if not user.is_superuser and self.es_rol_solo_lectura(request):
+            raise PermissionDenied(self.MENSAJE_ROL_SOLO_LECTURA)
         if self.permite_escritura_en_carrera_inactiva(request):
             return
         for carrera in self._carreras_afectadas(request):

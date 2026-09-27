@@ -136,6 +136,8 @@ const ROL_STYLES = {
 };
 
 const obtenerTextoRolUsuario = (usuario) => {
+  // El superusuario no tiene rol de carrera.
+  if (usuario?.is_superuser) return 'Super Admin';
   if (!usuario?.perfil) return 'Sin rol';
 
   const rolPrincipal = String(usuario.perfil.rol || '').trim();
@@ -1406,8 +1408,8 @@ function GestionUsuarios({ isDark, sidebarCollapsed = false, user, hasSidebar = 
     result = [...result].sort((a, b) => {
       const rolA = a.perfil?.rol || 'docente';
       const rolB = b.perfil?.rol || 'docente';
-      const ordenA = ordenJerarquico[rolA] ?? 99;
-      const ordenB = ordenJerarquico[rolB] ?? 99;
+      const ordenA = a.is_superuser ? -1 : (ordenJerarquico[rolA] ?? 99);
+      const ordenB = b.is_superuser ? -1 : (ordenJerarquico[rolB] ?? 99);
 
       if (ordenA !== ordenB) {
         return ordenA - ordenB;

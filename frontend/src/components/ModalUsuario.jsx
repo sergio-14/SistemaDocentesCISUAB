@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
+import { horasSemanalesDedicacion } from '../utils/dedicaciones';
 
 const obtenerNombreCompletoDocente = (docente) => {
   if (!docente) return '';
@@ -123,22 +124,13 @@ const splitNombreCompleto = (nombreCompleto = '') => {
 
 const ROLES_AUTORIDAD_FONDO = new Set(['director', 'jefe_estudios']);
 
-const HORAS_POR_DEDICACION = {
-  tiempo_completo: 40,
-  medio_tiempo: 20,
-  horario_16: 16,
-  horario_24: 24,
-  horario_40: 40,
-  horario_48: 48,
-};
-
 const obtenerHorasVinculo = (vinculo) => {
   const horasExplicitas = Number(vinculo?.horas_semanales_maximas);
   if (Number.isFinite(horasExplicitas)) {
     return horasExplicitas;
   }
 
-  return HORAS_POR_DEDICACION[String(vinculo?.dedicacion || '')] || 0;
+  return horasSemanalesDedicacion(vinculo?.dedicacion);
 };
 
 const calcularErrorFondoTiempo = ({ docenteId, asignaciones, docentes }) => {
@@ -193,6 +185,24 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordData, setPasswordData] = useState({ password: '', password_confirm: '' });
   const [indiceAsignacionActiva, setIndiceAsignacionActiva] = useState(0);
+  // Si el usuario ya tiene datos registrados, su identidad (usuario, nombre, C.I.)
+  // no se puede cambiar. null = sin datos (o todavía sin verificar).
+  const [identidadBloqueada, setIdentidadBloqueada] = useState(null);
+
+  useEffect(() => {
+    setIdentidadBloqueada(null);
+    if (!isOpen || !userToEdit?.id) return undefined;
+    let vigente = true;
+    api.get(`/usuarios/${userToEdit.id}/dependencias/`)
+      .then((response) => {
+        if (vigente && response.data?.tiene_datos) setIdentidadBloqueada(response.data.detalle || []);
+      })
+      .catch((err) => {
+        // El backend valida igual al guardar; esto solo es una ayuda visual.
+        console.error('No se pudo verificar los datos registrados del usuario:', err);
+      });
+    return () => { vigente = false; };
+  }, [isOpen, userToEdit?.id]);
   const esDirectorEditor = currentUser?.perfil?.rol === 'director' && !currentUser?.is_superuser;
   const rolesDisponiblesModal = (roles || []).filter((rol) => {
     if (currentUser?.is_superuser) return true;
@@ -512,6 +522,11 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
       is_active: userToEdit.is_active,
     };
 
+    // El superusuario no tiene rol de carrera: no se envía.
+    if (esSuperusuarioEditado) {
+      delete payload.rol;
+    }
+
     if (!esSuperusuarioEditado) {
       payload.asignaciones = asignacionesExtra
         .filter((item) => String(item.rol || '').trim() && String(item.carrera || '').trim())
@@ -608,9 +623,15 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
 
         <form id="user-form" onSubmit={handleSubmit} className="flex-1 overflow-visible">
           <div className="p-6">
+            {identidadBloqueada && (
+              <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100">
+                Este usuario ya tiene datos registrados ({identidadBloqueada.map((item) => `${item.etiqueta}: ${item.cantidad}`).join(', ')}).
+                El usuario, el nombre y el C.I. no se pueden cambiar, y solo se puede desactivar (no eliminar).
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InputField label="Usuario" name="username" value={formData.username} onChange={handleChange} required disabled={!!userToEdit} error={errors.username} />
-              <InputField label="Nombre completo" name="nombre_completo" value={formData.nombre_completo || ''} onChange={handleChange} required error={errors.nombre_completo || errors.first_name || errors.last_name} />
+              <InputField label="Usuario" name="username" value={formData.username} onChange={handleChange} required disabled={Boolean(identidadBloqueada)} error={errors.username} />
+              <InputField label="Nombre completo" name="nombre_completo" value={formData.nombre_completo || ''} onChange={handleChange} required disabled={Boolean(identidadBloqueada)} error={errors.nombre_completo || errors.first_name || errors.last_name} />
 
               <div className="flex items-center gap-3">
                 <div className="flex-1 min-w-0">
@@ -721,7 +742,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
 
               <div>
                 {mostrarCiAutoridad ? (
-                  <InputField label="C.I." name="ci" value={formData.ci} onChange={handleChange} error={errors.ci} maxLength={15} />
+                  <InputField label="C.I." name="ci" value={formData.ci} onChange={handleChange} disabled={Boolean(identidadBloqueada)} error={errors.ci} maxLength={15} />
                 ) : (
                   <div>
                     <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">

@@ -299,12 +299,8 @@ def _requerir_elaborador(request):
 
 
 def _es_admin_principal(user):
-    if not user or not user.is_authenticated:
-        return False
-    if user.is_superuser:
-        return True
-    perfil = _get_user_profile(user)
-    return getattr(perfil, 'rol', None) == 'iiisyp'
+    # Solo el superusuario. El Instituto (iiisyp) es de solo lectura.
+    return bool(user and user.is_authenticated and user.is_superuser)
 
 
 def _requerir_gestor_o_director(request):
@@ -602,6 +598,10 @@ class PoaCarreraSoloLecturaMixin(CarreraInactivaSoloLecturaMixin):
     def carreras_de_contexto(self, request):
         # El POA trabaja siempre sobre la carrera del usuario.
         return [_carrera_usuario_poa(request.user)]
+
+    def es_rol_solo_lectura(self, request):
+        perfil = _get_user_profile(request.user)
+        return getattr(perfil, 'rol', None) == 'iiisyp'
 
 
 class UsuarioPOAViewSet(PoaCarreraSoloLecturaMixin, viewsets.ModelViewSet):

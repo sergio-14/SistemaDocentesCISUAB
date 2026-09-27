@@ -10,6 +10,7 @@ import {
   sanitizeApiErrors,
   ERROR_SHAKE_DURATION_MS,
 } from '../utils/formErrors';
+import { DEDICACIONES_HORARIO, ETIQUETAS_DEDICACION, describirDedicacion, horasSemanalesDedicacion } from '../utils/dedicaciones';
 
 // Normaliza mensajes de error confusos del backend (ej: """" no es una elección válida.")
 // a un texto claro y humano para selects como Dedicación/Categoría.
@@ -778,15 +779,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
    * Replica la lógica del backend (FondoTiempo._recalcular_horas_automaticas).
    */
   const calcularHorasEfectivas = (dedicacion, fechaIngreso, gestion = null) => {
-    const mapaHorasSemanales = {
-      tiempo_completo: 40,
-      medio_tiempo: 20,
-      horario_16: 16,
-      horario_24: 24,
-      horario_40: 40,
-      horario_48: 48,
-    };
-    const horasSemanales = mapaHorasSemanales[dedicacion];
+    const horasSemanales = horasSemanalesDedicacion(dedicacion);
     if (!horasSemanales) return null;
 
     // Calcular antigüedad
@@ -1423,7 +1416,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       return 'tiempo_completo';
     }
 
-    if (tieneRolDocente && !['horario_16', 'horario_24', 'horario_40', 'horario_48'].includes(dedicacion)) {
+    if (tieneRolDocente && !DEDICACIONES_HORARIO.includes(dedicacion)) {
       return 'horario_40';
     }
 
@@ -1590,20 +1583,17 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     && !usuarioFormularioTieneRolDocente
     && !usuarioFormularioTieneRolJefeEstudios
     && !usuarioFormularioTieneRolIisyp;
-  const dedicacionEsTiempoHorario = ['horario_16', 'horario_24', 'horario_40', 'horario_48'].includes(String(formData.dedicacion || ''));
+  const dedicacionEsTiempoHorario = DEDICACIONES_HORARIO.includes(String(formData.dedicacion || ''));
   const esDedicacionExclusiva = formData.dedicacion === 'dedicacion_exclusiva';
   const mostrarAdvertenciaGestion = usuarioFormularioTieneRolGestion && showGestionWarningVisible && !dedicacionEsTiempoHorario && !esDedicacionExclusiva;
   const opcionesDedicacion = [
     { value: 'tiempo_completo', label: 'Tiempo Completo' },
     { value: 'medio_tiempo', label: 'Medio Tiempo' },
-    { value: 'horario_16', label: 'Horario 16hrs/sem' },
-    { value: 'horario_24', label: 'Horario 24hrs/sem' },
-    { value: 'horario_40', label: 'Horario 40hrs/sem' },
-    { value: 'horario_48', label: 'Horario 48hrs/sem' },
+    ...DEDICACIONES_HORARIO.map((value) => ({ value, label: ETIQUETAS_DEDICACION[value] })),
     { value: 'dedicacion_exclusiva', label: 'Dedicacion Exclusiva' },
   ].filter((opcion) => (
     usuarioFormularioTieneRolDocente
-      ? ['horario_16', 'horario_24', 'horario_40', 'horario_48'].includes(opcion.value)
+      ? DEDICACIONES_HORARIO.includes(opcion.value)
       : (!usuarioFormularioTieneRolGestion || opcion.value !== 'dedicacion_exclusiva')
   ));
   const carrerasUsuarioSeleccionado = getCarrerasUsuario(usuarioSeleccionado);
@@ -1633,13 +1623,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       return (prev + 1) % mensajesInfoEdicion.length;
     });
   };
-  const horasSemanalesDerivadas = formData.dedicacion === 'tiempo_completo' ? 40
-    : formData.dedicacion === 'medio_tiempo' ? 20
-    : formData.dedicacion === 'horario_16' ? 16
-    : formData.dedicacion === 'horario_24' ? 24
-    : formData.dedicacion === 'horario_40' ? 40
-    : formData.dedicacion === 'horario_48' ? 48
-    : '';
+  const horasSemanalesDerivadas = horasSemanalesDedicacion(formData.dedicacion) || '';
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
@@ -2225,10 +2209,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                             inputClassName="max-w-[267px]"
                           />
                           <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
-                            {formData.dedicacion === 'horario_16' && 'Este docente trabaja 16 horas por semana.'}
-                            {formData.dedicacion === 'horario_24' && 'Este docente trabaja 24 horas por semana.'}
-                            {formData.dedicacion === 'horario_40' && 'Este docente trabaja 40 horas por semana.'}
-                            {formData.dedicacion === 'horario_48' && 'Este docente trabaja 48 horas por semana.'}
+                            {describirDedicacion(formData.dedicacion)}
                             {(formData.dedicacion === 'tiempo_completo' || formData.dedicacion === 'medio_tiempo')
                               && 'Horas semanales fijas por reglamento.'}
                           </p>
@@ -2258,7 +2239,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                                 Cargos de gestión solo compatibles con docencia a Tiempo Horario.
                               </p>
                               <p className="text-xs leading-5 text-blue-800 dark:text-blue-400">
-                                Usuarios con rol de Director, Jefe de Estudios o Instituto solo pueden usar: 16, 24, 40 o 48 hrs/sem. TC y MT no aplican.
+                                Usuarios con rol de Director, Jefe de Estudios o Instituto solo pueden usar Tiempo Horario: 16, 24, 40 o 48 hrs/mes. TC y MT no aplican.
                               </p>
                             </div>
                           </div>
@@ -2289,16 +2270,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                                 const antiguedad = formData.fecha_ingreso
                                   ? Math.max(0, new Date().getFullYear() - new Date(formData.fecha_ingreso + 'T00:00:00').getFullYear())
                                   : 0;
-                                const dedicacionLabels = {
-                                  tiempo_completo: 'Tiempo Completo',
-                                  medio_tiempo: 'Medio Tiempo',
-                                  horario_16: 'Horario 16hrs/sem',
-                                  horario_24: 'Horario 24hrs/sem',
-                                  horario_40: 'Horario 40hrs/sem',
-                                  horario_48: 'Horario 48hrs/sem',
-                                  dedicacion_exclusiva: 'Dedicacion Exclusiva',
-                                };
-                                const label = dedicacionLabels[formData.dedicacion] || formData.dedicacion;
+                                const label = ETIQUETAS_DEDICACION[formData.dedicacion] || formData.dedicacion;
                                 if (formData.dedicacion === 'dedicacion_exclusiva') {
                                   return 'Docente con dedicacion exclusiva - exento de distribucion de tiempo';
                                 }
@@ -2452,13 +2424,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                               docente.vinculos?.[0]?.categoria === 'adjunto' ? 'Adjunto' : 'Asistente'}
                           </span>
                           <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-2 border-green-300 dark:border-green-700 shadow-sm">
-                            {docente.vinculos?.[0]?.dedicacion === 'tiempo_completo' ? 'Tiempo Completo'
-                              : docente.vinculos?.[0]?.dedicacion === 'medio_tiempo' ? 'Medio Tiempo'
-                              : docente.vinculos?.[0]?.dedicacion === 'horario_16' ? 'Horario 16hrs/sem'
-                              : docente.vinculos?.[0]?.dedicacion === 'horario_24' ? 'Horario 24hrs/sem'
-                              : docente.vinculos?.[0]?.dedicacion === 'horario_40' ? 'Horario 40hrs/sem'
-                              : docente.vinculos?.[0]?.dedicacion === 'horario_48' ? 'Horario 48hrs/sem'
-                              : docente.vinculos?.[0]?.dedicacion}
+                            {ETIQUETAS_DEDICACION[docente.vinculos?.[0]?.dedicacion] || docente.vinculos?.[0]?.dedicacion}
                           </span>
                           {obtenerRolesDocente(docente) && (
                             <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-2 border-orange-300 dark:border-orange-700 shadow-sm">
@@ -2673,10 +2639,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                       />
                     )}
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
-                      {formData.dedicacion === 'horario_16' && 'Este docente trabaja 16 horas por semana.'}
-                      {formData.dedicacion === 'horario_24' && 'Este docente trabaja 24 horas por semana.'}
-                      {formData.dedicacion === 'horario_40' && 'Este docente trabaja 40 horas por semana.'}
-                      {formData.dedicacion === 'horario_48' && 'Este docente trabaja 48 horas por semana.'}
+                      {describirDedicacion(formData.dedicacion)}
                       {(formData.dedicacion === 'tiempo_completo' || formData.dedicacion === 'medio_tiempo')
                         && 'Horas semanales fijas por reglamento.'}
                     </p>

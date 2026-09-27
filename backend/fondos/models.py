@@ -106,6 +106,27 @@ CARGA_SEMANAL_ROL_GESTION = {
 
 TOPE_HORAS_SEMANALES_FONDO = Decimal('40')
 
+# Las dedicaciones "horario" figuran en RR.HH. en horas MENSUALES ("24 HRS MES").
+# El sistema trabaja en horas semanales: se dividen entre las semanas del mes.
+SEMANAS_POR_MES = Decimal('4')
+
+HORAS_MENSUALES_DEDICACION_HORARIO = {
+    'horario_16': Decimal('16'),
+    'horario_24': Decimal('24'),
+    'horario_40': Decimal('40'),
+    'horario_48': Decimal('48'),
+}
+
+HORAS_SEMANALES_DEDICACION = {
+    'tiempo_completo': Decimal('40'),
+    'medio_tiempo': Decimal('20'),
+    **{
+        dedicacion: horas_mes / SEMANAS_POR_MES
+        for dedicacion, horas_mes in HORAS_MENSUALES_DEDICACION_HORARIO.items()
+    },
+    # dedicacion_exclusiva: 0 (exenta de fondo de tiempo)
+}
+
 
 class DatosLaborales(models.Model):
     """
@@ -131,6 +152,7 @@ class DatosLaborales(models.Model):
         default=timezone.now,
         help_text="Fecha de ingreso a la institución para cálculo de antigüedad"
     )
+    # Se recalcula en cada save() a partir de fecha_ingreso (ver calcular_dias_vacacion).
     dias_vacacion = models.IntegerField(
         default=15,
         help_text="Días de vacación correspondientes según antigüedad"
@@ -160,13 +182,24 @@ class DatosLaborales(models.Model):
         return max(0, gestion - self.fecha_ingreso.year)
 
     def calcular_dias_vacacion(self, gestion=None):
-        """Calcula días de vacación según antigüedad (Art. 11 y 24)."""
+        """Días hábiles de vacación según antigüedad (Art. 11 y 24).
+
+        De 1 a 5 años: 15; de 5 a 10 años: 20; desde 10 años: 30.
+        """
         antiguedad = self.calcular_antiguedad(gestion)
         if antiguedad >= 10:
             return 30
         elif antiguedad >= 5:
             return 20
         return 15  # De 1 a 5 años (y por defecto)
+
+    def save(self, *args, **kwargs):
+        # Los días de vacación no se escriben a mano: salen de la fecha de ingreso.
+        self.dias_vacacion = self.calcular_dias_vacacion()
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            kwargs['update_fields'] = set(update_fields) | {'dias_vacacion'}
+        super().save(*args, **kwargs)
 
     def clean(self):
         """Validaciones personalizadas."""
@@ -202,10 +235,10 @@ class Docente(models.Model):
     DEDICACION_CHOICES = [
         ('tiempo_completo', 'Tiempo Completo'),
         ('medio_tiempo', 'Medio Tiempo'),
-        ('horario_16', 'Horario 16hrs/sem'),
-        ('horario_24', 'Horario 24hrs/sem'),
-        ('horario_40', 'Horario 40hrs/sem'),
-        ('horario_48', 'Horario 48hrs/sem'),
+        ('horario_16', 'Horario 16 hrs/mes'),
+        ('horario_24', 'Horario 24 hrs/mes'),
+        ('horario_40', 'Horario 40 hrs/mes'),
+        ('horario_48', 'Horario 48 hrs/mes'),
         ('dedicacion_exclusiva', 'Dedicacion Exclusiva'),
     ]
 
@@ -278,8 +311,8 @@ class Docente(models.Model):
 
     @property
     def dias_vacacion(self):
-        """Propiedad de compatibilidad: accede a dias_vacacion desde DatosLaborales."""
-        return self.datos_laborales.dias_vacacion if self.datos_laborales else 0
+        """Días de vacación según la antigüedad (DatosLaborales.fecha_ingreso)."""
+        return self.datos_laborales.calcular_dias_vacacion() if self.datos_laborales else 0
 
     @dias_vacacion.setter
     def dias_vacacion(self, value):
@@ -357,16 +390,8 @@ class DocenteCarrera(models.Model):
 
     @property
     def horas_semanales_maximas(self):
-        """Retorna las horas semanales fijas según tipo de dedicación."""
-        mapa_horas = {
-            'tiempo_completo': 40,
-            'medio_tiempo': 20,
-            'horario_16': 16,
-            'horario_24': 24,
-            'horario_40': 40,
-            'horario_48': 48,
-        }
-        return mapa_horas.get(self.dedicacion, 0)
+        """Horas semanales según la dedicación (las de horario vienen en horas/mes)."""
+        return HORAS_SEMANALES_DEDICACION.get(self.dedicacion, Decimal('0'))
 
     def clean(self):
         from django.core.exceptions import ValidationError
@@ -2013,7 +2038,8 @@ class PerfilUsuario(models.Model):
     )
 
     ci = models.CharField(max_length=20, blank=True, null=True, unique=True, verbose_name='Cedula de Identidad')
-    rol = models.CharField(max_length=20, choices=ROLES, default='docente')
+    # Vacío solo para el superusuario: no tiene rol de carrera (ni es 'iiisyp').
+    rol = models.CharField(max_length=20, choices=ROLES, default='docente', blank=True)
     carrera = models.ForeignKey(Carrera, on_delete=models.PROTECT, null=True, blank=True)
     telefono = models.CharField(max_length=20, blank=True)
     foto_perfil = models.ImageField(upload_to=foto_perfil_upload_path, null=True, blank=True)
@@ -2081,7 +2107,7 @@ class PerfilUsuario(models.Model):
     def dias_vacacion(self):
         """Accede a dias_vacacion desde DatosLaborales (propio o del docente)."""
         datos = self.obtener_datos_laborales()
-        return datos.dias_vacacion if datos else 0
+        return datos.calcular_dias_vacacion() if datos else 0
 
     @property
     def horas_feriados_gestion(self):
@@ -2160,13 +2186,19 @@ class PerfilUsuario(models.Model):
 @receiver(post_save, sender=User)
 def crear_perfil_usuario(sender, instance, created, **kwargs):
     if created:
-        rol_inicial = 'iiisyp' if instance.is_superuser else 'docente'
+        # El superusuario no tiene rol de carrera: sus permisos salen de is_superuser.
+        rol_inicial = '' if instance.is_superuser else 'docente'
         # Si es superusuario (creado por consola), no obligar cambio de contraseña
         debe_cambiar = not instance.is_superuser
         PerfilUsuario.objects.create(user=instance, rol=rol_inicial, debe_cambiar_password=debe_cambiar)
 
 @receiver(post_save, sender=User)
 def guardar_perfil_usuario(sender, instance, **kwargs):
+    # Usuario desactivado: se liberan TODAS sus asignaciones (también Director y
+    # Jefe de Estudios), para que el cargo se pueda asignar a otra persona.
+    if not instance.is_active:
+        AsignacionCarrera.objects.filter(user=instance, activo=True).update(activo=False)
+
     perfil = PerfilUsuario.objects.filter(user=instance).first()
 
     if not perfil:
@@ -2175,7 +2207,8 @@ def guardar_perfil_usuario(sender, instance, **kwargs):
     updates = {'activo': instance.is_active}
 
     if instance.is_superuser:
-        updates['rol'] = 'iiisyp'
+        updates['rol'] = ''
+        updates['carrera'] = None
         updates['debe_cambiar_password'] = False
 
     for field, value in updates.items():

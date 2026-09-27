@@ -259,6 +259,40 @@ class AutoaprobacionTests(UsuariosBaseTestCase):
         self.fondo_comun.refresh_from_db()
         self.assertEqual(self.fondo_comun.estado, 'finalizado')
 
+    def test_un_director_de_otra_carrera_no_puede_evaluar_el_fondo(self):
+        director_ajeno = self.crear_usuario('director_ajeno', 'director', carrera=self.otra_carrera, is_staff=True, ci='AJE')
+        self._con_informe(self.fondo_comun)
+        self.client.force_authenticate(director_ajeno)
+
+        response = self.client.post(
+            f'/api/fondos-tiempo/{self.fondo_comun.pk}/evaluar-y-finalizar/',
+            {'cumplimiento': 'cumplido', 'evaluacion_director': 'Cumplió todas las actividades planificadas en la gestión.'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.fondo_comun.refresh_from_db()
+        self.assertEqual(self.fondo_comun.estado, 'informe_presentado')
+
+    def test_un_docente_no_puede_evaluar_ningun_fondo(self):
+        # Ni un fondo ajeno ni el suyo.
+        otro_usuario = self.crear_usuario('otro_docente', 'docente', carrera=self.carrera, ci='OTR')
+        otro_docente = self.crear_docente('OTR', usuario=otro_usuario)
+        PerfilUsuario.objects.filter(user=otro_usuario).update(docente=otro_docente)
+        fondo_propio = self._fondo(otro_docente, estado='informe_presentado')
+        self._con_informe(self.fondo_comun)
+        InformeFondo.objects.create(fondo_tiempo=fondo_propio, elaborado_por=otro_usuario, tipo='parcial')
+        self.client.force_authenticate(otro_usuario)
+        evaluacion = {'cumplimiento': 'cumplido', 'evaluacion_director': 'Cumplió todas las actividades planificadas en la gestión.'}
+
+        for fondo in (self.fondo_comun, fondo_propio):
+            with self.subTest(fondo=fondo.pk):
+                response = self.client.post(f'/api/fondos-tiempo/{fondo.pk}/evaluar-y-finalizar/', evaluacion, format='json')
+
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+                fondo.refresh_from_db()
+                self.assertEqual(fondo.estado, 'informe_presentado')
+
     def test_el_detalle_informa_propio_y_director(self):
         self.client.force_authenticate(self.director)
         propio = self.client.get(f'/api/fondos-tiempo/{self.fondo_director.pk}/').data

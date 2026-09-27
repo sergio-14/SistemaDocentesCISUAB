@@ -358,6 +358,9 @@ def _validar_fondo_tiempo_contractual_doble_rol(bloques, docente_por_defecto=Non
 def validar_unicidad_cargo_por_carrera(carrera, rol, exclude_user_id=None):
     """
     Garantiza que solo exista un Director o Jefe de Estudios activo por carrera.
+
+    Se valida con las AsignacionCarrera activas (el cargo puede ser la
+    asignación secundaria de un usuario, que su perfil no refleja).
     """
     if rol not in ['director', 'jefe_estudios'] or not carrera:
         return
@@ -367,24 +370,12 @@ def validar_unicidad_cargo_por_carrera(carrera, rol, exclude_user_id=None):
         'jefe_estudios': 'Jefe de Estudios',
     }
 
-    queryset = PerfilUsuario.objects.filter(
+    queryset = AsignacionCarrera.objects.filter(
         rol=rol,
         carrera=carrera,
         activo=True,
-    )
-
-    if exclude_user_id:
-        queryset = queryset.exclude(user_id=exclude_user_id)
-
-    # Limpia perfiles huérfanos de autoridad que quedaron de pruebas previas.
-    perfiles_huerfanos = list(queryset.filter(user__isnull=True))
-    for perfil_huerfano in perfiles_huerfanos:
-        perfil_huerfano.delete()
-
-    queryset = PerfilUsuario.objects.filter(
-        rol=rol,
-        carrera=carrera,
-        activo=True,
+        user__isnull=False,
+        user__is_active=True,
     )
     if exclude_user_id:
         queryset = queryset.exclude(user_id=exclude_user_id)
@@ -1353,6 +1344,9 @@ class DocenteSerializer(serializers.ModelSerializer):
     # de solo lectura y descartaría la fecha escrita en el formulario.
     fecha_ingreso = serializers.DateField(required=False)
     dias_vacacion = serializers.SerializerMethodField()
+    # El C.I. vive en DatosLaborales: se guarda y solo se edita sin historial.
+    ci = serializers.CharField(required=False, allow_blank=True, max_length=20)
+    tiene_historial = serializers.SerializerMethodField()
     categoria = serializers.ChoiceField(choices=Docente.CATEGORIA_CHOICES, write_only=True, required=False)
     dedicacion = serializers.ChoiceField(choices=Docente.DEDICACION_CHOICES, write_only=True, required=False)
     condicion = serializers.ChoiceField(choices=DocenteCarrera.CONDICION_CHOICES, write_only=True, required=False)
@@ -1373,7 +1367,7 @@ class DocenteSerializer(serializers.ModelSerializer):
             'fecha_ingreso', 'dias_vacacion', 'horas_feriados_gestion',
             'nombre_completo', 'usuario_nombre', 'usuario_email', 'usuario_id',
             'usuario_rol', 'usuario_rol_display', 'asignaciones',
-            'horas_declaradas', 'fondos_validados',
+            'horas_declaradas', 'fondos_validados', 'tiene_historial',
             'carrera', 'carrera_id', 'carrera_nombre',
             'categoria', 'dedicacion', 'condicion',
             'vinculos', 'activo',
@@ -1462,12 +1456,49 @@ class DocenteSerializer(serializers.ModelSerializer):
     def get_dias_vacacion(self, obj):
         return obj.dias_vacacion
 
+    def get_tiene_historial(self, obj):
+        return docente_tiene_historial_operativo(obj)
+
     def validate_ci(self, value):
         ci_normalizado = (value or '').strip()
         return ci_normalizado
 
+    def _validar_ci(self, data):
+        """C.I. único y, en un docente existente, editable solo sin historial."""
+        if 'ci' not in data:
+            return
+        ci = data['ci']
+        if not ci:
+            data.pop('ci')  # vacío: se conserva el que tiene
+            return
+
+        docente = self.instance
+        if docente and ci == (docente.ci or ''):
+            return
+        if docente and docente_tiene_historial_operativo(docente):
+            raise serializers.ValidationError({
+                'ci': 'No se puede cambiar el C.I. porque el docente ya tiene datos registrados.'
+            })
+
+        usuario = data.get('user') or (docente.user if docente else None)
+        datos_propios = docente.datos_laborales_id if docente else None
+        conflicto_laboral = DatosLaborales.objects.filter(ci=ci).exclude(pk=datos_propios)
+        if not docente and usuario:
+            # Al crear, los datos laborales del propio usuario se reutilizan.
+            conflicto_laboral = conflicto_laboral.exclude(perfiles__user=usuario)
+        conflicto_laboral = conflicto_laboral.filter(docente__isnull=False) if not docente else conflicto_laboral
+        conflicto_perfil = PerfilUsuario.objects.filter(ci=ci).exclude(user__isnull=True)
+        if usuario:
+            conflicto_perfil = conflicto_perfil.exclude(user=usuario)
+        if docente:
+            conflicto_perfil = conflicto_perfil.exclude(docente=docente)
+        if conflicto_laboral.exists() or conflicto_perfil.exists():
+            raise serializers.ValidationError({'ci': 'Este C.I. ya está registrado.'})
+
     def validate(self, data):
         from django.utils import timezone
+
+        self._validar_ci(data)
 
         user_existente = data.get('user')
         user_data = data.get('user_data')
@@ -1695,6 +1726,9 @@ class DocenteSerializer(serializers.ModelSerializer):
                 setattr(dl, key, value)
             dl.full_clean()
             dl.save()
+            if 'ci' in dl_data:
+                # El usuario vinculado guarda el mismo C.I. en su perfil.
+                PerfilUsuario.objects.filter(docente=instance).update(ci=dl_data['ci'])
 
         if user is not serializers.empty:
             instance.user = user
@@ -2914,8 +2948,15 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
     }
 
     def _validar_asignaciones_nuevas(self, data, asignaciones, perfil_actual, current_user):
-        """Solo el superusuario agrega asignaciones (rol + carrera) a un usuario existente."""
+        """Solo el superusuario agrega asignaciones (rol + carrera) a un usuario existente.
+
+        Excepción: el Director puede cambiar rol y carrera de un usuario sin datos
+        registrados; que sea dentro de su carrera y con roles operativos lo valida
+        _validar_bloques_en_carreras_gestionables.
+        """
         if not current_user or current_user.is_superuser:
+            return
+        if _rol_usuario_solicitante(current_user) == 'director' and not datos_registrados_usuario(self.instance)['tiene_datos']:
             return
         principal = {
             'rol': data.get('rol', perfil_actual.rol if perfil_actual else None),

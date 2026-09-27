@@ -254,7 +254,14 @@ class CIExistenteYAsignacionesTests(UsuariosBaseTestCase):
             asignaciones_antes,
         )
 
-    def test_director_no_puede_agregar_asignaciones_a_un_usuario_existente(self):
+    def test_director_no_puede_agregar_asignaciones_a_un_usuario_con_datos(self):
+        # Sin datos sí puede (ver tests_usuarios_ajustes); con datos, solo el superusuario.
+        documento = DocumentoPOA.objects.create(
+            gestion=2026, unidad_solicitante=self.carrera, programa='Programa',
+            objetivo_gestion_institucional='Objetivo', fecha_elaboracion=date(2026, 1, 1),
+        )
+        HistorialDocumentoPOA.objects.create(documento=documento, usuario=self.existente, tipo_evento='creacion', descripcion='x')
+
         response = self.client.patch(
             f'/api/usuarios/{self.existente.pk}/',
             {'asignaciones': [{'rol': 'docente', 'carrera': self.carrera.pk}]},

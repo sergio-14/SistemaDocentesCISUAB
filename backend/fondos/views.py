@@ -184,9 +184,11 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         Restringir listado y creación a administradores.
         Docentes solo pueden ver/editar su propio perfil.
         """
-        # Acciones de modificación: ESTRICTAMENTE para Admin Real (bloquea a Jefe de Estudios)
-        # Incluimos update y partial_update para evitar que editen.
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+        # Crear la ficha: superusuario o Director (en su carrera, ver perform_create).
+        if self.action == 'create':
+            return [IsFullAdminOrDirectorCarrera()]
+        # Editar y eliminar: ESTRICTAMENTE para Admin Real (bloquea a Jefe de Estudios).
+        if self.action in ['update', 'partial_update', 'destroy']:
             return [IsFullAdmin()]
             
         # List y Retrieve permitidos para autenticados (el filtro se hace en get_queryset)
@@ -238,6 +240,21 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
             return aplicar_filtros_selector(Docente.objects.filter(id=user.perfil.docente.id))
 
         return Docente.objects.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if not user.is_superuser:
+            # El Director solo crea fichas en su carrera y para usuarios que ya
+            # están asignados a ella (no crea usuarios desde aquí).
+            carrera = serializer.validated_data.get('carrera')
+            usuario = serializer.validated_data.get('user')
+            if not _usuario_tiene_acceso_a_carrera(user, carrera, self.request):
+                raise PermissionDenied('Solo puedes crear fichas de docente en tu carrera.')
+            if serializer.validated_data.get('user_data') or not usuario:
+                raise PermissionDenied('Selecciona un usuario de tu carrera para crear su ficha de docente.')
+            if not AsignacionCarrera.objects.filter(user=usuario, carrera=carrera, activo=True).exists():
+                raise PermissionDenied('El usuario seleccionado no pertenece a tu carrera.')
+        serializer.save()
 
     def destroy(self, request, *args, **kwargs):
         """
@@ -876,15 +893,12 @@ class MateriaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         if user.is_superuser:
             return queryset
 
-        # Jefe de Estudios, Director e Instituto ven materias de su carrera
-        if hasattr(user, 'perfil') and user.perfil.rol in ['jefe_estudios', 'director', 'iiisyp']:
-            carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
-            if carreras_activas.exists():
-                queryset = queryset.filter(carrera__in=carreras_activas)
-            else:
-                return queryset.none()
-        
-        return queryset
+        # Todos los demás (Jefe, Director, Instituto y Docente) ven solo las
+        # materias de sus carreras.
+        carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
+        if not carreras_activas.exists():
+            return queryset.none()
+        return queryset.filter(carrera__in=carreras_activas)
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:

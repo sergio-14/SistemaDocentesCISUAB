@@ -117,6 +117,38 @@ HORAS_MENSUALES_DEDICACION_HORARIO = {
     'horario_48': Decimal('48'),
 }
 
+SEMANAS_POR_ANIO = 52
+DIAS_LABORABLES_POR_SEMANA = Decimal('5')
+# Horas de feriados por defecto de la gestión: 16 días x 8 h (tiempo completo).
+DIAS_FERIADOS_GESTION = Decimal('16')
+HORAS_FERIADOS_GESTION_POR_DEFECTO = 128
+
+
+def calcular_horas_fondo(horas_semana, dias_vacacion, horas_feriados_gestion=None):
+    """Horas anuales del fondo de tiempo.
+
+    Vacaciones y feriados se descuentan proporcionales a la jornada diaria
+    (horas semanales / 5): un tiempo completo (8 h/día) con 20 días de vacación
+    descuenta 160 h. Cada término se redondea hacia abajo.
+    La vista previa del frontend (utils/horasFondo.js) replica esta función.
+    """
+    horas_semana = Decimal(str(horas_semana))
+    horas_diarias = horas_semana / DIAS_LABORABLES_POR_SEMANA
+    contrato_horas = int(horas_semana * SEMANAS_POR_ANIO)
+    horas_vacacion = int(Decimal(dias_vacacion) * horas_diarias)
+    feriados_gestion = horas_feriados_gestion or HORAS_FERIADOS_GESTION_POR_DEFECTO
+    if feriados_gestion == HORAS_FERIADOS_GESTION_POR_DEFECTO:
+        horas_feriados = int(DIAS_FERIADOS_GESTION * horas_diarias)
+    else:
+        horas_feriados = int(feriados_gestion)
+    return {
+        'contrato_horas': contrato_horas,
+        'horas_vacacion': horas_vacacion,
+        'horas_feriados': horas_feriados,
+        'horas_efectivas': max(contrato_horas - horas_vacacion - horas_feriados, 0),
+    }
+
+
 HORAS_SEMANALES_DEDICACION = {
     'tiempo_completo': Decimal('40'),
     'medio_tiempo': Decimal('20'),
@@ -983,49 +1015,28 @@ class FondoTiempo(models.Model):
             activo=True
         ).first()
 
-    def _obtener_horas_vacacion_docente(self):
-        """
-        Obtiene las horas de vacación para el docente en la gestión actual.
+    def _calcular_horas_fondo(self):
+        """Contrato, vacaciones, feriados y horas efectivas del docente en esta gestión.
 
-        Vacaciones son de la PERSONA (Docente.dias_vacacion).
-        Horas diarias se calculan según la dedicación del VÍNCULO (DocenteCarrera).
+        Horas semanales: del vínculo (DocenteCarrera) y los roles de gestión.
+        Vacaciones: días por antigüedad (15/20/30) proporcionales a la jornada.
         """
         horas_semana = self._obtener_horas_semanales_contractuales()
         if not self.docente or horas_semana <= 0:
-            return 0
+            return None
+        return calcular_horas_fondo(
+            horas_semana,
+            self.docente.calcular_dias_vacacion(self.gestion),
+            self.docente.horas_feriados_gestion,
+        )
 
-        # Intenta obtener del saldo específico de la gestión
-        dedicaciones = set(DocenteCarrera.objects.filter(
-            docente=self.docente,
-            activo=True,
-        ).values_list('dedicacion', flat=True))
-
-        if 'tiempo_completo' in dedicaciones or horas_semana >= Decimal('40'):
-            return 240
-
-        if 'medio_tiempo' in dedicaciones or horas_semana == Decimal('20'):
-            return 120
-
-        return int((Decimal(horas_semana) / Decimal('40')) * Decimal('240'))
+    def _obtener_horas_vacacion_docente(self):
+        resultado = self._calcular_horas_fondo()
+        return resultado['horas_vacacion'] if resultado else 0
 
     def _obtener_horas_feriados_docente(self):
-        """
-        Calcula horas de feriados PROPORCIONALES a la dedicación del vínculo.
-
-        Feriados son de la PERSONA (Docente.horas_feriados_gestion).
-        Horas diarias se calculan según la dedicación del VÍNCULO (DocenteCarrera).
-        """
-        horas_semana = self._obtener_horas_semanales_contractuales()
-        if not self.docente or horas_semana <= 0:
-            return 0
-
-        dias_feriados = self.docente.horas_feriados_gestion or 128
-
-        if dias_feriados == 128:
-            horas_diarias = Decimal(horas_semana) / 5
-            return int(Decimal(16) * horas_diarias)
-        else:
-            return int(dias_feriados)
+        resultado = self._calcular_horas_fondo()
+        return resultado['horas_feriados'] if resultado else 0
 
     def _obtener_user_ids_docente(self):
         if not self.docente_id:
@@ -1112,26 +1123,14 @@ class FondoTiempo(models.Model):
             # Si no hay vínculo, no se puede calcular
             return
 
-        # 1. Horas semanales del vínculo
+        # Horas semanales del vínculo; contrato, vacaciones (por antigüedad) y
+        # feriados salen de calcular_horas_fondo.
         self.horas_semana = Decimal(horas_semana)
-
-        # 2. CONTRATO HORAS DINÁMICO: horas_semanales × 52 semanas
-        self.contrato_horas = int(self.horas_semana * 52)
-
-        # 3. Horas de vacación PROPORCIONALES a la dedicación
-        self.horas_vacacion = self._obtener_horas_vacacion_docente()
-
-        # 4. Horas de feriados PROPORCIONALES a la dedicación
-        self.horas_feriados = self._obtener_horas_feriados_docente()
-
-        # 5. Cálculo final: contrato - vacacion - feriados (redondeo hacia abajo)
-        horas_disponibles_reglamentarias = (
-            int(self.contrato_horas)
-            - int(self.horas_vacacion)
-            - int(self.horas_feriados)
-        )
-
-        self.horas_efectivas = Decimal(max(horas_disponibles_reglamentarias, 0))
+        resultado = self._calcular_horas_fondo()
+        self.contrato_horas = resultado['contrato_horas']
+        self.horas_vacacion = resultado['horas_vacacion']
+        self.horas_feriados = resultado['horas_feriados']
+        self.horas_efectivas = Decimal(resultado['horas_efectivas'])
 
     def clean(self):
         super().clean()

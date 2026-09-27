@@ -11,6 +11,7 @@ import {
   ERROR_SHAKE_DURATION_MS,
 } from '../utils/formErrors';
 import { DEDICACIONES_HORARIO, ETIQUETAS_DEDICACION, describirDedicacion, horasSemanalesDedicacion } from '../utils/dedicaciones';
+import { TOPE_HORAS_SEMANALES_FONDO, calcularAntiguedad, calcularHorasFondo, diasVacacionPorAntiguedad } from '../utils/horasFondo';
 
 // Normaliza mensajes de error confusos del backend (ej: """" no es una elección válida.")
 // a un texto claro y humano para selects como Dedicación/Categoría.
@@ -775,34 +776,21 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     [nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(' ').trim();
 
   /**
-   * Calcula horas efectivas anuales reales según dedicación y fecha de ingreso.
-   * Replica la lógica del backend (FondoTiempo._recalcular_horas_automaticas).
+   * Horas efectivas anuales según dedicación y fecha de ingreso, con el mismo
+   * cálculo que el backend (calcular_horas_fondo): utils/horasFondo.js.
+   * Con un cargo de gestión la jornada contractual es la del cargo (40 h/sem).
    */
-  const calcularHorasEfectivas = (dedicacion, fechaIngreso, gestion = null) => {
-    const horasSemanales = horasSemanalesDedicacion(dedicacion);
-    if (!horasSemanales) return null;
+  const calcularHorasEfectivas = (dedicacion, fechaIngreso, { tieneRolGestion = false, horasFeriadosGestion = null, gestion = null } = {}) => {
+    const horasDedicacion = horasSemanalesDedicacion(dedicacion);
+    if (!horasDedicacion) return null;
+    const antiguedad = calcularAntiguedad(fechaIngreso, gestion);
+    if (antiguedad === null) return null;
 
-    // Calcular antigüedad
-    const fechaIng = fechaIngreso ? new Date(fechaIngreso + 'T00:00:00') : null;
-    if (!fechaIng || isNaN(fechaIng)) return null;
-
-    const gestionActual = gestion || new Date().getFullYear();
-    const antiguedad = Math.max(0, gestionActual - fechaIng.getFullYear());
-
-    // Días de vacaciones según antigüedad
-    let diasVacacion;
-    if (antiguedad >= 10) diasVacacion = 30;
-    else if (antiguedad >= 5) diasVacacion = 20;
-    else diasVacacion = 15;
-
-    // Cálculo de horas
-    const contratoHoras = horasSemanales * 52;
-    const horasDiarias = horasSemanales / 5;
-    const horasVacacion = diasVacacion * horasDiarias;
-    const horasFeriados = 16 * horasDiarias; // 16 días feriados estándar
-    const horasEfectivas = contratoHoras - horasVacacion - horasFeriados;
-
-    return Math.max(Math.floor(horasEfectivas), 0);
+    const horasSemana = Math.min(
+      tieneRolGestion ? Math.max(horasDedicacion, TOPE_HORAS_SEMANALES_FONDO) : horasDedicacion,
+      TOPE_HORAS_SEMANALES_FONDO,
+    );
+    return calcularHorasFondo(horasSemana, diasVacacionPorAntiguedad(antiguedad), horasFeriadosGestion).horas_efectivas;
   };
 
   // Obtener roles combinados del docente (solo roles extra, sin docente)
@@ -2266,10 +2254,11 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                             <h5 className={`text-sm font-semibold ${dedicacionStyles[formData.dedicacion]?.title}`}>Informacion sobre Dedicacion</h5>
                             <p className={`text-xs leading-5 mt-1 ${dedicacionStyles[formData.dedicacion]?.text}`}>
                               {(() => {
-                                const horas = calcularHorasEfectivas(formData.dedicacion, formData.fecha_ingreso);
-                                const antiguedad = formData.fecha_ingreso
-                                  ? Math.max(0, new Date().getFullYear() - new Date(formData.fecha_ingreso + 'T00:00:00').getFullYear())
-                                  : 0;
+                                const horas = calcularHorasEfectivas(formData.dedicacion, formData.fecha_ingreso, {
+                                  tieneRolGestion: usuarioFormularioTieneRolGestion,
+                                  horasFeriadosGestion: formData.horas_feriados_gestion,
+                                });
+                                const antiguedad = calcularAntiguedad(formData.fecha_ingreso) ?? 0;
                                 const label = ETIQUETAS_DEDICACION[formData.dedicacion] || formData.dedicacion;
                                 if (formData.dedicacion === 'dedicacion_exclusiva') {
                                   return 'Docente con dedicacion exclusiva - exento de distribucion de tiempo';
@@ -2524,17 +2513,18 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                   lockTooltip={tooltipDatosUsuarios}
                   inputClassName={estiloBloqueado}
                 />
+                {/* El C.I. se puede corregir mientras el docente no tenga historial (fondos, cargas, saldos). */}
                 <InputField
                   label="Cedula de Identidad (CI)"
                   name="ci"
                   value={formData.ci}
                   onChange={handleChange}
                   error={errors.ci}
-                  maxLength={15}
-                  readOnly
-                  showLock
-                  lockTooltip={tooltipDatosUsuarios}
-                  inputClassName={estiloBloqueado}
+                  maxLength={20}
+                  readOnly={Boolean(docenteSeleccionado?.tiene_historial)}
+                  showLock={Boolean(docenteSeleccionado?.tiene_historial)}
+                  lockTooltip="El docente ya tiene datos registrados: su C.I. no se puede cambiar."
+                  inputClassName={docenteSeleccionado?.tiene_historial ? estiloBloqueado : ''}
                 />
                 <InputField
                   label="Email"

@@ -161,6 +161,15 @@ HORAS_SEMANALES_DEDICACION = {
 }
 
 
+def actualizar_con_historial(queryset, **campos):
+    """Como queryset.update(**campos), pero guardando objeto por objeto para que
+    quede historial (HistoricalRecords) con el usuario que hizo el cambio."""
+    for obj in queryset:
+        for campo, valor in campos.items():
+            setattr(obj, campo, valor)
+        obj.save(update_fields=list(campos))
+
+
 def fecha_referencia_antiguedad(valor=None):
     """Fecha a la que se mide la antigüedad: una fecha, una gestión (1 de enero) o hoy."""
     if valor is None:
@@ -206,6 +215,9 @@ class DatosLaborales(models.Model):
 
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_modificacion = models.DateTimeField(auto_now=True)
+
+    # Auditoría: quién cambió qué y cuándo (usuario vía HistoryRequestMiddleware).
+    history = HistoricalRecords()
 
     class Meta:
         verbose_name = "Datos Laborales"
@@ -326,6 +338,9 @@ class Docente(models.Model):
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_modificacion = models.DateTimeField(auto_now=True)
 
+    # Auditoría: quién cambió qué y cuándo (usuario vía HistoryRequestMiddleware).
+    history = HistoricalRecords()
+
     class Meta:
         verbose_name = "Docente"
         verbose_name_plural = "Docentes"
@@ -428,6 +443,9 @@ class DocenteCarrera(models.Model):
 
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_modificacion = models.DateTimeField(auto_now=True)
+
+    # Auditoría: quién cambió qué y cuándo (usuario vía HistoryRequestMiddleware).
+    history = HistoricalRecords()
 
     class Meta:
         verbose_name = "Vínculo Docente-Carrera"
@@ -2055,6 +2073,9 @@ class AsignacionCarrera(models.Model):
     activo = models.BooleanField(default=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 
+    # Auditoría: quién cambió qué y cuándo (usuario vía HistoryRequestMiddleware).
+    history = HistoricalRecords()
+
     class Meta:
         verbose_name = "Asignación de Carrera"
         verbose_name_plural = "Asignaciones de Carrera"
@@ -2114,6 +2135,9 @@ class PerfilUsuario(models.Model):
     debe_cambiar_password = models.BooleanField(default=True, help_text="Indica si el usuario debe cambiar su contraseña en el próximo inicio de sesión")
     activo = models.BooleanField(default=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
+
+    # Auditoría: quién cambió qué y cuándo (usuario vía HistoryRequestMiddleware).
+    history = HistoricalRecords(excluded_fields=['foto_perfil_cifrada'])
 
     class Meta:
         verbose_name = "Perfil de Usuario"
@@ -2247,7 +2271,7 @@ def guardar_perfil_usuario(sender, instance, **kwargs):
     # Usuario desactivado: se liberan TODAS sus asignaciones (también Director y
     # Jefe de Estudios), para que el cargo se pueda asignar a otra persona.
     if not instance.is_active:
-        AsignacionCarrera.objects.filter(user=instance, activo=True).update(activo=False)
+        actualizar_con_historial(AsignacionCarrera.objects.filter(user=instance, activo=True), activo=False)
 
     perfil = PerfilUsuario.objects.filter(user=instance).first()
 
@@ -2283,7 +2307,7 @@ def crear_datos_laborales_si_no_existen(sender, instance, created, **kwargs):
             }
         )
         if created_dl:
-            Docente.objects.filter(pk=instance.pk).update(datos_laborales=datos)
+            actualizar_con_historial(Docente.objects.filter(pk=instance.pk), datos_laborales=datos)
 
 @receiver(post_save, sender=Actividad)
 @receiver(post_delete, sender=Actividad)

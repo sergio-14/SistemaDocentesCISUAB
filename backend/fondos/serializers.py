@@ -5,7 +5,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import horas_semanales_contractuales
+from .models import actualizar_con_historial, horas_semanales_contractuales
 from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, CategoriaFuncion, Actividad, PerfilUsuario, AsignacionCarrera, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, EvidenciaCargaHoraria
 from .role_context import get_active_assignment, get_effective_profile, serialize_assignment
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
@@ -860,7 +860,7 @@ def _guardar_asignaciones_usuario(user, bloques, docente_por_defecto=None, carre
             docente_por_defecto=docente_por_defecto,
         )
 
-        AsignacionCarrera.objects.filter(user=user, carrera_id__in=ids_permitidos).update(activo=False)
+        actualizar_con_historial(AsignacionCarrera.objects.filter(user=user, carrera_id__in=ids_permitidos), activo=False)
 
         for bloque in bloques_gestionados:
             docente = _resolver_docente_asignacion(bloque, docente_por_defecto=docente_por_defecto)
@@ -882,7 +882,7 @@ def _guardar_asignaciones_usuario(user, bloques, docente_por_defecto=None, carre
     _validar_limite_asignaciones_usuario(bloques)
     _validar_reglas_asignaciones_usuario(bloques, docente_por_defecto=docente_por_defecto)
 
-    AsignacionCarrera.objects.filter(user=user).update(activo=False)
+    actualizar_con_historial(AsignacionCarrera.objects.filter(user=user), activo=False)
 
     for bloque in bloques:
         if not isinstance(bloque, dict):
@@ -1752,7 +1752,7 @@ class DocenteSerializer(serializers.ModelSerializer):
             dl.save()
             if 'ci' in dl_data:
                 # El usuario vinculado guarda el mismo C.I. en su perfil.
-                PerfilUsuario.objects.filter(docente=instance).update(ci=dl_data['ci'])
+                actualizar_con_historial(PerfilUsuario.objects.filter(docente=instance), ci=dl_data['ci'])
 
         if user is not serializers.empty:
             instance.user = user
@@ -1809,7 +1809,10 @@ class DocenteSerializer(serializers.ModelSerializer):
             perfiles_vinculados = PerfilUsuario.objects.filter(docente=docente, user__isnull=False).select_related('user')
             for perfil_vinculado in perfiles_vinculados:
                 if perfil_vinculado.user_id:
-                    AsignacionCarrera.objects.filter(user=perfil_vinculado.user, rol='docente', activo=True).update(activo=False)
+                    actualizar_con_historial(
+                        AsignacionCarrera.objects.filter(user=perfil_vinculado.user, rol='docente', activo=True),
+                        activo=False,
+                    )
                 if perfil_vinculado.rol == 'docente' and perfil_vinculado.activo:
                     perfil_vinculado.activo = False
                     perfil_vinculado.save(update_fields=['activo'])

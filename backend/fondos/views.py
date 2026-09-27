@@ -51,6 +51,7 @@ from .serializers import (
 )
 from .role_context import get_effective_profile, get_active_careers_for_user
 from .solo_lectura import CarreraInactivaSoloLecturaMixin as CarreraInactivaSoloLecturaBase
+from .models import actualizar_con_historial
 
 
 def _es_pdf(archivo):
@@ -3633,7 +3634,7 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
                 perfil.docente.activo = True
                 perfil.docente.save(update_fields=['activo'])
 
-            user.asignaciones_carrera.filter(rol='docente', activo=False).update(activo=True)
+            actualizar_con_historial(user.asignaciones_carrera.filter(rol='docente', activo=False), activo=True)
 
         user = self._releer_usuario(user)
 

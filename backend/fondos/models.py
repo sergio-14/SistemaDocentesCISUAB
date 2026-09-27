@@ -813,6 +813,57 @@ class CalendarioAcademico(models.Model):
         super().save(*args, **kwargs)
 
 
+def documento_decanatura_upload_path(instance, filename):
+    """Ruta: fondos/aprobaciones/docente_<id>/gestion_<año>/decanatura_fondo_<id>.pdf"""
+    return (
+        f'fondos/aprobaciones/docente_{instance.docente_id}/gestion_{instance.gestion}/'
+        f'decanatura_fondo_{instance.pk}.pdf'
+    )
+
+
+def usuarios_del_docente(docente):
+    """Usuarios vinculados a la ficha de docente (directo o por su perfil)."""
+    user_ids = {docente.user_id} if docente.user_id else set()
+    user_ids.update(
+        PerfilUsuario.objects.filter(docente=docente, user__isnull=False, activo=True)
+        .values_list('user_id', flat=True)
+    )
+    return user_ids
+
+
+def roles_del_docente_en_carrera(docente, carrera):
+    """Roles activos de los usuarios del docente en UNA carrera."""
+    user_ids = usuarios_del_docente(docente)
+    if not user_ids or not carrera:
+        return set()
+    roles = set(AsignacionCarrera.objects.filter(
+        user_id__in=user_ids, activo=True, carrera=carrera,
+    ).values_list('rol', flat=True))
+    roles.update(PerfilUsuario.objects.filter(
+        user_id__in=user_ids, activo=True, carrera=carrera,
+    ).exclude(rol='').values_list('rol', flat=True))
+    return roles
+
+
+def horas_semanales_contractuales(docente, carrera):
+    """Horas semanales de un docente en UNA carrera (base del fondo de esa carrera).
+
+    Un docente en dos carreras tiene un fondo por carrera y cada uno usa solo el
+    vínculo de su carrera: contrato, vacaciones y feriados salen de esas horas.
+    Si en esa carrera además tiene un cargo (Director, Jefe o Instituto), el
+    cargo y la docencia van juntos dentro de las 40 h/sem.
+    El tope de 40 h/sem entre todos los vínculos se valida en DocenteCarrera.clean.
+    """
+    vinculo = DocenteCarrera.objects.filter(docente=docente, carrera=carrera, activo=True).first()
+    horas_docencia = Decimal(vinculo.horas_semanales_maximas or 0) if vinculo else Decimal('0')
+    horas_gestion = max(
+        (CARGA_SEMANAL_ROL_GESTION[rol] for rol in roles_del_docente_en_carrera(docente, carrera)
+         if rol in CARGA_SEMANAL_ROL_GESTION),
+        default=Decimal('0'),
+    )
+    return min(max(horas_docencia, horas_gestion), TOPE_HORAS_SEMANALES_FONDO)
+
+
 class FondoTiempo(models.Model):
     """Modelo principal para el fondo de tiempo anual de un docente"""
     
@@ -914,6 +965,15 @@ class FondoTiempo(models.Model):
         related_name='fondos_aprobados',
         help_text="Usuario que aprobó el fondo"
     )
+    # El fondo de un Director lo aprueba el superusuario con el documento de la
+    # Decanatura (PDF obligatorio): nadie aprueba su propio fondo.
+    documento_decanatura = models.FileField(
+        upload_to=documento_decanatura_upload_path,
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(['pdf'])],
+        help_text="Documento de la Decanatura que respalda la aprobación del fondo de un Director",
+    )
     validado_por = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -939,10 +999,12 @@ class FondoTiempo(models.Model):
         # o una validación personalizada en el método `clean` o `save` del modelo.
         # unique_together = ['docente', 'gestion', 'periodo', 'asignatura']
         constraints = [
+            # Por carrera: un docente en dos carreras tiene un fondo en cada una y
+            # nunca deben chocar aunque coincidan gestión, periodo y asignatura.
             models.UniqueConstraint(
-                fields=['docente', 'gestion', 'periodo', 'asignatura'],
+                fields=['docente', 'carrera', 'gestion', 'periodo', 'asignatura'],
                 condition=models.Q(tipo_fondo='semestral'),
-                name='unique_semestral_fondo'
+                name='unique_semestral_fondo_por_carrera'
             )
         ]
 
@@ -1033,6 +1095,21 @@ class FondoTiempo(models.Model):
             activo=True
         ).first()
 
+    def pertenece_a(self, user):
+        """True si el fondo es del propio usuario (su ficha de docente)."""
+        return bool(self.docente_id and user and user.id in usuarios_del_docente(self.docente))
+
+    def es_de_director_de_su_carrera(self):
+        """True si el docente del fondo es el Director de la carrera del fondo."""
+        if not self.docente_id:
+            return False
+        return AsignacionCarrera.objects.filter(
+            user_id__in=usuarios_del_docente(self.docente),
+            carrera=self.carrera,
+            rol='director',
+            activo=True,
+        ).exists()
+
     def fecha_referencia_antiguedad(self):
         """Inicio de la gestión del fondo: el del calendario académico o el 1 de enero."""
         if self.calendario_academico_id and self.calendario_academico.fecha_inicio:
@@ -1063,72 +1140,20 @@ class FondoTiempo(models.Model):
         return resultado['horas_feriados'] if resultado else 0
 
     def _obtener_user_ids_docente(self):
-        if not self.docente_id:
-            return set()
-
-        user_ids = set()
-        if self.docente.user_id:
-            user_ids.add(self.docente.user_id)
-
-        perfiles_relacionados = PerfilUsuario.objects.filter(
-            docente=self.docente,
-            user__isnull=False,
-            activo=True,
-        ).values_list('user_id', flat=True)
-        user_ids.update(user_id for user_id in perfiles_relacionados if user_id)
-        return user_ids
+        return usuarios_del_docente(self.docente) if self.docente_id else set()
 
     def _obtener_roles_activos_docente(self):
-        user_ids = self._obtener_user_ids_docente()
-        if not user_ids:
-            return set()
-
-        roles = set(AsignacionCarrera.objects.filter(
-            user_id__in=user_ids,
-            activo=True,
-        ).values_list('rol', flat=True))
-
-        roles.update(PerfilUsuario.objects.filter(
-            user_id__in=user_ids,
-            activo=True,
-        ).values_list('rol', flat=True))
-
-        return roles
+        """Roles del docente en la carrera de ESTE fondo."""
+        return roles_del_docente_en_carrera(self.docente, self.carrera) if self.docente_id else set()
 
     def _tiene_rol_gestion_activo(self):
         return bool(self._obtener_roles_activos_docente() & set(CARGA_SEMANAL_ROL_GESTION.keys()))
 
     def _obtener_horas_semanales_contractuales(self):
-        """
-        Calcula la carga semanal del fondo considerando dobles roles.
-
-        Suma los vinculos docentes activos y reconoce los roles de gestion como
-        dedicacion contractual base cuando superan la docencia horaria.
-        """
+        """Horas semanales del fondo: solo las de su carrera (ver horas_semanales_contractuales)."""
         if not self.docente_id:
             return Decimal('0')
-
-        vinculos = DocenteCarrera.objects.filter(
-            docente=self.docente,
-            activo=True,
-        )
-        horas_docencia = sum(
-            (Decimal(vinculo.horas_semanales_maximas or 0) for vinculo in vinculos),
-            Decimal('0'),
-        )
-
-        roles_activos = self._obtener_roles_activos_docente()
-        horas_gestion = max(
-            (
-                CARGA_SEMANAL_ROL_GESTION[rol]
-                for rol in roles_activos
-                if rol in CARGA_SEMANAL_ROL_GESTION
-            ),
-            default=Decimal('0'),
-        )
-
-        horas_semana = max(horas_docencia, horas_gestion)
-        return min(horas_semana, TOPE_HORAS_SEMANALES_FONDO)
+        return horas_semanales_contractuales(self.docente, self.carrera)
 
     def _recalcular_horas_automaticas(self):
         """

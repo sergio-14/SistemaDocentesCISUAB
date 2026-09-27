@@ -53,6 +53,16 @@ from .role_context import get_effective_profile, get_active_careers_for_user
 from .solo_lectura import CarreraInactivaSoloLecturaMixin as CarreraInactivaSoloLecturaBase
 
 
+def _es_pdf(archivo):
+    """Extensión .pdf y cabecera %PDF (no basta con el nombre)."""
+    if not str(getattr(archivo, 'name', '')).lower().endswith('.pdf'):
+        return False
+    posicion = archivo.tell() if hasattr(archivo, 'tell') else 0
+    cabecera = archivo.read(5)
+    archivo.seek(posicion)
+    return cabecera.startswith(b'%PDF')
+
+
 def _obtener_perfil_usuario(user):
     if not user or not user.is_authenticated:
         return None
@@ -140,6 +150,24 @@ class CarreraInactivaSoloLecturaMixin(CarreraInactivaSoloLecturaBase):
         if carreras.exists() and not carreras.filter(activo=True).exists():
             return [carreras.first()]
         return []
+
+
+def _validar_revisor_del_fondo(request, fondo, accion):
+    """Quién puede aprobar, observar, iniciar ejecución o evaluar un fondo.
+
+    - Nadie actúa sobre su propio fondo.
+    - El fondo del Director de la carrera lo revisa el superusuario.
+    - El resto, el Director de la carrera (y, donde ya se permitía, el superusuario).
+    Devuelve True si la revisión la hace el superusuario por ser fondo de un Director.
+    """
+    user = request.user
+    if fondo.pertenece_a(user):
+        raise PermissionDenied(f'No puedes {accion} tu propio fondo.')
+    if fondo.es_de_director_de_su_carrera():
+        if not user.is_superuser:
+            raise PermissionDenied(f'El fondo del Director de la carrera solo lo puede {accion} el superusuario.')
+        return True
+    return False
 
 
 class IsFullAdmin(BasePermission):
@@ -1921,8 +1949,9 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         user = request.user
 
         perfil = _obtener_perfil_efectivo(user, request)
-        if not (perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, request)):
-            raise PermissionDenied("Solo el Director de la carrera correspondiente puede solicitar correcciones al informe.")
+        if not _validar_revisor_del_fondo(request, fondo, 'observar'):
+            if not (perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, request)):
+                raise PermissionDenied("Solo el Director de la carrera correspondiente puede solicitar correcciones al informe.")
 
         if fondo.estado != 'informe_presentado':
             return Response(
@@ -2132,10 +2161,25 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
     def aprobar(self, request, pk=None):
         """Aprobar fondo (Director)"""
         fondo = self.get_object()
-        # MEJORA: Solo un Director debería poder aprobar, no un Admin genérico.
-        perfil = _obtener_perfil_efectivo(request.user, request)
-        if not (perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(request.user, fondo.carrera, request)):
-            raise PermissionDenied("Solo los Directores de Carrera pueden aprobar fondos.")
+        aprueba_superusuario = _validar_revisor_del_fondo(request, fondo, 'aprobar')
+        documento_decanatura = None
+        if aprueba_superusuario:
+            documento_decanatura = request.FILES.get('documento_decanatura')
+            if not documento_decanatura:
+                return Response(
+                    {'documento_decanatura': 'Adjunte el documento de la Decanatura (PDF) para aprobar el fondo del Director.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if not _es_pdf(documento_decanatura):
+                return Response(
+                    {'documento_decanatura': 'El documento de la Decanatura debe ser un archivo PDF.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            # MEJORA: Solo un Director debería poder aprobar, no un Admin genérico.
+            perfil = _obtener_perfil_efectivo(request.user, request)
+            if not (perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(request.user, fondo.carrera, request)):
+                raise PermissionDenied("Solo los Directores de Carrera pueden aprobar fondos.")
         
         # Un director puede aprobar fondos presentados o que él mismo haya observado y el docente corrigió.
         if fondo.estado != 'presentado_director':
@@ -2152,6 +2196,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         fondo.estado = 'aprobado_director'
         fondo.fecha_aprobacion = timezone.now()
         fondo.aprobado_por = request.user
+        if documento_decanatura:
+            fondo.documento_decanatura = documento_decanatura
         
         observacion = serializer.validated_data.get('observacion', '')
         if observacion:
@@ -2181,10 +2227,11 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         """Observar o rechazar fondo (Director)"""
         try:
             fondo = self.get_object()
-            # MEJORA: Solo un Director debería poder observar, no un Admin genérico.
-            perfil = _obtener_perfil_efectivo(request.user, request)
-            if not (perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(request.user, fondo.carrera, request)):
-                raise PermissionDenied("Solo los Directores de Carrera pueden observar fondos.")
+            if not _validar_revisor_del_fondo(request, fondo, 'observar'):
+                # MEJORA: Solo un Director debería poder observar, no un Admin genérico.
+                perfil = _obtener_perfil_efectivo(request.user, request)
+                if not (perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(request.user, fondo.carrera, request)):
+                    raise PermissionDenied("Solo los Directores de Carrera pueden observar fondos.")
 
             if fondo.estado != 'presentado_director':
                 return Response(
@@ -2357,6 +2404,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         """
         fondo = self.get_object()
         perfil = _obtener_perfil_efectivo(request.user, request)
+        _validar_revisor_del_fondo(request, fondo, 'iniciar la ejecución de')
 
         if not request.user.is_superuser:
             if not perfil or perfil.rol != 'director':
@@ -2518,9 +2566,11 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         except Exception:
             perfil = None
 
-        # REGLA: Solo el Director de la carrera correspondiente puede evaluar.
-        if not (perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, request)):
-            raise PermissionDenied("Solo el Director de la carrera correspondiente puede evaluar y finalizar el fondo.")
+        # REGLA: Solo el Director de la carrera correspondiente puede evaluar
+        # (el fondo del Director lo evalúa el superusuario).
+        if not _validar_revisor_del_fondo(request, fondo, 'evaluar'):
+            if not (perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, request)):
+                raise PermissionDenied("Solo el Director de la carrera correspondiente puede evaluar y finalizar el fondo.")
         
         # Validar estado actual
         if fondo.estado != 'informe_presentado':

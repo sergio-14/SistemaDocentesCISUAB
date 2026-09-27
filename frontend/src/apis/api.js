@@ -96,7 +96,15 @@ export const presentarFondoADirector = (fondoId) => {
 };
 export const presentarFondo = (id, observacion = '') => 
   api.post(`/fondos-tiempo/${id}/presentar/`, { observacion });
-export const aprobarFondo = (fondoId) => {
+// documentoDecanatura (PDF): obligatorio cuando el superusuario aprueba el fondo de un Director.
+export const aprobarFondo = (fondoId, documentoDecanatura = null) => {
+  if (documentoDecanatura) {
+    const payload = new FormData();
+    payload.append('documento_decanatura', documentoDecanatura);
+    return api.post(`/fondos-tiempo/${fondoId}/aprobar/`, payload, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  }
   return api.post(`/fondos-tiempo/${fondoId}/aprobar/`);
 };
 export const observarFondo = (fondoId, data) => api.post(`/fondos-tiempo/${fondoId}/observar/`, data);

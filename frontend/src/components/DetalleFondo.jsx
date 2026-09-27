@@ -270,6 +270,7 @@ function DetalleFondo({ isDark }) {
   const dedicacionDocente = vinculo?.dedicacion || null;
   const categoriaDocente = vinculo?.categoria || null;
   const [mostrarModalAprobar, setMostrarModalAprobar] = useState(false);
+  const [documentoDecanatura, setDocumentoDecanatura] = useState(null);
   const observacionesRef = useRef();
   const [observacionesPendientes, setObservacionesPendientes] = useState(0);
   const [actividadAEditar, setActividadAEditar] = useState(null);
@@ -364,6 +365,12 @@ function DetalleFondo({ isDark }) {
   const esDirector = rolOperativo === 'director';
   const esJefeEstudios = rolOperativo === 'jefe_estudios';
   const esIisyp = rolOperativo === 'iiisyp';
+  // Nadie revisa (aprueba, observa, inicia o evalúa) su propio fondo; el fondo del
+  // Director de la carrera lo revisa el superusuario con el documento de la Decanatura.
+  const esRevisorDelFondo = Boolean(fondo) && !fondo.es_fondo_propio && (
+    fondo.es_fondo_de_director ? esSuperAdmin : (esDirector && !esIisyp)
+  );
+  const requiereDocumentoDecanatura = Boolean(fondo?.es_fondo_de_director);
   const puedeGestionarDistribucion = esSuperAdmin || esJefeEstudios;
   const puedeGestionarCarga = esSuperAdmin || esJefeEstudios;
   const soloLecturaPorRol = !puedeGestionarCarga;
@@ -750,10 +757,15 @@ function DetalleFondo({ isDark }) {
   };
 
   const aprobarFondoHandler = async () => {
+    if (requiereDocumentoDecanatura && !documentoDecanatura) {
+      toast.error('Adjunte el documento de la Decanatura (PDF) para aprobar el fondo del Director.');
+      return;
+    }
     try {
-      const response = await aprobarFondo(fondo.id);
+      await aprobarFondo(fondo.id, requiereDocumentoDecanatura ? documentoDecanatura : null);
       toast.success('Fondo aprobado exitosamente');
       setMostrarModalAprobar(false);
+      setDocumentoDecanatura(null);
       await cargarDetalle({ silencioso: true });
     } catch (err) {
       console.error('Error al aprobar:', err);
@@ -1677,7 +1689,7 @@ function DetalleFondo({ isDark }) {
                     )}
 
                     {/* ADMIN/DIRECTOR: Revisar */}
-                    {fondo.estado === 'presentado_director' && esDirector && !esIisyp && (
+                    {fondo.estado === 'presentado_director' && esRevisorDelFondo && (
                       <div className="grid grid-cols-2 gap-1.5">
                         <button
                           onClick={abrirFormularioObservar}
@@ -1725,7 +1737,7 @@ function DetalleFondo({ isDark }) {
                       </button>
                     )}
 
-                    {fondo.estado === 'aprobado_director' && esDirector && !esIisyp && (
+                    {fondo.estado === 'aprobado_director' && esRevisorDelFondo && (
                       <button
                         onClick={() => setMostrarModalIniciarEjecucion(true)}
                         className="w-full py-2 rounded-xl font-bold text-white bg-purple-600 hover:bg-purple-700 shadow-lg shadow-purple-500/30 flex justify-center items-center gap-2 transition-all hover:scale-[1.02] text-xs"
@@ -1747,7 +1759,7 @@ function DetalleFondo({ isDark }) {
                     )}
 
                     {/* ADMIN: Evaluar Informe */}
-                    {fondo.estado === 'informe_presentado' && esDirector && !esIisyp && (
+                    {fondo.estado === 'informe_presentado' && esRevisorDelFondo && (
                       <div className="space-y-1.5">
                         <button
                           onClick={() => setMostrarModalInforme(true)}
@@ -2224,6 +2236,18 @@ function DetalleFondo({ isDark }) {
                     </span>
                   </div>
                 </div>
+                {requiereDocumentoDecanatura && (
+                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-100 space-y-2">
+                    <p className="font-semibold">Fondo del Director de la carrera</p>
+                    <p>Para aprobarlo adjunta el documento de la Decanatura (PDF, obligatorio).</p>
+                    <input
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      onChange={(e) => setDocumentoDecanatura(e.target.files?.[0] || null)}
+                      className="block w-full text-xs"
+                    />
+                  </div>
+                )}
               </div>
               <div className="flex gap-3 px-6 pb-6">
                 <button
@@ -2234,7 +2258,8 @@ function DetalleFondo({ isDark }) {
                 </button>
                 <button
                   onClick={aprobarFondoHandler}
-                  className="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl hover:scale-105 flex items-center justify-center gap-2"
+                  disabled={requiereDocumentoDecanatura && !documentoDecanatura}
+                  className="disabled:opacity-50 disabled:cursor-not-allowed flex-1 px-4 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl hover:scale-105 flex items-center justify-center gap-2"
                 >
                   <CheckBadgeIcon className="w-5 h-5" />
                   <span>Aprobar</span>
@@ -2377,7 +2402,7 @@ function DetalleFondo({ isDark }) {
                 </div>
               </div>
 
-              {fondo.estado === 'informe_presentado' && esDirector && !esIisyp && (
+              {fondo.estado === 'informe_presentado' && esRevisorDelFondo && (
                 <div className="px-6 py-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
                   <button
                     onClick={() => { setMostrarModalInforme(false); setMostrarModalObservarInforme(true); }}

@@ -5,6 +5,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from .models import horas_semanales_contractuales
 from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, CategoriaFuncion, Actividad, PerfilUsuario, AsignacionCarrera, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, EvidenciaCargaHoraria
 from .role_context import get_active_assignment, get_effective_profile, serialize_assignment
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
@@ -2259,6 +2260,14 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
             return 0
         return (total_asignado / obj.horas_efectivas) * 100
 
+    def run_validators(self, value):
+        # DRF no completa los campos de la condición de una UniqueConstraint
+        # (tipo_fondo) en ediciones parciales y falla con KeyError: se toman del
+        # fondo actual solo para los validadores.
+        if self.instance is not None and isinstance(value, dict) and 'tipo_fondo' not in value:
+            value = {'tipo_fondo': self.instance.tipo_fondo, **value}
+        super().run_validators(value)
+
     def validate(self, data):
         """
          BLINDAJE: Validación de horas acumuladas (Límite 56 horas semanales)
@@ -2272,10 +2281,12 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
         if not docente:
             return data
         
-        # Obtener horas máximas del docente según su primer vínculo activo
-        primer_vinculo = DocenteCarrera.objects.filter(
-            docente=docente, activo=True
-        ).first()
+        # El límite sale de la carrera de ESTE fondo (un docente en dos carreras
+        # tiene un fondo por carrera), no del primer vínculo que aparezca.
+        carrera = data.get('carrera') or (self.instance.carrera if self.instance else None)
+        vinculo_carrera = DocenteCarrera.objects.filter(
+            docente=docente, carrera=carrera, activo=True
+        ).first() if carrera else None
         calendario = data.get('calendario_academico')
         if not calendario and hasattr(self, 'instance') and self.instance:
             calendario = self.instance.calendario_academico
@@ -2294,32 +2305,28 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
                     'docente': 'Este docente ya tiene un fondo de tiempo registrado para el periodo seleccionado'
                 })
 
-        horas_maximas_semanales = primer_vinculo.horas_semanales_maximas if primer_vinculo else 0
-        
-        # Calcular total de horas asignadas en este fondo de tiempo
-        total_horas_asignadas = Decimal(0)
-        
-        # Si estamos actualizando, obtener las categorías existentes
+        # Horas semanales del docente en esta carrera (vínculo + cargo si lo tiene aquí).
+        horas_maximas_semanales = horas_semanales_contractuales(docente, carrera) if carrera else Decimal('0')
+
+        # La distribución por categorías se guarda en horas SEMANALES
+        # (distribuir-horas exige que sumen exactamente horas_semana).
+        horas_semanales_asignadas = Decimal(0)
         if self.instance and hasattr(self.instance, 'categorias'):
             for categoria in self.instance.categorias.all():
-                total_horas_asignadas += categoria.total_horas or Decimal(0)
-        
-        # Convertir a horas semanales (asumiendo 52 semanas por año)
-        horas_semanales_asignadas = total_horas_asignadas / Decimal(52)
-        
+                horas_semanales_asignadas += categoria.total_horas or Decimal(0)
+
         # VALIDACION DE LIMITE DE 56 HORAS SEMANALES
         if horas_semanales_asignadas > Decimal('56'):
             raise serializers.ValidationError({
-                'horas_efectivas': 
-                f'ALERTA L\u00cdMITE EXCEDIDO: La suma de todas las actividades ({horas_semanales_asignadas:.2f} horas/semana) '
+                'horas_efectivas':
+                f'ALERTA LÍMITE EXCEDIDO: La suma de todas las actividades ({horas_semanales_asignadas:.2f} horas/semana) '
                 f'supera el máximo permitido de 56 horas semanales. '
-                f'Total anual: {total_horas_asignadas:.2f} horas. '
                 f'Por favor, reduce la carga de actividades.'
             })
-        
-        # Validación adicional: comparar con el límite específico del docente
+
+        # Validación adicional: comparar con el límite del docente en esta carrera
         if horas_semanales_asignadas > horas_maximas_semanales:
-            dedicacion_label = primer_vinculo.get_dedicacion_display() if primer_vinculo else 'N/A'
+            dedicacion_label = vinculo_carrera.get_dedicacion_display() if vinculo_carrera else 'N/A'
             raise serializers.ValidationError({
                 'horas_efectivas':
                 f'ALERTA L\u00cdMITE PERSONAL EXCEDIDO: Tu dedicaci\u00f3n ({dedicacion_label}) tiene un l\u00edmite de '
@@ -3843,6 +3850,9 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     # Permisos
     puede_editar = serializers.SerializerMethodField()
     puede_presentar = serializers.SerializerMethodField()
+    # Revisión: nadie revisa su propio fondo; el del Director lo revisa el superusuario.
+    es_fondo_propio = serializers.SerializerMethodField()
+    es_fondo_de_director = serializers.SerializerMethodField()
     
     class Meta:
         model = FondoTiempo
@@ -3864,7 +3874,8 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             'categorias', 'requerimientos', 'proyectos', 'informes', 'asignaturas_ejecutadas', 'observaciones_detalladas',
             'informe_actual',
             # Permisos
-            'puede_editar', 'puede_presentar'
+            'puede_editar', 'puede_presentar',
+            'es_fondo_propio', 'es_fondo_de_director', 'documento_decanatura',
         ]
         read_only_fields = [
             'estado', 'horas_efectivas',
@@ -3924,6 +3935,13 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     
     def get_puede_presentar(self, obj):
         return obj.puede_presentar()
+
+    def get_es_fondo_propio(self, obj):
+        request = self.context.get('request')
+        return obj.pertenece_a(getattr(request, 'user', None))
+
+    def get_es_fondo_de_director(self, obj):
+        return obj.es_de_director_de_su_carrera()
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

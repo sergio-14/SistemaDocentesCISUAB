@@ -465,6 +465,11 @@ class CarreraViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         queryset = Carrera.objects.all()
         user = self.request.user
 
+        # ?activo=false: el aviso de solo lectura del superusuario lista las inactivas.
+        activo = self.request.query_params.get('activo')
+        if activo is not None:
+            queryset = queryset.filter(activo=activo.strip().lower() in ('true', '1', 'si', 'yes'))
+
         # Usuarios con permisos de gestión deben ver activas e inactivas.
         if self._is_superuser(user):
             return queryset
@@ -492,6 +497,15 @@ class CarreraViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
 
     def _is_superuser(self, user):
         return bool(user and user.is_authenticated and user.is_superuser)
+
+    def permite_escritura_en_carrera_inactiva(self, request):
+        # Única excepción al solo lectura: el superusuario edita la carrera para reactivarla.
+        activo = str(request.data.get('activo', '')).strip().lower() if hasattr(request.data, 'get') else ''
+        return (
+            self._is_superuser(request.user)
+            and self.action in ('update', 'partial_update')
+            and activo in ('true', '1', 'yes', 'si', 'on')
+        )
 
     def _rol_usuario(self, user):
         if not user or not user.is_authenticated or not hasattr(user, 'perfil'):

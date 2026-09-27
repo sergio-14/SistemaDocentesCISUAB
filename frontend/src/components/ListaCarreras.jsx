@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { FaEdit, FaTrash } from 'react-icons/fa';
 import { getCarreras, getFacultadesCarrera, addFacultadCarrera, deleteFacultadCarrera } from '../apis/api';
 import api from '../apis/api';
+import { EVENTO_CARRERAS_ACTUALIZADAS } from './common/AvisoCarreraInactiva';
 import toast from 'react-hot-toast';
 import {
   ERROR_FIELD_BORDER_CLASS,
@@ -1537,6 +1538,8 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
         toast.success('Carrera actualizada correctamente');
       }
       suppressUpdateToastRef.current = false;
+      // El aviso de solo lectura del superusuario vuelve a contar las carreras inactivas.
+      window.dispatchEvent(new Event(EVENTO_CARRERAS_ACTUALIZADAS));
       setShowModal(false);
       setLogoFile(null);
       setLogoPreview('');
@@ -2253,7 +2256,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                   Editar Carrera
                 </button>
               )}
-              {puedeEditarEstructura() && (
+              {puedeEditarEstructura() && carreraSeleccionada.activo !== false && (
                 <button
                   type="button"
                   onClick={() => eliminarCarrera(carreraSeleccionada)}
@@ -2276,6 +2279,12 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
             </div>
 
             <form onSubmit={handleUpdateSubmit} noValidate className="px-6 py-5 max-h-[calc(90vh-76px)] overflow-y-auto">
+              {carreraSeleccionada.activo === false && (
+                <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-800 dark:text-red-100">
+                  🔒 Esta carrera está desactivada y es de solo lectura, también para el superusuario.
+                  Para guardar cambios, actívala con el interruptor del logo y luego actualiza.
+                </div>
+              )}
               {identidadBloqueada && (
                 <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100">
                   Esta carrera ya tiene datos académicos ({identidadBloqueada.map((item) => `${item.etiqueta}: ${item.cantidad}`).join(', ')}).

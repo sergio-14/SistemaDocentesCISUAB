@@ -1,12 +1,15 @@
 """Una carrera desactivada queda como histórico de solo lectura.
 
-Quien no es superusuario puede ver sus datos, pero cualquier escritura
+Todos, incluido el superusuario, pueden ver sus datos, pero cualquier escritura
 (POST/PUT/PATCH/DELETE, incluidas las acciones personalizadas) se rechaza si
 toca una carrera inactiva:
 
 1. la del objeto de la URL,
 2. la de las relaciones que vienen en el cuerpo de la petición, o
 3. la carrera en la que el usuario está trabajando (cada módulo la define).
+
+La única excepción es que el superusuario edite la carrera para reactivarla
+(ver CarreraViewSet.permite_escritura_en_carrera_inactiva).
 
 Lo usan las vistas de fondos (fondos/views.py) y las del POA
 (poa_document/api/views.py).
@@ -49,7 +52,7 @@ def carrera_de_objeto(obj, profundidad=0):
 
 
 class CarreraInactivaSoloLecturaMixin:
-    """Rechaza escrituras sobre carreras inactivas para quien no es superusuario.
+    """Rechaza escrituras sobre carreras inactivas, también para el superusuario.
 
     Cada módulo indica qué campos del cuerpo apuntan a una carrera
     (`campos_con_carrera`) y en qué carrera trabaja el usuario
@@ -62,10 +65,15 @@ class CarreraInactivaSoloLecturaMixin:
     def carreras_de_contexto(self, request):
         return []
 
+    def permite_escritura_en_carrera_inactiva(self, request):
+        return False
+
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
         user = request.user
-        if request.method in SAFE_METHODS or not user or not user.is_authenticated or user.is_superuser:
+        if request.method in SAFE_METHODS or not user or not user.is_authenticated:
+            return
+        if self.permite_escritura_en_carrera_inactiva(request):
             return
         for carrera in self._carreras_afectadas(request):
             if carrera is not None and not carrera.activo:
@@ -96,12 +104,24 @@ class CarreraInactivaSoloLecturaMixin:
                 if valor not in (None, '') and not isinstance(valor, (list, dict)):
                     yield carrera_de_objeto(self._buscar(modelo, valor))
 
+    def _modelo_de_la_vista(self):
+        # Varias vistas no declaran `queryset` y solo definen get_queryset().
+        queryset = getattr(self, 'queryset', None)
+        if queryset is not None:
+            return queryset.model
+        try:
+            return self.get_queryset().model
+        except (AttributeError, AssertionError, TypeError):
+            meta = getattr(getattr(self, 'serializer_class', None), 'Meta', None)
+            return getattr(meta, 'model', None)
+
     def _carreras_afectadas(self, request):
         # 1) El objeto de la URL (detalle y acciones detail=True).
-        queryset = getattr(self, 'queryset', None)
         lookup = getattr(self, 'lookup_url_kwarg', None) or getattr(self, 'lookup_field', None)
-        if queryset is not None and lookup and lookup in self.kwargs:
-            yield carrera_de_objeto(self._buscar(queryset.model, self.kwargs[lookup]))
+        if lookup and lookup in self.kwargs:
+            modelo = self._modelo_de_la_vista()
+            if modelo is not None:
+                yield carrera_de_objeto(self._buscar(modelo, self.kwargs[lookup]))
 
         # 2) Relaciones enviadas en el cuerpo (al crear o reasignar).
         yield from self._relaciones_en_cuerpo(request)

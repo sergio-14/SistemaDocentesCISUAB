@@ -3,8 +3,9 @@
 - Una carrera solo se elimina si está vacía (cualquier dependencia da 409).
 - Si la carrera tiene datos académicos, sus campos de identidad no se pueden cambiar.
 - Crear una carrera exige logo también en el backend.
-- Una carrera desactivada es de solo lectura para quien no es superusuario,
-  también en el POA.
+- Una carrera desactivada es de solo lectura para todos, incluido el
+  superusuario, también en el POA. La única excepción es que el superusuario
+  edite la carrera para reactivarla.
 - En el admin de Django solo el superusuario agrega y elimina carreras.
 """
 import io
@@ -388,12 +389,79 @@ class CarreraInactivaSoloLecturaTests(CarreraBaseTestCase):
         self.assertEqual(str(response.data['detail']), CarreraInactivaSoloLecturaMixin.MENSAJE_CARRERA_INACTIVA)
         self.assertFalse(Materia.objects.filter(sigla='CIS-FIS-O11101').exists())
 
-    def test_superusuario_puede_escribir_en_carrera_inactiva(self):
+    def _assert_bloqueado(self, response):
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(str(response.data['detail']), CarreraInactivaSoloLecturaMixin.MENSAJE_CARRERA_INACTIVA)
+
+    def test_superusuario_no_puede_editar_la_carrera_inactiva_sin_reactivarla(self):
         self.client.force_authenticate(self.superuser)
 
         response = self.client.patch(f'/api/carreras/{self.carrera.pk}/', {'mision': 'Actualizada'}, format='json')
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self._assert_bloqueado(response)
+        self.carrera.refresh_from_db()
+        self.assertEqual(self.carrera.mision, '')
+
+    def test_superusuario_puede_reactivar_la_carrera(self):
+        self.client.force_authenticate(self.superuser)
+
+        response = self.client.patch(
+            f'/api/carreras/{self.carrera.pk}/', {'activo': True, 'mision': 'Reactivada'}, format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.carrera.refresh_from_db()
+        self.assertTrue(self.carrera.activo)
+        self.assertEqual(self.carrera.mision, 'Reactivada')
+
+    def test_la_excepcion_de_reactivar_es_solo_del_superusuario(self):
+        director = self.crear_usuario('director_reactiva', 'director', is_staff=True)
+        AsignacionCarrera.objects.create(user=director, carrera=self.carrera, rol='director')
+        self.client.force_authenticate(director)
+
+        response = self.client.patch(f'/api/carreras/{self.carrera.pk}/', {'activo': True}, format='json')
+
+        self._assert_bloqueado(response)
+        self.carrera.refresh_from_db()
+        self.assertFalse(self.carrera.activo)
+
+    def test_superusuario_no_puede_eliminar_una_carrera_inactiva(self):
+        vacia = self.crear_carrera(activo=False)
+        self.client.force_authenticate(self.superuser)
+
+        self._assert_bloqueado(self.client.delete(f'/api/carreras/{vacia.pk}/'))
+        self.assertTrue(Carrera.objects.filter(pk=vacia.pk).exists())
+
+    def test_superusuario_no_puede_escribir_en_materias_ni_fondos_de_carrera_inactiva(self):
+        materia = Materia.objects.create(nombre='Álgebra', sigla='ALG-INA', carrera=self.carrera, semestre=1, horas_teoricas=2)
+        self.client.force_authenticate(self.superuser)
+
+        respuestas = {
+            'crear materia': self.client.post(
+                '/api/materias/',
+                {'nombre': 'Física', 'sigla': 'CIS-FIS-O11102', 'carrera': self.carrera.pk, 'semestre': 1, 'horas_teoricas': 2},
+                format='json',
+            ),
+            'editar materia': self.client.patch(f'/api/materias/{materia.pk}/', {'nombre': 'Otra'}, format='json'),
+            'borrar materia': self.client.delete(f'/api/materias/{materia.pk}/'),
+            'editar fondo': self.client.patch(f'/api/fondos-tiempo/{self.fondo.pk}/', {'gestion': 2027}, format='json'),
+            'distribuir horas': self.client.patch(
+                f'/api/fondos-tiempo/{self.fondo.pk}/distribuir-horas/', {'categorias': {}}, format='json',
+            ),
+            'crear fondo': self.client.post(
+                '/api/fondos-tiempo/', {'docente': self.docente.pk, 'carrera': self.carrera.pk}, format='json',
+            ),
+        }
+        for accion, response in respuestas.items():
+            with self.subTest(accion=accion):
+                self._assert_bloqueado(response)
+        self.assertTrue(Materia.objects.filter(pk=materia.pk, nombre='Álgebra').exists())
+
+    def test_superusuario_puede_ver_el_historico(self):
+        self.client.force_authenticate(self.superuser)
+
+        self.assertEqual(self.client.get(f'/api/fondos-tiempo/{self.fondo.pk}/').status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.get(f'/api/carreras/{self.carrera.pk}/').status_code, status.HTTP_200_OK)
 
 
 class CarreraAdminPermisosTests(CarreraBaseTestCase):
@@ -452,6 +520,19 @@ class PoaCarreraInactivaTests(CarreraBaseTestCase):
         resultados = response.data['results'] if isinstance(response.data, dict) else response.data
         self.assertEqual([p['nombre'] for p in resultados], ['Programa existente'])
 
+    def test_superusuario_tampoco_puede_escribir_en_el_poa_de_una_carrera_inactiva(self):
+        programa = ProgramaPOA.objects.create(carrera=self.carrera, nombre='Programa existente')
+        Carrera.objects.filter(pk=self.carrera.pk).update(activo=False)
+        self.client.force_authenticate(self.superuser)
+
+        editado = self.client.patch(f'/api/poa/programas/{programa.pk}/', {'nombre': 'Otro'}, format='json')
+        borrado = self.client.delete(f'/api/poa/programas/{programa.pk}/')
+
+        for response in (editado, borrado):
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            self.assertEqual(str(response.data['detail']), CarreraInactivaSoloLecturaMixin.MENSAJE_CARRERA_INACTIVA)
+        self.assertTrue(ProgramaPOA.objects.filter(pk=programa.pk, nombre='Programa existente').exists())
+
     def test_con_carrera_inactiva_no_puede_registrar_ordenes_de_compra(self):
         Carrera.objects.filter(pk=self.carrera.pk).update(activo=False)
 
@@ -467,7 +548,17 @@ class PoaCarreraInactivaTests(CarreraBaseTestCase):
 
 
 class CarreraActivaEnAsignacionesTests(CarreraBaseTestCase):
-    """El frontend usa carrera_activa para mostrar el modo solo lectura."""
+    """El frontend usa carrera_activa y ?activo=false para mostrar el modo solo lectura."""
+
+    def test_superusuario_puede_listar_solo_las_carreras_inactivas(self):
+        self.crear_carrera()
+        inactiva = self.crear_carrera(activo=False)
+        self.client.force_authenticate(self.superuser)
+
+        response = self.client.get('/api/carreras/', {'activo': 'false'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([c['id'] for c in response.data['results']], [inactiva.pk])
 
     def test_usuario_actual_informa_si_la_carrera_de_cada_asignacion_esta_activa(self):
         activa = self.crear_carrera()

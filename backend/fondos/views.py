@@ -3441,8 +3441,14 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         # Usuario normal solo ve su propio perfil
         return queryset.filter(id=user.id)
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
-        """Crear nuevo usuario con perfil"""
+        """Crear nuevo usuario con perfil.
+
+        Todo en una transacción: si algo falla a mitad (asignaciones, ficha de
+        docente o la sincronización final) no queda un usuario a medias con el
+        perfil 'docente' que crea la señal.
+        """
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         # Releer de la base: el objeto guardado conserva en caché el perfil que la

@@ -4,6 +4,8 @@ Error encontrado a mano: al crear un Director (sin segundo rol) la respuesta de 
 API lo mostraba como "Director/Docente". En la base estaba bien; la respuesta
 usaba el perfil que la señal crea con rol 'docente' y que quedaba en caché.
 """
+from unittest import mock
+
 from django.contrib.auth.models import User
 from rest_framework import status
 
@@ -64,3 +66,41 @@ class RolesMarcadosTests(UsuariosBaseTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(response.data['perfil']['rol'], 'jefe_estudios')
         self.assertEqual(_roles_en_respuesta(response.data), {'jefe_estudios'})
+
+
+class CreacionAtomicaTests(UsuariosBaseTestCase):
+    """Si la creación falla a mitad no queda nada: ni usuario ni el perfil 'docente' de la señal."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(self.superuser)
+        self.datos = self.datos_usuario('a_medias', 'director', self.carrera, 'AT-1')
+
+    def _assert_no_quedo_nada(self):
+        self.assertFalse(User.objects.filter(username='a_medias').exists())
+        self.assertFalse(PerfilUsuario.objects.filter(user__username='a_medias').exists())
+        self.assertFalse(PerfilUsuario.objects.filter(ci='AT-1').exists())
+        self.assertFalse(AsignacionCarrera.objects.filter(user__isnull=True).exists())
+        self.assertFalse(PerfilUsuario.objects.filter(user__isnull=True).exists())
+
+    def test_falla_al_guardar_las_asignaciones(self):
+        # El usuario y su perfil (de la señal) ya se crearon cuando esto falla.
+        with mock.patch('fondos.serializers._guardar_asignaciones_usuario', side_effect=RuntimeError('falla')):
+            with self.assertRaises(RuntimeError):
+                self.client.post('/api/usuarios/', self.datos, format='json')
+
+        self._assert_no_quedo_nada()
+
+    def test_falla_despues_de_guardar_en_la_vista(self):
+        # Falla ya fuera del serializer (sincronización final de la vista).
+        with mock.patch('fondos.views._sincronizar_estado_usuario_huerfano', side_effect=RuntimeError('falla')):
+            with self.assertRaises(RuntimeError):
+                self.client.post('/api/usuarios/', self.datos, format='json')
+
+        self._assert_no_quedo_nada()
+
+    def test_sin_fallas_se_crea_normalmente(self):
+        response = self.client.post('/api/usuarios/', self.datos, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertTrue(User.objects.filter(username='a_medias').exists())

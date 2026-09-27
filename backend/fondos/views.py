@@ -3445,13 +3445,18 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         """Crear nuevo usuario con perfil"""
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        user = serializer.save()
+        # Releer de la base: el objeto guardado conserva en caché el perfil que la
+        # señal crea con rol 'docente', y la respuesta mostraba un rol que no se marcó.
+        user = self._releer_usuario(serializer.save())
         user = _sincronizar_estado_usuario_huerfano(user)
 
         # Retornar con el serializer de lectura
-        output_serializer = UsuarioSerializer(user)
         output_serializer = UsuarioSerializer(user, context={'request': request})
         return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+
+    @staticmethod
+    def _releer_usuario(user):
+        return User.objects.select_related('perfil').get(pk=user.pk)
 
     def update(self, request, *args, **kwargs):
         """Actualizar usuario y perfil"""
@@ -3460,7 +3465,8 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial, context={'request': request})
         serializer.is_valid(raise_exception=True)
         try:
-            user = serializer.save()
+            # Releer de la base: get_object() trajo el perfil anterior (select_related).
+            user = self._releer_usuario(serializer.save())
         except IntegrityError:
             return Response(
                 {
@@ -3473,7 +3479,6 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         user = _sincronizar_estado_usuario_huerfano(user)
 
         # Retornar con el serializer de lectura
-        output_serializer = UsuarioSerializer(user)
         output_serializer = UsuarioSerializer(user, context={'request': request})
         return Response(output_serializer.data)
 
@@ -3670,7 +3675,7 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
 
             user.asignaciones_carrera.filter(rol='docente', activo=False).update(activo=True)
 
-        user = _sincronizar_estado_usuario_huerfano(user)
+        user = _sincronizar_estado_usuario_huerfano(self._releer_usuario(user))
 
         output_serializer = UsuarioSerializer(user, context={'request': request})
         return Response(output_serializer.data)

@@ -19,11 +19,11 @@ from rest_framework.test import APITestCase
 
 from poa_document.models import HistorialDocumentoPOA, ProgramaPOA, DocumentoPOA
 
-from .models import (
+from fondos.models import (
     SEMANAS_POR_MES, AsignacionCarrera, Carrera, DatosLaborales, Docente, DocenteCarrera,
     FacultadCatalogo, FondoTiempo, Materia, PerfilUsuario,
 )
-from .solo_lectura import MENSAJE_ROL_SOLO_LECTURA
+from fondos.solo_lectura import MENSAJE_ROL_SOLO_LECTURA
 
 
 class UsuariosBaseTestCase(APITestCase):

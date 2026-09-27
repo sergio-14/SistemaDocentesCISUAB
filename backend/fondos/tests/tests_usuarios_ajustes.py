@@ -12,12 +12,12 @@ from datetime import date
 from django.contrib.auth.models import User
 from rest_framework import status
 
-from .models import (
+from fondos.models import (
     AsignacionCarrera, DatosLaborales, Docente, FondoTiempo, Materia, PerfilUsuario, calcular_horas_fondo,
 )
 from .tests_usuarios_auditoria import UsuariosBaseTestCase
 
-# Misma tabla que frontend/src/utils/horasFondo.test.js: la vista previa debe dar lo mismo.
+# Misma tabla que frontend/tests/horasFondo.test.js: la vista previa debe dar lo mismo.
 # (horas_semana, dias_vacacion, horas_feriados_gestion) -> (contrato, vacacion, feriados, efectivas)
 CASOS_HORAS_FONDO = [
     ((40, 15, 128), (2080, 120, 128, 1832)),

@@ -9,7 +9,7 @@ from unittest import mock
 from django.contrib.auth.models import User
 from rest_framework import status
 
-from .models import AsignacionCarrera, Docente, DocenteCarrera, PerfilUsuario
+from fondos.models import AsignacionCarrera, Docente, DocenteCarrera, PerfilUsuario
 from .tests_usuarios_auditoria import UsuariosBaseTestCase
 
 

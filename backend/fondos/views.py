@@ -8,7 +8,7 @@ from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
-from django.http import Http404, HttpResponse, JsonResponse, FileResponse
+from django.http import HttpResponse, JsonResponse, FileResponse
 from django.db import transaction, IntegrityError
 from django.db.models import Prefetch, ProtectedError, prefetch_related_objects, Q, Sum
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -1274,9 +1274,6 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
 
         return aplicar_filtros_query_params(queryset)
     
-    # Acciones que también pueden abrir fondos archivados.
-    ACCIONES_CON_ARCHIVADOS = ['retrieve', 'restaurar', 'destroy', 'generar_pdf_oficial', 'generar_pdf_informe']
-
     def get_object(self):
         """
         Permitir acceso a fondos archivados para acciones específicas
@@ -1288,7 +1285,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         )
 
         # 2. Aplicar filtros según la acción
-        if self.action in self.ACCIONES_CON_ARCHIVADOS:
+        if self.action in ['retrieve', 'restaurar', 'destroy', 'generar_pdf_oficial', 'generar_pdf_informe']:
             # Acciones que permiten ver archivados (con validación de dueño)
             if not self.request.user.is_superuser:
                 perfil = _obtener_perfil_efectivo(self.request.user, self.request)
@@ -1324,17 +1321,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
                 else:
                     queryset = queryset.none()
         
-        # Obtener el objeto por pk. Si el fondo existe pero está fuera del alcance
-        # del usuario (otra carrera, fondo ajeno) es 403, no 404: el fondo existe.
-        pk = self.kwargs.get('pk')
-        obj = queryset.filter(pk=pk).first()
-        if obj is None:
-            existentes = FondoTiempo.objects.filter(pk=pk)
-            if self.action not in self.ACCIONES_CON_ARCHIVADOS:
-                existentes = existentes.filter(archivado=False)
-            if existentes.exists():
-                raise PermissionDenied('No tienes acceso a este Fondo de Tiempo.')
-            raise Http404('No existe el Fondo de Tiempo.')
+        # Obtener el objeto por pk
+        obj = get_object_or_404(queryset, pk=self.kwargs.get('pk'))
         
         # Verificar permisos de objeto
         self.check_object_permissions(self.request, obj)

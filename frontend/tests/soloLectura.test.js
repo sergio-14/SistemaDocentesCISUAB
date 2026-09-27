@@ -14,7 +14,7 @@ const {
   bloquearEscrituraSiSoloLectura,
   esCarreraSoloLectura,
   setCarreraSoloLectura,
-} = await import('./soloLectura.js');
+} = await import('../src/utils/soloLectura.js');
 
 beforeEach(() => almacen.clear());
 

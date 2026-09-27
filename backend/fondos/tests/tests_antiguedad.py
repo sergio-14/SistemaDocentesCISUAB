@@ -12,7 +12,7 @@ from datetime import date
 from django.contrib.auth.models import User
 from rest_framework import status
 
-from .models import AsignacionCarrera, CalendarioAcademico, DatosLaborales, Docente, FondoTiempo, PerfilUsuario
+from fondos.models import AsignacionCarrera, CalendarioAcademico, DatosLaborales, Docente, FondoTiempo, PerfilUsuario
 from .tests_usuarios_auditoria import UsuariosBaseTestCase
 
 

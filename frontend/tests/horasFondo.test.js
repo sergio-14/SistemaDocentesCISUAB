@@ -1,9 +1,9 @@
-// Ejecutar con: npm test. Misma tabla que backend/fondos/tests_usuarios_ajustes.py:
+// Ejecutar con: npm test. Misma tabla que backend/fondos/tests/tests_usuarios_ajustes.py:
 // la vista previa debe dar exactamente lo mismo que el backend.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { calcularAntiguedad, calcularHorasFondo, diasVacacionPorAntiguedad } from './horasFondo.js';
+import { calcularAntiguedad, calcularHorasFondo, diasVacacionPorAntiguedad } from '../src/utils/horasFondo.js';
 
 // [horasSemana, diasVacacion, horasFeriadosGestion] -> [contrato, vacacion, feriados, efectivas]
 const CASOS_HORAS_FONDO = [
@@ -38,7 +38,7 @@ test('días de vacación según antigüedad (igual que el backend)', () => {
 });
 
 test('antigüedad en años completos a la fecha de referencia', () => {
-  // Mismos casos que backend/fondos/tests_antiguedad.py
+  // Mismos casos que backend/fondos/tests/tests_antiguedad.py
   assert.equal(calcularAntiguedad('2014-03-10', '2026-03-09'), 11);
   assert.equal(calcularAntiguedad('2014-03-10', '2026-03-10'), 12);
   assert.equal(calcularAntiguedad('2014-03-10', '2026-01-01'), 11);

@@ -3,3 +3,6 @@ dist
 .env
 .env.local
 .git
+
+# Tests: no se instalan en el servidor (en desarrollo llegan por el volumen ./frontend).
+tests/

@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { asignacionesIniciales, asignacionesParaEnviar } from './asignacionesUsuario.js';
+import { asignacionesIniciales, asignacionesParaEnviar } from '../src/utils/asignacionesUsuario.js';
 
 test('un director solo no trae segundo rol', () => {
   const r = asignacionesIniciales({

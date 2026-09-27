@@ -10,7 +10,7 @@ from datetime import date
 from django.contrib.auth.models import User
 from rest_framework import status
 
-from .models import AsignacionCarrera, CalendarioAcademico, Docente, FondoTiempo
+from fondos.models import AsignacionCarrera, CalendarioAcademico, Docente, FondoTiempo
 from .tests_usuarios_auditoria import UsuariosBaseTestCase
 
 

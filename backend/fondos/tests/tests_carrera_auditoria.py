@@ -23,11 +23,11 @@ from rest_framework.test import APITestCase
 
 from poa_document.models import OrdenCompraPOA, ProgramaPOA, UsuarioPOA
 
-from .models import (
+from fondos.models import (
     AsignacionCarrera, CalendarioAcademico, Carrera, DatosLaborales, Docente, DocenteCarrera,
     FacultadCatalogo, FondoTiempo, InformeFondo, Materia, PerfilUsuario,
 )
-from .views import CarreraInactivaSoloLecturaMixin
+from fondos.views import CarreraInactivaSoloLecturaMixin
 
 
 def _logo(nombre='logo.png'):

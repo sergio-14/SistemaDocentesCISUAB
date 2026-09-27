@@ -18,10 +18,10 @@ from django.db import IntegrityError, transaction
 from django.test import override_settings
 from rest_framework import status
 
-from .models import (
+from fondos.models import (
     AsignacionCarrera, CategoriaFuncion, DatosLaborales, DocenteCarrera, FondoTiempo, InformeFondo, PerfilUsuario,
 )
-from .serializers import FondoTiempoSerializer
+from fondos.serializers import FondoTiempoSerializer
 from .tests_usuarios_auditoria import UsuariosBaseTestCase
 
 PDF_MINIMO = b'%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n'
@@ -260,6 +260,7 @@ class AutoaprobacionTests(UsuariosBaseTestCase):
         self.assertEqual(self.fondo_comun.estado, 'finalizado')
 
     def test_un_director_de_otra_carrera_no_puede_evaluar_el_fondo(self):
+        # 404 y no 403: fuera de su alcance no se revela que el fondo existe.
         director_ajeno = self.crear_usuario('director_ajeno', 'director', carrera=self.otra_carrera, is_staff=True, ci='AJE')
         self._con_informe(self.fondo_comun)
         self.client.force_authenticate(director_ajeno)
@@ -270,12 +271,12 @@ class AutoaprobacionTests(UsuariosBaseTestCase):
             format='json',
         )
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.fondo_comun.refresh_from_db()
         self.assertEqual(self.fondo_comun.estado, 'informe_presentado')
 
     def test_un_docente_no_puede_evaluar_ningun_fondo(self):
-        # Ni un fondo ajeno ni el suyo.
+        # Ni un fondo ajeno (404: no ve que existe) ni el suyo (403: no puede evaluarlo).
         otro_usuario = self.crear_usuario('otro_docente', 'docente', carrera=self.carrera, ci='OTR')
         otro_docente = self.crear_docente('OTR', usuario=otro_usuario)
         PerfilUsuario.objects.filter(user=otro_usuario).update(docente=otro_docente)
@@ -285,11 +286,12 @@ class AutoaprobacionTests(UsuariosBaseTestCase):
         self.client.force_authenticate(otro_usuario)
         evaluacion = {'cumplimiento': 'cumplido', 'evaluacion_director': 'Cumplió todas las actividades planificadas en la gestión.'}
 
-        for fondo in (self.fondo_comun, fondo_propio):
+        casos = ((self.fondo_comun, status.HTTP_404_NOT_FOUND), (fondo_propio, status.HTTP_403_FORBIDDEN))
+        for fondo, esperado in casos:
             with self.subTest(fondo=fondo.pk):
                 response = self.client.post(f'/api/fondos-tiempo/{fondo.pk}/evaluar-y-finalizar/', evaluacion, format='json')
 
-                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+                self.assertEqual(response.status_code, esperado)
                 fondo.refresh_from_db()
                 self.assertEqual(fondo.estado, 'informe_presentado')
 

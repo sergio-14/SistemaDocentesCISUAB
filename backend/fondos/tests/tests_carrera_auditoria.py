@@ -4,8 +4,8 @@
 - Si la carrera tiene datos académicos, sus campos de identidad no se pueden cambiar.
 - Crear una carrera exige logo también en el backend.
 - Una carrera desactivada es de solo lectura para todos, incluido el
-  superusuario, también en el POA. La única excepción es que el superusuario
-  edite la carrera para reactivarla.
+  superusuario (en el módulo de fondos; el POA no es de este proyecto). La
+  única excepción es que el superusuario edite la carrera para reactivarla.
 - En el admin de Django solo el superusuario agrega y elimina carreras.
 """
 import io
@@ -147,9 +147,11 @@ class EliminarCarreraTests(CarreraBaseTestCase):
                 claves_detalle = [item['clave'] for item in response.data['dependencias']['detalle']]
                 self.assertIn(clave, claves_detalle)
 
-    def test_la_base_de_datos_protege_la_carrera_de_asignaciones_perfiles_y_usuarios_poa(self):
+    def test_la_base_de_datos_protege_la_carrera_de_asignaciones_y_perfiles(self):
         # Antes eran SET_NULL: borrar la carrera dejaba esos registros huérfanos.
-        for clave in ['asignaciones', 'perfiles', 'usuarios_poa']:
+        # (UsuarioPOA sigue en SET_NULL porque el POA no es de este proyecto; la
+        # API igual impide borrar la carrera, ver el test anterior.)
+        for clave in ['asignaciones', 'perfiles']:
             with self.subTest(dependencia=clave):
                 carrera = self.crear_carrera()
                 self._crear_dependencia(clave, carrera)
@@ -510,74 +512,6 @@ class CarreraAdminPermisosTests(CarreraBaseTestCase):
         request.user = self.superuser
         self.assertTrue(model_admin.has_add_permission(request))
         self.assertTrue(model_admin.has_delete_permission(request))
-
-
-class PoaCarreraInactivaTests(CarreraBaseTestCase):
-    """El POA también es de solo lectura si la carrera del elaborador está inactiva."""
-
-    def setUp(self):
-        super().setUp()
-        self.carrera = self.crear_carrera()
-        self.usuario = self.crear_usuario('elaborador_poa', 'docente', carrera=self.carrera)
-        UsuarioPOA.objects.create(user=self.usuario, carrera=self.carrera, rol='elaborador')
-        self.client.force_authenticate(self.usuario)
-
-    def _crear_programa(self):
-        return self.client.post('/api/poa/programas/', {'nombre': 'Programa nuevo'}, format='json')
-
-    def test_con_carrera_activa_el_elaborador_puede_crear(self):
-        # Control: el mismo usuario sí puede escribir, así el 403 de abajo es por la carrera.
-        response = self._crear_programa()
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-
-    def test_con_carrera_inactiva_no_puede_crear_ni_editar(self):
-        programa = ProgramaPOA.objects.create(carrera=self.carrera, nombre='Programa existente')
-        Carrera.objects.filter(pk=self.carrera.pk).update(activo=False)
-
-        creado = self._crear_programa()
-        editado = self.client.patch(f'/api/poa/programas/{programa.pk}/', {'nombre': 'Otro'}, format='json')
-
-        for response in (creado, editado):
-            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-            self.assertEqual(str(response.data['detail']), CarreraInactivaSoloLecturaMixin.MENSAJE_CARRERA_INACTIVA)
-        self.assertFalse(ProgramaPOA.objects.filter(nombre='Programa nuevo').exists())
-
-    def test_con_carrera_inactiva_puede_ver_el_historico(self):
-        ProgramaPOA.objects.create(carrera=self.carrera, nombre='Programa existente')
-        Carrera.objects.filter(pk=self.carrera.pk).update(activo=False)
-
-        response = self.client.get('/api/poa/programas/')
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        resultados = response.data['results'] if isinstance(response.data, dict) else response.data
-        self.assertEqual([p['nombre'] for p in resultados], ['Programa existente'])
-
-    def test_superusuario_tampoco_puede_escribir_en_el_poa_de_una_carrera_inactiva(self):
-        programa = ProgramaPOA.objects.create(carrera=self.carrera, nombre='Programa existente')
-        Carrera.objects.filter(pk=self.carrera.pk).update(activo=False)
-        self.client.force_authenticate(self.superuser)
-
-        editado = self.client.patch(f'/api/poa/programas/{programa.pk}/', {'nombre': 'Otro'}, format='json')
-        borrado = self.client.delete(f'/api/poa/programas/{programa.pk}/')
-
-        for response in (editado, borrado):
-            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-            self.assertEqual(str(response.data['detail']), CarreraInactivaSoloLecturaMixin.MENSAJE_CARRERA_INACTIVA)
-        self.assertTrue(ProgramaPOA.objects.filter(pk=programa.pk, nombre='Programa existente').exists())
-
-    def test_con_carrera_inactiva_no_puede_registrar_ordenes_de_compra(self):
-        Carrera.objects.filter(pk=self.carrera.pk).update(activo=False)
-
-        response = self.client.post(
-            '/api/poa/ordenes-compra/',
-            {'gestion': 2026, 'numero': 'OC-1', 'proveedor': 'Proveedor', 'fecha': '2026-03-01', 'lineas': []},
-            format='json',
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(str(response.data['detail']), CarreraInactivaSoloLecturaMixin.MENSAJE_CARRERA_INACTIVA)
-        self.assertFalse(OrdenCompraPOA.objects.exists())
 
 
 class CarreraActivaEnAsignacionesTests(CarreraBaseTestCase):

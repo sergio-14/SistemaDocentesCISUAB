@@ -4,7 +4,6 @@ import { FaArrowLeft, FaPlus, FaEdit, FaTrash, FaFilePdf, FaMoneyBillAlt, FaImag
 import ThemeToggle from './ThemeToggle';
 import IconButton from './IconButton';
 import { buildPoaNavigationState, getPoaNavigationContext } from '../utils/navigationContext';
-import { useActiveRole } from '../../../contexts/ActiveRoleContext';
 
 const themeStyles = {
   dark: {
@@ -47,7 +46,6 @@ const Header = ({
   const themeConfig = themeStyles[theme];
   const canEdit = !!poaPermissions?.canEdit;
   const canManageAccess = !!poaPermissions?.canManageAccess;
-  const { carreraSoloLectura } = useActiveRole();
   const [mobileActionsOpen, setMobileActionsOpen] = React.useState(false);
   const mobileActionsRef = React.useRef(null);
   const navContext = getPoaNavigationContext(location?.state);
@@ -266,13 +264,7 @@ const Header = ({
     );
   };
 
-  // Acciones que crean, editan o borran: se ocultan si la carrera está desactivada.
-  const ETIQUETAS_ESCRITURA = ['Nuevo', 'Editar', 'Eliminar'];
-
-  const renderActions = (todas) => {
-    const actions = carreraSoloLectura
-      ? todas.filter((action) => !ETIQUETAS_ESCRITURA.includes(action.label))
-      : todas;
+  const renderActions = (actions) => {
     if (actions.length === 0) return null;
 
     const visibleActions = actions.filter((action) => action.type !== 'selected');

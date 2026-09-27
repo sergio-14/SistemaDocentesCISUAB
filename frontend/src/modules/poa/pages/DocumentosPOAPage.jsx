@@ -991,7 +991,7 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
                             </button>
 
                             {canEditDocument && (
-                              <button data-escritura
+                              <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setEditingDoc(doc);

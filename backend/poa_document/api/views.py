@@ -38,8 +38,7 @@ from poa_document.models import (
     SeguimientoActividadPOA,
     OrdenCompraPOA, DetalleOrdenCompraPOA, RecepcionMaterialPOA, DetalleRecepcionMaterialPOA, EntregaMaterialActividad,
 )
-from fondos.models import Carrera, Docente
-from fondos.solo_lectura import CarreraInactivaSoloLecturaMixin
+from fondos.models import Docente
 from django.contrib.auth.models import User
 from .serializers import (
     DocumentoPOASerializer,
@@ -299,8 +298,12 @@ def _requerir_elaborador(request):
 
 
 def _es_admin_principal(user):
-    # Solo el superusuario. El Instituto (iiisyp) es de solo lectura.
-    return bool(user and user.is_authenticated and user.is_superuser)
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    perfil = _get_user_profile(user)
+    return getattr(perfil, 'rol', None) == 'iiisyp'
 
 
 def _requerir_gestor_o_director(request):
@@ -581,30 +584,7 @@ def _documentos_queryset():
     )
 
 
-class PoaCarreraSoloLecturaMixin(CarreraInactivaSoloLecturaMixin):
-    """Solo lectura para carreras inactivas en el POA (ver fondos/solo_lectura.py)."""
-
-    campos_con_carrera = {
-        'carrera': Carrera,
-        'unidad_solicitante': Carrera,
-        'documento': DocumentoPOA,
-        'objetivo': ObjetivoEspecifico,
-        'actividad': Actividad,
-        'evidencia': Evidencia,
-        'orden': OrdenCompraPOA,
-        'detalle_recepcion': DetalleRecepcionMaterialPOA,
-    }
-
-    def carreras_de_contexto(self, request):
-        # El POA trabaja siempre sobre la carrera del usuario.
-        return [_carrera_usuario_poa(request.user)]
-
-    def es_rol_solo_lectura(self, request):
-        perfil = _get_user_profile(request.user)
-        return getattr(perfil, 'rol', None) == 'iiisyp'
-
-
-class UsuarioPOAViewSet(PoaCarreraSoloLecturaMixin, viewsets.ModelViewSet):
+class UsuarioPOAViewSet(viewsets.ModelViewSet):
     """CRUD de usuarios con acceso al módulo POA."""
     queryset = UsuarioPOA.objects.select_related('user', 'docente', 'carrera').all()
     serializer_class = UsuarioPOASerializer
@@ -1151,7 +1131,7 @@ class DetalleSeguimientoProgramaPOAView(APIView):
         return Response({'id': documento.id, 'programa': documento.programa, 'gestion': documento.gestion, 'estado_documento': documento.estado, 'objetivos': objetivos})
 
 
-class OrdenCompraPOAView(PoaCarreraSoloLecturaMixin, APIView):
+class OrdenCompraPOAView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1204,7 +1184,7 @@ class OrdenCompraPOAView(PoaCarreraSoloLecturaMixin, APIView):
         return Response(data, status=status.HTTP_201_CREATED)
 
 
-class RecepcionMaterialPOAView(PoaCarreraSoloLecturaMixin, APIView):
+class RecepcionMaterialPOAView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request):
         _requerir_elaborador(request)
@@ -1232,7 +1212,7 @@ class RecepcionMaterialPOAView(PoaCarreraSoloLecturaMixin, APIView):
         return Response(RecepcionMaterialPOASerializer(recepcion).data, status=status.HTTP_201_CREATED)
 
 
-class EntregaMaterialActividadView(PoaCarreraSoloLecturaMixin, APIView):
+class EntregaMaterialActividadView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request):
         _requerir_elaborador(request)
@@ -1253,7 +1233,7 @@ class EntregaMaterialActividadView(PoaCarreraSoloLecturaMixin, APIView):
         return Response(EntregaMaterialActividadSerializer(entrega).data, status=status.HTTP_201_CREATED)
 
 
-class AnularMovimientoMaterialPOAView(PoaCarreraSoloLecturaMixin, APIView):
+class AnularMovimientoMaterialPOAView(APIView):
     """Anula movimientos sin borrarlos, respetando el orden de la trazabilidad."""
     permission_classes = [IsAuthenticated]
 
@@ -1474,7 +1454,7 @@ class CurrentUserAPIView(APIView):
         })
 
 
-class ProgramaPOAViewSet(PoaCarreraSoloLecturaMixin, viewsets.ModelViewSet):
+class ProgramaPOAViewSet(viewsets.ModelViewSet):
     """Catálogo de programas aislado a la carrera del usuario POA."""
 
     serializer_class = ProgramaPOASerializer
@@ -1519,7 +1499,7 @@ class ProgramaPOAViewSet(PoaCarreraSoloLecturaMixin, viewsets.ModelViewSet):
 
 
 
-class DocumentoPOAViewSet(PoaCarreraSoloLecturaMixin, viewsets.ModelViewSet):
+class DocumentoPOAViewSet(viewsets.ModelViewSet):
     """
     API CRUD para todos los documentos POA registrados.
     """
@@ -1874,7 +1854,7 @@ class DocumentoPOAViewSet(PoaCarreraSoloLecturaMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class ObservacionDocumentoPOAViewSet(PoaCarreraSoloLecturaMixin, viewsets.ModelViewSet):
+class ObservacionDocumentoPOAViewSet(viewsets.ModelViewSet):
     serializer_class = ObservacionDocumentoPOASerializer
     permission_classes = [IsAuthenticated]
 
@@ -1932,7 +1912,7 @@ class ObservacionDocumentoPOAViewSet(PoaCarreraSoloLecturaMixin, viewsets.ModelV
         return Response({'detail': 'Las observaciones no se eliminan desde este endpoint.'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
-class SolicitudCambioPOAViewSet(PoaCarreraSoloLecturaMixin, viewsets.ModelViewSet):
+class SolicitudCambioPOAViewSet(viewsets.ModelViewSet):
     serializer_class = SolicitudCambioPOASerializer
     permission_classes = [IsAuthenticated]
 
@@ -2064,7 +2044,7 @@ class SolicitudCambioPOAViewSet(PoaCarreraSoloLecturaMixin, viewsets.ModelViewSe
         return Response(self.get_serializer(solicitud).data)
 
 
-class EvidenciaViewSet(PoaCarreraSoloLecturaMixin, viewsets.ModelViewSet):
+class EvidenciaViewSet(viewsets.ModelViewSet):
     """CRUD para evidencias asociadas a actividades."""
     queryset = Evidencia.objects.select_related('actividad__objetivo__documento').prefetch_related('archivos').all()
     serializer_class = EvidenciaSerializer
@@ -2254,7 +2234,7 @@ class DocumentoPOAReadOnlyViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 # --- ViewSets para Objetivos y Actividades ---
-class ObjetivoEspecificoViewSet(PoaCarreraSoloLecturaMixin, viewsets.ModelViewSet):
+class ObjetivoEspecificoViewSet(viewsets.ModelViewSet):
     serializer_class = ObjetivoEspecificoSerializer
     permission_classes = [IsAuthenticated]
 
@@ -2376,7 +2356,7 @@ class ObjetivoEspecificoViewSet(PoaCarreraSoloLecturaMixin, viewsets.ModelViewSe
         return response
 
 
-class ActividadViewSet(PoaCarreraSoloLecturaMixin, viewsets.ModelViewSet):
+class ActividadViewSet(viewsets.ModelViewSet):
     serializer_class = ActividadSerializer
     permission_classes = [IsAuthenticated]
 
@@ -2616,7 +2596,7 @@ class ActividadViewSet(PoaCarreraSoloLecturaMixin, viewsets.ModelViewSet):
 
 
 # --- ViewSet estándar para DetallePresupuesto ---
-class DetallePresupuestoViewSet(PoaCarreraSoloLecturaMixin, viewsets.ModelViewSet):
+class DetallePresupuestoViewSet(viewsets.ModelViewSet):
     serializer_class = DetallePresupuestoSerializer
     permission_classes = [IsAuthenticated]
 

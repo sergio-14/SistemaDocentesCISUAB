@@ -1,7 +1,6 @@
 // API centralizado para POA
 import axios from 'axios';
 import { API_BASE_URL } from './apiConfig';
-import { bloquearEscrituraSiSoloLectura } from '../utils/soloLectura';
 
 export const API_BASE = API_BASE_URL;
 
@@ -14,7 +13,7 @@ api.interceptors.request.use(
 		if (token) {
 			config.headers.Authorization = `Bearer ${token}`;
 		}
-		return bloquearEscrituraSiSoloLectura(config);
+		return config;
 	},
 	(error) => Promise.reject(error)
 );

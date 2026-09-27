@@ -17,7 +17,7 @@ from django.core.exceptions import ValidationError
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from poa_document.models import HistorialDocumentoPOA, ProgramaPOA, DocumentoPOA
+from poa_document.models import HistorialDocumentoPOA, DocumentoPOA
 
 from fondos.models import (
     SEMANAS_POR_MES, AsignacionCarrera, Carrera, DatosLaborales, Docente, DocenteCarrera,
@@ -363,7 +363,6 @@ class SuperusuarioEInstitutoTests(UsuariosBaseTestCase):
     def test_iiisyp_no_puede_crear_editar_ni_eliminar(self):
         instituto = self.crear_usuario('instituto', 'iiisyp', carrera=self.carrera)
         materia = Materia.objects.create(nombre='Álgebra', sigla='ALG-IIS', carrera=self.carrera, semestre=1, horas_teoricas=2)
-        programa = ProgramaPOA.objects.create(carrera=self.carrera, nombre='Programa')
         otro = self.crear_usuario('otro_docente', 'docente', carrera=self.carrera)
         self.client.force_authenticate(instituto)
 
@@ -377,16 +376,13 @@ class SuperusuarioEInstitutoTests(UsuariosBaseTestCase):
             'eliminar materia': self.client.delete(f'/api/materias/{materia.pk}/'),
             'editar usuario': self.client.patch(f'/api/usuarios/{otro.pk}/', {'first_name': 'X'}, format='json'),
             'crear fondo': self.client.post('/api/fondos-tiempo/', {'carrera': self.carrera.pk}, format='json'),
-            'editar programa POA': self.client.patch(f'/api/poa/programas/{programa.pk}/', {'nombre': 'Otro'}, format='json'),
         }
         for accion, response in respuestas.items():
             with self.subTest(accion=accion):
                 self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         # Las rutas que no tienen otra regla antes responden con el mensaje de solo lectura.
-        self.assertEqual(str(respuestas['editar programa POA'].data['detail']), MENSAJE_ROL_SOLO_LECTURA)
         self.assertEqual(str(respuestas['crear fondo'].data['detail']), MENSAJE_ROL_SOLO_LECTURA)
         self.assertTrue(Materia.objects.filter(pk=materia.pk, nombre='Álgebra').exists())
-        self.assertTrue(ProgramaPOA.objects.filter(pk=programa.pk, nombre='Programa').exists())
 
     def test_iiisyp_ve_solo_lo_de_su_carrera(self):
         instituto = self.crear_usuario('instituto_lee', 'iiisyp', carrera=self.carrera)

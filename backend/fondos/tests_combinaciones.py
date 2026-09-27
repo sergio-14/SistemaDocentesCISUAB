@@ -19,7 +19,7 @@ from django.test import override_settings
 from rest_framework import status
 
 from .models import (
-    AsignacionCarrera, CategoriaFuncion, DatosLaborales, DocenteCarrera, FondoTiempo, PerfilUsuario,
+    AsignacionCarrera, CategoriaFuncion, DatosLaborales, DocenteCarrera, FondoTiempo, InformeFondo, PerfilUsuario,
 )
 from .serializers import FondoTiempoSerializer
 from .tests_usuarios_auditoria import UsuariosBaseTestCase
@@ -219,6 +219,45 @@ class AutoaprobacionTests(UsuariosBaseTestCase):
         # No se le prohíbe por ser su fondo: falla solo por requisitos del fondo (programa analítico).
         self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
         self.assertIn('Programa Analítico', str(response.data))
+
+    def _con_informe(self, fondo):
+        self._estado(fondo, 'informe_presentado')
+        InformeFondo.objects.create(fondo_tiempo=fondo, elaborado_por=self.superuser, tipo='parcial')
+
+    def test_evaluar_el_fondo_del_director_exige_el_pdf_de_decanatura(self):
+        self._con_informe(self.fondo_director)
+        self.client.force_authenticate(self.superuser)
+        url = f'/api/fondos-tiempo/{self.fondo_director.pk}/evaluar-y-finalizar/'
+        evaluacion = {'cumplimiento': 'cumplido', 'evaluacion_director': 'Cumplió todas las actividades planificadas en la gestión.'}
+
+        sin_pdf = self.client.post(url, evaluacion, format='multipart')
+        no_pdf = self.client.post(url, {**evaluacion, 'documento_decanatura': _pdf('nota.pdf', b'texto plano')}, format='multipart')
+        self.assertEqual(sin_pdf.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('documento_decanatura', sin_pdf.data)
+        self.assertEqual(no_pdf.status_code, status.HTTP_400_BAD_REQUEST)
+        self.fondo_director.refresh_from_db()
+        self.assertEqual(self.fondo_director.estado, 'informe_presentado')
+
+        response = self.client.post(url, {**evaluacion, 'documento_decanatura': _pdf('informe.pdf')}, format='multipart')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.fondo_director.refresh_from_db()
+        self.assertEqual(self.fondo_director.estado, 'finalizado')
+        self.assertTrue(self.fondo_director.documento_decanatura_informe.name.endswith('.pdf'))
+
+    def test_evaluar_el_fondo_de_un_docente_no_pide_pdf(self):
+        self._con_informe(self.fondo_comun)
+        self.client.force_authenticate(self.director)
+
+        response = self.client.post(
+            f'/api/fondos-tiempo/{self.fondo_comun.pk}/evaluar-y-finalizar/',
+            {'cumplimiento': 'cumplido', 'evaluacion_director': 'Cumplió todas las actividades planificadas en la gestión.'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.fondo_comun.refresh_from_db()
+        self.assertEqual(self.fondo_comun.estado, 'finalizado')
 
     def test_el_detalle_informa_propio_y_director(self):
         self.client.force_authenticate(self.director)

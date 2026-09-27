@@ -2568,9 +2568,25 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
 
         # REGLA: Solo el Director de la carrera correspondiente puede evaluar
         # (el fondo del Director lo evalúa el superusuario).
-        if not _validar_revisor_del_fondo(request, fondo, 'evaluar'):
+        evalua_superusuario = _validar_revisor_del_fondo(request, fondo, 'evaluar')
+        if not evalua_superusuario:
             if not (perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, request)):
                 raise PermissionDenied("Solo el Director de la carrera correspondiente puede evaluar y finalizar el fondo.")
+
+        # Art. 28: el informe final del Director se eleva a Decanatura.
+        documento_decanatura = None
+        if evalua_superusuario:
+            documento_decanatura = request.FILES.get('documento_decanatura')
+            if not documento_decanatura:
+                return Response(
+                    {'documento_decanatura': 'Adjunte el documento de la Decanatura (PDF) para evaluar y finalizar el fondo del Director.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if not _es_pdf(documento_decanatura):
+                return Response(
+                    {'documento_decanatura': 'El documento de la Decanatura debe ser un archivo PDF.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
         
         # Validar estado actual
         if fondo.estado != 'informe_presentado':
@@ -2616,6 +2632,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         estado_anterior = fondo.estado
         fondo.estado = 'finalizado'
         fondo.fecha_finalizacion = timezone.now()
+        if documento_decanatura:
+            fondo.documento_decanatura_informe = documento_decanatura
         fondo.save()
 
         # Registrar en historial

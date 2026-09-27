@@ -3,13 +3,16 @@ import api from '../apis/api';
 import toast from 'react-hot-toast';
 import { getApiErrorMessage } from '../utils/formErrors';
 
-function FormularioEvaluarInforme({ fondoId, onInformeEvaluado, onCancelar }) {
+// requiereDocumentoDecanatura: fondo del Director (lo evalúa el superusuario y, por el
+// Art. 28, el informe final se eleva a Decanatura con un PDF obligatorio).
+function FormularioEvaluarInforme({ fondoId, onInformeEvaluado, onCancelar, requiereDocumentoDecanatura = false }) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     cumplimiento: '',
     evaluacion_director: ''
   });
   const [errores, setErrores] = useState({});
+  const [documentoDecanatura, setDocumentoDecanatura] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -37,6 +40,10 @@ function FormularioEvaluarInforme({ fondoId, onInformeEvaluado, onCancelar }) {
       nuevosErrores.evaluacion_director = 'Debe proporcionar una evaluación detallada (mínimo 30 caracteres)';
     }
 
+    if (requiereDocumentoDecanatura && !documentoDecanatura) {
+      nuevosErrores.documento_decanatura = 'Adjunte el documento de la Decanatura (PDF).';
+    }
+
     setErrores(nuevosErrores);
     return Object.keys(nuevosErrores).length === 0;
   };
@@ -52,7 +59,16 @@ function FormularioEvaluarInforme({ fondoId, onInformeEvaluado, onCancelar }) {
     setLoading(true);
 
     try {
-      await api.post(`/fondos-tiempo/${fondoId}/evaluar-y-finalizar/`, formData);
+      if (requiereDocumentoDecanatura) {
+        const payload = new FormData();
+        Object.entries(formData).forEach(([clave, valor]) => payload.append(clave, valor));
+        payload.append('documento_decanatura', documentoDecanatura);
+        await api.post(`/fondos-tiempo/${fondoId}/evaluar-y-finalizar/`, payload, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      } else {
+        await api.post(`/fondos-tiempo/${fondoId}/evaluar-y-finalizar/`, formData);
+      }
       toast.success('Informe evaluado y fondo finalizado exitosamente');
       onInformeEvaluado();
     } catch (err) {
@@ -269,6 +285,26 @@ function FormularioEvaluarInforme({ fondoId, onInformeEvaluado, onCancelar }) {
                   {formData.evaluacion_director.length} caracteres
                 </p>
               </div>
+
+              {requiereDocumentoDecanatura && (
+                <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-100 space-y-2">
+                  <p className="font-semibold">Fondo del Director de la carrera (Art. 28)</p>
+                  <p>El informe final se eleva a Decanatura: adjunta su documento (PDF, obligatorio).</p>
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    disabled={loading}
+                    onChange={(e) => {
+                      setDocumentoDecanatura(e.target.files?.[0] || null);
+                      setErrores((prev) => ({ ...prev, documento_decanatura: '' }));
+                    }}
+                    className="block w-full text-xs"
+                  />
+                  {errores.documento_decanatura && (
+                    <p className="text-xs text-red-600 dark:text-red-400">{errores.documento_decanatura}</p>
+                  )}
+                </div>
+              )}
 
               {/* Nota informativa */}
               <div className="mt-4 p-3 rounded-xl bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border-l-4 border-yellow-500 shadow-sm">

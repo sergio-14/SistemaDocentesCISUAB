@@ -2182,6 +2182,7 @@ function DetalleFondo({ isDark }) {
         fondo && mostrarFormEvaluarInforme && (
           <FormularioEvaluarInforme
             fondoId={fondo.id}
+            requiereDocumentoDecanatura={requiereDocumentoDecanatura}
             onInformeEvaluado={async () => {
               setMostrarFormEvaluarInforme(false);
               await cargarDetalle({ silencioso: true });

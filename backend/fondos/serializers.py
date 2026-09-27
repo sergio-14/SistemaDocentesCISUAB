@@ -3875,7 +3875,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             'informe_actual',
             # Permisos
             'puede_editar', 'puede_presentar',
-            'es_fondo_propio', 'es_fondo_de_director', 'documento_decanatura',
+            'es_fondo_propio', 'es_fondo_de_director', 'documento_decanatura', 'documento_decanatura_informe',
         ]
         read_only_fields = [
             'estado', 'horas_efectivas',

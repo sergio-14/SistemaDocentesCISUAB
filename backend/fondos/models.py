@@ -821,6 +821,14 @@ def documento_decanatura_upload_path(instance, filename):
     )
 
 
+def documento_decanatura_informe_upload_path(instance, filename):
+    """Ruta: fondos/aprobaciones/docente_<id>/gestion_<año>/decanatura_informe_fondo_<id>.pdf"""
+    return (
+        f'fondos/aprobaciones/docente_{instance.docente_id}/gestion_{instance.gestion}/'
+        f'decanatura_informe_fondo_{instance.pk}.pdf'
+    )
+
+
 def usuarios_del_docente(docente):
     """Usuarios vinculados a la ficha de docente (directo o por su perfil)."""
     user_ids = {docente.user_id} if docente.user_id else set()
@@ -973,6 +981,15 @@ class FondoTiempo(models.Model):
         blank=True,
         validators=[FileExtensionValidator(['pdf'])],
         help_text="Documento de la Decanatura que respalda la aprobación del fondo de un Director",
+    )
+    # Art. 28: el informe final del Director se eleva a Decanatura; al evaluarlo y
+    # finalizar su fondo el superusuario adjunta ese documento (PDF obligatorio).
+    documento_decanatura_informe = models.FileField(
+        upload_to=documento_decanatura_informe_upload_path,
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(['pdf'])],
+        help_text="Documento de la Decanatura sobre el informe final del fondo de un Director",
     )
     validado_por = models.ForeignKey(
         User,

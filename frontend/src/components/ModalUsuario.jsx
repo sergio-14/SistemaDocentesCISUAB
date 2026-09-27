@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
 import { horasSemanalesDedicacion } from '../utils/dedicaciones';
+import { asignacionesIniciales, asignacionesParaEnviar } from '../utils/asignacionesUsuario';
 
 const obtenerNombreCompletoDocente = (docente) => {
   if (!docente) return '';
@@ -211,40 +212,13 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
   });
 
   useEffect(() => {
-    const asignacionesUsuario = Array.isArray(userToEdit?.asignaciones) ? userToEdit.asignaciones : [];
-    const carreraIdsPermitidas = new Set((carreras || []).map((carrera) => String(carrera.id)));
-    const asignacionesGestionables = esDirectorEditor
-      ? asignacionesUsuario.filter((item) => (
-          item?.activo !== false
-          && item?.carrera
-          && carreraIdsPermitidas.has(String(item.carrera))
-        ))
-      : asignacionesUsuario;
-    const asignacionGestionablePrincipal = asignacionesGestionables[0];
-    const rolPrincipal = esDirectorEditor && asignacionGestionablePrincipal
-      ? (asignacionGestionablePrincipal.rol || 'docente')
-      : (userToEdit?.perfil?.rol || 'docente');
-    const carreraPrincipal = esDirectorEditor && asignacionGestionablePrincipal
-      ? (asignacionGestionablePrincipal.carrera || '')
-      : (userToEdit?.perfil?.carrera || '');
-    const clavePrincipal = `${String(rolPrincipal)}::${String(carreraPrincipal)}`;
-    const clavesExtras = new Set();
-    const extras = asignacionesGestionables
-      .filter((item) => {
-        if (item?.activo === false) return false;
-        const clave = `${String(item?.rol || '')}::${String(item?.carrera || '')}`;
-        if (clave === clavePrincipal || clavesExtras.has(clave)) {
-          return false;
-        }
-        clavesExtras.add(clave);
-        return true;
-      })
-      .map((item) => ({
-        rol: item?.rol || 'docente',
-        carrera: item?.carrera || '',
-        docente: item?.docente || '',
-      }))
-      .slice(0, 1);
+    // No se inventa ningún rol (ver utils/asignacionesUsuario.js).
+    const { extras } = asignacionesIniciales({
+      asignaciones: userToEdit?.asignaciones,
+      perfil: userToEdit?.perfil,
+      esDirectorEditor,
+      carreraIdsPermitidas: new Set((carreras || []).map((carrera) => String(carrera.id))),
+    });
 
     const initialData = {
       username: userToEdit?.username || '',
@@ -253,7 +227,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
       last_name: userToEdit?.last_name || '',
       nombre_completo: buildNombreCompleto(userToEdit?.first_name || '', userToEdit?.last_name || ''),
       ci: userToEdit?.ci || '',
-      rol: userToEdit?.perfil?.rol || 'docente',
+      rol: userToEdit?.perfil?.rol || '',
       carrera: userToEdit?.perfil?.carrera || '',
       docente: userToEdit?.perfil?.docente_id || '',
     };
@@ -528,13 +502,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     }
 
     if (!esSuperusuarioEditado) {
-      payload.asignaciones = asignacionesExtra
-        .filter((item) => String(item.rol || '').trim() && String(item.carrera || '').trim())
-        .map((item) => ({
-          ...item,
-          rol: String(item.rol || '').trim(),
-          carrera: String(item.carrera || '').trim(),
-        }));
+      payload.asignaciones = asignacionesParaEnviar(asignacionesExtra);
     }
 
     // Director y Jefe de Estudios deben enviar carrera
@@ -856,7 +824,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
                         <SelectConDropdown
                           label="Rol"
                           name={`asignacion-rol-${index}`}
-                          value={asignacion.rol || 'docente'}
+                          value={asignacion.rol || ''}
                           onChange={(e) => handleAsignacionChange(index, 'rol', e.target.value)}
                           options={rolesDisponiblesModal.map((rol) => ({ value: rol.value, label: rol.label }))}
                           error={errors[`asignaciones.${index}.rol`]}
@@ -920,7 +888,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
                           <SelectConDropdown
                             label="Rol"
                             name={`asignacion-rol-${index}`}
-                            value={asignacion.rol || 'docente'}
+                            value={asignacion.rol || ''}
                             onChange={(e) => handleAsignacionChange(index, 'rol', e.target.value)}
                           options={rolesDisponiblesModal.map((rol) => ({ value: rol.value, label: rol.label }))}
                             error={errors[`asignaciones.${index}.rol`]}

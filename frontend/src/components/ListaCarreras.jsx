@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FaEdit, FaTrash } from 'react-icons/fa';
-import { getCarreras, getFacultadesCarrera, addFacultadCarrera, deleteFacultadCarrera } from '../apis/api';
+import { getCarreras, getFacultadesCarrera, addFacultadCarrera, deleteFacultadCarrera, renameFacultadCarrera } from '../apis/api';
 import api from '../apis/api';
 import { EVENTO_CARRERAS_ACTUALIZADAS } from './common/AvisoCarreraInactiva';
 import toast from 'react-hot-toast';
@@ -78,6 +78,7 @@ const SelectConDropdown = ({
   onAddFacultad,
   setFacultadOptions,
   setFormData,
+  onFacultadesCambiadas,
   pulse = 0,
 }) => {
   const [open, setOpen] = useState(false);
@@ -129,25 +130,17 @@ const SelectConDropdown = ({
     }
 
     try {
-      // Agregar la nueva facultad
-      await addFacultadCarrera(newNombre);
-      // Eliminar la antigua
-      await deleteFacultadCarrera(oldNombre);
-      
-      // Actualizar el estado local inmediatamente
-      const updatedOptions = options.map(opt => {
-        if (opt.value === editingFacultad) {
-          return { ...opt, label: newNombre, value: newNombre };
-        }
-        return opt;
-      });
-      setFacultadOptions(updatedOptions);
-      
+      // Renombra el MISMO registro: las carreras siguen vinculadas a esa facultad.
+      const response = await renameFacultadCarrera(oldNombre, newNombre);
+      setFacultadOptions(Array.isArray(response.data) ? response.data : []);
+
       // Actualizar el valor seleccionado si era la facultad editada
       if (value === editingFacultad) {
         setFormData((prev) => ({ ...prev, facultad: newNombre }));
       }
-      
+      // Las carreras muestran el nombre de su facultad: se recargan.
+      onFacultadesCambiadas?.();
+
       toast.success('Facultad actualizada correctamente.');
     } catch (err) {
       const detail = err.response?.data?.detail || err.message;
@@ -186,23 +179,36 @@ const SelectConDropdown = ({
       return;
     }
 
-    try {
-      for (const facValue of facultadesAEliminar) {
-        const facOption = options.find(opt => opt.value === facValue);
-        if (facOption && facOption.label) {
-          await deleteFacultadCarrera(facOption.label);
+    // Se intenta cada una: una facultad con carreras no impide borrar las demás,
+    // y cada rechazo se informa con el motivo que da el backend.
+    let eliminadas = 0;
+    const rechazos = [];
+    for (const facValue of facultadesAEliminar) {
+      const facOption = options.find(opt => opt.value === facValue);
+      if (!facOption || !facOption.label) continue;
+      try {
+        await deleteFacultadCarrera(facOption.label);
+        eliminadas += 1;
+        if (value === facValue) {
+          setFormData((prev) => ({ ...prev, facultad: '' }));
         }
+      } catch (err) {
+        rechazos.push(err.response?.data?.detail || `No se pudo eliminar "${facOption.label}": ${err.message}`);
       }
-      
-      // Actualizar el estado local inmediatamente filtrando las eliminadas
-      const facultadesRestantes = options.filter(opt => !facultadesAEliminar.includes(opt.value));
-      setFacultadOptions(facultadesRestantes);
-      setSelectedFacultades([]);
-      toast.success(`${facultadesAEliminar.length} facultad(es) eliminada(s) correctamente.`);
-    } catch (err) {
-      const detail = err.response?.data?.detail || err.message;
-      toast.error(`No se pudo eliminar: ${detail}`);
     }
+
+    // La lista sale del servidor: refleja lo que realmente se eliminó.
+    try {
+      const response = await getFacultadesCarrera();
+      setFacultadOptions(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      console.error('No se pudo recargar las facultades:', err);
+    }
+    setSelectedFacultades([]);
+    if (eliminadas > 0) {
+      toast.success(`${eliminadas} facultad(es) eliminada(s) correctamente.`);
+    }
+    rechazos.forEach((mensaje) => toast.error(mensaje, { duration: 6000 }));
   };
 
   const selectedLabel = options.find((opt) => opt.value === value)?.label;
@@ -1758,6 +1764,7 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
                           showManageButton={puedeGestionarFacultades()}
                           onAddFacultad={handleAgregarFacultad}
                           setFacultadOptions={setFacultadOptions}
+                          onFacultadesCambiadas={cargarCarreras}
                           setFormData={setFormData}
                           required
                           searchable
@@ -2255,6 +2262,7 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
                       showManageButton={puedeGestionarFacultades()}
                       onAddFacultad={handleAgregarFacultad}
                       setFacultadOptions={setFacultadOptions}
+                      onFacultadesCambiadas={cargarCarreras}
                       setFormData={setFormData}
                       required
                       searchable

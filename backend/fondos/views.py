@@ -622,6 +622,25 @@ class CarreraViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         if not self._is_superuser(request.user):
             raise PermissionDenied('Solo el superusuario puede gestionar facultades.')
 
+    @staticmethod
+    def _buscar_facultad(nombre):
+        """Facultad del catálogo con nombre equivalente (sin distinguir mayúsculas ni tildes)."""
+        nombre_norm = FacultadCatalogo._normalizar(nombre)
+        for facultad in FacultadCatalogo.objects.all():
+            if FacultadCatalogo._normalizar(facultad.nombre) == nombre_norm:
+                return facultad
+        return None
+
+    @staticmethod
+    def _mensaje_validacion(error):
+        """Primer mensaje legible de un ValidationError de Django."""
+        if hasattr(error, 'message_dict'):
+            mensajes = [m for msgs in error.message_dict.values() for m in msgs]
+            return mensajes[0] if mensajes else 'Dato inválido.'
+        if hasattr(error, 'message'):
+            return error.message
+        return str(error)
+
     def _serialize_facultades(self):
         # Solo devolver facultades que están en el catálogo editable
         # No incluir las por defecto para evitar confusión al eliminar
@@ -751,20 +770,45 @@ class CarreraViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         try:
             FacultadCatalogo.objects.create(nombre=nombre)
         except ValidationError as e:
-            # Extraer primer mensaje legible del ValidationError
-            if hasattr(e, 'message_dict'):
-                mensajes = [m for msgs in e.message_dict.values() for m in msgs]
-                detalle = mensajes[0] if mensajes else 'Dato inválido.'
-            elif hasattr(e, 'message'):
-                detalle = e.message
-            else:
-                detalle = str(e)
             return Response(
-                {'detail': detalle},
+                {'detail': self._mensaje_validacion(e)},
                 status=status.HTTP_409_CONFLICT,
             )
 
         return Response(self._serialize_facultades(), status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['patch'], permission_classes=[IsAuthenticated], url_path='facultades/renombrar')
+    def renombrar_facultad(self, request):
+        """Cambia el nombre de la MISMA facultad: sus carreras siguen vinculadas a ella."""
+        self._enforce_manage_facultad_permission(request)
+
+        actual = str(request.data.get('value') or '').strip()
+        nuevo = str(request.data.get('nuevo') or '').strip()
+        if not actual or not nuevo:
+            return Response(
+                {'detail': 'Debe enviar la facultad y su nombre nuevo.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        facultad = self._buscar_facultad(actual)
+        if not facultad:
+            return Response(
+                {'detail': 'La facultad no existe en el catálogo.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        from django.core.exceptions import ValidationError
+        facultad.nombre = nuevo
+        try:
+            # save() valida que no exista otra con nombre equivalente (sin mayúsculas ni tildes).
+            facultad.save()
+        except ValidationError as e:
+            return Response(
+                {'detail': self._mensaje_validacion(e)},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        return Response(self._serialize_facultades(), status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated], url_path='facultades/eliminar')
     def eliminar_facultad(self, request):
@@ -777,13 +821,7 @@ class CarreraViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Buscar usando comparación normalizada (acentos + case insensitive)
-        nombre_norm = FacultadCatalogo._normalizar(nombre)
-        facultad = None
-        for fac in FacultadCatalogo.objects.all():
-            if FacultadCatalogo._normalizar(fac.nombre) == nombre_norm:
-                facultad = fac
-                break
+        facultad = self._buscar_facultad(nombre)
 
         if not facultad:
             return Response(
@@ -791,9 +829,15 @@ class CarreraViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        if Carrera.objects.filter(facultad=facultad).exists():
+        carreras_vinculadas = Carrera.objects.filter(facultad=facultad).count()
+        if carreras_vinculadas:
             return Response(
-                {'detail': 'No se puede eliminar una facultad que ya está asignada a una carrera.'},
+                {
+                    'detail': (
+                        f'No se puede eliminar "{facultad.nombre}": tiene {carreras_vinculadas} '
+                        f'carrera(s) vinculada(s). Cámbieles la facultad antes de eliminarla.'
+                    ),
+                },
                 status=status.HTTP_409_CONFLICT,
             )
 

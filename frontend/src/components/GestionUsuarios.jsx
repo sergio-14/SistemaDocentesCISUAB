@@ -1432,6 +1432,10 @@ const initialData = {
 
   // Carrera por defecto del Director que gestiona una sola carrera. Va aparte del
   // reinicio del formulario para recalcularse cuando terminan de cargar las carreras.
+  // Solo el superusuario elige la carrera; para cualquier otro es automáticamente la suya.
+  const carreraPropiaEditor = !esSuperuserActual && carrerasGestionables.length === 1
+    ? String(carrerasGestionables[0].id)
+    : '';
   const carreraDefaultDirector = esDirectorCarreraActual && carrerasGestionables.length === 1
     ? String(carrerasGestionables[0].id)
     : '';
@@ -1701,11 +1705,11 @@ const initialData = {
     }
 
     if (!formData.rol) {
-      setFormData((prev) => ({ ...prev, rol: rolValue, carrera: '' }));
-      setExpandedCarreraRoles((prev) => ({ ...prev, 0: true }));
+      setFormData((prev) => ({ ...prev, rol: rolValue, carrera: carreraPropiaEditor }));
+      if (!carreraPropiaEditor) setExpandedCarreraRoles((prev) => ({ ...prev, 0: true }));
     } else if (asignacionesExtra.length === 0) {
-      setAsignacionesExtra([{ rol: rolValue, carrera: '' }]);
-      setExpandedCarreraRoles((prev) => ({ ...prev, 1: true }));
+      setAsignacionesExtra([{ rol: rolValue, carrera: carreraPropiaEditor }]);
+      if (!carreraPropiaEditor) setExpandedCarreraRoles((prev) => ({ ...prev, 1: true }));
     } else {
       toast.error(MENSAJE_LIMITE_ASIGNACIONES, { className: 'toast-brinco' });
       setErrors((prev) => ({ ...prev, rol: [MENSAJE_LIMITE_ASIGNACIONES] }));
@@ -2359,19 +2363,21 @@ const initialData = {
                                   >
                                     <span>{obtenerRolLabel(item.rol)}</span>
                                     <span
-                                      onClick={(e) => { e.stopPropagation(); toggleExpandCarrera(index); }}
-                                      className={`cursor-pointer font-bold text-xs px-2.5 py-1 rounded-lg truncate max-w-[45%] border-2 ${
+                                      onClick={(e) => { e.stopPropagation(); if (esSuperuserActual) toggleExpandCarrera(index); }}
+                                      className={`${esSuperuserActual ? 'cursor-pointer' : 'cursor-default'} font-bold text-xs px-2.5 py-1 rounded-lg truncate max-w-[45%] border-2 ${
                                         item.carrera
                                           ? 'bg-[#2C4AAE] text-white border-[#2C4AAE]'
                                           : 'bg-red-50 text-red-600 border-red-500 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700'
                                       }`}
                                     >
-                                      {item.carrera
-                                        ? `${expandedCarreraRoles[index] ? '▼' : '▶'} ${obtenerCarreraLabel(item.carrera)}`
-                                        : (expandedCarreraRoles[index] ? '▼ Carrera' : '▶ Carrera')}
+                                      {!esSuperuserActual
+                                        ? obtenerCarreraLabel(item.carrera)
+                                        : item.carrera
+                                          ? `${expandedCarreraRoles[index] ? '▼' : '▶'} ${obtenerCarreraLabel(item.carrera)}`
+                                          : (expandedCarreraRoles[index] ? '▼ Carrera' : '▶ Carrera')}
                                     </span>
                                   </button>
-                                  {expandedCarreraRoles[index] && (
+                                  {esSuperuserActual && expandedCarreraRoles[index] && (
                                     <div className="px-3 py-2 animate-panel-asignacion">
                                       <div className="flex justify-end">
                                         <div className="w-[70%] max-w-[260px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm max-h-40 overflow-y-auto">
@@ -2396,7 +2402,9 @@ const initialData = {
                         </div>
                       </div>
                       <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                        Todos los roles son de la carrera del contrato del usuario (ej. Director + Docente de la misma carrera). Máximo 2 asignaciones. Expanda <span className="text-[#2C4AAE] dark:text-blue-400 font-bold">Carrera</span> para asignar.
+                        Todos los roles son de la carrera del contrato del usuario (ej. Director + Docente de la misma carrera). Máximo 2 asignaciones. {esSuperuserActual
+                          ? <>Expanda <span className="text-[#2C4AAE] dark:text-blue-400 font-bold">Carrera</span> para asignar.</>
+                          : 'La carrera es la tuya: se asigna sola.'}
                       </p>
                     </div>
 

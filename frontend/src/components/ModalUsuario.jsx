@@ -202,6 +202,9 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     return () => { vigente = false; };
   }, [isOpen, userToEdit?.id]);
   const esDirectorEditor = currentUser?.perfil?.rol === 'director' && !currentUser?.is_superuser;
+  // Solo el superusuario elige la carrera; para cualquier otro es automáticamente la suya.
+  const puedeElegirCarrera = Boolean(currentUser?.is_superuser);
+  const carreraPropiaEditor = !puedeElegirCarrera && (carreras || []).length === 1 ? String(carreras[0].id) : '';
   const rolesDisponiblesModal = (roles || []).filter((rol) => {
     if (currentUser?.is_superuser) return true;
     if (esDirectorEditor) return !['iiisyp', 'director'].includes(rol.value);
@@ -225,7 +228,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
       nombre_completo: buildNombreCompleto(userToEdit?.first_name || '', userToEdit?.last_name || ''),
       ci: userToEdit?.ci || '',
       rol: userToEdit?.perfil?.rol || '',
-      carrera: userToEdit?.perfil?.carrera || '',
+      carrera: userToEdit?.perfil?.carrera || carreraPropiaEditor,
       docente: userToEdit?.perfil?.docente_id || '',
     };
 
@@ -234,7 +237,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     setIndiceAsignacionActiva(0);
     setErrors({});
     setShowResetConfirm(false);
-  }, [userToEdit, carreras, esDirectorEditor]);
+  }, [userToEdit, carreras, esDirectorEditor, carreraPropiaEditor]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -259,9 +262,9 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     setFormData((prev) => ({
       ...prev,
       rol: newRol,
-      carrera: (newRol === 'director' || newRol === 'jefe_estudios')
+      carrera: carreraPropiaEditor || ((newRol === 'director' || newRol === 'jefe_estudios' || newRol === 'docente')
         ? prev.carrera
-        : (newRol === 'docente' ? prev.carrera : ''),
+        : ''),
       docente: newRol === 'docente' ? prev.docente : '',
     }));
   };
@@ -279,7 +282,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
 
   const agregarAsignacion = () => {
     if (!puedeAgregarAsignacion) return;
-    setAsignacionesExtra((prev) => (prev.length >= 1 ? prev : [...prev, { rol: '', carrera: '', docente: '' }]));
+    setAsignacionesExtra((prev) => (prev.length >= 1 ? prev : [...prev, { rol: '', carrera: carreraPropiaEditor, docente: '' }]));
     setIndiceAsignacionActiva(1);
   };
 
@@ -598,17 +601,19 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
                 )}
               </div>
 
-              <SelectConDropdown
-                label="Carrera"
-                name="carrera"
-                value={indiceAsignacionActiva === 0 ? (formData.carrera || '') : (asignacionesExtra[0]?.carrera || '')}
-                onChange={handleCarreraSeleccionActual}
-                options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
-                error={errors.carrera}
-                disabled={esSuperusuarioEditado}
-                required
-                placeholder="Seleccione una carrera..."
-              />
+              {puedeElegirCarrera && (
+                <SelectConDropdown
+                  label="Carrera"
+                  name="carrera"
+                  value={indiceAsignacionActiva === 0 ? (formData.carrera || '') : (asignacionesExtra[0]?.carrera || '')}
+                  onChange={handleCarreraSeleccionActual}
+                  options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
+                  error={errors.carrera}
+                  disabled={esSuperusuarioEditado}
+                  required
+                  placeholder="Seleccione una carrera..."
+                />
+              )}
 
               {asignacionesExtra.length > 0 && (
                 <div className="md:col-span-2 animate-panel-asignacion overflow-hidden">

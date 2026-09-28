@@ -664,6 +664,40 @@ def _ids_carreras_gestionables(carreras_gestionables):
     return set(carreras_gestionables.values_list('id', flat=True))
 
 
+MENSAJE_CARRERA_DEL_EDITOR = 'Solo el superusuario elige la carrera: los usuarios que creas o editas son de tu carrera.'
+
+
+def _aplicar_carrera_del_editor(data, asignaciones, current_user, editando=False):
+    """Quien no es superusuario (el Director) no elige carrera: es la suya.
+
+    Completa la carrera de cada rol que no la trae y rechaza cualquier otra.
+    Al editar, la principal solo se completa si cambia el rol o la carrera.
+    """
+    if not current_user or not current_user.is_authenticated or current_user.is_superuser:
+        return
+    carreras = _carreras_gestionables_director(current_user)
+    if carreras is None:
+        return
+    ids = list(carreras.values_list('id', flat=True))
+    if len(ids) != 1:
+        raise serializers.ValidationError({'carrera': 'No tienes una carrera activa asignada para gestionar usuarios.'})
+    propia = carreras.first()
+
+    principal = data.get('carrera')
+    if principal is not None and principal.pk != propia.pk:
+        raise serializers.ValidationError({'carrera': MENSAJE_CARRERA_DEL_EDITOR})
+    if not editando or 'rol' in data or 'carrera' in data:
+        data['carrera'] = propia
+
+    for bloque in asignaciones:
+        if not isinstance(bloque, dict):
+            continue
+        if bloque.get('carrera') in (None, ''):
+            bloque['carrera'] = propia.pk
+        elif str(bloque.get('carrera')) != str(propia.pk):
+            raise serializers.ValidationError({'carrera': MENSAJE_CARRERA_DEL_EDITOR})
+
+
 def _validar_bloques_en_carreras_gestionables(bloques, carreras_gestionables):
     ids_permitidos = _ids_carreras_gestionables(carreras_gestionables)
     if ids_permitidos is None:
@@ -2887,6 +2921,8 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
         if asignaciones and not all(isinstance(item, dict) for item in asignaciones):
             raise serializers.ValidationError({'asignaciones': 'Cada asignación debe ser un objeto con rol y carrera.'})
 
+        _aplicar_carrera_del_editor(data, asignaciones, current_user)
+
         bloques = [{
             'rol': data.get('rol'),
             'carrera': data.get('carrera'),
@@ -3310,6 +3346,8 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
 
         if asignaciones and not all(isinstance(item, dict) for item in asignaciones):
             raise serializers.ValidationError({'asignaciones': 'Cada asignación debe ser un objeto con rol y carrera.'})
+
+        _aplicar_carrera_del_editor(data, asignaciones, current_user, editando=True)
 
         bloques = [{
             'rol': data.get('rol'),

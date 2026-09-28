@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
 import { horasSemanalesDedicacion } from '../utils/dedicaciones';
-import { asignacionesIniciales, asignacionesParaEnviar } from '../utils/asignacionesUsuario';
+import { MENSAJE_UNA_SOLA_CARRERA, asignacionesIniciales, asignacionesParaEnviar } from '../utils/asignacionesUsuario';
 
 const obtenerNombreCompletoDocente = (docente) => {
   if (!docente) return '';
@@ -450,6 +450,14 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
         }));
         setIndiceAsignacionActiva(1);
         toast.error('No se puede repetir el mismo rol en la misma carrera.');
+        setLoading(false);
+        return;
+      }
+
+      if (segundaCarrera !== carreraNormalizada) {
+        setErrors((prev) => ({ ...prev, asignaciones: [MENSAJE_UNA_SOLA_CARRERA] }));
+        setIndiceAsignacionActiva(1);
+        toast.error(MENSAJE_UNA_SOLA_CARRERA);
         setLoading(false);
         return;
       }

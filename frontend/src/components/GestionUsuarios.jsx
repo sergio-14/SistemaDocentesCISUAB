@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { FaEdit, FaTrash } from 'react-icons/fa';
 import api from '../apis/api';
 import ModalUsuario from './ModalUsuario';
+import { MENSAJE_UNA_SOLA_CARRERA } from '../utils/asignacionesUsuario';
 import toast from 'react-hot-toast';
 import {
   ERROR_MOTION_CLASS,
@@ -113,10 +114,8 @@ const TrashIcon = (props) => (
 // Mensajes descriptivos para validación en caliente (Normativa UABJB)
 const MENSAJE_DUPLICADO = 'Esta combinación de Rol y Carrera ya se encuentra asignada.';
 const MENSAJE_LIMITE_ASIGNACIONES = 'Un usuario no puede tener más de 2 asignaciones en el sistema (Normativa de Fondo de Tiempo).';
-const MENSAJE_AUTORIDAD_MULTIPLE = 'No se puede asignar un cargo de mando (Director, Jefe de Estudios o Instituto) en múltiples carreras.';
 const MENSAJE_CONFLICTO_AUTORIDAD = 'Conflicto de Autoridad: Un usuario no puede tener dos cargos de mando (Director, Jefe de Estudios o Instituto) en la misma carrera.';
 const MENSAJE_AUTORIDAD_UNICA = 'Un usuario no puede tener más de un cargo de mando (Director, Jefe de Estudios o Instituto) en el sistema (Normativa UABJB).';
-const MENSAJE_DOCENTE_OTRA_CARRERA = 'La carga docente de un cargo de autoridad debe pertenecer a su misma carrera (dedicación exclusiva UABJB).';
 const MENSAJE_CARRERA_PENDIENTE = 'Debe seleccionar una carrera para la asignación actual antes de agregar otra.';
 // Cargos de mando: un solo cargo por usuario, y solo pueden ser docentes de su misma carrera.
 const ROLES_MANDO_UABJB = ['director', 'jefe_estudios', 'iiisyp'];
@@ -1628,6 +1627,12 @@ const initialData = {
       }
     });
 
+    // --- Regla 0: UNA SOLA CARRERA ---
+    // Todas las asignaciones del usuario son de la carrera de su contrato.
+    if (todasAsignaciones.some((item) => item.carrera && item.carrera !== carreraTrim)) {
+      return { valida: false, mensaje: MENSAJE_UNA_SOLA_CARRERA };
+    }
+
     // --- Regla 1: CONTROL DE DUPLICADOS IDÉNTICOS ---
     const existeDuplicado = todasAsignaciones.some(
       (item) => item.rol === rolTrim && item.carrera === carreraTrim
@@ -1637,19 +1642,6 @@ const initialData = {
     }
 
     const esRolMando = ROLES_MANDO_UABJB.includes(rolTrim);
-
-    // --- Regla 3: EXCLUSIVIDAD DE AUTORIDAD ---
-    // No se puede tener un cargo de autoridad (Director/Jefe) en carreras DIFERENTES.
-    if (esRolMando) {
-      const autoridadEnOtraCarrera = todasAsignaciones.some(
-        (item) =>
-          ROLES_MANDO_UABJB.includes(item.rol) &&
-          item.carrera !== carreraTrim
-      );
-      if (autoridadEnOtraCarrera) {
-        return { valida: false, mensaje: MENSAJE_AUTORIDAD_MULTIPLE };
-      }
-    }
 
     // --- Regla 4: CONFLICTO DE ROLES EN LA MISMA CARRERA ---
     // No se puede ser Director Y Jefe de Estudios de la misma carrera simultáneamente.
@@ -1662,26 +1654,6 @@ const initialData = {
       );
       if (conflictoMismaCarrera) {
         return { valida: false, mensaje: MENSAJE_CONFLICTO_AUTORIDAD };
-      }
-    }
-
-    // --- Regla 5: DEDICACIÓN EXCLUSIVA (cargo + docente en misma carrera) ---
-    // La carga docente de Director, Jefe de Estudios o Instituto debe pertenecer a su
-    // misma carrera. No puede haber Docente en Carrera B si hay un cargo en Carrera A.
-    if (rolTrim === 'docente') {
-      const cargoEnOtraCarrera = todasAsignaciones.some(
-        (item) => ROLES_MANDO_UABJB.includes(item.rol) && item.carrera !== carreraTrim
-      );
-      if (cargoEnOtraCarrera) {
-        return { valida: false, mensaje: MENSAJE_DOCENTE_OTRA_CARRERA };
-      }
-    }
-    if (ROLES_MANDO_UABJB.includes(rolTrim)) {
-      const docenteEnOtraCarrera = todasAsignaciones.some(
-        (item) => item.rol === 'docente' && item.carrera !== carreraTrim
-      );
-      if (docenteEnOtraCarrera) {
-        return { valida: false, mensaje: MENSAJE_DOCENTE_OTRA_CARRERA };
       }
     }
 
@@ -1972,11 +1944,9 @@ const initialData = {
         return;
       }
 
-      // Safety net: Dedicación exclusiva (docente + cargo de carrera en carreras distintas)
-      const hayDocente = primeraAsignacion.rol === 'docente' || segundaAsignacion.rol === 'docente';
-      const hayCargo = [primeraAsignacion.rol, segundaAsignacion.rol].some((rol) => ROLES_MANDO_UABJB.includes(rol));
-      if (hayDocente && hayCargo && !mismaCarrera) {
-        toast.error(MENSAJE_DOCENTE_OTRA_CARRERA, { className: 'toast-brinco' });
+      // Safety net: una sola carrera (la del contrato) para todos los roles.
+      if (!mismaCarrera) {
+        toast.error(MENSAJE_UNA_SOLA_CARRERA, { className: 'toast-brinco' });
         setIsSubmitting(false);
         return;
       }
@@ -2426,7 +2396,7 @@ const initialData = {
                         </div>
                       </div>
                       <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                        Catálogo permanente: puede reusar un rol en otra carrera (ej. Docente en 2 carreras distintas). Máximo 2 asignaciones. Expanda <span className="text-[#2C4AAE] dark:text-blue-400 font-bold">Carrera</span> para asignar.
+                        Todos los roles son de la carrera del contrato del usuario (ej. Director + Docente de la misma carrera). Máximo 2 asignaciones. Expanda <span className="text-[#2C4AAE] dark:text-blue-400 font-bold">Carrera</span> para asignar.
                       </p>
                     </div>
 

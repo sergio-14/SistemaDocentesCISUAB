@@ -213,7 +213,8 @@ class ReglaDeCombinacionesTests(UsuariosBaseTestCase):
         super().setUp()
         self.client.force_authenticate(self.superuser)
 
-    def test_un_docente_puede_estar_en_dos_carreras(self):
+    def test_un_docente_no_puede_estar_en_dos_carreras(self):
+        # Un usuario pertenece a una sola carrera (la de su contrato).
         datos = self.datos_usuario(
             'docente_dos_carreras', 'docente', self.carrera, 'DC-1',
             asignaciones=[{'rol': 'docente', 'carrera': self.otra_carrera.pk}],
@@ -221,12 +222,8 @@ class ReglaDeCombinacionesTests(UsuariosBaseTestCase):
 
         response = self.client.post('/api/usuarios/', datos, format='json')
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        usuario = User.objects.get(username='docente_dos_carreras')
-        self.assertEqual(
-            set(usuario.asignaciones_carrera.filter(rol='docente').values_list('carrera_id', flat=True)),
-            {self.carrera.pk, self.otra_carrera.pk},
-        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
+        self.assertFalse(User.objects.filter(username='docente_dos_carreras').exists())
 
     def test_un_director_no_puede_ser_docente_de_otra_carrera(self):
         datos = self.datos_usuario(

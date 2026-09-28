@@ -786,7 +786,7 @@ MENSAJE_ASIGNACION_INVALIDA = 'Esta combinaci\u00f3n de roles no es v\u00e1lida 
 MENSAJE_CONFLICTO_AUTORIDAD = 'Un usuario no puede tener más de un cargo de mando (Director, Jefe de Estudios o Instituto).'
 MENSAJE_INCOMPATIBILIDAD_DEDICACION = 'Seg\u00fan normativa UABJB, los cargos de gesti\u00f3n (Director/Jefe) solo son compatibles con docencia a Tiempo Horario. No se permite dedicaci\u00f3n Tiempo Completo o Medio Tiempo.'
 MENSAJE_DOCENTE_DEDICACION_EXCLUSIVA = 'Los usuarios con rol docente deben registrar dedicacion a Tiempo Horario.'
-MENSAJE_DOCENTE_OTRA_CARRERA = 'La carga docente de un cargo de autoridad debe pertenecer a su misma carrera (dedicación exclusiva UABJB).'
+MENSAJE_UNA_SOLA_CARRERA = 'Un usuario pertenece a una sola carrera (la de su contrato): todos sus roles deben ser de esa carrera.'
 MENSAJE_CARRERA_OBLIGATORIA = 'Debe seleccionar una carrera para cada rol asignado.'
 MENSAJE_EXCLUSIVA_FUERA_DE_FICHA = 'La dedicación exclusiva no se registra en la ficha de docente: solo aplica al Director sin docencia, que no tiene ficha.'
 MENSAJE_FICHA_SOLO_DOCENTES = 'Solo los usuarios con rol docente tienen ficha de docente.'
@@ -968,12 +968,10 @@ def _validar_reglas_asignaciones_usuario(bloques, docente_por_defecto=None):
     if len(autoridades) > 1:
         raise serializers.ValidationError({'asignaciones': MENSAJE_CONFLICTO_AUTORIDAD})
 
-    # Director, Jefe de Estudios e Instituto solo pueden ser docentes de su misma
-    # carrera (igual que el frontend). Un docente sin cargo sí puede estar en dos.
-    carreras_cargo = {item['carrera'].id for item in asignaciones if item['rol'] in ROLES_UNICOS_POR_CARRERA}
-    carreras_docencia = {item['carrera'].id for item in asignaciones if item['rol'] == 'docente'}
-    if carreras_cargo and carreras_docencia - carreras_cargo:
-        raise serializers.ValidationError({'asignaciones': MENSAJE_DOCENTE_OTRA_CARRERA})
+    # Un usuario pertenece a UNA sola carrera (la de su contrato): sus roles (hasta
+    # 2, cargo + docente) son todos de esa carrera. También para el superusuario.
+    if len({item['carrera'].id for item in asignaciones}) > 1:
+        raise serializers.ValidationError({'asignaciones': MENSAJE_UNA_SOLA_CARRERA})
 
 
 def _guardar_asignaciones_usuario(user, bloques, docente_por_defecto=None, carreras_gestionables=None):
@@ -3385,6 +3383,27 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
                 'asignaciones': 'Solo el superusuario puede agregar asignaciones a un usuario existente.'
             })
 
+    def _validar_una_sola_carrera(self, data, perfil_actual):
+        """Resultado final de la edición en una sola carrera: la principal (nueva o actual)
+        y las asignaciones (las enviadas o, si no se envían, las que ya tiene)."""
+        if self.instance.is_superuser:
+            return
+        carreras = set()
+        principal = data['carrera'] if 'carrera' in data else (perfil_actual.carrera if perfil_actual else None)
+        if principal:
+            carreras.add(principal.pk)
+        if 'asignaciones' in data:
+            for bloque in data.get('asignaciones') or []:
+                carrera = _resolver_carrera_asignacion(bloque.get('carrera')) if isinstance(bloque, dict) else None
+                if carrera:
+                    carreras.add(carrera.pk)
+        else:
+            carreras |= set(AsignacionCarrera.objects.filter(
+                user=self.instance, activo=True,
+            ).values_list('carrera_id', flat=True))
+        if len(carreras) > 1:
+            raise serializers.ValidationError({'asignaciones': MENSAJE_UNA_SOLA_CARRERA})
+
     def _validar_ci_compartido(self, data, perfil_actual, current_user):
         """El C.I. de un docente con dos o más carreras solo lo cambia el superusuario."""
         if 'ci' not in data or (current_user and current_user.is_superuser):
@@ -3476,6 +3495,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
             bloques_validacion,
             docente_por_defecto=data.get('docente') or (perfil_actual.docente if perfil_actual else None),
         )
+        self._validar_una_sola_carrera(data, perfil_actual)
         _validar_fondo_tiempo_contractual_doble_rol(
             bloques_validacion,
             docente_por_defecto=data.get('docente') or (perfil_actual.docente if perfil_actual else None),

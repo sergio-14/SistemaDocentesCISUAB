@@ -3,6 +3,10 @@
 // un rol por defecto ni se envía. (Antes se usaba `rol || 'docente'`, y un
 // Director terminó con una asignación de docente que nadie marcó.)
 
+// Un usuario pertenece a UNA sola carrera (la de su contrato): hasta 2 roles
+// (cargo + docente), siempre en esa carrera. El backend aplica la misma regla.
+export const MENSAJE_UNA_SOLA_CARRERA = 'Un usuario pertenece a una sola carrera (la de su contrato): todos sus roles deben ser de esa carrera.';
+
 const clave = (rol, carrera) => `${String(rol || '')}::${String(carrera || '')}`;
 
 // Rol y carrera principales, y el segundo rol (máximo uno), a partir del usuario.

@@ -106,7 +106,7 @@ class CIEnDocentesTests(UsuariosBaseTestCase):
 
         response = self.client.post('/api/docentes/', {
             'user': usuario.pk, 'carrera': self.carrera.pk, 'categoria': 'catedratico',
-            'dedicacion': 'horario_40', 'ci': '4000', 'fecha_ingreso': '2015-01-01',
+            'dedicacion': 'horario_40', 'condicion': 'titular', 'ci': '4000', 'fecha_ingreso': '2015-01-01',
         }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
@@ -122,7 +122,7 @@ class DirectorCreaDocentesTests(UsuariosBaseTestCase):
     def _crear_ficha(self, usuario, carrera):
         return self.client.post('/api/docentes/', {
             'user': usuario.pk, 'carrera': carrera.pk, 'categoria': 'catedratico',
-            'dedicacion': 'horario_40', 'ci': f'CI-{usuario.username}', 'fecha_ingreso': '2015-01-01',
+            'dedicacion': 'horario_40', 'condicion': 'titular', 'ci': f'CI-{usuario.username}', 'fecha_ingreso': '2015-01-01',
         }, format='json')
 
     def test_director_crea_la_ficha_en_su_carrera(self):

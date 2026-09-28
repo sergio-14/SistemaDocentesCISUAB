@@ -1598,13 +1598,14 @@ class DocenteSerializer(serializers.ModelSerializer):
                 'carrera': carrera,
                 'categoria': crudo.get('categoria') or 'asistente',
                 'dedicacion': crudo.get('dedicacion') or 'horario_40',
-                'condicion': crudo.get('condicion') or 'titular',
+                # Sin condición: la exige POST /api/docentes/; los flujos internos usan 'titular'.
+                'condicion': crudo.get('condicion') or None,
             }
             if vinculo['categoria'] not in categorias:
                 raise serializers.ValidationError({'categoria': f'Categoría no válida en {carrera.nombre}.'})
             if vinculo['dedicacion'] not in dedicaciones:
                 raise serializers.ValidationError({'dedicacion': f'Dedicación no válida en {carrera.nombre}.'})
-            if vinculo['condicion'] not in condiciones:
+            if vinculo['condicion'] is not None and vinculo['condicion'] not in condiciones:
                 raise serializers.ValidationError({'condicion': f'Condición no válida en {carrera.nombre}.'})
             self._validar_reglas_ficha(data, vinculo['dedicacion'], user)
             _validar_dedicacion_compatible_con_roles_gestion(vinculo['dedicacion'], user=user)
@@ -1761,7 +1762,7 @@ class DocenteSerializer(serializers.ModelSerializer):
         ci_docente = (validated_data.pop('ci', None) or '').strip()
         categoria = validated_data.pop('categoria', 'asistente')
         dedicacion = validated_data.pop('dedicacion', 'horario_40')
-        condicion = validated_data.pop('condicion', 'titular')
+        condicion = validated_data.pop('condicion', None)
         vinculos = validated_data.pop('vinculos_data', None) or [
             {'carrera': carrera, 'categoria': categoria, 'dedicacion': dedicacion, 'condicion': condicion},
         ]
@@ -1889,7 +1890,7 @@ class DocenteSerializer(serializers.ModelSerializer):
                 defaults={
                     'categoria': vinculo['categoria'],
                     'dedicacion': vinculo['dedicacion'],
-                    'condicion': vinculo['condicion'],
+                    'condicion': vinculo['condicion'] or 'titular',
                     'activo': True,
                 },
             )

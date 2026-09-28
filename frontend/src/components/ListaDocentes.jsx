@@ -706,6 +706,11 @@ const SearchInput = ({ value, onChange, placeholder = 'Buscar por nombre o C.I..
   );
 };
 
+const OPCIONES_CONDICION = [
+  { value: 'titular', label: 'Titular' },
+  { value: 'invitado', label: 'Invitado' },
+];
+
 const OPCIONES_CATEGORIA = [
   { value: 'catedratico', label: 'Catedratico' },
   { value: 'adjunto', label: 'Adjunto' },
@@ -1628,12 +1633,13 @@ function ListaDocentes({ sidebarCollapsed = false }) {
   const carrerasExtraNuevoDocente = (usuarioSeleccionado?.carreras_docente || [])
     .map(String)
     .filter((carreraId) => carreraId !== String(formData.carrera || ''));
-  const getVinculoExtra = (carreraId) => ({ dedicacion: '', categoria: 'catedratico', ...vinculosExtra[carreraId] });
+  const getVinculoExtra = (carreraId) => ({ dedicacion: '', categoria: 'catedratico', condicion: '', ...vinculosExtra[carreraId] });
   const cambiarVinculoExtra = (carreraId, campo, valor) => {
     setVinculosExtra((prev) => ({ ...prev, [carreraId]: { ...getVinculoExtra(carreraId), ...prev[carreraId], [campo]: valor } }));
     setErrors((prev) => {
       const next = { ...prev };
       delete next[`vinculo_${carreraId}`];
+      delete next[`condicion_${carreraId}`];
       delete next.vinculos_data;
       return next;
     });
@@ -1725,6 +1731,14 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       setIsSubmitting(false);
       return;
     }
+    const carreraSinCondicion = carrerasExtraNuevoDocente.find((carreraId) => !getVinculoExtra(carreraId).condicion);
+    if (carreraSinCondicion) {
+      const mensaje = `Seleccione la condición en ${getNombreCarreraUsuario(carreraSinCondicion)}.`;
+      setErrors((prev) => ({ ...prev, [`condicion_${carreraSinCondicion}`]: [mensaje] }));
+      toast.error(mensaje);
+      setIsSubmitting(false);
+      return;
+    }
     const horasTotales = [formData.dedicacion, ...carrerasExtraNuevoDocente.map((carreraId) => getVinculoExtra(carreraId).dedicacion)]
       .reduce((total, dedicacion) => total + horasSemanalesDedicacion(dedicacion), 0);
     if (carrerasExtraNuevoDocente.length > 0 && horasTotales > TOPE_HORAS_SEMANALES_FONDO) {
@@ -1752,11 +1766,10 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       payload.ci = ciNormalizado;
       if (carrerasExtraNuevoDocente.length > 0) {
         payload.vinculos_data = [
-          { carrera: formData.carrera, categoria: formData.categoria, dedicacion: formData.dedicacion },
+          { carrera: formData.carrera, categoria: formData.categoria, dedicacion: formData.dedicacion, condicion: formData.condicion },
           ...carrerasExtraNuevoDocente.map((carreraId) => ({ carrera: carreraId, ...getVinculoExtra(carreraId) })),
         ];
       }
-      delete payload.condicion;
       delete payload.nombre_completo;
       if (payload.email === '') payload.email = null;
       if (payload.telefono === '') payload.telefono = null;
@@ -2361,6 +2374,14 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                             value={vinculo.categoria}
                             onChange={(e) => cambiarVinculoExtra(carreraId, 'categoria', e.target.value)}
                             options={OPCIONES_CATEGORIA}
+                          />
+                          <SelectConDropdown
+                            label="Condicion"
+                            name={`condicion_${carreraId}`}
+                            value={vinculo.condicion}
+                            onChange={(e) => cambiarVinculoExtra(carreraId, 'condicion', e.target.value)}
+                            options={OPCIONES_CONDICION}
+                            error={errors[`condicion_${carreraId}`]}
                           />
                         </div>
                       </div>

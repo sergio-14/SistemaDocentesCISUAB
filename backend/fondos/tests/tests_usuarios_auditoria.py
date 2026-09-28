@@ -69,7 +69,7 @@ class FechaIngresoYVacacionesTests(UsuariosBaseTestCase):
         usuario = self.crear_usuario(username, 'docente', carrera=self.carrera, ci=f'CI-{username}')
         return self.client.post('/api/docentes/', {
             'user': usuario.pk, 'carrera': self.carrera.pk, 'categoria': 'catedratico',
-            'dedicacion': 'horario_40', 'fecha_ingreso': fecha_ingreso.isoformat(),
+            'dedicacion': 'horario_40', 'condicion': 'titular', 'fecha_ingreso': fecha_ingreso.isoformat(),
         }, format='json')
 
     def test_fecha_de_ingreso_se_guarda_y_vacaciones_segun_antiguedad(self):
@@ -94,7 +94,7 @@ class FechaIngresoYVacacionesTests(UsuariosBaseTestCase):
         usuario = self.crear_usuario('sin_ci', 'docente', carrera=self.carrera)
 
         response = self.client.post('/api/docentes/', {
-            'user': usuario.pk, 'carrera': self.carrera.pk, 'categoria': 'catedratico', 'dedicacion': 'horario_40',
+            'user': usuario.pk, 'carrera': self.carrera.pk, 'categoria': 'catedratico', 'dedicacion': 'horario_40', 'condicion': 'titular',
             'fecha_ingreso': '2015-01-01',
         }, format='json')
 

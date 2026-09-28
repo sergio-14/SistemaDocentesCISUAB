@@ -56,7 +56,7 @@ class HistorialUsuariosTests(UsuariosBaseTestCase):
     def test_editar_la_ficha_de_docente_registra_el_cambio_y_su_autor(self):
         usuario = self.crear_usuario('docente_auditado', 'docente', carrera=self.carrera, ci='H-3')
         response = self.client.post('/api/docentes/', {
-            'user': usuario.pk, 'carrera': self.carrera.pk, 'categoria': 'catedratico', 'dedicacion': 'horario_40',
+            'user': usuario.pk, 'carrera': self.carrera.pk, 'categoria': 'catedratico', 'dedicacion': 'horario_40', 'condicion': 'titular',
             'fecha_ingreso': '2015-01-01',
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)

@@ -12,7 +12,7 @@ from django.contrib.auth.models import User
 from rest_framework import status
 
 from fondos.models import AsignacionCarrera, CalendarioAcademico, Docente, FondoTiempo
-from .tests_usuarios_auditoria import UsuariosBaseTestCase
+from .tests_usuarios_auditoria import UsuariosBaseTestCase, con_resolucion_jefe
 
 
 class FichaDocentePendienteTests(UsuariosBaseTestCase):
@@ -28,11 +28,11 @@ class FichaDocentePendienteTests(UsuariosBaseTestCase):
         self.jefe = self.crear_usuario('jefe_generador', 'jefe_estudios', carrera=self.carrera, is_staff=True, ci='GEN')
 
     def _crear(self, username, rol, ci, asignaciones=(), carrera=None):
-        response = self.client.post(
-            '/api/usuarios/',
-            self.datos_usuario(username, rol, carrera or self.carrera, ci, asignaciones=list(asignaciones)),
-            format='json',
-        )
+        datos = self.datos_usuario(username, rol, carrera or self.carrera, ci, asignaciones=list(asignaciones))
+        if 'jefe_estudios' in [rol] + [asignacion['rol'] for asignacion in asignaciones]:
+            response = self.client.post('/api/usuarios/', con_resolucion_jefe(datos), format='multipart')
+        else:
+            response = self.client.post('/api/usuarios/', datos, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         return response, User.objects.get(username=username)
 

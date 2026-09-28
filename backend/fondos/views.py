@@ -55,16 +55,10 @@ from .serializers import (
 from .role_context import get_effective_profile, get_active_careers_for_user
 from .solo_lectura import CarreraInactivaSoloLecturaMixin as CarreraInactivaSoloLecturaBase
 from .models import actualizar_con_historial
+from .utils.archivos import es_pdf
 
 
-def _es_pdf(archivo):
-    """Extensión .pdf y cabecera %PDF (no basta con el nombre)."""
-    if not str(getattr(archivo, 'name', '')).lower().endswith('.pdf'):
-        return False
-    posicion = archivo.tell() if hasattr(archivo, 'tell') else 0
-    cabecera = archivo.read(5)
-    archivo.seek(posicion)
-    return cabecera.startswith(b'%PDF')
+_es_pdf = es_pdf
 
 
 def _obtener_perfil_usuario(user):

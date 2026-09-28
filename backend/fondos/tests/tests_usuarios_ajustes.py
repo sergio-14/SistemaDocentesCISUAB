@@ -15,7 +15,7 @@ from rest_framework import status
 from fondos.models import (
     AsignacionCarrera, DatosLaborales, Docente, FondoTiempo, Materia, PerfilUsuario, calcular_horas_fondo,
 )
-from .tests_usuarios_auditoria import UsuariosBaseTestCase
+from .tests_usuarios_auditoria import UsuariosBaseTestCase, con_resolucion_jefe
 
 # Misma tabla que frontend/tests/horasFondo.test.js: la vista previa debe dar lo mismo.
 # (horas_semana, dias_vacacion, horas_feriados_gestion) -> (contrato, vacacion, feriados, efectivas)
@@ -166,8 +166,8 @@ class DirectorCambiaRolTests(UsuariosBaseTestCase):
     def test_director_cambia_el_rol_de_un_usuario_sin_datos(self):
         response = self.client.patch(
             f'/api/usuarios/{self.usuario.pk}/',
-            {'rol': 'jefe_estudios', 'carrera': self.carrera.pk, 'asignaciones': []},
-            format='json',
+            con_resolucion_jefe({'rol': 'jefe_estudios', 'carrera': self.carrera.pk, 'asignaciones': []}),
+            format='multipart',
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)

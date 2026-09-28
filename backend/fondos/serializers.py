@@ -1,3 +1,4 @@
+import json
 import re
 import uuid
 
@@ -10,6 +11,7 @@ from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia,
 from .role_context import get_active_assignment, get_active_careers_for_user, get_effective_profile, serialize_assignment
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from .utils.informe_imagenes import CAMPOS_HTML_INFORME, firmar_imagenes_html
+from .utils.archivos import es_pdf
 from django.db.models import Q, Sum
 from django.db import transaction
 from decimal import Decimal
@@ -664,6 +666,61 @@ def _ids_carreras_gestionables(carreras_gestionables):
     return set(carreras_gestionables.values_list('id', flat=True))
 
 
+MENSAJE_RESOLUCION_JEFE_OBLIGATORIA = (
+    'Adjunte la resolución del Consejo de Carrera (PDF) que designa al Jefe de Estudios.'
+)
+
+
+def _parsear_asignaciones(valor):
+    """En multipart (con la resolución del Jefe) las asignaciones llegan como texto JSON."""
+    if isinstance(valor, str):
+        try:
+            return json.loads(valor) if valor.strip() else []
+        except ValueError:
+            raise serializers.ValidationError('Las asignaciones no son un JSON válido.')
+    return valor
+
+
+def _jefe_nuevo_en_bloques(bloques, user=None):
+    """Carrera de un Jefe de Estudios que se asigna ahora (no lo era ya en esa carrera), o None."""
+    for bloque in bloques:
+        if not isinstance(bloque, dict) or str(bloque.get('rol') or '').strip() != 'jefe_estudios':
+            continue
+        carrera = _resolver_carrera_asignacion(bloque.get('carrera'))
+        if not carrera:
+            continue
+        if user and AsignacionCarrera.objects.filter(
+            user=user, rol='jefe_estudios', carrera=carrera, activo=True,
+        ).exists():
+            continue
+        return carrera
+    return None
+
+
+def _validar_resolucion_jefe(data, bloques, user=None):
+    """Designar un Jefe de Estudios exige la resolución del Consejo de Carrera en PDF
+    (también al superusuario). Un Jefe que ya lo era no la vuelve a pedir."""
+    if _jefe_nuevo_en_bloques(bloques, user) is None:
+        return
+    archivo = data.get('resolucion_jefe')
+    if not archivo:
+        raise serializers.ValidationError({'resolucion_jefe': MENSAJE_RESOLUCION_JEFE_OBLIGATORIA})
+    if not es_pdf(archivo):
+        raise serializers.ValidationError({
+            'resolucion_jefe': 'La resolución del Consejo de Carrera debe ser un archivo PDF válido.',
+        })
+
+
+def _guardar_resolucion_jefe(user, archivo):
+    """Guarda la resolución en la asignación de Jefe de Estudios del usuario."""
+    if not archivo:
+        return
+    asignacion = AsignacionCarrera.objects.filter(user=user, rol='jefe_estudios', activo=True).first()
+    if asignacion:
+        asignacion.resolucion_consejo = archivo
+        asignacion.save(update_fields=['resolucion_consejo'])
+
+
 MENSAJE_CARRERA_DEL_EDITOR = 'Solo el superusuario elige la carrera: los usuarios que creas o editas son de tu carrera.'
 
 
@@ -717,9 +774,9 @@ def _validar_bloques_en_carreras_gestionables(bloques, carreras_gestionables):
         if not rol or not carrera:
             continue
 
-        if rol in {'iiisyp', 'director'}:
+        if rol == 'director':
             raise serializers.ValidationError({
-                'rol': 'El director solo puede asignar roles operativos dentro de su carrera.'
+                'rol': 'El Director no puede asignar el rol Director de Carrera.'
             })
 
         if carrera.id not in ids_permitidos:
@@ -2863,6 +2920,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
                 'docente': asignacion.docente_id,
                 'docente_nombre': asignacion.docente.nombre_completo if asignacion.docente else None,
                 'activo': asignacion.activo,
+                'resolucion_consejo': asignacion.resolucion_consejo.url if asignacion.resolucion_consejo else None,
             })
         return resultado
 
@@ -2878,6 +2936,8 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, min_length=8)
     password_confirm = serializers.CharField(write_only=True, required=True)
     asignaciones = serializers.JSONField(write_only=True, required=False, allow_null=True)
+    # Resolución del Consejo de Carrera (PDF): obligatoria al designar un Jefe de Estudios.
+    resolucion_jefe = serializers.FileField(write_only=True, required=False, allow_null=True)
     # Se definen los roles explícitamente para evitar problemas de carga
     # en el servidor de desarrollo que puedan mostrar una lista incompleta.
     rol = serializers.ChoiceField(choices=[
@@ -2902,7 +2962,7 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['username', 'email', 'password', 'password_confirm', 'first_name',
-                  'last_name', 'rol', 'carrera', 'docente', 'docente_data', 'asignaciones', 'ci']
+                  'last_name', 'rol', 'carrera', 'docente', 'docente_data', 'asignaciones', 'ci', 'resolucion_jefe']
         extra_kwargs = {
             'first_name': {'required': False, 'allow_blank': True},
             'last_name': {'required': False, 'allow_blank': True},
@@ -2913,6 +2973,8 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
         # Obtener usuario actual del contexto (quien está creando)
         request = self.context.get('request')
         current_user = request.user if request else None
+        if 'asignaciones' in data:
+            data['asignaciones'] = _parsear_asignaciones(data['asignaciones'])
         asignaciones = data.get('asignaciones') or []
 
         if asignaciones and not isinstance(asignaciones, list):
@@ -2959,6 +3021,8 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
             })
 
         _validar_carrera_en_bloques(bloques)
+        # Después de las reglas de estructura (carrera, cargos): el PDF es lo último que falta.
+        _validar_resolucion_jefe(data, bloques)
 
         ci_normalizado = (data.get('ci') or '').strip()
 
@@ -2998,6 +3062,7 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
             carrera = validated_data.pop('carrera', None)
             docente = validated_data.pop('docente', None)
             validated_data.pop('docente_data', None)
+            resolucion_jefe = validated_data.pop('resolucion_jefe', None)
             asignaciones_extra = validated_data.pop('asignaciones', []) or []
             ci = validated_data.pop('ci', None)
 
@@ -3163,6 +3228,7 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
                 docente_por_defecto=docente_obj,
                 carreras_gestionables=self.context.get('carreras_gestionables'),
             )
+            _guardar_resolucion_jefe(user, resolucion_jefe)
 
             return user
 
@@ -3176,6 +3242,8 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
         ('jefe_estudios', 'Jefe de Estudios'),
         ('docente', 'Docente')], required=False)
     asignaciones = serializers.JSONField(write_only=True, required=False, allow_null=True)
+    # Resolución del Consejo de Carrera (PDF): obligatoria al designar un Jefe de Estudios.
+    resolucion_jefe = serializers.FileField(write_only=True, required=False, allow_null=True)
     carrera = serializers.PrimaryKeyRelatedField(
         queryset=Carrera.objects.all(), 
         required=False, 
@@ -3193,7 +3261,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['username', 'email', 'first_name', 'last_name', 'is_active',
-                  'rol', 'carrera', 'docente', 'docente_data', 'asignaciones', 'ci']
+                  'rol', 'carrera', 'docente', 'docente_data', 'asignaciones', 'ci', 'resolucion_jefe']
         extra_kwargs = {
             'username': {'required': False},
             'first_name': {'allow_blank': False},
@@ -3244,6 +3312,21 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'asignaciones': 'Solo el superusuario puede agregar asignaciones a un usuario existente.'
             })
+
+    def _validar_resolucion_jefe_edicion(self, data, perfil_actual):
+        """Con el resultado final de la edición: un Jefe de Estudios nuevo trae su resolución."""
+        bloques = [{
+            'rol': data.get('rol', perfil_actual.rol if perfil_actual else None),
+            'carrera': data.get('carrera', perfil_actual.carrera if perfil_actual else None),
+        }]
+        if 'asignaciones' in data:
+            bloques += list(data.get('asignaciones') or [])
+        else:
+            bloques += [
+                {'rol': asignacion.rol, 'carrera': asignacion.carrera}
+                for asignacion in AsignacionCarrera.objects.filter(user=self.instance, activo=True)
+            ]
+        _validar_resolucion_jefe(data, bloques, user=self.instance)
 
     def _validar_una_sola_carrera(self, data, perfil_actual):
         """Resultado final de la edición en una sola carrera: la principal (nueva o actual)
@@ -3333,6 +3416,8 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
         # Obtener usuario actual del contexto (quien está editando)
         request = self.context.get('request')
         current_user = request.user if request else None
+        if 'asignaciones' in data:
+            data['asignaciones'] = _parsear_asignaciones(data['asignaciones'])
         asignaciones = data.get('asignaciones') or []
         
         # Obtener perfil actual al inicio para evitar UnboundLocalError
@@ -3375,6 +3460,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
             docente_por_defecto=data.get('docente') or (perfil_actual.docente if perfil_actual else None),
         )
         self._validar_una_sola_carrera(data, perfil_actual)
+        self._validar_resolucion_jefe_edicion(data, perfil_actual)
         _validar_fondo_tiempo_contractual_doble_rol(
             bloques_validacion,
             docente_por_defecto=data.get('docente') or (perfil_actual.docente if perfil_actual else None),
@@ -3510,6 +3596,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
         )
         ci = validated_data.pop('ci', None)
         asignaciones_extra = validated_data.pop('asignaciones', None)
+        resolucion_jefe = validated_data.pop('resolucion_jefe', None)
 
         # 1. Actualizar campos del modelo User
         instance.username = validated_data.get('username', instance.username)
@@ -3662,6 +3749,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
         
         # 7. Guardar el usuario. La señal post_save se encargará de sincronizar es_active.
         instance.save()
+        _guardar_resolucion_jefe(instance, resolucion_jefe)
         carrera_vinculo = getattr(self, '_mover_vinculo_a', None)
         if carrera_vinculo and perfil.docente_id:
             for vinculo in DocenteCarrera.objects.filter(docente_id=perfil.docente_id, activo=True).exclude(carrera_id=carrera_vinculo):

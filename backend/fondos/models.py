@@ -828,6 +828,14 @@ class CalendarioAcademico(models.Model):
         super().save(*args, **kwargs)
 
 
+def resolucion_consejo_upload_path(instance, filename):
+    """Ruta: usuarios/usuario_<id>/resolucion_jefe_estudios_carrera_<id>.pdf"""
+    return (
+        f'usuarios/usuario_{instance.user_id or "sin_usuario"}/'
+        f'resolucion_jefe_estudios_carrera_{instance.carrera_id or "sin_carrera"}.pdf'
+    )
+
+
 def documento_decanatura_upload_path(instance, filename):
     """Ruta: fondos/aprobaciones/docente_<id>/gestion_<año>/decanatura_fondo_<id>.pdf"""
     return (
@@ -2067,6 +2075,8 @@ class AsignacionCarrera(models.Model):
     rol = models.CharField(max_length=20, choices=ROLES)
     docente = models.ForeignKey(Docente, on_delete=models.SET_NULL, null=True, blank=True, related_name='asignaciones_carrera')
     activo = models.BooleanField(default=True)
+    # Jefe de Estudios: resolución del Consejo de Carrera (PDF) que lo designa.
+    resolucion_consejo = models.FileField(upload_to=resolucion_consejo_upload_path, null=True, blank=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 
     # Auditoría: quién cambió qué y cuándo (usuario vía HistoryRequestMiddleware).

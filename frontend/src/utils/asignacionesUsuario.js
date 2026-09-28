@@ -7,6 +7,23 @@
 // (cargo + docente), siempre en esa carrera. El backend aplica la misma regla.
 export const MENSAJE_UNA_SOLA_CARRERA = 'Un usuario pertenece a una sola carrera (la de su contrato): todos sus roles deben ser de esa carrera.';
 
+// Designar un Jefe de Estudios exige la resolución del Consejo de Carrera en PDF.
+export const MENSAJE_RESOLUCION_JEFE = 'Adjunte la resolución del Consejo de Carrera (PDF) que designa al Jefe de Estudios.';
+export const esArchivoPdf = (archivo) => Boolean(archivo) && /\.pdf$/i.test(archivo.name || '');
+
+// Con un archivo el envío va en multipart: las listas viajan como JSON y los
+// valores vacíos (null/undefined) no se envían. Sin archivo, el payload no cambia.
+export const cuerpoConArchivo = (payload, campo, archivo) => {
+  if (!archivo) return { cuerpo: payload, config: undefined };
+  const datos = new FormData();
+  Object.entries(payload).forEach(([clave, valor]) => {
+    if (valor === null || valor === undefined) return;
+    datos.append(clave, typeof valor === 'object' ? JSON.stringify(valor) : valor);
+  });
+  datos.append(campo, archivo);
+  return { cuerpo: datos, config: { headers: { 'Content-Type': 'multipart/form-data' } } };
+};
+
 const clave = (rol, carrera) => `${String(rol || '')}::${String(carrera || '')}`;
 
 // Rol y carrera principales, y el segundo rol (máximo uno), a partir del usuario.

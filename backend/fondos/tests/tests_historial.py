@@ -11,7 +11,7 @@ from django.contrib.auth.models import User
 from rest_framework import status
 
 from fondos.models import AsignacionCarrera, DatosLaborales, Docente, DocenteCarrera, PerfilUsuario
-from .tests_usuarios_auditoria import UsuariosBaseTestCase
+from .tests_usuarios_auditoria import UsuariosBaseTestCase, con_resolucion_jefe
 
 
 class HistorialUsuariosTests(UsuariosBaseTestCase):
@@ -26,7 +26,8 @@ class HistorialUsuariosTests(UsuariosBaseTestCase):
 
     def test_crear_un_usuario_registra_quien_lo_hizo(self):
         response = self.client.post(
-            '/api/usuarios/', self.datos_usuario('auditado', 'jefe_estudios', self.carrera, 'H-1'), format='json',
+            '/api/usuarios/', con_resolucion_jefe(self.datos_usuario('auditado', 'jefe_estudios', self.carrera, 'H-1')),
+            format='multipart',
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         usuario = User.objects.get(username='auditado')

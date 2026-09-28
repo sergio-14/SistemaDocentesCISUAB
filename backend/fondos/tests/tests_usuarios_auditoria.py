@@ -9,11 +9,14 @@
 - El backend exige carrera en todos los roles y gestión + docencia en la misma carrera.
 - El superusuario no tiene rol de carrera y el Instituto (iiisyp) solo puede ver.
 """
+import json
 from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -26,6 +29,21 @@ from fondos.models import (
 from fondos.solo_lectura import MENSAJE_ROL_SOLO_LECTURA
 
 
+PDF_RESOLUCION = b'%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n'
+
+
+def con_resolucion_jefe(datos):
+    """Datos en multipart con la resolución del Consejo de Carrera (PDF) que exige designar un Jefe de Estudios."""
+    multipart = {
+        clave: json.dumps(valor) if isinstance(valor, (list, dict)) else valor
+        for clave, valor in datos.items() if valor is not None
+    }
+    multipart['resolucion_jefe'] = SimpleUploadedFile('resolucion.pdf', PDF_RESOLUCION, content_type='application/pdf')
+    return multipart
+
+
+# Los archivos subidos en los tests (p. ej. la resolución del Jefe) no van a la carpeta media real.
+@override_settings(MEDIA_ROOT='/tmp/test_media_usuarios')
 class UsuariosBaseTestCase(APITestCase):
     def setUp(self):
         self.facultad, _ = FacultadCatalogo.objects.get_or_create(nombre='Facultad de Ingeniería y Tecnología')

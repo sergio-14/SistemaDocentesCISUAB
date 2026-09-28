@@ -3,7 +3,10 @@ import { createPortal } from 'react-dom';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
 import { horasSemanalesDedicacion } from '../utils/dedicaciones';
-import { MENSAJE_UNA_SOLA_CARRERA, asignacionesIniciales, asignacionesParaEnviar } from '../utils/asignacionesUsuario';
+import {
+  MENSAJE_RESOLUCION_JEFE, MENSAJE_UNA_SOLA_CARRERA, asignacionesIniciales, asignacionesParaEnviar, cuerpoConArchivo, esArchivoPdf,
+} from '../utils/asignacionesUsuario';
+import CampoResolucionJefe from './common/CampoResolucionJefe';
 
 const obtenerNombreCompletoDocente = (docente) => {
   if (!docente) return '';
@@ -182,6 +185,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
   const [errors, setErrors] = useState({});
   const [resettingPassword, setResettingPassword] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resolucionJefe, setResolucionJefe] = useState(null);
   const [indiceAsignacionActiva, setIndiceAsignacionActiva] = useState(0);
   // Si el usuario ya tiene datos registrados, su identidad (usuario, nombre, C.I.)
   // no se puede cambiar. null = sin datos (o todavía sin verificar).
@@ -207,7 +211,8 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
   const carreraPropiaEditor = !puedeElegirCarrera && (carreras || []).length === 1 ? String(carreras[0].id) : '';
   const rolesDisponiblesModal = (roles || []).filter((rol) => {
     if (currentUser?.is_superuser) return true;
-    if (esDirectorEditor) return !['iiisyp', 'director'].includes(rol.value);
+    // El Director asigna Instituto y Jefe de Estudios en su carrera; Director de Carrera, no.
+    if (esDirectorEditor) return rol.value !== 'director';
     return rol.value !== 'iiisyp';
   });
 
@@ -237,6 +242,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     setIndiceAsignacionActiva(0);
     setErrors({});
     setShowResetConfirm(false);
+    setResolucionJefe(null);
   }, [userToEdit, carreras, esDirectorEditor, carreraPropiaEditor]);
 
   const handleChange = (e) => {
@@ -279,6 +285,10 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
   const totalAsignaciones = 1 + asignacionesExtra.length;
   const primeraAsignacionCompleta = Boolean(String(formData.rol || '').trim() && String(formData.carrera || '').trim());
   const puedeAgregarAsignacion = primeraAsignacionCompleta && totalAsignaciones < MAX_ASIGNACIONES_TOTAL;
+
+  // Un Jefe de Estudios nuevo (no lo era ya) exige la resolución del Consejo de Carrera.
+  const designaJefeNuevo = [formData.rol, ...asignacionesExtra.map((item) => item.rol)].includes('jefe_estudios')
+    && !(userToEdit?.asignaciones || []).some((item) => item.rol === 'jefe_estudios' && item.activo !== false);
 
   const agregarAsignacion = () => {
     if (!puedeAgregarAsignacion) return;
@@ -481,8 +491,17 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
       }
     }
 
+    if (designaJefeNuevo && !esArchivoPdf(resolucionJefe)) {
+      const mensaje = resolucionJefe ? 'La resolución del Consejo de Carrera debe ser un PDF.' : MENSAJE_RESOLUCION_JEFE;
+      setErrors((prev) => ({ ...prev, resolucion_jefe: [mensaje] }));
+      toast.error(mensaje);
+      setLoading(false);
+      return;
+    }
+    const { cuerpo, config } = cuerpoConArchivo(payload, 'resolucion_jefe', designaJefeNuevo ? resolucionJefe : null);
+
     try {
-      const response = await api.put(`/usuarios/${userToEdit.id}/`, payload);
+      const response = await api.put(`/usuarios/${userToEdit.id}/`, cuerpo, config);
 
       if (formData.rol === 'docente' && !response?.data?.perfil?.docente_id) {
         toast.error('No se pudo vincular el docente al usuario. Intenta nuevamente.');
@@ -651,6 +670,17 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
                 <p className="md:col-span-2 -mt-2 text-xs font-semibold text-red-600 dark:text-red-400">
                   {asignacionesError}
                 </p>
+              )}
+              {designaJefeNuevo && (
+                <CampoResolucionJefe
+                  className="md:col-span-2"
+                  archivo={resolucionJefe}
+                  error={errors.resolucion_jefe}
+                  onChange={(archivo) => {
+                    setResolucionJefe(archivo);
+                    setErrors((prev) => ({ ...prev, resolucion_jefe: null }));
+                  }}
+                />
               )}
               {errorFondoTiempo && (
                 <p className="md:col-span-2 -mt-2 text-sm font-semibold text-red-600 dark:text-red-400">

@@ -4,7 +4,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { FaEdit, FaTrash } from 'react-icons/fa';
 import api from '../apis/api';
 import ModalUsuario from './ModalUsuario';
-import { MENSAJE_UNA_SOLA_CARRERA } from '../utils/asignacionesUsuario';
+import { MENSAJE_RESOLUCION_JEFE, MENSAJE_UNA_SOLA_CARRERA, cuerpoConArchivo, esArchivoPdf } from '../utils/asignacionesUsuario';
+import CampoResolucionJefe from './common/CampoResolucionJefe';
 import toast from 'react-hot-toast';
 import {
   ERROR_MOTION_CLASS,
@@ -1041,6 +1042,7 @@ function GestionUsuarios({ sidebarCollapsed = false, user, hasSidebar = true }) 
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState({});
   const [crearNuevoDocente, setCrearNuevoDocente] = useState(false);
+  const [resolucionJefe, setResolucionJefe] = useState(null);
   const [asignacionesExtra, setAsignacionesExtra] = useState([]);
   const [selectedRoleLeft, setSelectedRoleLeft] = useState(null);
   const [selectedRoleRight, setSelectedRoleRight] = useState(null);
@@ -1156,7 +1158,8 @@ function GestionUsuarios({ sidebarCollapsed = false, user, hasSidebar = true }) 
   };
   const filtrarRolesPorPermiso = (rolesBase) => (rolesBase || []).filter((rol) => {
     if (esSuperuserActual) return true;
-    if (esDirectorCarreraActual) return !['iiisyp', 'director'].includes(rol.value);
+    // El Director asigna Instituto y Jefe de Estudios en su carrera; Director de Carrera, no.
+    if (esDirectorCarreraActual) return rol.value !== 'director';
     return rol.value !== 'iiisyp';
   });
   
@@ -1426,6 +1429,7 @@ const initialData = {
       setVinculacionRapidaDocente(false);
       setCrearNuevoDocente(false);
       setDocenteReciente(null);
+      setResolucionJefe(null);
       setErrors({});
     }
   }, [isCreating, user]);
@@ -2000,8 +2004,19 @@ const initialData = {
     // Enviar CI siempre
     payload.ci = ciNormalizado;
 
+    // Jefe de Estudios: resolución del Consejo de Carrera en PDF, obligatoria.
+    const designaJefe = [rolPrincipal, ...asignacionesExtra.map((item) => item.rol)].includes('jefe_estudios');
+    if (designaJefe && !esArchivoPdf(resolucionJefe)) {
+      const mensaje = resolucionJefe ? 'La resolución del Consejo de Carrera debe ser un PDF.' : MENSAJE_RESOLUCION_JEFE;
+      setErrors((prev) => ({ ...prev, resolucion_jefe: [mensaje] }));
+      toast.error(mensaje, { className: 'toast-brinco' });
+      setIsSubmitting(false);
+      return;
+    }
+    const { cuerpo, config } = cuerpoConArchivo(payload, 'resolucion_jefe', designaJefe ? resolucionJefe : null);
+
     try {
-      const response = await api.post('/usuarios/', payload);
+      const response = await api.post('/usuarios/', cuerpo, config);
       toast.success('Usuario creado correctamente');
       setUsuarios((prev) => [response.data, ...prev]);
       setIsCreating(false);
@@ -2406,6 +2421,17 @@ const initialData = {
                           ? <>Expanda <span className="text-[#2C4AAE] dark:text-blue-400 font-bold">Carrera</span> para asignar.</>
                           : 'La carrera es la tuya: se asigna sola.'}
                       </p>
+                      {[formData.rol, ...asignacionesExtra.map((item) => item.rol)].includes('jefe_estudios') && (
+                        <CampoResolucionJefe
+                          className="mt-3"
+                          archivo={resolucionJefe}
+                          error={errors.resolucion_jefe}
+                          onChange={(archivo) => {
+                            setResolucionJefe(archivo);
+                            setErrors((prev) => ({ ...prev, resolucion_jefe: null }));
+                          }}
+                        />
+                      )}
                     </div>
 
                     {/* Fila 3: Correo institucional - Cargo profesional / CI */}

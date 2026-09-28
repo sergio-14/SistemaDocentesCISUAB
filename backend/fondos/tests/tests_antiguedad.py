@@ -13,7 +13,7 @@ from django.contrib.auth.models import User
 from rest_framework import status
 
 from fondos.models import AsignacionCarrera, CalendarioAcademico, DatosLaborales, Docente, FondoTiempo, PerfilUsuario
-from .tests_usuarios_auditoria import UsuariosBaseTestCase
+from .tests_usuarios_auditoria import UsuariosBaseTestCase, con_resolucion_jefe
 
 
 class AniosCompletosTests(UsuariosBaseTestCase):
@@ -254,7 +254,7 @@ class ReglaDeCombinacionesTests(UsuariosBaseTestCase):
             asignaciones=[{'rol': 'docente', 'carrera': self.carrera.pk}],
         )
 
-        response = self.client.post('/api/usuarios/', datos, format='json')
+        response = self.client.post('/api/usuarios/', con_resolucion_jefe(datos), format='multipart')
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 

@@ -10,7 +10,7 @@ from django.contrib.auth.models import User
 from rest_framework import status
 
 from fondos.models import AsignacionCarrera, Docente, DocenteCarrera, PerfilUsuario
-from .tests_usuarios_auditoria import UsuariosBaseTestCase
+from .tests_usuarios_auditoria import UsuariosBaseTestCase, con_resolucion_jefe
 
 
 def _roles_en_respuesta(data):
@@ -47,9 +47,11 @@ class RolesMarcadosTests(UsuariosBaseTestCase):
         for rol in ['jefe_estudios', 'iiisyp']:
             with self.subTest(rol=rol):
                 carrera = self.carrera if rol == 'jefe_estudios' else self.otra_carrera
-                response = self.client.post(
-                    '/api/usuarios/', self.datos_usuario(f'solo_{rol}', rol, carrera, f'RM-{rol}'), format='json',
-                )
+                datos = self.datos_usuario(f'solo_{rol}', rol, carrera, f'RM-{rol}')
+                if rol == 'jefe_estudios':
+                    response = self.client.post('/api/usuarios/', con_resolucion_jefe(datos), format='multipart')
+                else:
+                    response = self.client.post('/api/usuarios/', datos, format='json')
 
                 self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
                 self.assertEqual(_roles_en_respuesta(response.data), {rol})
@@ -59,8 +61,8 @@ class RolesMarcadosTests(UsuariosBaseTestCase):
 
         response = self.client.patch(
             f'/api/usuarios/{usuario.pk}/',
-            {'rol': 'jefe_estudios', 'carrera': self.carrera.pk, 'asignaciones': []},
-            format='json',
+            con_resolucion_jefe({'rol': 'jefe_estudios', 'carrera': self.carrera.pk, 'asignaciones': []}),
+            format='multipart',
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)

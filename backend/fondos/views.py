@@ -478,6 +478,9 @@ class DatosLaboralesViewSet(viewsets.ModelViewSet):
     queryset = DatosLaborales.objects.all().select_related('docente').prefetch_related('perfiles')
     serializer_class = DatosLaboralesSerializer
     permission_classes = [IsFullAdmin]
+    # Sin DELETE: borrar DatosLaborales borraría en cascada la ficha de docente
+    # saltándose las validaciones de DocenteViewSet.destroy (única vía de borrado).
+    http_method_names = ['get', 'post', 'put', 'patch', 'head', 'options']
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['ci', 'docente__nombres', 'docente__apellido_paterno']
     ordering_fields = ['fecha_ingreso', 'ci']

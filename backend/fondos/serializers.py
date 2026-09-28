@@ -504,6 +504,10 @@ def datos_registrados_usuario(user):
         ('historial_fondos', 'Historial de fondos', HistorialFondo.objects.filter(usuario=user).count()),
         ('mensajes', 'Mensajes en observaciones', MensajeObservacion.objects.filter(autor=user).count()),
         ('observaciones_resueltas', 'Observaciones resueltas', ObservacionFondo.objects.filter(resuelta_por=user).count()),
+        # Al borrar el usuario estos campos quedarían en NULL (SET_NULL) y se perdería quién lo hizo.
+        ('fondos_aprobados', 'Fondos aprobados o validados',
+         FondoTiempo.objects.filter(Q(aprobado_por=user) | Q(validado_por=user)).count()),
+        ('evidencias_subidas', 'Evidencias subidas', EvidenciaCargaHoraria.objects.filter(subido_por=user).count()),
     ]
     detalle = [
         {'clave': clave, 'etiqueta': etiqueta, 'cantidad': cantidad}

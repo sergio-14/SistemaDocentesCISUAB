@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTheme } from './useTheme';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
@@ -180,6 +180,19 @@ function App() {
       console.error("Error updating profile:", error);
     }
   };
+
+  // Los enlaces firmados de archivos (p. ej. la foto de perfil) vencen en
+  // MEDIA_URL_MAX_AGE: el usuario guardado en localStorage los trae del login.
+  // Al abrir o recargar la app se vuelve a pedir para tenerlos vigentes.
+  const refrescarUsuarioRef = useRef(handleProfileUpdate);
+  useEffect(() => {
+    refrescarUsuarioRef.current = handleProfileUpdate;
+  });
+  useEffect(() => {
+    if (localStorage.getItem('access_token') && localStorage.getItem('user')) {
+      refrescarUsuarioRef.current();
+    }
+  }, []);
 
   const handleCarreraActivaChange = (carreraId) => {
     setUser((prev) => {

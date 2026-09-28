@@ -234,7 +234,7 @@ SIMPLE_JWT = {
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 # Vigencia (segundos) de las URLs firmadas de archivos subidos.
-MEDIA_URL_MAX_AGE = config('MEDIA_URL_MAX_AGE', default=12 * 60 * 60, cast=int)
+MEDIA_URL_MAX_AGE = config('MEDIA_URL_MAX_AGE', default=60 * 60, cast=int)
 
 # Clave Fernet para cifrar fotos de perfil y logos de carrera. Si se deja vacía
 # se deriva de SECRET_KEY (comportamiento histórico). Si se define, los datos

@@ -38,6 +38,10 @@ SECRET_KEY = env('DJANGO_SECRET_KEY', 'SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DJANGO_DEBUG', 'DEBUG', default=False, cast=bool)
 
+# Admin de Django (/django-admin/): activo en desarrollo; en producción apagado
+# salvo DJANGO_ADMIN_ENABLED=True (y entonces hay que exponer la ruta en nginx).
+DJANGO_ADMIN_ENABLED = config('DJANGO_ADMIN_ENABLED', default=DEBUG, cast=bool)
+
 ALLOWED_HOSTS = env('DJANGO_ALLOWED_HOSTS', 'ALLOWED_HOSTS', cast=Csv())
 
 

@@ -64,11 +64,13 @@ La primera ejecucion crea la base de datos y aplica las migraciones de Django.
 
 - Aplicacion: <http://localhost:5173>
 - API: <http://localhost:8000/api/>
-- Administracion Django: <http://localhost:8000/django-admin/>
+- Administracion Django: <http://localhost:8000/django-admin/> (solo en desarrollo)
 - PostgreSQL: `localhost:5432` (solo desde este equipo)
 
 > El admin de Django esta en `/django-admin/` porque `/admin` es el panel de
-> administracion de la app React.
+> administracion de la app React. En produccion esta **apagado**: solo existe si
+> se define `DJANGO_ADMIN_ENABLED=True` y ademas se agrega la ruta en
+> `frontend/nginx.conf`.
 
 ## Crear el primer administrador
 
@@ -148,7 +150,7 @@ Arquitectura (un solo dominio):
 
 ```
 Usuario ──HTTPS──▶ Traefik ──▶ frontend (nginx :80) ──┬─▶ SPA React
-                                                      └─▶ /api, /django-admin, /media, /static
+                                                      └─▶ /api, /media, /static
                                                            ──▶ backend (gunicorn :8000) ──▶ db
 ```
 
@@ -225,7 +227,8 @@ El registro DNS tipo A del dominio debe apuntar a la IP del VPS.
 
 - `https://midominio.com` carga con candado.
 - El login funciona.
-- `https://midominio.com/django-admin/` carga con estilos.
+- `https://midominio.com/django-admin/` **no** existe (el admin de Django esta
+  apagado en produccion).
 - Los datos siguen tras un redeploy.
 
 ### 6. Crear el administrador (a mano)
@@ -238,6 +241,33 @@ python manage.py createsuperuser
 
 Se hace a mano a proposito: la contrasena de administrador no queda guardada
 en variables de entorno y la cuenta la crea una persona identificable.
+
+### 7. Antes de cargar datos reales: backups fuera del servidor
+
+**Requisito obligatorio antes de cargar datos reales.** El servicio `backup`
+guarda las copias en el mismo VPS (ver [Backups](#backups)): si el servidor se
+pierde, se pierden tambien las copias. Antes de usar el sistema con datos
+reales hace falta:
+
+1. **Destino externo:** un bucket (S3, Backblaze B2...) u otra maquina, fuera
+   de este servidor.
+2. **Cifrado:** las copias llevan datos personales y documentos (resoluciones,
+   actas, evidencias). Se cifran antes de salir del servidor y la clave se
+   guarda aparte.
+3. **Base de datos y `media`:** las dos cosas (`db_*.dump` y `media_*.tar.gz`).
+   Los backups de base de datos de Dokploy no incluyen `media`.
+4. **Prueba de restauracion:** restaurar una copia en otro entorno y comprobar
+   que el sistema funciona con esos datos y archivos. Repetirla periodicamente.
+
+### 8. HTTPS y HSTS
+
+1. Comprobar que `https://midominio.com` carga con certificado valido.
+2. Comprobar que `http://midominio.com` redirige a `https://` (opcion del
+   dominio en Dokploy: la redireccion la hace el proxy, no Django).
+3. Recien entonces activar HSTS en Dokploy (*Environment*):
+   `SECURE_HSTS_SECONDS=3600` para probar y luego `31536000` (1 ano), y
+   redesplegar. Una vez activo, los navegadores exigen HTTPS durante ese
+   tiempo: no se deshace al instante.
 
 ### Probar la configuracion de produccion en local
 
@@ -298,8 +328,8 @@ despues de arrancar):
 Se conservan `BACKUP_KEEP_DAYS` dias (14 por defecto).
 
 > Los backups quedan **en el mismo servidor**: "un backup que solo existe en
-> el mismo VPS no es un backup" (guia IIISyP). Copialos periodicamente fuera
-> (otra maquina, S3, Backblaze...).
+> el mismo VPS no es un backup" (guia IIISyP). Tener copias fuera del servidor
+> es **requisito antes de cargar datos reales**: ver el paso 7 del despliegue.
 
 Backup inmediato:
 
@@ -326,8 +356,7 @@ docker run --rm -v <proyecto>_media_data:/media -v <proyecto>_backups:/backups \
 
 ## Despues del despliegue
 
-- Cuando HTTPS funcione de forma estable, se puede activar HSTS con
-  `SECURE_HSTS_SECONDS=31536000`.
+- HSTS: ver el paso 8 del despliegue (primero verificar HTTPS y la redireccion).
 - Opcional: los informes PDF usan Verdana si se copian `verdana.ttf`,
   `verdanab.ttf` y `trebucit.ttf` en `backend/fondos/fonts/` (son fuentes con
   licencia de Microsoft y no se versionan). Sin ellas se usa Helvetica.

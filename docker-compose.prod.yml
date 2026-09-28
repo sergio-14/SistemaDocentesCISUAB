@@ -5,7 +5,8 @@
 # Dokploy > Domains:      Service "frontend", Port 80, HTTPS (Let's Encrypt)
 #
 # Un solo dominio: el nginx del servicio "frontend" es la única entrada y
-# reenvía /api, /django-admin, /media y /static al backend por la red interna.
+# reenvía /api, /media y /static al backend por la red interna. El admin de Django
+# (/django-admin/) está apagado en producción (DJANGO_ADMIN_ENABLED).
 #
 # - Sin "ports:" ni "container_name" (reglas 4 y 5).
 # - PostgreSQL 16 sin puerto publicado (reglas 1 y 6).
@@ -51,6 +52,8 @@ services:
     environment:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Falta DJANGO_SECRET_KEY}
       DJANGO_DEBUG: "False"
+      # Admin de Django apagado; para activarlo también hay que exponerlo en frontend/nginx.conf.
+      DJANGO_ADMIN_ENABLED: ${DJANGO_ADMIN_ENABLED:-False}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?Falta DJANGO_ALLOWED_HOSTS}
       DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:?Falta DJANGO_CSRF_TRUSTED_ORIGINS}
       POSTGRES_HOST: db

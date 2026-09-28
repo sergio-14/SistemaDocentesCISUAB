@@ -10,9 +10,6 @@ from config.media import serve_signed_media
 from config.health import health
 
 urlpatterns = [
-    # Con un solo dominio, /admin/ pertenece a la app React (panel de administración);
-    # el admin de Django vive en /django-admin/.
-    path('django-admin/', admin.site.urls),
     path('health/', health, name='health'),
     path('api/', include('fondos.urls')),
     path('api/poa/', include('poa_document.api.urls')),
@@ -22,3 +19,9 @@ urlpatterns = [
     # Archivos subidos: se sirven en desarrollo y en producción, solo con URL firmada.
     re_path(rf'^{settings.MEDIA_URL.strip("/")}/(?P<path>.+)$', serve_signed_media, name='media'),
 ]
+
+# Admin de Django: solo si DJANGO_ADMIN_ENABLED (por defecto, solo en desarrollo).
+# Con un solo dominio, /admin/ pertenece a la app React (panel de administración);
+# el admin de Django vive en /django-admin/.
+if settings.DJANGO_ADMIN_ENABLED:
+    urlpatterns.insert(0, path('django-admin/', admin.site.urls))

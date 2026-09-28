@@ -4,8 +4,8 @@
 2. Con menos de 1 año de antigüedad no hay días de vacación.
 3. La unicidad de Director, Jefe de Estudios e Instituto (IIISyP) ya no está en
    PerfilUsuario: se valida con las asignaciones activas.
-Además: la regla de combinaciones confirmada (docente en dos carreras sí;
-Director, Jefe de Estudios o Instituto con docencia en otra carrera no).
+Además: la regla de combinaciones (un usuario pertenece a una sola carrera:
+sus roles, cargo y docencia, son todos de esa carrera).
 """
 from datetime import date
 

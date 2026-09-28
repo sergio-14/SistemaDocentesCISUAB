@@ -711,12 +711,6 @@ const OPCIONES_CONDICION = [
   { value: 'invitado', label: 'Invitado' },
 ];
 
-const OPCIONES_CATEGORIA = [
-  { value: 'catedratico', label: 'Catedratico' },
-  { value: 'adjunto', label: 'Adjunto' },
-  { value: 'asistente', label: 'Asistente' },
-];
-
 // Cargos de gestión: con docencia solo admiten dedicación a Tiempo Horario.
 const ROLES_CARGO = ['director', 'jefe_estudios', 'iiisyp'];
 const DEDICACIONES_FICHA = ['tiempo_completo', 'medio_tiempo', ...DEDICACIONES_HORARIO];
@@ -859,17 +853,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
   const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
 
   // Formulario
-  // Nuevo docente con docencia en varias carreras: dedicación y categoría de cada
-  // carrera que no es la principal ({ [carreraId]: { dedicacion, categoria } }).
-  const [vinculosExtra, setVinculosExtra] = useState({});
-  // Editar docente: condición (titular o invitado) de cada carrera de la ficha.
-  const [condicionesEdicion, setCondicionesEdicion] = useState([]);
-  // Agregar carrera (solo superusuario): vínculo con otra carrera donde el usuario ya es docente.
-  const FORM_AGREGAR_CARRERA_VACIO = { carrera: '', dedicacion: '', categoria: 'catedratico', condicion: '' };
-  const [docenteAgregarCarrera, setDocenteAgregarCarrera] = useState(null);
-  const [formAgregarCarrera, setFormAgregarCarrera] = useState(FORM_AGREGAR_CARRERA_VACIO);
-  const [erroresAgregarCarrera, setErroresAgregarCarrera] = useState({});
-  const [guardandoCarrera, setGuardandoCarrera] = useState(false);
   const [formData, setFormData] = useState({
     user: '',
     username: '',
@@ -891,10 +874,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     horas_contrato_semanales: null,
     activo: true,
   });
-
-  useEffect(() => {
-    setVinculosExtra({});
-  }, [formData.user]);
 
   // La antigüedad del fondo se mide al inicio de la gestión (calendario académico
   // activo de la carrera). La vista previa usa la misma fecha para dar lo mismo.
@@ -1340,63 +1319,8 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     });
   };
 
-  const abrirAgregarCarrera = (docente) => {
-    const primera = docente?.carreras_sin_vinculo?.[0];
-    setDocenteAgregarCarrera(docente);
-    setFormAgregarCarrera({ ...FORM_AGREGAR_CARRERA_VACIO, carrera: primera ? String(primera.id) : '' });
-    setErroresAgregarCarrera({});
-  };
-
-  const cerrarAgregarCarrera = () => {
-    if (guardandoCarrera) return;
-    setDocenteAgregarCarrera(null);
-  };
-
-  const guardarAgregarCarrera = async () => {
-    const faltantes = {};
-    ['carrera', 'dedicacion', 'categoria', 'condicion'].forEach((campo) => {
-      if (!formAgregarCarrera[campo]) faltantes[campo] = ['Este campo es obligatorio.'];
-    });
-    if (Object.keys(faltantes).length > 0) {
-      setErroresAgregarCarrera(faltantes);
-      toast.error('Complete carrera, dedicación, categoría y condición.');
-      return;
-    }
-    setGuardandoCarrera(true);
-    try {
-      const { data } = await api.post(`/docentes/${docenteAgregarCarrera.id}/agregar-carrera/`, formAgregarCarrera);
-      setDocentes((prev) => prev.map((d) => (d.id === data.id ? data : d)));
-      if (docenteSeleccionado?.id === data.id) {
-        setDocenteSeleccionado(data);
-        // Suma la carrera nueva a las condiciones editables, sin perder lo ya cambiado.
-        setCondicionesEdicion((prev) => (data.vinculos || [])
-          .filter((vinculo) => vinculo.activo !== false)
-          .map((vinculo) => prev.find((item) => String(item.carrera) === String(vinculo.carrera)) || {
-            carrera: vinculo.carrera,
-            carrera_nombre: vinculo.carrera_nombre,
-            condicion: vinculo.condicion || '',
-          }));
-      }
-      toast.success('Carrera agregada a la ficha del docente');
-      setDocenteAgregarCarrera(null);
-    } catch (err) {
-      const apiErrors = err.response?.data;
-      if (apiErrors && typeof apiErrors === 'object') setErroresAgregarCarrera(normalizeErrors(apiErrors));
-      toast.error(getBackendErrorMessage(apiErrors, 'No se pudo agregar la carrera'));
-    } finally {
-      setGuardandoCarrera(false);
-    }
-  };
-
   const abrirModalEditar = (docente) => {
     setDocenteSeleccionado(docente);
-    setCondicionesEdicion((docente.vinculos || [])
-      .filter((vinculo) => vinculo.activo !== false)
-      .map((vinculo) => ({
-        carrera: vinculo.carrera,
-        carrera_nombre: vinculo.carrera_nombre,
-        condicion: vinculo.condicion || '',
-      })));
     setFormData({
       user: docente.user_id || docente.usuario_id || '',
       username: '',
@@ -1414,7 +1338,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       carrera: docente.vinculos?.[0]?.carrera || '',
       ci: docente.ci,
       categoria: docente.vinculos?.[0]?.categoria || '',
-      condicion: '',
+      condicion: docente.vinculos?.[0]?.condicion || '',
       dedicacion: docente.vinculos?.[0]?.dedicacion || '',
       fecha_ingreso: docente.fecha_ingreso || '',
       email: docente.email || '',
@@ -1544,13 +1468,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
   const getCarreraDocenteUsuario = (usuarioItem) => {
     if (!usuarioItem) return '';
 
-    // carreras_docente incluye las asignaciones en pausa de un usuario inactivo por falta de ficha.
-    const carrerasDocente = (usuarioItem?.carreras_docente || []).map(String);
-    if (carrerasDocente.length > 0) {
-      const carreraPerfil = String(getCarreraIdValue(usuarioItem?.perfil?.carrera) || '');
-      return carrerasDocente.includes(carreraPerfil) ? carreraPerfil : carrerasDocente[0];
-    }
-
     const asignaciones = Array.isArray(usuarioItem?.asignaciones) ? usuarioItem.asignaciones : [];
     const asignacionDocente = asignaciones.find((asignacion) => (
       asignacion?.activo !== false
@@ -1580,10 +1497,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
         asignacion?.carrera || asignacion?.carrera_id || asignacion?.carrera_nombre || asignacion?.carrera_codigo
       );
       if (carreraAsignacion) nombresCarrera.push(carreraAsignacion);
-    });
-    (usuarioItem?.carreras_docente || []).forEach((carreraId) => {
-      const carreraDocente = getNombreCarreraUsuario(carreraId);
-      if (carreraDocente) nombresCarrera.push(carreraDocente);
     });
 
     return Array.from(new Set(nombresCarrera));
@@ -1691,21 +1604,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     : DEDICACIONES_FICHA
   ).map((value) => ({ value, label: ETIQUETAS_DEDICACION[value] }));
   const carrerasUsuarioSeleccionado = getCarrerasUsuario(usuarioSeleccionado);
-  // Otras carreras donde es docente: cada una lleva su propio vínculo en la ficha.
-  const carrerasExtraNuevoDocente = (usuarioSeleccionado?.carreras_docente || [])
-    .map(String)
-    .filter((carreraId) => carreraId !== String(formData.carrera || ''));
-  const getVinculoExtra = (carreraId) => ({ dedicacion: '', categoria: 'catedratico', condicion: '', ...vinculosExtra[carreraId] });
-  const cambiarVinculoExtra = (carreraId, campo, valor) => {
-    setVinculosExtra((prev) => ({ ...prev, [carreraId]: { ...getVinculoExtra(carreraId), ...prev[carreraId], [campo]: valor } }));
-    setErrors((prev) => {
-      const next = { ...prev };
-      delete next[`vinculo_${carreraId}`];
-      delete next[`condicion_${carreraId}`];
-      delete next.vinculos_data;
-      return next;
-    });
-  };
   const carreraSeleccionadaNombre = carrerasUsuarioSeleccionado.length > 0
     ? carrerasUsuarioSeleccionado.join('\n')
     : carreras.find((carrera) => String(carrera.id) === String(formData.carrera || ''))?.nombre || '';
@@ -1784,33 +1682,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       return;
     }
 
-    // Una dedicación por cada carrera y, entre todas, sin pasar el tope semanal.
-    const carreraSinDedicacion = carrerasExtraNuevoDocente.find((carreraId) => !getVinculoExtra(carreraId).dedicacion);
-    if (carreraSinDedicacion) {
-      const mensaje = `Seleccione la dedicación en ${getNombreCarreraUsuario(carreraSinDedicacion)}.`;
-      setErrors((prev) => ({ ...prev, [`vinculo_${carreraSinDedicacion}`]: [mensaje] }));
-      toast.error(mensaje);
-      setIsSubmitting(false);
-      return;
-    }
-    const carreraSinCondicion = carrerasExtraNuevoDocente.find((carreraId) => !getVinculoExtra(carreraId).condicion);
-    if (carreraSinCondicion) {
-      const mensaje = `Seleccione la condición en ${getNombreCarreraUsuario(carreraSinCondicion)}.`;
-      setErrors((prev) => ({ ...prev, [`condicion_${carreraSinCondicion}`]: [mensaje] }));
-      toast.error(mensaje);
-      setIsSubmitting(false);
-      return;
-    }
-    const horasTotales = [formData.dedicacion, ...carrerasExtraNuevoDocente.map((carreraId) => getVinculoExtra(carreraId).dedicacion)]
-      .reduce((total, dedicacion) => total + horasSemanalesDedicacion(dedicacion), 0);
-    if (carrerasExtraNuevoDocente.length > 0 && horasTotales > TOPE_HORAS_SEMANALES_FONDO) {
-      const mensaje = `Entre todas las carreras suman ${horasTotales} h/semana y el límite es ${TOPE_HORAS_SEMANALES_FONDO} h/semana.`;
-      setErrors((prev) => ({ ...prev, vinculos_data: [mensaje] }));
-      toast.error(mensaje);
-      setIsSubmitting(false);
-      return;
-    }
-
     const errorFechaIngreso = validarFechaIngreso(formData.fecha_ingreso);
     if (errorFechaIngreso) {
       setErrors((prev) => ({ ...prev, fecha_ingreso: [errorFechaIngreso] }));
@@ -1826,12 +1697,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       payload.apellido_paterno = nombresSplit.apellido_paterno;
       payload.apellido_materno = nombresSplit.apellido_materno;
       payload.ci = ciNormalizado;
-      if (carrerasExtraNuevoDocente.length > 0) {
-        payload.vinculos_data = [
-          { carrera: formData.carrera, categoria: formData.categoria, dedicacion: formData.dedicacion, condicion: formData.condicion },
-          ...carrerasExtraNuevoDocente.map((carreraId) => ({ carrera: carreraId, ...getVinculoExtra(carreraId) })),
-        ];
-      }
       delete payload.nombre_completo;
       if (payload.email === '') payload.email = null;
       if (payload.telefono === '') payload.telefono = null;
@@ -1913,11 +1778,9 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       return;
     }
 
-    const sinCondicion = condicionesEdicion.find((item) => !item.condicion);
-    if (sinCondicion) {
-      const mensaje = `Seleccione la condición en ${sinCondicion.carrera_nombre}.`;
-      setErrors((prev) => ({ ...prev, [`condicion_${sinCondicion.carrera}`]: [mensaje] }));
-      toast.error(mensaje);
+    if (!formData.condicion) {
+      setErrors((prev) => ({ ...prev, condicion: ['Seleccione la condición (titular o invitado).'] }));
+      toast.error('Seleccione la condición (titular o invitado).');
       setIsSubmitting(false);
       return;
     }
@@ -1943,11 +1806,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       payload.apellido_paterno = nombresSplit.apellido_paterno;
       payload.apellido_materno = nombresSplit.apellido_materno;
       delete payload.cargo_profesional;
-      delete payload.condicion;
       delete payload.nombre_completo;
-      if (condicionesEdicion.length > 0) {
-        payload.vinculos_data = condicionesEdicion.map(({ carrera, condicion }) => ({ carrera, condicion }));
-      }
       if (usuarioFormularioSoloDirector) {
         payload.dedicacion = 'dedicacion_exclusiva';
       }
@@ -2289,11 +2148,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                     maxLength={10}
                     inputMode="numeric"
                   />
-                  {carrerasExtraNuevoDocente.length > 0 && (
-                    <p className="md:col-span-2 -mb-2 text-sm font-bold text-slate-800 dark:text-slate-200">
-                      Docencia en {getNombreCarreraUsuario(formData.carrera)}
-                    </p>
-                  )}
                   <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-5">
                     {!usuarioFormularioSoloDirector && (
                       <SelectConDropdown
@@ -2425,45 +2279,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                     </div>
                     </div>
                   </div>
-                  {carrerasExtraNuevoDocente.map((carreraId) => {
-                    const vinculo = getVinculoExtra(carreraId);
-                    return (
-                      <div key={carreraId} className="md:col-span-2 rounded-xl border-2 border-slate-200 dark:border-slate-700 p-4">
-                        <p className="mb-3 text-sm font-bold text-slate-800 dark:text-slate-200">
-                          Docencia en {getNombreCarreraUsuario(carreraId)}
-                        </p>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                          <SelectConDropdown
-                            label="Dedicacion"
-                            name={`dedicacion_${carreraId}`}
-                            value={vinculo.dedicacion}
-                            onChange={(e) => cambiarVinculoExtra(carreraId, 'dedicacion', e.target.value)}
-                            options={opcionesDedicacion}
-                            menuClassName="overflow-visible"
-                            error={errors[`vinculo_${carreraId}`]}
-                          />
-                          <SelectConDropdown
-                            label="Categoria"
-                            name={`categoria_${carreraId}`}
-                            value={vinculo.categoria}
-                            onChange={(e) => cambiarVinculoExtra(carreraId, 'categoria', e.target.value)}
-                            options={OPCIONES_CATEGORIA}
-                          />
-                          <SelectConDropdown
-                            label="Condicion"
-                            name={`condicion_${carreraId}`}
-                            value={vinculo.condicion}
-                            onChange={(e) => cambiarVinculoExtra(carreraId, 'condicion', e.target.value)}
-                            options={OPCIONES_CONDICION}
-                            error={errors[`condicion_${carreraId}`]}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {errors.vinculos_data && (
-                    <p className="md:col-span-2 text-sm text-red-600 dark:text-red-400">{errors.vinculos_data}</p>
-                  )}
                 </div>
               </form>
               {/* Footer */}
@@ -2533,24 +2348,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                           <h3 className={`text-lg font-bold truncate ${docente.activo ? 'text-blue-600 dark:text-white' : 'text-red-700 dark:text-red-300'}`}>
                             {docente.usuario_nombre || docente.nombre_completo}
                           </h3>
-                          {(docente.carreras_sin_vinculo || []).length > 0 && (
-                            <div className="mt-1 space-y-1">
-                              {docente.carreras_sin_vinculo.map((carrera) => (
-                                <p key={carrera.id} className="text-sm font-semibold text-amber-600 dark:text-amber-400">
-                                  ⚠️ Falta completar la docencia en {carrera.nombre}
-                                </p>
-                              ))}
-                              {user?.is_superuser && (
-                                <button
-                                  type="button"
-                                  onClick={() => abrirAgregarCarrera(docente)}
-                                  className="text-sm font-semibold text-blue-600 hover:underline dark:text-blue-400"
-                                >
-                                  Agregar carrera
-                                </button>
-                              )}
-                            </div>
-                          )}
                         </div>
                       </div>
                       {/* Botones de acción - Solo admin */}
@@ -2616,11 +2413,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                           {obtenerRolesDocente(docente) && (
                             <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-2 border-orange-300 dark:border-orange-700 shadow-sm">
                               {obtenerRolesDocente(docente)}
-                            </span>
-                          )}
-                          {docente.resumen_otras_carreras && (
-                            <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-2 border-slate-300 dark:border-slate-600 shadow-sm">
-                              Tiene docencia en otra carrera. Horas disponibles: {docente.resumen_otras_carreras.horas_disponibles} h/sem
                             </span>
                           )}
                         </>
@@ -2820,42 +2612,15 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                     containerClassName={estiloAdvertenciaEditable}
                   />
                 )}
-                {condicionesEdicion.map((item) => (
-                  <SelectConDropdown
-                    key={item.carrera}
-                    label={condicionesEdicion.length > 1 ? `Condicion en ${item.carrera_nombre}` : 'Condicion'}
-                    name={`condicion_${item.carrera}`}
-                    value={item.condicion}
-                    onChange={(e) => {
-                      const valor = e.target.value;
-                      setCondicionesEdicion((prev) => prev.map((actual) => (
-                        actual.carrera === item.carrera ? { ...actual, condicion: valor } : actual
-                      )));
-                      setErrors((prev) => {
-                        const next = { ...prev };
-                        delete next[`condicion_${item.carrera}`];
-                        return next;
-                      });
-                    }}
-                    options={OPCIONES_CONDICION}
-                    error={errors[`condicion_${item.carrera}`] || errors.condicion}
-                    containerClassName={estiloAdvertenciaEditable}
-                  />
-                ))}
-                {user?.is_superuser && (docenteSeleccionado?.carreras_sin_vinculo || []).length > 0 && (
-                  <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
-                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-                      Falta completar la docencia en {docenteSeleccionado.carreras_sin_vinculo.map((carrera) => carrera.nombre).join(', ')}.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => abrirAgregarCarrera(docenteSeleccionado)}
-                      className="px-4 py-2 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700"
-                    >
-                      Agregar carrera
-                    </button>
-                  </div>
-                )}
+                <SelectConDropdown
+                  label="Condicion"
+                  name="condicion"
+                  value={formData.condicion}
+                  onChange={handleChange}
+                  options={OPCIONES_CONDICION}
+                  error={errors.condicion}
+                  containerClassName={estiloAdvertenciaEditable}
+                />
                 <div className="md:col-span-2 grid grid-cols-1 gap-4 md:grid-cols-2 md:items-center">
                   <div className="min-w-0">
                     {!usuarioFormularioSoloDirector && (
@@ -3053,97 +2818,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
           </div>
         </div>
       ), document.body)}
-
-      {/* Modal Agregar carrera (solo superusuario) */}
-      {docenteAgregarCarrera && createPortal((() => {
-        const usuarioDocente = usuarios.find((usuarioItem) => (
-          String(usuarioItem.id) === String(docenteAgregarCarrera.usuario_id || docenteAgregarCarrera.user_id || '')
-        ));
-        // Con cargo, solo Horario. Si el usuario no está en la lista, el backend aplica la regla.
-        const opcionesDedicacionCarrera = (usuarioDocente ? getDedicacionesPermitidas(usuarioDocente) : DEDICACIONES_FICHA)
-          .map((value) => ({ value, label: ETIQUETAS_DEDICACION[value] }));
-        const horasActuales = (docenteAgregarCarrera.vinculos || [])
-          .filter((vinculo) => vinculo.activo !== false)
-          .reduce((total, vinculo) => total + Number(vinculo.horas_semanales || 0), 0);
-        const cambiarCampo = (e) => {
-          const { name, value } = e.target;
-          setFormAgregarCarrera((prev) => ({ ...prev, [name]: value }));
-          setErroresAgregarCarrera((prev) => {
-            const next = { ...prev };
-            delete next[name];
-            return next;
-          });
-        };
-        return (
-          <div
-            className="fixed top-0 right-0 bottom-0 z-[80] flex items-center justify-center p-4"
-            style={{ left: sidebarCollapsed ? '5rem' : '18rem' }}
-          >
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={cerrarAgregarCarrera} />
-            <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl">
-              <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
-                <h4 className="text-lg font-bold text-slate-800 dark:text-white">Agregar carrera</h4>
-                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                  {docenteAgregarCarrera.usuario_nombre || docenteAgregarCarrera.nombre_completo}: ya tiene {horasActuales} h/semana en sus
-                  otras carreras; le quedan {Math.max(TOPE_HORAS_SEMANALES_FONDO - horasActuales, 0)} h/semana hasta el tope de {TOPE_HORAS_SEMANALES_FONDO}.
-                </p>
-              </div>
-              <div className="px-5 py-4 grid grid-cols-1 md:grid-cols-2 gap-5">
-                <SelectConDropdown
-                  label="Carrera"
-                  name="carrera"
-                  value={formAgregarCarrera.carrera}
-                  onChange={cambiarCampo}
-                  options={(docenteAgregarCarrera.carreras_sin_vinculo || []).map((carrera) => ({ value: String(carrera.id), label: carrera.nombre }))}
-                  error={erroresAgregarCarrera.carrera}
-                />
-                <SelectConDropdown
-                  label="Dedicacion"
-                  name="dedicacion"
-                  value={formAgregarCarrera.dedicacion}
-                  onChange={cambiarCampo}
-                  options={opcionesDedicacionCarrera}
-                  menuClassName="overflow-visible"
-                  error={erroresAgregarCarrera.dedicacion}
-                />
-                <SelectConDropdown
-                  label="Categoria"
-                  name="categoria"
-                  value={formAgregarCarrera.categoria}
-                  onChange={cambiarCampo}
-                  options={OPCIONES_CATEGORIA}
-                  error={erroresAgregarCarrera.categoria}
-                />
-                <SelectConDropdown
-                  label="Condicion"
-                  name="condicion"
-                  value={formAgregarCarrera.condicion}
-                  onChange={cambiarCampo}
-                  options={OPCIONES_CONDICION}
-                  error={erroresAgregarCarrera.condicion}
-                />
-              </div>
-              <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={cerrarAgregarCarrera}
-                  className="px-4 py-2 rounded-lg font-semibold text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={guardarAgregarCarrera}
-                  disabled={guardandoCarrera}
-                  className="px-4 py-2 rounded-lg font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {guardandoCarrera ? 'Guardando...' : 'Agregar carrera'}
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })(), document.body)}
 
       {/* Modal de Confirmacion de Eliminacion */}
       {showDeleteModal && createPortal((

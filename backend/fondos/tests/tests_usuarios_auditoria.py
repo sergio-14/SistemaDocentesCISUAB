@@ -132,18 +132,12 @@ class HorasMensualesTests(UsuariosBaseTestCase):
 
         self.assertEqual(docente.vinculos_carrera.get().horas_semanales_maximas, Decimal('12'))
 
-    def test_el_tope_de_40_suma_las_horas_convertidas(self):
+    def test_un_docente_tiene_un_solo_vinculo(self):
         docente = self.crear_docente('TOPE', dedicacion='horario_48')  # 12 h/sem
 
-        # 12 + 20 = 32 h/sem: entra en el tope.
-        DocenteCarrera.objects.create(
-            docente=docente, carrera=self.otra_carrera, categoria='adjunto', dedicacion='medio_tiempo',
-        )
-        # 32 + 40 = 72 h/sem: supera el tope.
-        tercera = Carrera.objects.create(nombre='Derecho', codigo='DER', facultad=self.facultad)
         with self.assertRaises(ValidationError):
             DocenteCarrera.objects.create(
-                docente=docente, carrera=tercera, categoria='adjunto', dedicacion='tiempo_completo',
+                docente=docente, carrera=self.otra_carrera, categoria='adjunto', dedicacion='medio_tiempo',
             )
 
     def test_el_fondo_usa_las_horas_semanales_convertidas(self):

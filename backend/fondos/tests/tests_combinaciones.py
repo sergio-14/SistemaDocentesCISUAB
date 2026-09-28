@@ -1,13 +1,12 @@
 """Combinaciones de roles y fondos.
 
-1. Docente en dos carreras: un fondo por carrera, cada uno con SOLO las horas del
-   vínculo de esa carrera; el tope de 40 h/sem se valida sobre la suma.
+1. Un docente tiene un solo vínculo (una dedicación), en la carrera de su usuario:
+   el fondo sale de las horas de ese vínculo.
 2. Nadie aprueba, observa, inicia ni evalúa su propio fondo. El fondo del Director
    lo aprueba el superusuario con el documento de la Decanatura (PDF). El Jefe de
    Estudios sí puede presentar su propio fondo.
 3. Cargo + docencia en la misma carrera: todo dentro de 40 h/sem.
-4. FondoTiempoSerializer: distribución en horas semanales, límite de la carrera del
-   fondo, y dos fondos en carreras distintas nunca chocan.
+4. FondoTiempoSerializer: distribución en horas semanales con el límite del vínculo.
 """
 from datetime import date
 from decimal import Decimal
@@ -31,15 +30,11 @@ def _pdf(nombre='decanatura.pdf', contenido=PDF_MINIMO):
     return SimpleUploadedFile(nombre, contenido, content_type='application/pdf')
 
 
-class DocenteEnDosCarrerasTests(UsuariosBaseTestCase):
+class DocenteUnVinculoTests(UsuariosBaseTestCase):
     def setUp(self):
         super().setUp()
-        self.usuario = self.crear_usuario('docente_dos', 'docente', carrera=self.carrera, ci='D2')
-        AsignacionCarrera.objects.create(user=self.usuario, carrera=self.otra_carrera, rol='docente')
-        self.docente = self.crear_docente('D2', usuario=self.usuario, dedicacion='horario_40')   # 10 h/sem en A
-        DocenteCarrera.objects.create(
-            docente=self.docente, carrera=self.otra_carrera, categoria='adjunto', dedicacion='horario_24',  # 6 h/sem en B
-        )
+        self.usuario = self.crear_usuario('docente_uno', 'docente', carrera=self.carrera, ci='D2')
+        self.docente = self.crear_docente('D2', usuario=self.usuario, dedicacion='horario_24')   # 6 h/sem
         PerfilUsuario.objects.filter(user=self.usuario).update(docente=self.docente)
         DatosLaborales.objects.filter(pk=self.docente.datos_laborales_id).update(fecha_ingreso=date(2014, 1, 1))  # 12 años: 30 días
 
@@ -47,35 +42,21 @@ class DocenteEnDosCarrerasTests(UsuariosBaseTestCase):
         self.docente.refresh_from_db()
         return FondoTiempo.objects.create(docente=self.docente, carrera=carrera, gestion=2026, **extra)
 
-    def test_cada_fondo_usa_solo_el_vinculo_de_su_carrera(self):
-        fondo_a = self._fondo(self.carrera)
-        fondo_b = self._fondo(self.otra_carrera, asignatura='B')
+    def test_el_fondo_usa_las_horas_de_su_vinculo(self):
+        fondo = self._fondo(self.carrera)
 
-        # Carrera A: 10 h/sem = 2 h/día. Carrera B: 6 h/sem = 1,2 h/día.
-        self.assertEqual(fondo_a.horas_semana, Decimal('10'))
-        self.assertEqual(fondo_a.contrato_horas, 520)
-        self.assertEqual(fondo_a.horas_vacacion, 60)   # 30 días x 2 h
-        self.assertEqual(fondo_a.horas_feriados, 32)   # 16 días x 2 h
+        # 6 h/sem = 1,2 h/día.
+        self.assertEqual(fondo.horas_semana, Decimal('6'))
+        self.assertEqual(fondo.contrato_horas, 312)
+        self.assertEqual(fondo.horas_vacacion, 36)   # 30 días x 1,2 h
+        self.assertEqual(fondo.horas_feriados, 19)   # 16 días x 1,2 h (hacia abajo)
 
-        self.assertEqual(fondo_b.horas_semana, Decimal('6'))
-        self.assertEqual(fondo_b.contrato_horas, 312)
-        self.assertEqual(fondo_b.horas_vacacion, 36)   # 30 días x 1,2 h
-        self.assertEqual(fondo_b.horas_feriados, 19)   # 16 días x 1,2 h (hacia abajo)
-
-    def test_el_tope_de_40_sigue_sumando_todos_los_vinculos(self):
-        # 10 + 6 = 16 h/sem; con un tiempo completo más serían 56.
-        tercera = self.otra_carrera.__class__.objects.create(nombre='Derecho', codigo='DER', facultad=self.facultad)
+    def test_un_segundo_vinculo_se_rechaza(self):
         with self.assertRaises(ValidationError):
             DocenteCarrera.objects.create(
-                docente=self.docente, carrera=tercera, categoria='adjunto', dedicacion='tiempo_completo',
+                docente=self.docente, carrera=self.otra_carrera, categoria='adjunto', dedicacion='horario_16',
             )
-
-    def test_dos_fondos_en_carreras_distintas_no_chocan(self):
-        # Misma gestión, periodo y asignatura (vacía): antes chocaban en la base de datos.
-        self._fondo(self.carrera, periodo='1')
-        self._fondo(self.otra_carrera, periodo='1')
-
-        self.assertEqual(FondoTiempo.objects.filter(docente=self.docente, gestion=2026).count(), 2)
+        self.assertEqual(self.docente.vinculos_carrera.count(), 1)
 
     def test_en_la_misma_carrera_la_restriccion_sigue(self):
         self._fondo(self.carrera, periodo='1')
@@ -84,21 +65,19 @@ class DocenteEnDosCarrerasTests(UsuariosBaseTestCase):
                 FondoTiempo(docente=self.docente, carrera=self.carrera, gestion=2026, periodo='1'),
             ])
 
-    def test_la_distribucion_se_valida_en_horas_semanales_y_con_su_carrera(self):
-        fondo_b = self._fondo(self.otra_carrera)
+    def test_la_distribucion_se_valida_en_horas_semanales_con_su_vinculo(self):
+        fondo = self._fondo(self.carrera)
         tipos = [tipo for tipo, _ in CategoriaFuncion.TIPO_CHOICES]
 
-        # 6 h/sem en B: justo el límite de la carrera del fondo.
-        CategoriaFuncion.objects.create(fondo_tiempo=fondo_b, tipo=tipos[0], total_horas=Decimal('6'))
-        self.assertTrue(FondoTiempoSerializer(instance=fondo_b, data={}, partial=True).is_valid())
+        # 6 h/sem: justo el límite del vínculo.
+        CategoriaFuncion.objects.create(fondo_tiempo=fondo, tipo=tipos[0], total_horas=Decimal('6'))
+        self.assertTrue(FondoTiempoSerializer(instance=fondo, data={}, partial=True).is_valid())
 
-        # 8 h/sem: supera las 6 de la carrera B aunque el vínculo de A tenga 10
-        # (antes se usaba el "primer vínculo" y se dividía entre 52).
-        CategoriaFuncion.objects.create(fondo_tiempo=fondo_b, tipo=tipos[1], total_horas=Decimal('2'))
-        serializer = FondoTiempoSerializer(instance=fondo_b, data={}, partial=True)
+        # 8 h/sem: lo supera.
+        CategoriaFuncion.objects.create(fondo_tiempo=fondo, tipo=tipos[1], total_horas=Decimal('2'))
+        serializer = FondoTiempoSerializer(instance=fondo, data={}, partial=True)
         self.assertFalse(serializer.is_valid())
         self.assertIn('horas_efectivas', serializer.errors)
-
 
     def test_editar_parcialmente_un_fondo_no_da_error_500(self):
         # Antes: KeyError 'tipo_fondo' en el validador de unicidad de DRF.

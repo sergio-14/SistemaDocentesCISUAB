@@ -29,7 +29,6 @@ from .models import (
     AsignacionCarrera,
 )
 from .serializers import (
-    AgregarCarreraDocenteSerializer,
     DocenteSerializer, CarreraSerializer, MateriaSerializer, FondoTiempoSerializer,
     FondoTiempoListSerializer, CategoriaFuncionSerializer, CargaHorariaSerializer,
     UsuarioSerializer, CrearUsuarioSerializer, ActualizarUsuarioSerializer,
@@ -50,7 +49,8 @@ from .serializers import (
     docente_del_usuario,
     texto_datos_registrados,
     desactivar_si_solo_docente_sin_ficha,
-    vinculos_faltantes,
+    carreras_docencia_usuario,
+    MENSAJE_FICHA_EN_CARRERA_DEL_USUARIO,
 )
 from .role_context import get_effective_profile, get_active_careers_for_user
 from .solo_lectura import CarreraInactivaSoloLecturaMixin as CarreraInactivaSoloLecturaBase
@@ -186,9 +186,6 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         # Crear la ficha: superusuario o Director (en su carrera, ver perform_create).
         if self.action == 'create':
             return [IsFullAdminOrDirectorCarrera()]
-        # Agregar a la ficha otra carrera donde es docente: solo el superusuario.
-        if self.action == 'agregar_carrera':
-            return [IsFullAdmin()]
         # Editar y eliminar: ESTRICTAMENTE para Admin Real (bloquea a Jefe de Estudios).
         if self.action in ['update', 'partial_update', 'destroy']:
             return [IsFullAdmin()]
@@ -268,55 +265,23 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
                 asignaciones_en_carrera = asignaciones_en_carrera.filter(activo=True)
             if not asignaciones_en_carrera.exists():
                 raise PermissionDenied('El usuario seleccionado no pertenece a tu carrera.')
-            # La ficha lleva un vínculo por carrera: el Director debe gestionarlas todas.
-            for vinculo in serializer.validated_data.get('vinculos_data') or []:
-                if not _usuario_tiene_acceso_a_carrera(user, vinculo['carrera'], self.request):
-                    raise PermissionDenied(
-                        f"La ficha incluye la carrera {vinculo['carrera'].nombre}, que no gestionas: "
-                        'debe crearla el superusuario.'
-                    )
-        # Un vínculo por cada carrera donde el usuario es docente.
-        faltantes = vinculos_faltantes(
-            serializer.validated_data.get('user'), serializer.validated_data.get('vinculos_data') or [],
-        )
-        if faltantes:
-            raise drf_serializers.ValidationError({
-                'vinculos_data': (
-                    f"Falta la dedicación de la carrera: {', '.join(faltantes)}. "
-                    'La ficha debe cubrir todas las carreras donde es docente.'
-                ),
-            })
-        # Dedicación y condición (titular o invitado) elegidas en cada carrera: no se asumen.
-        vinculos = serializer.validated_data.get('vinculos_data') or []
-        sin_dedicacion = [vinculo['carrera'].nombre for vinculo in vinculos if not vinculo['dedicacion']]
-        if sin_dedicacion:
-            raise drf_serializers.ValidationError({
-                'dedicacion': f"Seleccione la dedicación en: {', '.join(sin_dedicacion)}.",
-            })
-        sin_condicion = [vinculo['carrera'].nombre for vinculo in vinculos if not vinculo['condicion']]
-        if sin_condicion:
-            raise drf_serializers.ValidationError({
-                'condicion': f"Seleccione la condición (titular o invitado) en: {', '.join(sin_condicion)}.",
-            })
+        # Un solo vínculo, en la carrera del usuario (la de su contrato).
+        carreras_usuario = carreras_docencia_usuario(serializer.validated_data.get('user'))
+        carrera_ficha = serializer.validated_data.get('carrera')
+        if carreras_usuario and carrera_ficha and carrera_ficha.pk not in carreras_usuario:
+            raise drf_serializers.ValidationError({'carrera': MENSAJE_FICHA_EN_CARRERA_DEL_USUARIO})
+        # Dedicación y condición (titular o invitado) elegidas: no se asumen.
+        vinculo = serializer.validated_data.get('_vinculo') or {}
+        if not vinculo.get('dedicacion'):
+            raise drf_serializers.ValidationError({'dedicacion': 'Seleccione la dedicación.'})
+        if not vinculo.get('condicion'):
+            raise drf_serializers.ValidationError({'condicion': 'Seleccione la condición (titular o invitado).'})
         # La fecha de ingreso es la real de planilla de RR.HH.: no se completa con la de hoy.
         if not serializer.validated_data.get('fecha_ingreso'):
             raise drf_serializers.ValidationError({
                 'fecha_ingreso': 'La fecha de ingreso es obligatoria: use la fecha de la planilla de RR.HH.',
             })
         serializer.save()
-
-    @action(detail=True, methods=['post'], url_path='agregar-carrera')
-    def agregar_carrera(self, request, pk=None):
-        """Agrega el vínculo (dedicación, categoría, condición) con otra carrera donde el usuario es docente."""
-        docente = self.get_object()
-        serializer = AgregarCarreraDocenteSerializer(data=request.data, context={'docente': docente})
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        docente = Docente.objects.get(pk=docente.pk)
-        return Response(
-            DocenteSerializer(docente, context=self.get_serializer_context()).data,
-            status=status.HTTP_201_CREATED,
-        )
 
     def destroy(self, request, *args, **kwargs):
         """

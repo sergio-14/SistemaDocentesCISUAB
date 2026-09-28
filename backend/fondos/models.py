@@ -506,26 +506,23 @@ class DocenteCarrera(models.Model):
                     'dedicacion': MENSAJE_INCOMPATIBILIDAD_DEDICACION_GESTION
                 })
 
-        # Validación de capacidad: no superar 40h/sem entre todos los vínculos activos.
+        # Un docente tiene UN solo vínculo activo (una dedicación), en la carrera de su usuario.
+        otros = DocenteCarrera.objects.filter(docente=self.docente, activo=True)
         if self.pk:
-            otros = DocenteCarrera.objects.filter(
-                docente=self.docente, activo=True
-            ).exclude(pk=self.pk)
-        else:
-            otros = DocenteCarrera.objects.filter(
-                docente=self.docente, activo=True
-            )
-
-        horas_totales = sum(v.horas_semanales_maximas for v in otros)
-        horas_totales += self.horas_semanales_maximas
-
-        if horas_totales > 40:
+            otros = otros.exclude(pk=self.pk)
+        otro = otros.select_related('carrera').first() if self.activo else None
+        if otro:
             raise ValidationError({
-                'dedicacion': (
-                    f'No se puede asignar esta dedicación: el docente ya tiene '
-                    f'{horas_totales - self.horas_semanales_maximas}h/sem asignadas en otras carreras. '
-                    f'Con esta dedicación llegaría a {horas_totales}h/sem, superando el límite de 40h/sem.'
+                'carrera': (
+                    f'El docente ya tiene su vínculo en {otro.carrera.nombre}: '
+                    'un docente tiene un solo vínculo, en la carrera de su usuario.'
                 )
+            })
+
+        # Tope de horas semanales de su único vínculo.
+        if self.horas_semanales_maximas > TOPE_HORAS_SEMANALES_FONDO:
+            raise ValidationError({
+                'dedicacion': f'La dedicación supera el límite de {TOPE_HORAS_SEMANALES_FONDO:g} h/semana.'
             })
 
     def save(self, *args, **kwargs):
@@ -874,11 +871,10 @@ def roles_del_docente_en_carrera(docente, carrera):
 def horas_semanales_contractuales(docente, carrera):
     """Horas semanales de un docente en UNA carrera (base del fondo de esa carrera).
 
-    Un docente en dos carreras tiene un fondo por carrera y cada uno usa solo el
-    vínculo de su carrera: contrato, vacaciones y feriados salen de esas horas.
-    Si en esa carrera además tiene un cargo (Director, Jefe o Instituto), el
-    cargo y la docencia van juntos dentro de las 40 h/sem.
-    El tope de 40 h/sem entre todos los vínculos se valida en DocenteCarrera.clean.
+    El docente tiene un solo vínculo (el de la carrera de su usuario): contrato,
+    vacaciones y feriados salen de esas horas. Si en esa carrera además tiene un
+    cargo (Director, Jefe o Instituto), el cargo y la docencia van juntos dentro
+    de las 40 h/sem.
     """
     vinculo = DocenteCarrera.objects.filter(docente=docente, carrera=carrera, activo=True).first()
     horas_docencia = Decimal(vinculo.horas_semanales_maximas or 0) if vinculo else Decimal('0')

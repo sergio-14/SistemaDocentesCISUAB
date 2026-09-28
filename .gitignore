@@ -78,3 +78,6 @@ frontend/.git_disabled/
 # Claude temp files
 tmpclaude-*-cwd/
 frontend/tmpclaude-*-cwd/
+
+# Notas locales de limpieza (no se suben)
+pendientes-limpieza.md

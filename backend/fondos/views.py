@@ -240,6 +240,11 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
+        # Toda ficha de docente pertenece a un usuario (existente o creado con user_data).
+        # Aquí y no en DocenteSerializer: el alta y la edición de usuarios lo usan para
+        # crear la ficha antes de vincularla.
+        if not serializer.validated_data.get('user') and not serializer.validated_data.get('user_data'):
+            raise drf_serializers.ValidationError({'user': 'La ficha de docente debe estar vinculada a un usuario.'})
         if not user.is_superuser:
             # El Director solo crea fichas en su carrera y para usuarios que ya
             # están asignados a ella (no crea usuarios desde aquí).

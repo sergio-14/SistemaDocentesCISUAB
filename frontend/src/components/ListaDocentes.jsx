@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { FaChevronLeft, FaChevronRight, FaEdit, FaTrash, FaExclamationTriangle } from 'react-icons/fa';
+import { FaChevronLeft, FaChevronRight, FaEdit, FaTrash } from 'react-icons/fa';
 import { getDocentes } from '../apis/api';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
@@ -881,7 +881,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
   const [isCreating, setIsCreating] = useState(false);
   const [buscarUsuario, setBuscarUsuario] = useState('');
   const [abrirDesdeUsuarios, setAbrirDesdeUsuarios] = useState(false);
-  const [flujoDesdeUsuarios, setFlujoDesdeUsuarios] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCarrera, setSelectedCarrera] = useState('');
   const [showUserInfo, setShowUserInfo] = useState(false);
@@ -974,7 +973,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     // ���� Detectar si venimos desde "Crear Usuario" para abrir modal
     const abrirModal = sessionStorage.getItem('abrirModalDesdeUsuarios');
     if (abrirModal === 'true') {
-      const flujo = sessionStorage.getItem('flujoDocenteDesdeUsuarios') || null;
       const datosDocenteGuardados = sessionStorage.getItem('datosCrearDocente');
       if (datosDocenteGuardados) {
         try {
@@ -993,7 +991,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
           console.error('Error al recuperar datos de docente:', e);
         }
       }
-      setFlujoDesdeUsuarios(flujo);
       setAbrirDesdeUsuarios(true);
       setIsCreating(true);
       sessionStorage.removeItem('abrirModalDesdeUsuarios');
@@ -1192,7 +1189,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     setIsCreating(!isCreating);
     if (isCreating) {
       setAbrirDesdeUsuarios(false);
-      setFlujoDesdeUsuarios(null);
     }
   };
 
@@ -2037,9 +2033,11 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                             if (!searchMode) {
                               setSearchMode(true);
                               e.preventDefault();
+                              // Guardar el input antes: dentro del setTimeout, e.currentTarget ya es null.
+                              const el = e.currentTarget;
                               setTimeout(() => {
-                                const el = e.currentTarget;
-                                try { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } catch (_) {}
+                                el.focus();
+                                el.setSelectionRange(el.value.length, el.value.length);
                               }, 0);
                               return;
                             }
@@ -2294,7 +2292,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                       navigate('/usuarios');
                     } else {
                       setIsCreating(false);
-                      setFlujoDesdeUsuarios(null);
                     }
                   }}
                   className="px-6 py-2.5 rounded-xl font-bold text-slate-700 dark:text-slate-300 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
@@ -2351,18 +2348,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                           <h3 className={`text-lg font-bold truncate ${docente.activo ? 'text-blue-600 dark:text-white' : 'text-red-700 dark:text-red-300'}`}>
                             {docente.usuario_nombre || docente.nombre_completo}
                           </h3>
-                          {!docente.usuario_id && (
-                            <button
-                              type="button"
-                              onClick={() => handleCrearCuentaParaDocente(docente)}
-                              className="mt-1 text-sm font-semibold text-red-600 transition-colors hover:text-red-700 hover:underline dark:text-red-400 dark:hover:text-red-300"
-                            >
-                              <span className="inline-flex items-center gap-1">
-                                <FaExclamationTriangle className="text-amber-500" size={12} />
-                                Sin Cuenta
-                              </span>
-                            </button>
-                          )}
                         </div>
                       </div>
                       {/* Botones de acción - Solo admin */}

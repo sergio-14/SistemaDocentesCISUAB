@@ -12,10 +12,10 @@ firma. Estos defaults se usan en dos lugares que deben quedar sincronizados:
 
 Por eso viven en un solo modulo compartido en vez de duplicarse.
 """
-from datetime import date
 from html import escape
 
 from django.apps import apps
+from django.utils import timezone
 
 _MESES_ES = {
     1: 'enero', 2: 'febrero', 3: 'marzo', 4: 'abril', 5: 'mayo', 6: 'junio',
@@ -199,7 +199,7 @@ def construir_defaults_informe(fondo):
 
     return {
         'encabezado_texto': encabezado_texto,
-        'fecha_texto': f'Trinidad, {fecha_larga_es(date.today())}',
+        'fecha_texto': f'Trinidad, {fecha_larga_es(timezone.localdate())}',
         'destinatario_nombre': nombre_direct,
         'destinatario_cargo': f'DIRECTOR(A) DE LA CARRERA DE {carrera_nombre} – U.A.B.J.B.',
         'remitente_nombre': nombre_docente,

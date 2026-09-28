@@ -11,6 +11,7 @@ import {
   ERROR_SHAKE_DURATION_MS,
 } from '../utils/formErrors';
 import { DEDICACIONES_HORARIO, ETIQUETAS_DEDICACION, describirDedicacion, horasSemanalesDedicacion } from '../utils/dedicaciones';
+import { hoyBolivia } from '../utils/fechas';
 import { TOPE_HORAS_SEMANALES_FONDO, calcularAntiguedad, calcularHorasFondo, diasVacacionPorAntiguedad } from '../utils/horasFondo';
 
 // Normaliza mensajes de error confusos del backend (ej: """" no es una elección válida.")
@@ -60,6 +61,19 @@ function parseDisplayDate(display) {
   return d;
 }
 
+// Fecha de ingreso obligatoria (la real de planilla de RR.HH.), no futura según la
+// hora de Bolivia y no anterior a la fundación de la UABJB. Las fechas 'YYYY-MM-DD'
+// se comparan como texto.
+const FECHA_FUNDACION_UABJB = '1967-11-18';
+function validarFechaIngreso(fecha) {
+  if (!fecha) return 'La fecha de ingreso es obligatoria: use la fecha de la planilla de RR.HH.';
+  if (fecha > hoyBolivia()) return 'La fecha de ingreso no puede ser una fecha futura.';
+  if (fecha < FECHA_FUNDACION_UABJB) {
+    return 'La fecha de ingreso no puede ser anterior a la fundación de la UABJB (18 de noviembre de 1967).';
+  }
+  return null;
+}
+
 function FechaIngresoPicker({ value, onChange, error }) {
   const [open, setOpen] = useState(false);
   const [openQuickPicker, setOpenQuickPicker] = useState(null);
@@ -67,7 +81,7 @@ function FechaIngresoPicker({ value, onChange, error }) {
   const [isPulsing, setIsPulsing] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const selectedDate = parseIsoDate(value);
-    const today = new Date();
+    const today = parseIsoDate(hoyBolivia());
     return selectedDate ? new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1) : new Date(today.getFullYear(), today.getMonth(), 1);
   });
   const [draftDay, setDraftDay] = useState(null);
@@ -107,7 +121,7 @@ function FechaIngresoPicker({ value, onChange, error }) {
 
   const year = visibleMonth.getFullYear();
   const month = visibleMonth.getMonth();
-  const today = new Date();
+  const today = parseIsoDate(hoyBolivia());
   const currentYearRef = today.getFullYear();
   const minYear = 1967; // Año de fundación de la UABJB
   const startYear = minYear;
@@ -849,7 +863,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     categoria: 'catedratico',
     condicion: '',
     dedicacion: 'tiempo_completo',
-    fecha_ingreso: new Date().toISOString().split('T')[0],
+    fecha_ingreso: '',
     email: '',
     telefono: '',
     horas_contrato_semanales: null,
@@ -1160,7 +1174,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       categoria: '',
       condicion: '',
       dedicacion: '',
-      fecha_ingreso: new Date().toISOString().split('T')[0],
+      fecha_ingreso: '',
       email: '',
       telefono: '',
       horas_contrato_semanales: null,
@@ -1322,7 +1336,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       categoria: docente.vinculos?.[0]?.categoria || '',
       condicion: '',
       dedicacion: docente.vinculos?.[0]?.dedicacion || '',
-      fecha_ingreso: docente.fecha_ingreso || new Date().toISOString().split('T')[0],
+      fecha_ingreso: docente.fecha_ingreso || '',
       email: docente.email || '',
       telefono: docente.telefono || '',
       horas_contrato_semanales: null,
@@ -1664,24 +1678,12 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       return;
     }
 
-    // Validación de fecha_ingreso
-    if (formData.fecha_ingreso) {
-      const fechaIngreso = new Date(formData.fecha_ingreso + 'T00:00:00');
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      const fundacionUABJB = new Date(1967, 10, 18); // 18 de noviembre de 1967
-      if (fechaIngreso > hoy) {
-        setErrors((prev) => ({ ...prev, fecha_ingreso: ['La fecha de ingreso no puede ser una fecha futura.'] }));
-        toast.error('La fecha de ingreso no puede ser una fecha futura.');
-        setIsSubmitting(false);
-        return;
-      }
-      if (fechaIngreso < fundacionUABJB) {
-        setErrors((prev) => ({ ...prev, fecha_ingreso: ['La fecha de ingreso no puede ser anterior a la fundación de la UABJB (18 de noviembre de 1967).'] }));
-        toast.error('La fecha de ingreso no puede ser anterior a la fundación de la UABJB (18 de noviembre de 1967).');
-        setIsSubmitting(false);
-        return;
-      }
+    const errorFechaIngreso = validarFechaIngreso(formData.fecha_ingreso);
+    if (errorFechaIngreso) {
+      setErrors((prev) => ({ ...prev, fecha_ingreso: [errorFechaIngreso] }));
+      toast.error(errorFechaIngreso);
+      setIsSubmitting(false);
+      return;
     }
 
     try {
@@ -1773,23 +1775,12 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       return;
     }
 
-    if (formData.fecha_ingreso) {
-      const fechaIngreso = new Date(formData.fecha_ingreso + 'T00:00:00');
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      const fundacionUABJB = new Date(1967, 10, 18);
-      if (fechaIngreso > hoy) {
-        setErrors((prev) => ({ ...prev, fecha_ingreso: ['La fecha de ingreso no puede ser una fecha futura.'] }));
-        toast.error('La fecha de ingreso no puede ser una fecha futura.');
-        setIsSubmitting(false);
-        return;
-      }
-      if (fechaIngreso < fundacionUABJB) {
-        setErrors((prev) => ({ ...prev, fecha_ingreso: ['La fecha de ingreso no puede ser anterior a la fundación de la UABJB (18 de noviembre de 1967).'] }));
-        toast.error('La fecha de ingreso no puede ser anterior a la fundación de la UABJB (18 de noviembre de 1967).');
-        setIsSubmitting(false);
-        return;
-      }
+    const errorFechaIngreso = validarFechaIngreso(formData.fecha_ingreso);
+    if (errorFechaIngreso) {
+      setErrors((prev) => ({ ...prev, fecha_ingreso: [errorFechaIngreso] }));
+      toast.error(errorFechaIngreso);
+      setIsSubmitting(false);
+      return;
     }
 
     try {

@@ -80,6 +80,7 @@ class FichaDocentePendienteTests(UsuariosBaseTestCase):
 
         response = self.client.post('/api/docentes/', {
             'user': usuario.pk, 'carrera': self.carrera.pk, 'categoria': 'catedratico', 'dedicacion': 'horario_40',
+            'fecha_ingreso': '2015-01-01',
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 

@@ -263,6 +263,11 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
                 asignaciones_en_carrera = asignaciones_en_carrera.filter(activo=True)
             if not asignaciones_en_carrera.exists():
                 raise PermissionDenied('El usuario seleccionado no pertenece a tu carrera.')
+        # La fecha de ingreso es la real de planilla de RR.HH.: no se completa con la de hoy.
+        if not serializer.validated_data.get('fecha_ingreso'):
+            raise drf_serializers.ValidationError({
+                'fecha_ingreso': 'La fecha de ingreso es obligatoria: use la fecha de la planilla de RR.HH.',
+            })
         serializer.save()
 
     def destroy(self, request, *args, **kwargs):
@@ -1956,7 +1961,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         informe.estado = 'observado'
         informe.evaluacion_director = comentario
         informe.evaluado_por = user
-        informe.fecha_evaluacion = timezone.now().date()
+        informe.fecha_evaluacion = timezone.localdate()
         informe.save()
 
         estado_anterior = fondo.estado
@@ -2474,7 +2479,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             logros=logros,
             dificultades=dificultades,
             elaborado_por=request.user,
-            fecha_elaboracion=timezone.now().date(),
+            fecha_elaboracion=timezone.localdate(),
             evidencia=evidencia,
             archivo_adjunto=evidencia
         )
@@ -2608,7 +2613,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         informe.cumplimiento = cumplimiento
         informe.evaluacion_director = evaluacion_director
         informe.evaluado_por = request.user
-        informe.fecha_evaluacion = timezone.now().date()
+        informe.fecha_evaluacion = timezone.localdate()
         informe.save()
 
         # Cambiar estado del fondo a finalizado
@@ -3006,9 +3011,9 @@ class ProyectoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         
         # Registrar fechas automáticamente
         if nuevo_estado == 'presentado' and not proyecto.fecha_presentacion:
-            proyecto.fecha_presentacion = timezone.now().date()
+            proyecto.fecha_presentacion = timezone.localdate()
         elif nuevo_estado == 'aprobado' and not proyecto.fecha_aprobacion:
-            proyecto.fecha_aprobacion = timezone.now().date()
+            proyecto.fecha_aprobacion = timezone.localdate()
         
         proyecto.save()
         
@@ -3071,7 +3076,7 @@ class InformeFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
         
         informe.cumplimiento = cumplimiento
         informe.evaluacion_director = evaluacion
-        informe.fecha_evaluacion = timezone.now().date()
+        informe.fecha_evaluacion = timezone.localdate()
         informe.evaluado_por = request.user
         informe.save()
         

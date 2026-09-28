@@ -813,7 +813,7 @@ def _actualizar_ci_docente(docente, ci_normalizado):
 
     datos_laborales = DatosLaborales.objects.create(
         ci=ci_normalizado,
-        fecha_ingreso=timezone.now().date(),
+        fecha_ingreso=timezone.localdate(),
     )
     docente.datos_laborales = datos_laborales
     docente.save(update_fields=['datos_laborales'])
@@ -1649,7 +1649,7 @@ class DocenteSerializer(serializers.ModelSerializer):
 
         if fecha_ingreso:
             fecha = fecha_ingreso.date() if hasattr(fecha_ingreso, 'time') else fecha_ingreso
-            hoy = timezone.now().date()
+            hoy = timezone.localdate()
             fecha_fundacion_uabjb = fecha.replace(year=1967, month=11, day=18)
             if fecha > hoy:
                 raise serializers.ValidationError({'fecha_ingreso': 'La fecha de ingreso no puede ser una fecha futura.'})
@@ -1728,7 +1728,7 @@ class DocenteSerializer(serializers.ModelSerializer):
                 datos_laborales = DatosLaborales.objects.create(
                     # DatosLaborales.ci admite 20 caracteres: TEMP_ + 15 hex.
                     ci=effective_ci or f"TEMP_{uuid.uuid4().hex[:15]}",
-                    fecha_ingreso=fecha_ingreso or timezone.now().date(),
+                    fecha_ingreso=fecha_ingreso or timezone.localdate(),
                     dias_vacacion=dias_vacacion,
                     horas_feriados_gestion=horas_feriados,
                 )
@@ -2032,7 +2032,7 @@ class CarreraSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'fecha_resolucion': 'Debe registrar la fecha de resolución de creación (HCU) de la carrera.'
             })
-        if fecha_resolucion and fecha_resolucion > timezone.now().date():
+        if fecha_resolucion and fecha_resolucion > timezone.localdate():
             raise serializers.ValidationError({
                 'fecha_resolucion': 'La fecha de resolución de creación (HCU) no puede ser futura.'
             })
@@ -2944,7 +2944,7 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
                     dl_obj, _ = DatosLaborales.objects.get_or_create(
                         ci=ci,
                         defaults={
-                            'fecha_ingreso': timezone.now().date(),
+                            'fecha_ingreso': timezone.localdate(),
                             'dias_vacacion': 15
                         }
                     )
@@ -2967,7 +2967,7 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
                     dl_obj, _ = DatosLaborales.objects.get_or_create(
                         ci=ci,
                         defaults={
-                            'fecha_ingreso': timezone.now().date(),
+                            'fecha_ingreso': timezone.localdate(),
                             'dias_vacacion': 15
                         }
                     )
@@ -3419,7 +3419,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
             from .models import DatosLaborales
             perfil.datos_laborales, _ = DatosLaborales.objects.get_or_create(
                 ci=ci.strip(),
-                defaults={'fecha_ingreso': timezone.now().date()}
+                defaults={'fecha_ingreso': timezone.localdate()}
             )
         
         # 5.2 Solo docente y sin ficha: inactivo hasta crearle la ficha. Con un

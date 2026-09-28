@@ -173,7 +173,7 @@ def actualizar_con_historial(queryset, **campos):
 def fecha_referencia_antiguedad(valor=None):
     """Fecha a la que se mide la antigüedad: una fecha, una gestión (1 de enero) o hoy."""
     if valor is None:
-        return timezone.now().date()
+        return timezone.localdate()
     if isinstance(valor, int):
         return date(valor, 1, 1)
     return valor.date() if hasattr(valor, 'date') and callable(valor.date) else valor
@@ -268,8 +268,8 @@ class DatosLaborales(models.Model):
         super().clean()
 
         if self.fecha_ingreso:
-            fecha_fundacion = timezone.now().date().replace(year=1967, month=11, day=18)
-            hoy = timezone.now().date()
+            fecha_fundacion = timezone.localdate().replace(year=1967, month=11, day=18)
+            hoy = timezone.localdate()
             if self.fecha_ingreso > hoy:
                 raise ValidationError({
                     'fecha_ingreso': 'La fecha de ingreso no puede ser una fecha futura.'
@@ -698,7 +698,7 @@ class Carrera(models.Model):
         if not self.codigo:
             raise ValidationError({'codigo': 'El codigo de carrera es obligatorio.'})
 
-        if self.fecha_resolucion and self.fecha_resolucion > timezone.now().date():
+        if self.fecha_resolucion and self.fecha_resolucion > timezone.localdate():
             raise ValidationError({'fecha_resolucion': 'La fecha de resolución de creación (HCU) no puede ser futura.'})
 
     def save(self, *args, **kwargs):
@@ -2304,7 +2304,7 @@ def crear_datos_laborales_si_no_existen(sender, instance, created, **kwargs):
         datos, created_dl = DatosLaborales.objects.get_or_create(
             ci=instance.ci if hasattr(instance, 'ci') and instance.ci else f"TEMP_{instance.pk}",
             defaults={
-                'fecha_ingreso': instance.fecha_ingreso if hasattr(instance, 'fecha_ingreso') else timezone.now().date(),
+                'fecha_ingreso': instance.fecha_ingreso if hasattr(instance, 'fecha_ingreso') else timezone.localdate(),
                 'dias_vacacion': instance.dias_vacacion if hasattr(instance, 'dias_vacacion') else 15,
                 'horas_feriados_gestion': instance.horas_feriados_gestion if hasattr(instance, 'horas_feriados_gestion') else 128,
             }

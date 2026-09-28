@@ -5,6 +5,7 @@ import { getCarreras, getFacultadesCarrera, addFacultadCarrera, deleteFacultadCa
 import api from '../apis/api';
 import { EVENTO_CARRERAS_ACTUALIZADAS } from './common/AvisoCarreraInactiva';
 import toast from 'react-hot-toast';
+import { hoyBolivia } from '../utils/fechas';
 import {
   ERROR_FIELD_BORDER_CLASS,
   ERROR_MOTION_CLASS,
@@ -12,8 +13,6 @@ import {
   sanitizeChoiceError,
   sanitizeApiErrors,
 } from '../utils/formErrors';
-
-const FECHA_MAXIMA_HOY = new Date().toISOString().split('T')[0];
 
 const InputField = ({ label, name, type = 'text', value, onChange, onFocus, required, error }) => (
   <div>
@@ -1459,7 +1458,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
 
     if (!String(formData.fecha_resolucion || '').trim()) {
       newErrors.fecha_resolucion = ['Este campo es obligatorio: fecha de resolución de creación (HCU).'];
-    } else if (formData.fecha_resolucion > FECHA_MAXIMA_HOY) {
+    } else if (formData.fecha_resolucion > hoyBolivia()) {
       newErrors.fecha_resolucion = ['La fecha de resolución de creación (HCU) no puede ser futura.'];
     }
 
@@ -1888,7 +1887,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                           required
                           error={errors.fecha_resolucion}
                           pulse={errorPulse.fecha_resolucion || 0}
-                          maxIsoDate={FECHA_MAXIMA_HOY}
+                          maxIsoDate={hoyBolivia()}
                         />
 
                         {/* Responsable: solo visible en edición si ya tiene valor */}
@@ -2378,7 +2377,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                       onDateChange={handleDateChange}
                       required
                       error={errors.fecha_resolucion}
-                      maxIsoDate={FECHA_MAXIMA_HOY}
+                      maxIsoDate={hoyBolivia()}
                       disabled={Boolean(identidadBloqueada)}
                     />
 

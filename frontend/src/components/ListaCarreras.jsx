@@ -10,7 +10,6 @@ import {
   ERROR_FIELD_BORDER_CLASS,
   ERROR_MOTION_CLASS,
   ERROR_SHAKE_DURATION_MS,
-  sanitizeChoiceError,
   sanitizeApiErrors,
 } from '../utils/formErrors';
 
@@ -73,15 +72,11 @@ const SelectConDropdown = ({
   options,
   error,
   disabled = false,
-  required = false,
   placeholder = 'Seleccione...',
   searchable = false,
   showManageButton = false,
-  onManageClick,
   onAddFacultad,
   setFacultadOptions,
-  getFacultadesCarrera,
-  formData,
   setFormData,
   pulse = 0,
 }) => {
@@ -110,11 +105,6 @@ const SelectConDropdown = ({
 
     return () => document.removeEventListener('mousedown', handleOutside);
   }, [open]);
-
-  const handleManageToggle = () => {
-    setManageMode((prev) => !prev);
-    if (!open) setOpen(true);
-  };
 
   const handleSelectMode = () => {
     setManageMode(false);
@@ -577,7 +567,7 @@ function parseDisplayDate(display) {
   return d;
 }
 
-const DatePickerField = ({ label, name, value, onDateChange, error, required, maxIsoDate, pulse = 0, disabled = false }) => {
+const DatePickerField = ({ label, name, value, onDateChange, error, maxIsoDate, pulse = 0, disabled = false }) => {
   const [open, setOpen] = useState(false);
   const [isPulsing, setIsPulsing] = useState(false);
   const [openQuickPicker, setOpenQuickPicker] = useState(null);
@@ -1058,15 +1048,12 @@ const FilterCarreras = ({ carreras, onSelect, placeholder = 'Buscar carrera...' 
   );
 };
 
-function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) {
+function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
   const [carreras, setCarreras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [user, setUser] = useState(null);
   const [facultadOptions, setFacultadOptions] = useState([]);
-  const [showFacultadManager, setShowFacultadManager] = useState(false);
-  const [nuevaFacultad, setNuevaFacultad] = useState('');
-  const [facultadManageLoading, setFacultadManageLoading] = useState(false);
 
   // Modal de editar
   const [showModal, setShowModal] = useState(false);
@@ -1153,11 +1140,6 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     }
   };
 
-  const abrirGestorFacultades = () => {
-    setNuevaFacultad('');
-    setShowFacultadManager(true);
-  };
-
   const handleAgregarFacultad = async (nombreFacultad) => {
     const nombre = String(nombreFacultad || '').trim();
     if (!nombre) {
@@ -1165,7 +1147,6 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
       return;
     }
 
-    setFacultadManageLoading(true);
     try {
       const response = await addFacultadCarrera(nombre);
       const data = response.data || [];
@@ -1181,41 +1162,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     } catch (err) {
       const detail = err.response?.data?.detail || err.message;
       toast.error(`No se pudo agregar: ${detail}`);
-    } finally {
-      setFacultadManageLoading(false);
     }
-  };
-
-  const handleEliminarFacultad = async (nombre) => {
-    const facultad = String(nombre || '').trim();
-    if (!facultad) return;
-
-    setFacultadManageLoading(true);
-    try {
-      const response = await deleteFacultadCarrera(facultad);
-      const data = response.data || [];
-      setFacultadOptions(Array.isArray(data) ? data : []);
-      if (String(formData.facultad || '').trim() === facultad) {
-        setFormData((prev) => ({ ...prev, facultad: '' }));
-      }
-      toast.success('Facultad eliminada correctamente.');
-    } catch (err) {
-      const detail = err.response?.data?.detail || err.message;
-      toast.error(`No se pudo eliminar: ${detail}`);
-    } finally {
-      setFacultadManageLoading(false);
-    }
-  };
-
-  const handleSeleccionarFacultad = (nombre) => {
-    setFormData((prev) => ({ ...prev, facultad: nombre }));
-    setErrors((prev) => {
-      if (!prev.facultad) return prev;
-      const next = { ...prev };
-      delete next.facultad;
-      return next;
-    });
-    setShowFacultadManager(false);
   };
 
   const cargarCarreras = async () => {
@@ -1273,32 +1220,6 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
       // El backend valida igual al guardar; aquí solo es una ayuda visual.
       console.error('No se pudo verificar los datos asociados de la carrera:', err);
     }
-  };
-
-  const abrirModalEditar = (carrera) => {
-    setCarreraSeleccionada(carrera);
-    cargarBloqueoIdentidad(carrera);
-    setIsViewMode(false);
-    suppressUpdateToastRef.current = false;
-    setFormData({
-      nombre: carrera.nombre,
-      codigo: carrera.codigo,
-      facultad: carrera.facultad,
-      resolucion_ministerial: carrera.resolucion_ministerial || '',
-      fecha_resolucion: carrera.fecha_resolucion || '',
-      mision: carrera.mision || '',
-      vision: carrera.vision || '',
-      perfil_profesional: carrera.perfil_profesional || '',
-      objetivo_carrera: carrera.objetivo_carrera || '',
-      responsable: carrera.responsable || '',
-      activo: carrera.activo,
-      fecha_actualizacion: carrera.fecha_actualizacion
-    });
-    setLogoFile(null);
-    setLogoPreview(carrera.logo_carrera || '');
-    setRemoveLogoCarrera(false);
-    setShowModal(true);
-    setIsCreating(false);
   };
 
   const abrirModalVer = (carrera) => {
@@ -1835,11 +1756,8 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                           value={formData.facultad}
                           onChange={handleChange}
                           showManageButton={puedeGestionarFacultades()}
-                          onManageClick={abrirGestorFacultades}
                           onAddFacultad={handleAgregarFacultad}
                           setFacultadOptions={setFacultadOptions}
-                          getFacultadesCarrera={getFacultadesCarrera}
-                          formData={formData}
                           setFormData={setFormData}
                           required
                           searchable
@@ -2335,11 +2253,8 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                       value={formData.facultad}
                       onChange={handleChange}
                       showManageButton={puedeGestionarFacultades()}
-                      onManageClick={abrirGestorFacultades}
                       onAddFacultad={handleAgregarFacultad}
                       setFacultadOptions={setFacultadOptions}
-                      getFacultadesCarrera={getFacultadesCarrera}
-                      formData={formData}
                       setFormData={setFormData}
                       required
                       searchable

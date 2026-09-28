@@ -706,6 +706,12 @@ const SearchInput = ({ value, onChange, placeholder = 'Buscar por nombre o C.I..
   );
 };
 
+const OPCIONES_CATEGORIA = [
+  { value: 'catedratico', label: 'Catedratico' },
+  { value: 'adjunto', label: 'Adjunto' },
+  { value: 'asistente', label: 'Asistente' },
+];
+
 // Cargos de gestión: con docencia solo admiten dedicación a Tiempo Horario.
 const ROLES_CARGO = ['director', 'jefe_estudios', 'iiisyp'];
 const DEDICACIONES_FICHA = ['tiempo_completo', 'medio_tiempo', ...DEDICACIONES_HORARIO];
@@ -848,6 +854,9 @@ function ListaDocentes({ sidebarCollapsed = false }) {
   const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
 
   // Formulario
+  // Nuevo docente con docencia en varias carreras: dedicación y categoría de cada
+  // carrera que no es la principal ({ [carreraId]: { dedicacion, categoria } }).
+  const [vinculosExtra, setVinculosExtra] = useState({});
   const [formData, setFormData] = useState({
     user: '',
     username: '',
@@ -869,6 +878,10 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     horas_contrato_semanales: null,
     activo: true,
   });
+
+  useEffect(() => {
+    setVinculosExtra({});
+  }, [formData.user]);
 
   // La antigüedad del fondo se mide al inicio de la gestión (calendario académico
   // activo de la carrera). La vista previa usa la misma fecha para dar lo mismo.
@@ -1464,6 +1477,13 @@ function ListaDocentes({ sidebarCollapsed = false }) {
   const getCarreraDocenteUsuario = (usuarioItem) => {
     if (!usuarioItem) return '';
 
+    // carreras_docente incluye las asignaciones en pausa de un usuario inactivo por falta de ficha.
+    const carrerasDocente = (usuarioItem?.carreras_docente || []).map(String);
+    if (carrerasDocente.length > 0) {
+      const carreraPerfil = String(getCarreraIdValue(usuarioItem?.perfil?.carrera) || '');
+      return carrerasDocente.includes(carreraPerfil) ? carreraPerfil : carrerasDocente[0];
+    }
+
     const asignaciones = Array.isArray(usuarioItem?.asignaciones) ? usuarioItem.asignaciones : [];
     const asignacionDocente = asignaciones.find((asignacion) => (
       asignacion?.activo !== false
@@ -1493,6 +1513,10 @@ function ListaDocentes({ sidebarCollapsed = false }) {
         asignacion?.carrera || asignacion?.carrera_id || asignacion?.carrera_nombre || asignacion?.carrera_codigo
       );
       if (carreraAsignacion) nombresCarrera.push(carreraAsignacion);
+    });
+    (usuarioItem?.carreras_docente || []).forEach((carreraId) => {
+      const carreraDocente = getNombreCarreraUsuario(carreraId);
+      if (carreraDocente) nombresCarrera.push(carreraDocente);
     });
 
     return Array.from(new Set(nombresCarrera));
@@ -1600,6 +1624,20 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     : DEDICACIONES_FICHA
   ).map((value) => ({ value, label: ETIQUETAS_DEDICACION[value] }));
   const carrerasUsuarioSeleccionado = getCarrerasUsuario(usuarioSeleccionado);
+  // Otras carreras donde es docente: cada una lleva su propio vínculo en la ficha.
+  const carrerasExtraNuevoDocente = (usuarioSeleccionado?.carreras_docente || [])
+    .map(String)
+    .filter((carreraId) => carreraId !== String(formData.carrera || ''));
+  const getVinculoExtra = (carreraId) => ({ dedicacion: '', categoria: 'catedratico', ...vinculosExtra[carreraId] });
+  const cambiarVinculoExtra = (carreraId, campo, valor) => {
+    setVinculosExtra((prev) => ({ ...prev, [carreraId]: { ...getVinculoExtra(carreraId), ...prev[carreraId], [campo]: valor } }));
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[`vinculo_${carreraId}`];
+      delete next.vinculos_data;
+      return next;
+    });
+  };
   const carreraSeleccionadaNombre = carrerasUsuarioSeleccionado.length > 0
     ? carrerasUsuarioSeleccionado.join('\n')
     : carreras.find((carrera) => String(carrera.id) === String(formData.carrera || ''))?.nombre || '';
@@ -1678,6 +1716,25 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       return;
     }
 
+    // Una dedicación por cada carrera y, entre todas, sin pasar el tope semanal.
+    const carreraSinDedicacion = carrerasExtraNuevoDocente.find((carreraId) => !getVinculoExtra(carreraId).dedicacion);
+    if (carreraSinDedicacion) {
+      const mensaje = `Seleccione la dedicación en ${getNombreCarreraUsuario(carreraSinDedicacion)}.`;
+      setErrors((prev) => ({ ...prev, [`vinculo_${carreraSinDedicacion}`]: [mensaje] }));
+      toast.error(mensaje);
+      setIsSubmitting(false);
+      return;
+    }
+    const horasTotales = [formData.dedicacion, ...carrerasExtraNuevoDocente.map((carreraId) => getVinculoExtra(carreraId).dedicacion)]
+      .reduce((total, dedicacion) => total + horasSemanalesDedicacion(dedicacion), 0);
+    if (carrerasExtraNuevoDocente.length > 0 && horasTotales > TOPE_HORAS_SEMANALES_FONDO) {
+      const mensaje = `Entre todas las carreras suman ${horasTotales} h/semana y el límite es ${TOPE_HORAS_SEMANALES_FONDO} h/semana.`;
+      setErrors((prev) => ({ ...prev, vinculos_data: [mensaje] }));
+      toast.error(mensaje);
+      setIsSubmitting(false);
+      return;
+    }
+
     const errorFechaIngreso = validarFechaIngreso(formData.fecha_ingreso);
     if (errorFechaIngreso) {
       setErrors((prev) => ({ ...prev, fecha_ingreso: [errorFechaIngreso] }));
@@ -1693,6 +1750,12 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       payload.apellido_paterno = nombresSplit.apellido_paterno;
       payload.apellido_materno = nombresSplit.apellido_materno;
       payload.ci = ciNormalizado;
+      if (carrerasExtraNuevoDocente.length > 0) {
+        payload.vinculos_data = [
+          { carrera: formData.carrera, categoria: formData.categoria, dedicacion: formData.dedicacion },
+          ...carrerasExtraNuevoDocente.map((carreraId) => ({ carrera: carreraId, ...getVinculoExtra(carreraId) })),
+        ];
+      }
       delete payload.condicion;
       delete payload.nombre_completo;
       if (payload.email === '') payload.email = null;
@@ -2139,6 +2202,11 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                     maxLength={10}
                     inputMode="numeric"
                   />
+                  {carrerasExtraNuevoDocente.length > 0 && (
+                    <p className="md:col-span-2 -mb-2 text-sm font-bold text-slate-800 dark:text-slate-200">
+                      Docencia en {getNombreCarreraUsuario(formData.carrera)}
+                    </p>
+                  )}
                   <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-5">
                     {!usuarioFormularioSoloDirector && (
                       <SelectConDropdown
@@ -2270,6 +2338,37 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                     </div>
                     </div>
                   </div>
+                  {carrerasExtraNuevoDocente.map((carreraId) => {
+                    const vinculo = getVinculoExtra(carreraId);
+                    return (
+                      <div key={carreraId} className="md:col-span-2 rounded-xl border-2 border-slate-200 dark:border-slate-700 p-4">
+                        <p className="mb-3 text-sm font-bold text-slate-800 dark:text-slate-200">
+                          Docencia en {getNombreCarreraUsuario(carreraId)}
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                          <SelectConDropdown
+                            label="Dedicacion"
+                            name={`dedicacion_${carreraId}`}
+                            value={vinculo.dedicacion}
+                            onChange={(e) => cambiarVinculoExtra(carreraId, 'dedicacion', e.target.value)}
+                            options={opcionesDedicacion}
+                            menuClassName="overflow-visible"
+                            error={errors[`vinculo_${carreraId}`]}
+                          />
+                          <SelectConDropdown
+                            label="Categoria"
+                            name={`categoria_${carreraId}`}
+                            value={vinculo.categoria}
+                            onChange={(e) => cambiarVinculoExtra(carreraId, 'categoria', e.target.value)}
+                            options={OPCIONES_CATEGORIA}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {errors.vinculos_data && (
+                    <p className="md:col-span-2 text-sm text-red-600 dark:text-red-400">{errors.vinculos_data}</p>
+                  )}
                 </div>
               </form>
               {/* Footer */}

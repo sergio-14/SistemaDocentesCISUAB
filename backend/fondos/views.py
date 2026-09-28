@@ -49,6 +49,7 @@ from .serializers import (
     docente_del_usuario,
     texto_datos_registrados,
     desactivar_si_solo_docente_sin_ficha,
+    vinculos_faltantes,
 )
 from .role_context import get_effective_profile, get_active_careers_for_user
 from .solo_lectura import CarreraInactivaSoloLecturaMixin as CarreraInactivaSoloLecturaBase
@@ -263,6 +264,24 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
                 asignaciones_en_carrera = asignaciones_en_carrera.filter(activo=True)
             if not asignaciones_en_carrera.exists():
                 raise PermissionDenied('El usuario seleccionado no pertenece a tu carrera.')
+            # La ficha lleva un vínculo por carrera: el Director debe gestionarlas todas.
+            for vinculo in serializer.validated_data.get('vinculos_data') or []:
+                if not _usuario_tiene_acceso_a_carrera(user, vinculo['carrera'], self.request):
+                    raise PermissionDenied(
+                        f"La ficha incluye la carrera {vinculo['carrera'].nombre}, que no gestionas: "
+                        'debe crearla el superusuario.'
+                    )
+        # Un vínculo por cada carrera donde el usuario es docente.
+        faltantes = vinculos_faltantes(
+            serializer.validated_data.get('user'), serializer.validated_data.get('vinculos_data') or [],
+        )
+        if faltantes:
+            raise drf_serializers.ValidationError({
+                'vinculos_data': (
+                    f"Falta la dedicación de la carrera: {', '.join(faltantes)}. "
+                    'La ficha debe cubrir todas las carreras donde es docente.'
+                ),
+            })
         # La fecha de ingreso es la real de planilla de RR.HH.: no se completa con la de hoy.
         if not serializer.validated_data.get('fecha_ingreso'):
             raise drf_serializers.ValidationError({

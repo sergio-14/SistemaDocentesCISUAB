@@ -6,6 +6,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import actualizar_con_historial, horas_semanales_contractuales
+from .models import HORAS_SEMANALES_DEDICACION, TOPE_HORAS_SEMANALES_FONDO
 from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, CategoriaFuncion, Actividad, PerfilUsuario, AsignacionCarrera, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, EvidenciaCargaHoraria
 from .role_context import get_active_assignment, get_effective_profile, serialize_assignment
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
@@ -427,6 +428,35 @@ def ficha_docente_pendiente(user):
         or (perfil is not None and (perfil.rol == 'docente' or perfil.inactivo_por_ficha_pendiente))
     )
     return tiene_docencia and docente_del_usuario(user) is None
+
+
+def carreras_docencia_usuario(user):
+    """Ids de las carreras donde el usuario es docente, en orden de asignación.
+
+    Cuenta las asignaciones docentes activas y, si el usuario está inactivo por
+    falta de ficha, también las que quedaron en pausa por eso.
+    """
+    if not user:
+        return []
+    asignaciones = AsignacionCarrera.objects.filter(user=user, rol='docente')
+    perfil = PerfilUsuario.objects.filter(user=user).first()
+    if not (perfil and perfil.inactivo_por_ficha_pendiente):
+        asignaciones = asignaciones.filter(activo=True)
+    ids = []
+    for carrera_id in asignaciones.order_by('id').values_list('carrera_id', flat=True):
+        if carrera_id not in ids:
+            ids.append(carrera_id)
+    return ids
+
+
+def vinculos_faltantes(user, vinculos):
+    """Nombres de las carreras donde el usuario es docente y la ficha no trae vínculo.
+
+    Sin vínculo, esa carrera quedaría sin dedicación, sin fondo de tiempo y sin carga horaria.
+    """
+    ids = {vinculo['carrera'].pk for vinculo in vinculos}
+    faltantes = [carrera_id for carrera_id in carreras_docencia_usuario(user) if carrera_id not in ids]
+    return list(Carrera.objects.filter(pk__in=faltantes).values_list('nombre', flat=True))
 
 
 def roles_actuales_usuario(user):
@@ -1423,6 +1453,11 @@ class DocenteSerializer(serializers.ModelSerializer):
     condicion = serializers.ChoiceField(choices=DocenteCarrera.CONDICION_CHOICES, write_only=True, required=False)
     user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), write_only=True, required=False, allow_null=True)
     user_data = serializers.JSONField(write_only=True, required=False, allow_null=True)
+    # Al crear: un vínculo (carrera, categoría, dedicación, condición) por cada carrera
+    # donde el usuario es docente. Sin él, un solo vínculo con carrera/categoria/dedicacion.
+    vinculos_data = serializers.ListField(
+        child=serializers.DictField(), write_only=True, required=False,
+    )
     carrera_id = serializers.SerializerMethodField()
     carrera_nombre = serializers.SerializerMethodField()
     vinculos = DocenteCarreraSerializer(
@@ -1441,7 +1476,7 @@ class DocenteSerializer(serializers.ModelSerializer):
             'horas_declaradas', 'fondos_validados', 'tiene_historial',
             'carrera', 'carrera_id', 'carrera_nombre',
             'categoria', 'dedicacion', 'condicion',
-            'vinculos', 'activo',
+            'vinculos', 'vinculos_data', 'activo',
             'fecha_creacion', 'fecha_modificacion',
         ]
         read_only_fields = ['fecha_creacion', 'fecha_modificacion']
@@ -1533,6 +1568,61 @@ class DocenteSerializer(serializers.ModelSerializer):
     def validate_ci(self, value):
         ci_normalizado = (value or '').strip()
         return ci_normalizado
+
+    def _validar_vinculos_nueva_ficha(self, data, user):
+        """Vínculos de una ficha nueva, uno por carrera, con las reglas de cada dedicación.
+
+        Entre todos no pueden superar el tope de horas semanales. Que estén todas las
+        carreras del usuario lo exige POST /api/docentes/ (ver vinculos_faltantes),
+        después de sus permisos.
+        """
+        carrera_principal = data.get('carrera')
+        crudos = data.get('vinculos_data') or [{
+            'carrera': carrera_principal.pk if carrera_principal else None,
+            'categoria': data.get('categoria'),
+            'dedicacion': data.get('dedicacion'),
+            'condicion': data.get('condicion'),
+        }]
+        categorias = dict(Docente.CATEGORIA_CHOICES)
+        dedicaciones = dict(Docente.DEDICACION_CHOICES)
+        condiciones = dict(DocenteCarrera.CONDICION_CHOICES)
+
+        vinculos = []
+        for crudo in crudos:
+            carrera = Carrera.objects.filter(pk=crudo.get('carrera')).first()
+            if not carrera:
+                raise serializers.ValidationError({'vinculos_data': 'Cada vínculo necesita una carrera válida.'})
+            if any(v['carrera'].pk == carrera.pk for v in vinculos):
+                raise serializers.ValidationError({'vinculos_data': f'La carrera {carrera.nombre} está repetida.'})
+            vinculo = {
+                'carrera': carrera,
+                'categoria': crudo.get('categoria') or 'asistente',
+                'dedicacion': crudo.get('dedicacion') or 'horario_40',
+                'condicion': crudo.get('condicion') or 'titular',
+            }
+            if vinculo['categoria'] not in categorias:
+                raise serializers.ValidationError({'categoria': f'Categoría no válida en {carrera.nombre}.'})
+            if vinculo['dedicacion'] not in dedicaciones:
+                raise serializers.ValidationError({'dedicacion': f'Dedicación no válida en {carrera.nombre}.'})
+            if vinculo['condicion'] not in condiciones:
+                raise serializers.ValidationError({'condicion': f'Condición no válida en {carrera.nombre}.'})
+            self._validar_reglas_ficha(data, vinculo['dedicacion'], user)
+            _validar_dedicacion_compatible_con_roles_gestion(vinculo['dedicacion'], user=user)
+            vinculos.append(vinculo)
+
+        ids = [v['carrera'].pk for v in vinculos]
+        if carrera_principal and carrera_principal.pk not in ids:
+            raise serializers.ValidationError({'carrera': 'La carrera principal debe tener su vínculo.'})
+
+        horas = sum(HORAS_SEMANALES_DEDICACION.get(v['dedicacion'], 0) for v in vinculos)
+        if horas > TOPE_HORAS_SEMANALES_FONDO:
+            raise serializers.ValidationError({
+                'dedicacion': (
+                    f'Entre todas las carreras suman {horas:g} h/semana y el límite es '
+                    f'{TOPE_HORAS_SEMANALES_FONDO:g} h/semana.'
+                ),
+            })
+        return vinculos
 
     def _validar_reglas_ficha(self, data, dedicacion, user):
         """Reglas de la ficha de docente:
@@ -1644,8 +1734,11 @@ class DocenteSerializer(serializers.ModelSerializer):
         )
         docente_obj = self.instance if self.instance else None
         user_obj = data.get('user', self.instance.user if self.instance else None)
-        self._validar_reglas_ficha(data, dedicacion, user_obj)
-        _validar_dedicacion_compatible_con_roles_gestion(dedicacion, docente=docente_obj, user=user_obj)
+        if self.instance:
+            self._validar_reglas_ficha(data, dedicacion, user_obj)
+            _validar_dedicacion_compatible_con_roles_gestion(dedicacion, docente=docente_obj, user=user_obj)
+        else:
+            data['vinculos_data'] = self._validar_vinculos_nueva_ficha(data, user_obj)
 
         if fecha_ingreso:
             fecha = fecha_ingreso.date() if hasattr(fecha_ingreso, 'time') else fecha_ingreso
@@ -1669,6 +1762,9 @@ class DocenteSerializer(serializers.ModelSerializer):
         categoria = validated_data.pop('categoria', 'asistente')
         dedicacion = validated_data.pop('dedicacion', 'horario_40')
         condicion = validated_data.pop('condicion', 'titular')
+        vinculos = validated_data.pop('vinculos_data', None) or [
+            {'carrera': carrera, 'categoria': categoria, 'dedicacion': dedicacion, 'condicion': condicion},
+        ]
         fecha_ingreso = validated_data.pop('fecha_ingreso', None)
         dias_vacacion = validated_data.pop('dias_vacacion', 15)
         horas_feriados = validated_data.pop('horas_feriados_gestion', 128)
@@ -1682,8 +1778,9 @@ class DocenteSerializer(serializers.ModelSerializer):
                 last_name=str(user_data.get('last_name') or '').strip(),
             )
 
-        dedicacion = _dedicacion_para_usuario(dedicacion, user)
-        _validar_dedicacion_compatible_con_roles_gestion(dedicacion, user=user)
+        for vinculo in vinculos:
+            vinculo['dedicacion'] = _dedicacion_para_usuario(vinculo['dedicacion'], user)
+            _validar_dedicacion_compatible_con_roles_gestion(vinculo['dedicacion'], user=user)
 
         # Determinar DatosLaborales a usar:
         # - Si el usuario ya tiene un PerfilUsuario con datos_laborales -> reutilizar.
@@ -1785,16 +1882,26 @@ class DocenteSerializer(serializers.ModelSerializer):
                 debe_cambiar_password=False,
             )
 
-        DocenteCarrera.objects.update_or_create(
-            docente=docente,
-            carrera=carrera,
-            defaults={
-                'categoria': categoria,
-                'dedicacion': dedicacion,
-                'condicion': condicion,
-                'activo': True,
-            },
-        )
+        for vinculo in vinculos:
+            DocenteCarrera.objects.update_or_create(
+                docente=docente,
+                carrera=vinculo['carrera'],
+                defaults={
+                    'categoria': vinculo['categoria'],
+                    'dedicacion': vinculo['dedicacion'],
+                    'condicion': vinculo['condicion'],
+                    'activo': True,
+                },
+            )
+            # La asignación docente de cada carrera queda vinculada a la ficha
+            # (la principal ya la vinculó _ensure_docente_role_for_user).
+            if user and vinculo['carrera'].pk != carrera.pk:
+                AsignacionCarrera.objects.update_or_create(
+                    user=user,
+                    carrera=vinculo['carrera'],
+                    rol='docente',
+                    defaults={'docente': docente, 'activo': user.is_active},
+                )
 
         return docente
 
@@ -2570,17 +2677,23 @@ class UsuarioSerializer(serializers.ModelSerializer):
     asignacion_activa = serializers.SerializerMethodField()
     # Aviso "Falta crear la ficha de docente" (no bloquea al usuario).
     ficha_docente_pendiente = serializers.SerializerMethodField()
+    # Carreras donde es docente (incluye las pausadas por falta de ficha): la ficha
+    # de docente lleva un vínculo por cada una.
+    carreras_docente = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'nombre_completo',
               'is_staff', 'is_superuser', 'is_active', 'date_joined', 'perfil',
               'ci', 'carrera_codigo', 'telefono', 'asignaciones',
-              'asignaciones_activas', 'asignacion_activa', 'ficha_docente_pendiente']
+              'asignaciones_activas', 'asignacion_activa', 'ficha_docente_pendiente', 'carreras_docente']
         read_only_fields = ['id', 'date_joined']
 
     def get_ficha_docente_pendiente(self, obj):
         return ficha_docente_pendiente(obj)
+
+    def get_carreras_docente(self, obj):
+        return carreras_docencia_usuario(obj)
 
     def get_perfil(self, obj):
         """

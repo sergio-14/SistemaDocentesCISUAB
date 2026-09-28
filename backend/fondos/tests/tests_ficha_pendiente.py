@@ -1,9 +1,10 @@
 """Usuario con rol docente sin ficha de docente.
 
-Nunca se desactiva por eso: queda activo, sus cargos (director, jefe, instituto)
-funcionan normal y solo su parte docente queda "pendiente de ficha" (sin fondo de
-tiempo ni carga horaria hasta vincularle la ficha). La API avisa con
-ficha_docente_pendiente.
+- Con un cargo (director, jefe, instituto): queda activo, su cargo funciona y
+  solo su parte docente queda "pendiente de ficha".
+- Solo docente: queda inactivo (marca inactivo_por_ficha_pendiente) hasta que
+  se le crea la ficha; entonces se activa solo, con su asignación docente.
+La API avisa con ficha_docente_pendiente.
 """
 from datetime import date
 
@@ -61,13 +62,13 @@ class FichaDocentePendienteTests(UsuariosBaseTestCase):
         ).exists())
         self.assertTrue(AsignacionCarrera.objects.filter(user=usuario, rol='docente', activo=True).exists())
 
-    def test_docente_solo_sin_ficha_queda_activo_pero_sin_fondo(self):
+    def test_docente_solo_sin_ficha_queda_inactivo_y_sin_fondo(self):
         response, usuario = self._crear('docente_sin_ficha', 'docente', 'FP-2')
 
         self.assertTrue(response.data['ficha_docente_pendiente'])
-        self.client.get('/api/usuarios/')
         usuario.refresh_from_db()
-        self.assertTrue(usuario.is_active)
+        self.assertFalse(usuario.is_active)
+        self.assertTrue(usuario.perfil.inactivo_por_ficha_pendiente)
 
         self._generar_fondos()
 
@@ -89,16 +90,14 @@ class FichaDocentePendienteTests(UsuariosBaseTestCase):
 
         self.assertTrue(FondoTiempo.objects.filter(docente__user=usuario, carrera=self.carrera).exists())
 
-    def test_se_puede_reactivar_sin_ficha(self):
+    def test_solo_docente_sin_ficha_no_se_reactiva_a_mano(self):
         _, usuario = self._crear('reactivable', 'docente', 'FP-4')
 
-        desactivar = self.client.post(f'/api/usuarios/{usuario.pk}/toggle_activo/')
         reactivar = self.client.post(f'/api/usuarios/{usuario.pk}/toggle_activo/')
 
-        self.assertEqual(desactivar.status_code, status.HTTP_200_OK, desactivar.data)
-        self.assertEqual(reactivar.status_code, status.HTTP_200_OK, reactivar.data)
+        self.assertEqual(reactivar.status_code, status.HTTP_400_BAD_REQUEST, reactivar.data)
         usuario.refresh_from_db()
-        self.assertTrue(usuario.is_active)
+        self.assertFalse(usuario.is_active)
 
     def test_sin_rol_docente_no_hay_aviso(self):
         response, _ = self._crear('director_sin_docencia', 'director', 'FP-5')

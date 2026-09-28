@@ -692,6 +692,10 @@ const SearchInput = ({ value, onChange, placeholder = 'Buscar por nombre o C.I..
   );
 };
 
+// Cargos de gestión: con docencia solo admiten dedicación a Tiempo Horario.
+const ROLES_CARGO = ['director', 'jefe_estudios', 'iiisyp'];
+const DEDICACIONES_FICHA = ['tiempo_completo', 'medio_tiempo', ...DEDICACIONES_HORARIO];
+
 const dedicacionStyles = {
   tiempo_completo: {
     bg: 'bg-blue-50 dark:bg-blue-900/10',
@@ -1404,27 +1408,17 @@ function ListaDocentes({ sidebarCollapsed = false }) {
   const usuarioTieneRol = (usuarioItem, rolBuscado) =>
     getRolesActivosUsuario(usuarioItem).includes(String(rolBuscado || '').trim().toLowerCase());
 
-  const getDedicacionPermitidaParaUsuario = (usuarioItem, dedicacionActual = '') => {
-    const tieneRolDirector = usuarioTieneRol(usuarioItem, 'director');
-    const tieneRolJefeEstudios = usuarioTieneRol(usuarioItem, 'jefe_estudios');
-    const tieneRolIisyp = usuarioTieneRol(usuarioItem, 'iiisyp');
-    const tieneRolDocente = usuarioTieneRol(usuarioItem, 'docente');
-    const dedicacion = String(dedicacionActual || '');
-
-    if (tieneRolDirector && !tieneRolDocente && !tieneRolJefeEstudios && !tieneRolIisyp) {
-      return 'dedicacion_exclusiva';
-    }
-
-    if ((tieneRolJefeEstudios || tieneRolIisyp) && !tieneRolDocente && !tieneRolDirector) {
-      return 'tiempo_completo';
-    }
-
-    if (tieneRolDocente && !DEDICACIONES_HORARIO.includes(dedicacion)) {
-      return 'horario_40';
-    }
-
-    return dedicacionActual;
+  // Solo docente: Tiempo Completo, Medio Tiempo u Horario. Con un cargo: solo Horario.
+  // La dedicación exclusiva no va en la ficha (es del Director sin docencia, que no la tiene).
+  const getDedicacionesPermitidas = (usuarioItem) => {
+    if (!usuarioItem) return [];
+    const tieneCargo = ROLES_CARGO.some((rol) => usuarioTieneRol(usuarioItem, rol));
+    return tieneCargo ? DEDICACIONES_HORARIO : DEDICACIONES_FICHA;
   };
+
+  const getDedicacionPermitidaParaUsuario = (usuarioItem, dedicacionActual = '') => (
+    getDedicacionesPermitidas(usuarioItem).includes(String(dedicacionActual || '')) ? dedicacionActual : ''
+  );
 
   const usuarioTienePerfilDocente = (usuarioItem) => Boolean(
     usuarioItem?.perfil?.docente_id || usuarioItem?.perfil?.docente
@@ -1575,7 +1569,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     : usuariosFiltradosAutocomplete.slice(0, 5);
 
   const usuarioSeleccionado = usuarios.find((usuarioItem) => String(usuarioItem.id) === String(formData.user || ''));
-  const usuarioFormularioTieneRolGestion = ['director', 'jefe_estudios', 'iiisyp'].some((rol) =>
+  const usuarioFormularioTieneRolGestion = ROLES_CARGO.some((rol) =>
     usuarioTieneRol(usuarioSeleccionado, rol)
   );
   const usuarioFormularioTieneRolDirector = usuarioTieneRol(usuarioSeleccionado, 'director');
@@ -1589,16 +1583,12 @@ function ListaDocentes({ sidebarCollapsed = false }) {
   const dedicacionEsTiempoHorario = DEDICACIONES_HORARIO.includes(String(formData.dedicacion || ''));
   const esDedicacionExclusiva = formData.dedicacion === 'dedicacion_exclusiva';
   const mostrarAdvertenciaGestion = usuarioFormularioTieneRolGestion && showGestionWarningVisible && !dedicacionEsTiempoHorario && !esDedicacionExclusiva;
-  const opcionesDedicacion = [
-    { value: 'tiempo_completo', label: 'Tiempo Completo' },
-    { value: 'medio_tiempo', label: 'Medio Tiempo' },
-    ...DEDICACIONES_HORARIO.map((value) => ({ value, label: ETIQUETAS_DEDICACION[value] })),
-    { value: 'dedicacion_exclusiva', label: 'Dedicacion Exclusiva' },
-  ].filter((opcion) => (
-    usuarioFormularioTieneRolDocente
-      ? DEDICACIONES_HORARIO.includes(opcion.value)
-      : (!usuarioFormularioTieneRolGestion || opcion.value !== 'dedicacion_exclusiva')
-  ));
+  // Nuevo docente sin usuario seleccionado: sin opciones (el campo queda deshabilitado).
+  // Al editar una ficha sin usuario cargado se ofrecen todas las de la ficha.
+  const opcionesDedicacion = (usuarioSeleccionado || isCreating
+    ? getDedicacionesPermitidas(usuarioSeleccionado)
+    : DEDICACIONES_FICHA
+  ).map((value) => ({ value, label: ETIQUETAS_DEDICACION[value] }));
   const carrerasUsuarioSeleccionado = getCarrerasUsuario(usuarioSeleccionado);
   const carreraSeleccionadaNombre = carrerasUsuarioSeleccionado.length > 0
     ? carrerasUsuarioSeleccionado.join('\n')
@@ -1707,9 +1697,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       payload.ci = ciNormalizado;
       delete payload.condicion;
       delete payload.nombre_completo;
-      if (usuarioFormularioSoloDirector) {
-        payload.dedicacion = 'dedicacion_exclusiva';
-      }
       if (payload.email === '') payload.email = null;
       if (payload.telefono === '') payload.telefono = null;
       payload.user = Number(formData.user);
@@ -2171,6 +2158,8 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                         value={formData.dedicacion}
                         onChange={handleChange}
                         options={opcionesDedicacion}
+                        disabled={!usuarioSeleccionado}
+                        lockTooltip="Seleccione primero un usuario"
                         menuClassName="overflow-visible"
                         error={errors.dedicacion}
                       />

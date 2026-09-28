@@ -48,6 +48,7 @@ from .serializers import (
     datos_registrados_usuario,
     docente_del_usuario,
     texto_datos_registrados,
+    desactivar_si_solo_docente_sin_ficha,
 )
 from .role_context import get_effective_profile, get_active_careers_for_user
 from .solo_lectura import CarreraInactivaSoloLecturaMixin as CarreraInactivaSoloLecturaBase
@@ -248,7 +249,14 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
                 raise PermissionDenied('Solo puedes crear fichas de docente en tu carrera.')
             if serializer.validated_data.get('user_data') or not usuario:
                 raise PermissionDenied('Selecciona un usuario de tu carrera para crear su ficha de docente.')
-            if not AsignacionCarrera.objects.filter(user=usuario, carrera=carrera, activo=True).exists():
+            asignaciones_en_carrera = AsignacionCarrera.objects.filter(user=usuario, carrera=carrera)
+            perfil_usuario = getattr(usuario, 'perfil', None)
+            if perfil_usuario and perfil_usuario.inactivo_por_ficha_pendiente:
+                # Inactivo por falta de ficha: su asignación docente está en pausa.
+                asignaciones_en_carrera = asignaciones_en_carrera.filter(rol='docente')
+            else:
+                asignaciones_en_carrera = asignaciones_en_carrera.filter(activo=True)
+            if not asignaciones_en_carrera.exists():
                 raise PermissionDenied('El usuario seleccionado no pertenece a tu carrera.')
         serializer.save()
 
@@ -3420,9 +3428,11 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         # Releer de la base: el objeto guardado conserva en caché el perfil que la
         # señal crea con rol 'docente', y la respuesta mostraba un rol que no se marcó.
-        # Un rol docente sin ficha no desactiva al usuario: queda "pendiente de
-        # ficha" (ver ficha_docente_pendiente) y sus cargos funcionan normal.
-        user = self._releer_usuario(serializer.save())
+        # Docente con cargo y sin ficha: activo, con su cargo funcionando.
+        # Solo docente y sin ficha: inactivo hasta que se le cree la ficha.
+        user = serializer.save()
+        desactivar_si_solo_docente_sin_ficha(user)
+        user = self._releer_usuario(user)
 
         # Retornar con el serializer de lectura
         output_serializer = UsuarioSerializer(user, context={'request': request})
@@ -3609,6 +3619,10 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         es_reactivacion = not user.is_active
 
         if es_reactivacion:
+            error_ficha = self._validar_reactivacion_sin_ficha(user)
+            if error_ficha:
+                return Response(error_ficha, status=status.HTTP_400_BAD_REQUEST)
+
             # Blindaje estructural de reactivación (normativa UABJB)
             error_reactivacion = self._validar_reactivacion_asignaciones(user)
             if error_reactivacion:
@@ -3630,6 +3644,9 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         else:
             # Reactivar usuario: también activar docente y asignaciones docentes.
             # Los cargos de gestión no vuelven solos: pudieron asignarse a otra persona.
+            PerfilUsuario.objects.filter(user=user, inactivo_por_ficha_pendiente=True).update(
+                inactivo_por_ficha_pendiente=False,
+            )
             if perfil and perfil.docente and not perfil.docente.activo:
                 perfil.docente.activo = True
                 perfil.docente.save(update_fields=['activo'])
@@ -3640,6 +3657,24 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
 
         output_serializer = UsuarioSerializer(user, context={'request': request})
         return Response(output_serializer.data)
+
+    @staticmethod
+    def _validar_reactivacion_sin_ficha(user):
+        """Un usuario que al reactivarse quedaría solo docente necesita su ficha.
+
+        Al reactivar vuelven sus asignaciones docentes, pero no sus cargos.
+        """
+        perfil = PerfilUsuario.objects.filter(user=user).first()
+        roles = {perfil.rol} if perfil and perfil.rol else set()
+        if user.asignaciones_carrera.filter(rol='docente').exists():
+            roles.add('docente')
+        if roles == {'docente'} and docente_del_usuario(user) is None:
+            mensaje = (
+                'No se puede activar: el usuario solo es docente y aún no tiene ficha de docente. '
+                'Se activará automáticamente al crearle la ficha.'
+            )
+            return {'error': mensaje, 'detail': mensaje}
+        return None
 
     def _validar_reactivacion_asignaciones(self, user):
         """

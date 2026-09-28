@@ -2134,6 +2134,9 @@ class PerfilUsuario(models.Model):
     foto_perfil_mime = models.CharField(max_length=64, blank=True, default='')
     debe_cambiar_password = models.BooleanField(default=True, help_text="Indica si el usuario debe cambiar su contraseña en el próximo inicio de sesión")
     activo = models.BooleanField(default=True)
+    # Desactivación automática (no manual): usuario solo docente sin ficha de
+    # docente. Se reactiva solo al crearle la ficha.
+    inactivo_por_ficha_pendiente = models.BooleanField(default=False)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 
     # Auditoría: quién cambió qué y cuándo (usuario vía HistoryRequestMiddleware).

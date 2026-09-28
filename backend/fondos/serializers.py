@@ -413,19 +413,60 @@ def usuario_tiene_uso_de_rol(user, perfil_actual=None):
 
 
 def ficha_docente_pendiente(user):
-    """True si el usuario tiene rol docente activo pero todavía no tiene ficha de docente.
+    """True si el usuario tiene rol docente pero todavía no tiene ficha de docente.
 
-    No lo desactiva: sus cargos funcionan normal y solo su parte docente queda
-    pendiente (sin ficha no hay fondo de tiempo ni carga horaria).
+    Con un cargo (Director, Jefe, Instituto) sigue activo y solo su parte docente
+    queda pendiente. Si solo es docente, queda inactivo hasta crearle la ficha
+    (ver desactivar_si_solo_docente_sin_ficha).
     """
     if not user or user.is_superuser:
         return False
     perfil = PerfilUsuario.objects.filter(user=user).first()
     tiene_docencia = (
         AsignacionCarrera.objects.filter(user=user, rol='docente', activo=True).exists()
-        or (perfil is not None and perfil.rol == 'docente')
+        or (perfil is not None and (perfil.rol == 'docente' or perfil.inactivo_por_ficha_pendiente))
     )
     return tiene_docencia and docente_del_usuario(user) is None
+
+
+def roles_actuales_usuario(user):
+    """Rol principal del perfil más los roles de sus asignaciones activas."""
+    perfil = PerfilUsuario.objects.filter(user=user).first()
+    roles = set(AsignacionCarrera.objects.filter(user=user, activo=True).values_list('rol', flat=True))
+    if perfil and perfil.rol:
+        roles.add(perfil.rol)
+    return roles
+
+
+def desactivar_si_solo_docente_sin_ficha(user):
+    """Un usuario solo docente (sin cargo) no trabaja sin ficha de docente.
+
+    Queda inactivo con la marca inactivo_por_ficha_pendiente, que lo distingue
+    de una desactivación manual: solo esa marca lo reactiva al crearle la ficha.
+    """
+    if not user or user.is_superuser or not user.is_active:
+        return False
+    if roles_actuales_usuario(user) != {'docente'} or docente_del_usuario(user) is not None:
+        return False
+    PerfilUsuario.objects.filter(user=user).update(inactivo_por_ficha_pendiente=True)
+    user.is_active = False
+    # La señal guardar_perfil_usuario inactiva el perfil y sus asignaciones.
+    user.save(update_fields=['is_active'])
+    return True
+
+
+def activar_por_ficha_creada(user):
+    """Reactiva al usuario que el sistema desactivó por falta de ficha (no al desactivado a mano)."""
+    perfil = PerfilUsuario.objects.filter(user=user).first()
+    if not perfil or not perfil.inactivo_por_ficha_pendiente:
+        return False
+    perfil.inactivo_por_ficha_pendiente = False
+    perfil.save(update_fields=['inactivo_por_ficha_pendiente'])
+    if not user.is_active:
+        user.is_active = True
+        user.save(update_fields=['is_active'])
+    actualizar_con_historial(user.asignaciones_carrera.filter(rol='docente', activo=False), activo=True)
+    return True
 
 
 def docente_del_usuario(user):
@@ -637,6 +678,8 @@ MENSAJE_INCOMPATIBILIDAD_DEDICACION = 'Seg\u00fan normativa UABJB, los cargos de
 MENSAJE_DOCENTE_DEDICACION_EXCLUSIVA = 'Los usuarios con rol docente deben registrar dedicacion a Tiempo Horario.'
 MENSAJE_DOCENTE_OTRA_CARRERA = 'La carga docente de un cargo de autoridad debe pertenecer a su misma carrera (dedicación exclusiva UABJB).'
 MENSAJE_CARRERA_OBLIGATORIA = 'Debe seleccionar una carrera para cada rol asignado.'
+MENSAJE_EXCLUSIVA_FUERA_DE_FICHA = 'La dedicación exclusiva no se registra en la ficha de docente: solo aplica al Director sin docencia, que no tiene ficha.'
+MENSAJE_FICHA_SOLO_DOCENTES = 'Solo los usuarios con rol docente tienen ficha de docente.'
 
 
 def _validar_carrera_en_bloques(bloques):
@@ -1487,6 +1530,28 @@ class DocenteSerializer(serializers.ModelSerializer):
         ci_normalizado = (value or '').strip()
         return ci_normalizado
 
+    def _validar_reglas_ficha(self, data, dedicacion, user):
+        """Reglas de la ficha de docente:
+
+        - Solo tienen ficha los usuarios con rol docente.
+        - Dedicación exclusiva: no se registra aquí (es del Director sin
+          docencia, que no tiene ficha). Se respeta la que ya tenga un registro.
+        - Solo docente: Tiempo Completo, Medio Tiempo u Horario. Con cargo:
+          solo Horario (lo valida _validar_dedicacion_compatible_con_roles_gestion).
+        """
+        dedicacion_actual = None
+        if self.instance:
+            vinculo = self.instance.vinculos_carrera.first()
+            dedicacion_actual = vinculo.dedicacion if vinculo else None
+        if dedicacion == 'dedicacion_exclusiva' and dedicacion != dedicacion_actual:
+            raise serializers.ValidationError({'dedicacion': MENSAJE_EXCLUSIVA_FUERA_DE_FICHA})
+
+        if not self.instance and user is not None:
+            perfil = PerfilUsuario.objects.filter(user=user).first()
+            pendiente = bool(perfil and perfil.inactivo_por_ficha_pendiente)
+            if 'docente' not in roles_actuales_usuario(user) and not pendiente:
+                raise serializers.ValidationError({'user': MENSAJE_FICHA_SOLO_DOCENTES})
+
     def _validar_ci(self, data):
         """C.I. único y, en un docente existente, editable solo sin historial."""
         if 'ci' not in data:
@@ -1575,6 +1640,7 @@ class DocenteSerializer(serializers.ModelSerializer):
         )
         docente_obj = self.instance if self.instance else None
         user_obj = data.get('user', self.instance.user if self.instance else None)
+        self._validar_reglas_ficha(data, dedicacion, user_obj)
         _validar_dedicacion_compatible_con_roles_gestion(dedicacion, docente=docente_obj, user=user_obj)
 
         if fecha_ingreso:
@@ -1682,10 +1748,9 @@ class DocenteSerializer(serializers.ModelSerializer):
         docente = super().create(validated_data)
 
         if user:
-            # Al vincular un docente a un usuario, asegurarse que el usuario quede activo
-            if not user.is_active:
-                user.is_active = True
-                user.save(update_fields=['is_active'])
+            # Con la ficha, el usuario desactivado por no tenerla vuelve a estar
+            # activo (con su asignación docente). Uno desactivado a mano, no.
+            activar_por_ficha_creada(user)
 
             if _usuario_tiene_rol_docente_activo(user):
                 perfil = _ensure_docente_role_for_user(user=user, docente=docente, carrera=carrera, force_primary_role=False)
@@ -1700,9 +1765,9 @@ class DocenteSerializer(serializers.ModelSerializer):
                 perfil.ci = effective_ci
                 perfil.save(update_fields=['ci'])
 
-            # Asegurar que el perfil quede activo
-            if perfil and not perfil.activo:
-                perfil.activo = True
+            # El perfil sigue el estado del usuario.
+            if perfil and perfil.activo != user.is_active:
+                perfil.activo = user.is_active
                 perfil.save(update_fields=['activo'])
         else:
             PerfilUsuario.objects.create(
@@ -3118,6 +3183,9 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
         rol = data.get('rol', rol_actual)
         carrera_final = data.get('carrera', carrera_actual)
         is_active_final = data.get('is_active', self.instance.is_active)
+        # Inactivo por falta de ficha: si recibe un cargo, queda activo con él.
+        if perfil_actual and perfil_actual.inactivo_por_ficha_pendiente:
+            is_active_final = True
         es_superusuario_objetivo = bool(self.instance.is_superuser)
 
         # Regla de inmutabilidad de rol con uso real del sistema.
@@ -3236,6 +3304,12 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
         roles_extra = [a.get('rol') for a in (asignaciones_extra or [])]
         roles_totales = [final_rol] + roles_extra
         tiene_rol_docente = 'docente' in roles_totales
+        if asignaciones_extra is not None:
+            roles_finales = set(roles_totales)
+        else:
+            roles_finales = {final_rol} | set(
+                AsignacionCarrera.objects.filter(user=instance, activo=True).values_list('rol', flat=True)
+            )
 
         # Actualizar el rol en el perfil
         perfil.rol = final_rol
@@ -3344,6 +3418,22 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
                 defaults={'fecha_ingreso': timezone.now().date()}
             )
         
+        # 5.2 Solo docente y sin ficha: inactivo hasta crearle la ficha. Con un
+        # cargo (o ya con ficha) vuelve a estar activo si el sistema lo había desactivado.
+        solo_docente_sin_ficha = roles_finales == {'docente'} and perfil.docente is None
+        reactivar_por_ficha = False
+        if perfil.inactivo_por_ficha_pendiente:
+            if solo_docente_sin_ficha:
+                instance.is_active = False
+            else:
+                perfil.inactivo_por_ficha_pendiente = False
+                instance.is_active = True
+                reactivar_por_ficha = True
+        elif instance.is_active and solo_docente_sin_ficha and not instance.is_superuser:
+            perfil.inactivo_por_ficha_pendiente = True
+            instance.is_active = False
+        perfil.activo = instance.is_active
+
         # 6. Guardar el perfil con todos los cambios
         perfil.save()
 
@@ -3358,6 +3448,8 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
         
         # 7. Guardar el usuario. La señal post_save se encargará de sincronizar es_active.
         instance.save()
+        if reactivar_por_ficha:
+            actualizar_con_historial(instance.asignaciones_carrera.filter(rol='docente', activo=False), activo=True)
 
         # Regla de independencia: si el usuario queda inactivo, también se inactiva su docente vinculado.
         if instance.is_active is False and perfil.docente and perfil.docente.activo:

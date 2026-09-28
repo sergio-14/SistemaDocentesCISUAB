@@ -862,6 +862,8 @@ function ListaDocentes({ sidebarCollapsed = false }) {
   // Nuevo docente con docencia en varias carreras: dedicación y categoría de cada
   // carrera que no es la principal ({ [carreraId]: { dedicacion, categoria } }).
   const [vinculosExtra, setVinculosExtra] = useState({});
+  // Editar docente: condición (titular o invitado) de cada carrera de la ficha.
+  const [condicionesEdicion, setCondicionesEdicion] = useState([]);
   const [formData, setFormData] = useState({
     user: '',
     username: '',
@@ -1335,6 +1337,13 @@ function ListaDocentes({ sidebarCollapsed = false }) {
 
   const abrirModalEditar = (docente) => {
     setDocenteSeleccionado(docente);
+    setCondicionesEdicion((docente.vinculos || [])
+      .filter((vinculo) => vinculo.activo !== false)
+      .map((vinculo) => ({
+        carrera: vinculo.carrera,
+        carrera_nombre: vinculo.carrera_nombre,
+        condicion: vinculo.condicion || '',
+      })));
     setFormData({
       user: docente.user_id || docente.usuario_id || '',
       username: '',
@@ -1851,6 +1860,15 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       return;
     }
 
+    const sinCondicion = condicionesEdicion.find((item) => !item.condicion);
+    if (sinCondicion) {
+      const mensaje = `Seleccione la condición en ${sinCondicion.carrera_nombre}.`;
+      setErrors((prev) => ({ ...prev, [`condicion_${sinCondicion.carrera}`]: [mensaje] }));
+      toast.error(mensaje);
+      setIsSubmitting(false);
+      return;
+    }
+
     const errorFechaIngreso = validarFechaIngreso(formData.fecha_ingreso);
     if (errorFechaIngreso) {
       setErrors((prev) => ({ ...prev, fecha_ingreso: [errorFechaIngreso] }));
@@ -1874,6 +1892,9 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       delete payload.cargo_profesional;
       delete payload.condicion;
       delete payload.nombre_completo;
+      if (condicionesEdicion.length > 0) {
+        payload.vinculos_data = condicionesEdicion.map(({ carrera, condicion }) => ({ carrera, condicion }));
+      }
       if (usuarioFormularioSoloDirector) {
         payload.dedicacion = 'dedicacion_exclusiva';
       }
@@ -2718,6 +2739,28 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                     containerClassName={estiloAdvertenciaEditable}
                   />
                 )}
+                {condicionesEdicion.map((item) => (
+                  <SelectConDropdown
+                    key={item.carrera}
+                    label={condicionesEdicion.length > 1 ? `Condicion en ${item.carrera_nombre}` : 'Condicion'}
+                    name={`condicion_${item.carrera}`}
+                    value={item.condicion}
+                    onChange={(e) => {
+                      const valor = e.target.value;
+                      setCondicionesEdicion((prev) => prev.map((actual) => (
+                        actual.carrera === item.carrera ? { ...actual, condicion: valor } : actual
+                      )));
+                      setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next[`condicion_${item.carrera}`];
+                        return next;
+                      });
+                    }}
+                    options={OPCIONES_CONDICION}
+                    error={errors[`condicion_${item.carrera}`] || errors.condicion}
+                    containerClassName={estiloAdvertenciaEditable}
+                  />
+                ))}
                 <div className="md:col-span-2 grid grid-cols-1 gap-4 md:grid-cols-2 md:items-center">
                   <div className="min-w-0">
                     {!usuarioFormularioSoloDirector && (

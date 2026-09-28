@@ -1625,6 +1625,22 @@ class DocenteSerializer(serializers.ModelSerializer):
             })
         return vinculos
 
+    def _validar_condiciones_edicion(self, crudos):
+        """Al editar: la condición (titular o invitado) de cada carrera que ya tiene la ficha."""
+        condiciones = dict(DocenteCarrera.CONDICION_CHOICES)
+        cambios = []
+        for crudo in crudos:
+            vinculo = self.instance.vinculos_carrera.filter(carrera_id=crudo.get('carrera')).select_related('carrera').first()
+            if not vinculo:
+                raise serializers.ValidationError({'vinculos_data': 'Solo se edita la condición de las carreras que ya tiene la ficha.'})
+            condicion = crudo.get('condicion')
+            if condicion not in condiciones:
+                raise serializers.ValidationError({
+                    'condicion': f'Seleccione la condición (titular o invitado) en {vinculo.carrera.nombre}.',
+                })
+            cambios.append((vinculo, condicion))
+        return cambios
+
     def _validar_reglas_ficha(self, data, dedicacion, user):
         """Reglas de la ficha de docente:
 
@@ -1738,6 +1754,8 @@ class DocenteSerializer(serializers.ModelSerializer):
         if self.instance:
             self._validar_reglas_ficha(data, dedicacion, user_obj)
             _validar_dedicacion_compatible_con_roles_gestion(dedicacion, docente=docente_obj, user=user_obj)
+            if 'vinculos_data' in data:
+                data['vinculos_data'] = self._validar_condiciones_edicion(data['vinculos_data'])
         else:
             data['vinculos_data'] = self._validar_vinculos_nueva_ficha(data, user_obj)
 
@@ -1912,6 +1930,7 @@ class DocenteSerializer(serializers.ModelSerializer):
         categoria = validated_data.pop('categoria', serializers.empty)
         dedicacion = validated_data.pop('dedicacion', serializers.empty)
         condicion = validated_data.pop('condicion', serializers.empty)
+        condiciones_por_carrera = validated_data.pop('vinculos_data', None) or []
         user = validated_data.pop('user', serializers.empty)
         validated_data.pop('user_data', None)
 
@@ -1981,6 +2000,12 @@ class DocenteSerializer(serializers.ModelSerializer):
                 perfil.save(update_fields=cambios)
             if docente.user_id and _usuario_tiene_rol_docente_activo(docente.user):
                 _ensure_docente_role_for_user(user=docente.user, docente=docente, carrera=carrera, force_primary_role=False)
+
+        for vinculo, condicion_carrera in condiciones_por_carrera:
+            vinculo.refresh_from_db()
+            if vinculo.condicion != condicion_carrera:
+                vinculo.condicion = condicion_carrera
+                vinculo.save(update_fields=['condicion'])
 
         if activo_en_request is False:
             perfiles_vinculados = PerfilUsuario.objects.filter(docente=docente, user__isnull=False).select_related('user')

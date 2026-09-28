@@ -29,6 +29,7 @@ from .models import (
     AsignacionCarrera,
 )
 from .serializers import (
+    AgregarCarreraDocenteSerializer,
     DocenteSerializer, CarreraSerializer, MateriaSerializer, FondoTiempoSerializer,
     FondoTiempoListSerializer, CategoriaFuncionSerializer, CargaHorariaSerializer,
     UsuarioSerializer, CrearUsuarioSerializer, ActualizarUsuarioSerializer,
@@ -185,6 +186,9 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         # Crear la ficha: superusuario o Director (en su carrera, ver perform_create).
         if self.action == 'create':
             return [IsFullAdminOrDirectorCarrera()]
+        # Agregar a la ficha otra carrera donde es docente: solo el superusuario.
+        if self.action == 'agregar_carrera':
+            return [IsFullAdmin()]
         # Editar y eliminar: ESTRICTAMENTE para Admin Real (bloquea a Jefe de Estudios).
         if self.action in ['update', 'partial_update', 'destroy']:
             return [IsFullAdmin()]
@@ -300,6 +304,19 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
                 'fecha_ingreso': 'La fecha de ingreso es obligatoria: use la fecha de la planilla de RR.HH.',
             })
         serializer.save()
+
+    @action(detail=True, methods=['post'], url_path='agregar-carrera')
+    def agregar_carrera(self, request, pk=None):
+        """Agrega el vínculo (dedicación, categoría, condición) con otra carrera donde el usuario es docente."""
+        docente = self.get_object()
+        serializer = AgregarCarreraDocenteSerializer(data=request.data, context={'docente': docente})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        docente = Docente.objects.get(pk=docente.pk)
+        return Response(
+            DocenteSerializer(docente, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     def destroy(self, request, *args, **kwargs):
         """

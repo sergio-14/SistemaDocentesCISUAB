@@ -864,6 +864,12 @@ function ListaDocentes({ sidebarCollapsed = false }) {
   const [vinculosExtra, setVinculosExtra] = useState({});
   // Editar docente: condición (titular o invitado) de cada carrera de la ficha.
   const [condicionesEdicion, setCondicionesEdicion] = useState([]);
+  // Agregar carrera (solo superusuario): vínculo con otra carrera donde el usuario ya es docente.
+  const FORM_AGREGAR_CARRERA_VACIO = { carrera: '', dedicacion: '', categoria: 'catedratico', condicion: '' };
+  const [docenteAgregarCarrera, setDocenteAgregarCarrera] = useState(null);
+  const [formAgregarCarrera, setFormAgregarCarrera] = useState(FORM_AGREGAR_CARRERA_VACIO);
+  const [erroresAgregarCarrera, setErroresAgregarCarrera] = useState({});
+  const [guardandoCarrera, setGuardandoCarrera] = useState(false);
   const [formData, setFormData] = useState({
     user: '',
     username: '',
@@ -1332,6 +1338,54 @@ function ListaDocentes({ sidebarCollapsed = false }) {
 
       return newState;
     });
+  };
+
+  const abrirAgregarCarrera = (docente) => {
+    const primera = docente?.carreras_sin_vinculo?.[0];
+    setDocenteAgregarCarrera(docente);
+    setFormAgregarCarrera({ ...FORM_AGREGAR_CARRERA_VACIO, carrera: primera ? String(primera.id) : '' });
+    setErroresAgregarCarrera({});
+  };
+
+  const cerrarAgregarCarrera = () => {
+    if (guardandoCarrera) return;
+    setDocenteAgregarCarrera(null);
+  };
+
+  const guardarAgregarCarrera = async () => {
+    const faltantes = {};
+    ['carrera', 'dedicacion', 'categoria', 'condicion'].forEach((campo) => {
+      if (!formAgregarCarrera[campo]) faltantes[campo] = ['Este campo es obligatorio.'];
+    });
+    if (Object.keys(faltantes).length > 0) {
+      setErroresAgregarCarrera(faltantes);
+      toast.error('Complete carrera, dedicación, categoría y condición.');
+      return;
+    }
+    setGuardandoCarrera(true);
+    try {
+      const { data } = await api.post(`/docentes/${docenteAgregarCarrera.id}/agregar-carrera/`, formAgregarCarrera);
+      setDocentes((prev) => prev.map((d) => (d.id === data.id ? data : d)));
+      if (docenteSeleccionado?.id === data.id) {
+        setDocenteSeleccionado(data);
+        // Suma la carrera nueva a las condiciones editables, sin perder lo ya cambiado.
+        setCondicionesEdicion((prev) => (data.vinculos || [])
+          .filter((vinculo) => vinculo.activo !== false)
+          .map((vinculo) => prev.find((item) => String(item.carrera) === String(vinculo.carrera)) || {
+            carrera: vinculo.carrera,
+            carrera_nombre: vinculo.carrera_nombre,
+            condicion: vinculo.condicion || '',
+          }));
+      }
+      toast.success('Carrera agregada a la ficha del docente');
+      setDocenteAgregarCarrera(null);
+    } catch (err) {
+      const apiErrors = err.response?.data;
+      if (apiErrors && typeof apiErrors === 'object') setErroresAgregarCarrera(normalizeErrors(apiErrors));
+      toast.error(getBackendErrorMessage(apiErrors, 'No se pudo agregar la carrera'));
+    } finally {
+      setGuardandoCarrera(false);
+    }
   };
 
   const abrirModalEditar = (docente) => {
@@ -2479,6 +2533,24 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                           <h3 className={`text-lg font-bold truncate ${docente.activo ? 'text-blue-600 dark:text-white' : 'text-red-700 dark:text-red-300'}`}>
                             {docente.usuario_nombre || docente.nombre_completo}
                           </h3>
+                          {(docente.carreras_sin_vinculo || []).length > 0 && (
+                            <div className="mt-1 space-y-1">
+                              {docente.carreras_sin_vinculo.map((carrera) => (
+                                <p key={carrera.id} className="text-sm font-semibold text-amber-600 dark:text-amber-400">
+                                  ⚠️ Falta completar la docencia en {carrera.nombre}
+                                </p>
+                              ))}
+                              {user?.is_superuser && (
+                                <button
+                                  type="button"
+                                  onClick={() => abrirAgregarCarrera(docente)}
+                                  className="text-sm font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                                >
+                                  Agregar carrera
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                       {/* Botones de acción - Solo admin */}
@@ -2760,6 +2832,20 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                     containerClassName={estiloAdvertenciaEditable}
                   />
                 ))}
+                {user?.is_superuser && (docenteSeleccionado?.carreras_sin_vinculo || []).length > 0 && (
+                  <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
+                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                      Falta completar la docencia en {docenteSeleccionado.carreras_sin_vinculo.map((carrera) => carrera.nombre).join(', ')}.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => abrirAgregarCarrera(docenteSeleccionado)}
+                      className="px-4 py-2 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700"
+                    >
+                      Agregar carrera
+                    </button>
+                  </div>
+                )}
                 <div className="md:col-span-2 grid grid-cols-1 gap-4 md:grid-cols-2 md:items-center">
                   <div className="min-w-0">
                     {!usuarioFormularioSoloDirector && (
@@ -2957,6 +3043,97 @@ function ListaDocentes({ sidebarCollapsed = false }) {
           </div>
         </div>
       ), document.body)}
+
+      {/* Modal Agregar carrera (solo superusuario) */}
+      {docenteAgregarCarrera && createPortal((() => {
+        const usuarioDocente = usuarios.find((usuarioItem) => (
+          String(usuarioItem.id) === String(docenteAgregarCarrera.usuario_id || docenteAgregarCarrera.user_id || '')
+        ));
+        // Con cargo, solo Horario. Si el usuario no está en la lista, el backend aplica la regla.
+        const opcionesDedicacionCarrera = (usuarioDocente ? getDedicacionesPermitidas(usuarioDocente) : DEDICACIONES_FICHA)
+          .map((value) => ({ value, label: ETIQUETAS_DEDICACION[value] }));
+        const horasActuales = (docenteAgregarCarrera.vinculos || [])
+          .filter((vinculo) => vinculo.activo !== false)
+          .reduce((total, vinculo) => total + Number(vinculo.horas_semanales || 0), 0);
+        const cambiarCampo = (e) => {
+          const { name, value } = e.target;
+          setFormAgregarCarrera((prev) => ({ ...prev, [name]: value }));
+          setErroresAgregarCarrera((prev) => {
+            const next = { ...prev };
+            delete next[name];
+            return next;
+          });
+        };
+        return (
+          <div
+            className="fixed top-0 right-0 bottom-0 z-[80] flex items-center justify-center p-4"
+            style={{ left: sidebarCollapsed ? '5rem' : '18rem' }}
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={cerrarAgregarCarrera} />
+            <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl">
+              <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                <h4 className="text-lg font-bold text-slate-800 dark:text-white">Agregar carrera</h4>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                  {docenteAgregarCarrera.usuario_nombre || docenteAgregarCarrera.nombre_completo}: ya tiene {horasActuales} h/semana en sus
+                  otras carreras; le quedan {Math.max(TOPE_HORAS_SEMANALES_FONDO - horasActuales, 0)} h/semana hasta el tope de {TOPE_HORAS_SEMANALES_FONDO}.
+                </p>
+              </div>
+              <div className="px-5 py-4 grid grid-cols-1 md:grid-cols-2 gap-5">
+                <SelectConDropdown
+                  label="Carrera"
+                  name="carrera"
+                  value={formAgregarCarrera.carrera}
+                  onChange={cambiarCampo}
+                  options={(docenteAgregarCarrera.carreras_sin_vinculo || []).map((carrera) => ({ value: String(carrera.id), label: carrera.nombre }))}
+                  error={erroresAgregarCarrera.carrera}
+                />
+                <SelectConDropdown
+                  label="Dedicacion"
+                  name="dedicacion"
+                  value={formAgregarCarrera.dedicacion}
+                  onChange={cambiarCampo}
+                  options={opcionesDedicacionCarrera}
+                  menuClassName="overflow-visible"
+                  error={erroresAgregarCarrera.dedicacion}
+                />
+                <SelectConDropdown
+                  label="Categoria"
+                  name="categoria"
+                  value={formAgregarCarrera.categoria}
+                  onChange={cambiarCampo}
+                  options={OPCIONES_CATEGORIA}
+                  error={erroresAgregarCarrera.categoria}
+                />
+                <SelectConDropdown
+                  label="Condicion"
+                  name="condicion"
+                  value={formAgregarCarrera.condicion}
+                  onChange={cambiarCampo}
+                  options={OPCIONES_CONDICION}
+                  error={erroresAgregarCarrera.condicion}
+                />
+              </div>
+              <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={cerrarAgregarCarrera}
+                  className="px-4 py-2 rounded-lg font-semibold text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={guardarAgregarCarrera}
+                  disabled={guardandoCarrera}
+                  className="px-4 py-2 rounded-lg font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {guardandoCarrera ? 'Guardando...' : 'Agregar carrera'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })(), document.body)}
 
       {/* Modal de Confirmacion de Eliminacion */}
       {showDeleteModal && createPortal((

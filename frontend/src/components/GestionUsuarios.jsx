@@ -1302,7 +1302,6 @@ function GestionUsuarios({ isDark, sidebarCollapsed = false, user, hasSidebar = 
         setIndiceAsignacionActiva(0);
         sessionStorage.removeItem('datosCrearUsuario');
         sessionStorage.removeItem('docenteRetornadoDesdeUsuarios');
-        sessionStorage.removeItem('flujoDocenteDesdeUsuarios');
         // Abrir el modal automáticamente con los datos recuperados
         setIsCreating(true);
         setAbrirModalAlVolver(false);
@@ -1684,7 +1683,6 @@ const initialData = {
       ci: '',
       telefono: '',
     }));
-    sessionStorage.setItem('flujoDocenteDesdeUsuarios', 'crear_usuario');
     sessionStorage.setItem('abrirModalDesdeUsuarios', 'true');
     // Marcar para abrir modal al volver
     setAbrirModalAlVolver(true);
@@ -2233,7 +2231,6 @@ const initialData = {
       setAsignacionesExtra([]);
       setIndiceAsignacionActiva(0);
       sessionStorage.removeItem('docenteTemporalDesdeUsuarios');
-      sessionStorage.removeItem('flujoDocenteDesdeUsuarios');
       if (volverANuevoDocente) {
         sessionStorage.setItem('datosCrearUsuario', JSON.stringify({
           ...formData,

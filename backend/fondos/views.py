@@ -1037,8 +1037,9 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
         if perfil.rol in ['director', 'jefe_estudios', 'iiisyp']:
             carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
             if carreras_activas.exists():
+                # Solo las cargas de su carrera, aunque el docente enseñe también en otra.
                 docentes_carrera = _docentes_por_carreras(carreras_activas)
-                return queryset.filter(docente__in=docentes_carrera)
+                return queryset.filter(docente__in=docentes_carrera, calendario__carrera__in=carreras_activas)
             return queryset.none()
 
         if perfil.rol == 'docente' and perfil.docente:

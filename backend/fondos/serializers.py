@@ -583,6 +583,65 @@ def docente_tiene_historial_operativo(docente):
     )
 
 
+def carreras_del_director(context):
+    """Ids de las carreras del Director que consulta; None si puede ver todas las carreras.
+
+    El Director solo ve el vínculo de su carrera de un docente que enseña en varias.
+    Se calcula una vez por respuesta (queda en el contexto del serializer).
+    """
+    if '_carreras_director' not in context:
+        ids = None
+        request = context.get('request')
+        viewer = getattr(request, 'user', None)
+        if viewer and viewer.is_authenticated and not viewer.is_superuser:
+            perfil = get_effective_profile(viewer, request)
+            if perfil and perfil.rol == 'director':
+                ids = set(get_active_careers_for_user(viewer, request).values_list('id', flat=True))
+        context['_carreras_director'] = ids
+    return context['_carreras_director']
+
+
+def vinculos_visibles(docente, context):
+    """Vínculos de la ficha que puede ver quien consulta (el Director, solo los de su carrera)."""
+    vinculos = docente.vinculos_carrera.select_related('carrera')
+    propias = carreras_del_director(context)
+    return vinculos if propias is None else vinculos.filter(carrera_id__in=propias)
+
+
+def validar_fecha_ingreso(fecha_ingreso):
+    """No futura (hora de Bolivia) ni anterior a la fundación de la UABJB."""
+    fecha = fecha_ingreso.date() if hasattr(fecha_ingreso, 'time') else fecha_ingreso
+    if fecha > timezone.localdate():
+        raise serializers.ValidationError({'fecha_ingreso': 'La fecha de ingreso no puede ser una fecha futura.'})
+    if fecha < fecha.replace(year=1967, month=11, day=18):
+        raise serializers.ValidationError({'fecha_ingreso': 'La fecha de ingreso no puede ser anterior a la fundacion de la UABJB (18 de noviembre de 1967).'})
+
+
+def validar_cambio_fecha_ingreso(datos_laborales, fecha_nueva):
+    """Con historial (fondos, cargas o saldos), la fecha de ingreso del docente queda fija.
+
+    La usan la edición del docente y PATCH /api/datos-laborales/.
+    """
+    if not datos_laborales or datos_laborales.fecha_ingreso == fecha_nueva:
+        return
+    docente = Docente.objects.filter(datos_laborales=datos_laborales).first()
+    if docente and docente_tiene_historial_operativo(docente):
+        raise serializers.ValidationError({
+            'fecha_ingreso': 'No se puede cambiar la fecha de ingreso porque el docente ya tiene historial (fondos, cargas horarias o saldos).',
+        })
+
+
+def usuario_con_varias_carreras_docentes(user):
+    """True si la ficha del usuario abarca dos o más carreras: sus datos compartidos solo los edita el superusuario."""
+    if not user:
+        return False
+    carreras = set(carreras_docencia_usuario(user))
+    docente = docente_del_usuario(user)
+    if docente:
+        carreras |= set(docente.vinculos_carrera.filter(activo=True).values_list('carrera_id', flat=True))
+    return len(carreras) >= 2
+
+
 def perfil_ci_es_reutilizable(perfil_ci, rol_objetivo):
     if not perfil_ci or perfil_ci.user_id:
         return False
@@ -1542,9 +1601,9 @@ class DocenteSerializer(serializers.ModelSerializer):
     )
     carrera_id = serializers.SerializerMethodField()
     carrera_nombre = serializers.SerializerMethodField()
-    vinculos = DocenteCarreraSerializer(
-        source='vinculos_carrera', many=True, read_only=True
-    )
+    # Al Director: solo el vínculo de su carrera; de las otras, un resumen.
+    vinculos = serializers.SerializerMethodField()
+    resumen_otras_carreras = serializers.SerializerMethodField()
 
     class Meta:
         model = Docente
@@ -1558,7 +1617,7 @@ class DocenteSerializer(serializers.ModelSerializer):
             'horas_declaradas', 'fondos_validados', 'tiene_historial', 'carreras_sin_vinculo',
             'carrera', 'carrera_id', 'carrera_nombre',
             'categoria', 'dedicacion', 'condicion',
-            'vinculos', 'vinculos_data', 'activo',
+            'vinculos', 'vinculos_data', 'resumen_otras_carreras', 'activo',
             'fecha_creacion', 'fecha_modificacion',
         ]
         read_only_fields = ['fecha_creacion', 'fecha_modificacion']
@@ -1590,12 +1649,26 @@ class DocenteSerializer(serializers.ModelSerializer):
         return obj.user_id or self.get_usuario_id(obj)
 
     def get_carrera_id(self, obj):
-        vinculo = obj.vinculos_carrera.filter(activo=True).select_related('carrera').first()
+        vinculo = vinculos_visibles(obj, self.context).filter(activo=True).first()
         return vinculo.carrera_id if vinculo else None
 
     def get_carrera_nombre(self, obj):
-        vinculo = obj.vinculos_carrera.filter(activo=True).select_related('carrera').first()
+        vinculo = vinculos_visibles(obj, self.context).filter(activo=True).first()
         return vinculo.carrera.nombre if vinculo and vinculo.carrera else None
+
+    def get_vinculos(self, obj):
+        return DocenteCarreraSerializer(vinculos_visibles(obj, self.context), many=True).data
+
+    def get_resumen_otras_carreras(self, obj):
+        """Al Director, sin detalle de las otras carreras: solo que existen y las horas que le quedan."""
+        propias = carreras_del_director(self.context)
+        if propias is None:
+            return None
+        activos = list(obj.vinculos_carrera.filter(activo=True))
+        if not any(vinculo.carrera_id not in propias for vinculo in activos):
+            return None
+        total = sum((vinculo.horas_semanales_maximas for vinculo in activos), Decimal('0'))
+        return {'horas_disponibles': float(max(TOPE_HORAS_SEMANALES_FONDO - total, Decimal('0')))}
 
     def get_usuario_rol(self, obj):
         """Retorna el rol principal del usuario (del perfil)."""
@@ -1618,6 +1691,9 @@ class DocenteSerializer(serializers.ModelSerializer):
             return []
         
         asignaciones = usuario.asignaciones_carrera.all().order_by('-activo', 'id') if hasattr(usuario, 'asignaciones_carrera') else []
+        propias = carreras_del_director(self.context)
+        if propias is not None:
+            asignaciones = asignaciones.filter(carrera_id__in=propias)
         resultado = []
         for asignacion in asignaciones:
             resultado.append({
@@ -1634,12 +1710,20 @@ class DocenteSerializer(serializers.ModelSerializer):
         return resultado
 
     def get_horas_declaradas(self, obj):
-        total_horas = obj.cargas_horarias.aggregate(total=Sum('horas')).get('total') or 0
+        cargas = obj.cargas_horarias.all()
+        propias = carreras_del_director(self.context)
+        if propias is not None:
+            cargas = cargas.filter(calendario__carrera_id__in=propias)
+        total_horas = cargas.aggregate(total=Sum('horas')).get('total') or 0
         return int(total_horas)
 
     def get_fondos_validados(self, obj):
         estados_con_historial = ['aprobado_director', 'en_ejecucion', 'informe_presentado', 'finalizado', 'archivado']
-        return obj.fondos_tiempo.filter(estado__in=estados_con_historial).count()
+        fondos = obj.fondos_tiempo.filter(estado__in=estados_con_historial)
+        propias = carreras_del_director(self.context)
+        if propias is not None:
+            fondos = fondos.filter(carrera_id__in=propias)
+        return fondos.count()
 
     def get_dias_vacacion(self, obj):
         return obj.dias_vacacion
@@ -1654,10 +1738,9 @@ class DocenteSerializer(serializers.ModelSerializer):
             return []
         carreras = carreras_docencia_sin_vinculo(obj)
         if not viewer.is_superuser:
-            perfil = get_effective_profile(viewer, request)
-            if not perfil or perfil.rol != 'director':
+            propias = carreras_del_director(self.context)
+            if propias is None:
                 return []
-            propias = set(get_active_careers_for_user(viewer, request).values_list('id', flat=True))
             carreras = [carrera for carrera in carreras if carrera.pk in propias]
         return [{'id': carrera.pk, 'nombre': carrera.nombre} for carrera in carreras]
 
@@ -1856,13 +1939,9 @@ class DocenteSerializer(serializers.ModelSerializer):
             data['vinculos_data'] = self._validar_vinculos_nueva_ficha(data, user_obj)
 
         if fecha_ingreso:
-            fecha = fecha_ingreso.date() if hasattr(fecha_ingreso, 'time') else fecha_ingreso
-            hoy = timezone.localdate()
-            fecha_fundacion_uabjb = fecha.replace(year=1967, month=11, day=18)
-            if fecha > hoy:
-                raise serializers.ValidationError({'fecha_ingreso': 'La fecha de ingreso no puede ser una fecha futura.'})
-            if fecha < fecha_fundacion_uabjb:
-                raise serializers.ValidationError({'fecha_ingreso': 'La fecha de ingreso no puede ser anterior a la fundacion de la UABJB (18 de noviembre de 1967).'})
+            validar_fecha_ingreso(fecha_ingreso)
+        if self.instance and 'fecha_ingreso' in data:
+            validar_cambio_fecha_ingreso(self.instance.datos_laborales, data['fecha_ingreso'])
 
         return data
 
@@ -2156,6 +2235,12 @@ class DatosLaboralesSerializer(serializers.ModelSerializer):
         ]
         # dias_vacacion se calcula desde fecha_ingreso (DatosLaborales.save).
         read_only_fields = ['dias_vacacion', 'fecha_creacion', 'fecha_modificacion']
+
+    def validate_fecha_ingreso(self, value):
+        # Mismas reglas que la edición del docente.
+        validar_fecha_ingreso(value)
+        validar_cambio_fecha_ingreso(self.instance, value)
+        return value
 
     def get_nombre_completo(self, obj):
         """Obtiene el nombre desde el perfil o docente vinculado."""
@@ -3300,6 +3385,18 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
                 'asignaciones': 'Solo el superusuario puede agregar asignaciones a un usuario existente.'
             })
 
+    def _validar_ci_compartido(self, data, perfil_actual, current_user):
+        """El C.I. de un docente con dos o más carreras solo lo cambia el superusuario."""
+        if 'ci' not in data or (current_user and current_user.is_superuser):
+            return
+        ci_actual = perfil_actual.ci if perfil_actual else ''
+        if str(data['ci'] or '').strip() == str(ci_actual or '').strip():
+            return
+        if usuario_con_varias_carreras_docentes(self.instance):
+            raise serializers.ValidationError({
+                'ci': 'El C.I. de un docente con varias carreras solo lo cambia el superusuario.',
+            })
+
     def _validar_identidad(self, data, perfil_actual):
         """Con datos registrados, la identidad del usuario no se puede cambiar."""
         actuales = {
@@ -3345,6 +3442,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
         # Obtener perfil actual al inicio para evitar UnboundLocalError
         perfil_actual = self._get_perfil_actual()
         self._validar_identidad(data, perfil_actual)
+        self._validar_ci_compartido(data, perfil_actual, current_user)
         self._validar_asignaciones_nuevas(data, asignaciones, perfil_actual, current_user)
 
         if asignaciones and not isinstance(asignaciones, list):
@@ -4136,9 +4234,11 @@ class HistorialFondoSerializer(serializers.ModelSerializer):
 class DocenteDetalleSerializer(serializers.ModelSerializer):
     """Serializer completo con propiedades calculadas"""
     nombre_completo = serializers.ReadOnlyField()
-    vinculos = DocenteCarreraSerializer(
-        source='vinculos_carrera', many=True, read_only=True
-    )
+    # Al Director, solo el vínculo de su carrera.
+    vinculos = serializers.SerializerMethodField()
+
+    def get_vinculos(self, obj):
+        return DocenteCarreraSerializer(vinculos_visibles(obj, self.context), many=True).data
 
     class Meta:
         model = Docente

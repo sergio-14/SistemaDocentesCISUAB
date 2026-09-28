@@ -2555,7 +2555,8 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                       </div>
                       {/* Botones de acción - Solo admin */}
                       {esAdmin() && (() => {
-                        const blockedBtn = (docente?.horas_declaradas || 0) > 0 || (docente?.fondos_validados || 0) > 0;
+                        // tiene_historial cuenta todas las carreras; las horas que ve el Director son solo las de la suya.
+                        const blockedBtn = Boolean(docente?.tiene_historial) || (docente?.horas_declaradas || 0) > 0 || (docente?.fondos_validados || 0) > 0;
                         const titleMsg = blockedBtn ? 'Acción deshabilitada: existe historial operativo' : '';
                         return (
                           <div className="flex gap-3 flex-shrink-0">
@@ -2601,6 +2602,8 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                     <div className="flex flex-wrap items-center gap-2">
                       {docente.activo ? (
                         <>
+                          {docente.vinculos?.[0] && (
+                          <>
                           <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-2 border-blue-300 dark:border-blue-700 shadow-sm">
                             {docente.vinculos?.[0]?.categoria === 'catedratico' ? 'Catedrático' :
                               docente.vinculos?.[0]?.categoria === 'adjunto' ? 'Adjunto' : 'Asistente'}
@@ -2608,9 +2611,16 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                           <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-2 border-green-300 dark:border-green-700 shadow-sm">
                             {ETIQUETAS_DEDICACION[docente.vinculos?.[0]?.dedicacion] || docente.vinculos?.[0]?.dedicacion}
                           </span>
+                          </>
+                          )}
                           {obtenerRolesDocente(docente) && (
                             <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-2 border-orange-300 dark:border-orange-700 shadow-sm">
                               {obtenerRolesDocente(docente)}
+                            </span>
+                          )}
+                          {docente.resumen_otras_carreras && (
+                            <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-2 border-slate-300 dark:border-slate-600 shadow-sm">
+                              Tiene docencia en otra carrera. Horas disponibles: {docente.resumen_otras_carreras.horas_disponibles} h/sem
                             </span>
                           )}
                         </>

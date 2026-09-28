@@ -1248,7 +1248,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       rol: 'docente',
       carrera: formData.carrera || '',
       docente: '',
-      docente_data: null,
       password: '',
       password_confirm: '',
     }));

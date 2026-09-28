@@ -282,12 +282,14 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
                     'La ficha debe cubrir todas las carreras donde es docente.'
                 ),
             })
-        # Condición (titular o invitado) elegida en cada carrera: no se asume.
-        sin_condicion = [
-            vinculo['carrera'].nombre
-            for vinculo in serializer.validated_data.get('vinculos_data') or []
-            if not vinculo['condicion']
-        ]
+        # Dedicación y condición (titular o invitado) elegidas en cada carrera: no se asumen.
+        vinculos = serializer.validated_data.get('vinculos_data') or []
+        sin_dedicacion = [vinculo['carrera'].nombre for vinculo in vinculos if not vinculo['dedicacion']]
+        if sin_dedicacion:
+            raise drf_serializers.ValidationError({
+                'dedicacion': f"Seleccione la dedicación en: {', '.join(sin_dedicacion)}.",
+            })
+        sin_condicion = [vinculo['carrera'].nombre for vinculo in vinculos if not vinculo['condicion']]
         if sin_condicion:
             raise drf_serializers.ValidationError({
                 'condicion': f"Seleccione la condición (titular o invitado) en: {', '.join(sin_condicion)}.",

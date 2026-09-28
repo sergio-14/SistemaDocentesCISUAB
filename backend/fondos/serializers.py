@@ -664,15 +664,17 @@ def _combinar_bloques_con_asignaciones_externas(user, bloques, carreras_gestiona
     return asignaciones_externas + bloques
 
 
+def _rechazar_ficha_desde_usuarios(bloques):
+    """Usuarios no crea fichas de docente (antes, con docente_data, las creaba con
+    dedicación, condición y fecha inventadas): solo vincula una ficha existente."""
+    for bloque in bloques:
+        if isinstance(bloque, dict) and bloque.get('docente_data'):
+            raise serializers.ValidationError({'docente_data': MENSAJE_FICHA_SOLO_EN_NUEVO_DOCENTE})
+
+
 def _resolver_docente_asignacion(bloque, docente_por_defecto=None):
     if not isinstance(bloque, dict):
         return docente_por_defecto
-
-    docente_data = bloque.get('docente_data')
-    if isinstance(docente_data, dict) and docente_data:
-        docente_serializer = DocenteSerializer(data=docente_data)
-        docente_serializer.is_valid(raise_exception=True)
-        return docente_serializer.save()
 
     docente_valor = bloque.get('docente')
     if isinstance(docente_valor, Docente):
@@ -714,6 +716,10 @@ MENSAJE_DOCENTE_OTRA_CARRERA = 'La carga docente de un cargo de autoridad debe p
 MENSAJE_CARRERA_OBLIGATORIA = 'Debe seleccionar una carrera para cada rol asignado.'
 MENSAJE_EXCLUSIVA_FUERA_DE_FICHA = 'La dedicación exclusiva no se registra en la ficha de docente: solo aplica al Director sin docencia, que no tiene ficha.'
 MENSAJE_FICHA_SOLO_DOCENTES = 'Solo los usuarios con rol docente tienen ficha de docente.'
+MENSAJE_FICHA_SOLO_EN_NUEVO_DOCENTE = (
+    'La ficha de docente se crea en Docentes > Nuevo docente, con su fecha de ingreso, '
+    'dedicación y condición reales.'
+)
 
 
 def _validar_carrera_en_bloques(bloques):
@@ -1597,13 +1603,13 @@ class DocenteSerializer(serializers.ModelSerializer):
             vinculo = {
                 'carrera': carrera,
                 'categoria': crudo.get('categoria') or 'asistente',
-                'dedicacion': crudo.get('dedicacion') or 'horario_40',
-                # Sin condición: la exige POST /api/docentes/; los flujos internos usan 'titular'.
+                # Sin dedicación ni condición: las exige POST /api/docentes/.
+                'dedicacion': crudo.get('dedicacion') or None,
                 'condicion': crudo.get('condicion') or None,
             }
             if vinculo['categoria'] not in categorias:
                 raise serializers.ValidationError({'categoria': f'Categoría no válida en {carrera.nombre}.'})
-            if vinculo['dedicacion'] not in dedicaciones:
+            if vinculo['dedicacion'] is not None and vinculo['dedicacion'] not in dedicaciones:
                 raise serializers.ValidationError({'dedicacion': f'Dedicación no válida en {carrera.nombre}.'})
             if vinculo['condicion'] is not None and vinculo['condicion'] not in condiciones:
                 raise serializers.ValidationError({'condicion': f'Condición no válida en {carrera.nombre}.'})
@@ -2888,6 +2894,7 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
             'docente': data.get('docente'),
             'docente_data': data.get('docente_data'),
         }] + asignaciones
+        _rechazar_ficha_desde_usuarios(bloques)
 
         carreras_gestionables = _carreras_gestionables_director(current_user)
         if current_user and not current_user.is_superuser:
@@ -2946,9 +2953,6 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
                 'docente': 'No se puede vincular un docente inactivo a un usuario.'
             })
 
-        if data.get('docente') and data.get('docente_data'):
-            raise serializers.ValidationError("No puede seleccionar un docente existente y crear uno nuevo al mismo tiempo.")
-
         return data
 
     def create(self, validated_data):
@@ -2958,7 +2962,7 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
             rol = validated_data.pop('rol')
             carrera = validated_data.pop('carrera', None)
             docente = validated_data.pop('docente', None)
-            docente_data = validated_data.pop('docente_data', None)
+            validated_data.pop('docente_data', None)
             asignaciones_extra = validated_data.pop('asignaciones', []) or []
             ci = validated_data.pop('ci', None)
 
@@ -2979,33 +2983,21 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
             # Ahora lo actualizamos con los datos correctos.
             docente_obj = None
 
-            # FIX DOBLE ROL: Resolver/crear el Docente si 'docente' está presente en
-            # CUALQUIER asignación (principal o secundaria en asignaciones_extra).
-            # Antes solo se evaluaba `rol == 'docente'`, lo que dejaba docente_obj=None
-            # cuando el docente venía como rol secundario (ej. iiisyp + docente),
-            # provocando que el perfil quedara sin vínculo y errores 500 posteriores.
-            datos_docente_resolucion = docente_data
+            # Resolver el Docente EXISTENTE si 'docente' está presente en CUALQUIER
+            # asignación (principal o secundaria en asignaciones_extra). La ficha
+            # nueva no se crea aquí: solo en Docentes > Nuevo docente.
             docente_ref_resolucion = docente
-            if not datos_docente_resolucion and not docente_ref_resolucion:
+            if not docente_ref_resolucion:
                 for asignacion in asignaciones_extra:
                     if str(asignacion.get('rol') or '').strip() != 'docente':
                         continue
-                    docente_data_extra = asignacion.get('docente_data')
-                    if isinstance(docente_data_extra, dict) and docente_data_extra:
-                        datos_docente_resolucion = docente_data_extra
-                        break
                     docente_ref_extra = asignacion.get('docente')
                     if docente_ref_extra:
                         docente_ref_resolucion = docente_ref_extra
                         break
 
-            if tiene_rol_docente:
-                if datos_docente_resolucion:
-                    docente_serializer = DocenteSerializer(data=datos_docente_resolucion)
-                    docente_serializer.is_valid(raise_exception=True)
-                    docente_obj = docente_serializer.save()
-                elif docente_ref_resolucion:
-                    docente_obj = docente_ref_resolucion
+            if tiene_rol_docente and docente_ref_resolucion:
+                docente_obj = docente_ref_resolucion
 
                 if not ci and docente_obj:
                     ci_docente = (docente_obj.ci or '').strip()
@@ -3277,6 +3269,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
             'docente': data.get('docente'),
             'docente_data': data.get('docente_data'),
         }] + asignaciones
+        _rechazar_ficha_desde_usuarios(bloques)
 
         carreras_gestionables = _carreras_gestionables_director(current_user)
         if current_user and not current_user.is_superuser and _rol_usuario_solicitante(current_user) == 'director':
@@ -3467,13 +3460,9 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
         # 4. Gestionar 'carrera'
         if 'carrera' in validated_data:
             carrera = validated_data.get('carrera')
+            # El vínculo de la ficha con una carrera (dedicación, categoría y
+            # condición) no se inventa aquí: se registra en Docentes.
             perfil.carrera = carrera
-            if perfil.docente and carrera:
-                DocenteCarrera.objects.get_or_create(
-                    docente=perfil.docente,
-                    carrera=carrera,
-                    defaults={'categoria': 'asistente', 'dedicacion': 'horario_40'},
-                )
 
         # 4.1 Gestionar 'ci' (se guarda en Docente si existe vínculo)
         if ci is not None:
@@ -3518,12 +3507,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
 
         # 5. Gestionar 'docente'
         if tiene_rol_docente:
-            if 'docente_data' in validated_data and validated_data.get('docente_data'):
-                docente_serializer = DocenteSerializer(data=validated_data['docente_data'])
-                docente_serializer.is_valid(raise_exception=True)
-                docente_obj = docente_serializer.save()
-                perfil.docente = docente_obj
-            elif 'docente' in validated_data:
+            if 'docente' in validated_data:
                 docente_objetivo = validated_data.get('docente')
 
                 if docente_objetivo is not None and docente_objetivo.activo is False:

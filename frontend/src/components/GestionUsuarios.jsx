@@ -1232,7 +1232,6 @@ function GestionUsuarios({ sidebarCollapsed = false, user, hasSidebar = true }) 
           rol: 'docente',
           carrera: carreraSeleccionada,
           docente: docenteId,
-          docente_data: null,
           password: datosCrearUsuario?.password || '',
           password_confirm: datosCrearUsuario?.password_confirm || '',
         });
@@ -1278,7 +1277,6 @@ function GestionUsuarios({ sidebarCollapsed = false, user, hasSidebar = true }) 
           last_name: lastName,
           carrera: docenteRetornado?.carrera || datos.carrera || '',
           docente: docenteRetornado?.id || (datos.docente || ''),
-          docente_data: null,
         });
         setCrearNuevoDocente(false);
         setAsignacionesExtra([]);
@@ -1307,7 +1305,6 @@ function GestionUsuarios({ sidebarCollapsed = false, user, hasSidebar = true }) 
     setFormData((prev) => ({
       ...prev,
       docente: docenteReciente.id,
-      docente_data: null,
       carrera: prev.carrera || docenteReciente.carrera_id || '',
     }));
   }, [isCreating, formData.rol, formData.docente, docenteReciente, asignacionesExtra]);
@@ -1422,7 +1419,6 @@ const initialData = {
   rol: '',
   carrera: '',
   docente: '',
-  docente_data: null,
   password: '',
   password_confirm: '',
 };
@@ -1560,17 +1556,6 @@ const initialData = {
       if (name === 'username') {
         updated.password = normalizedValue + 'UABJB';
         updated.password_confirm = normalizedValue + 'UABJB';
-      }
-
-      if (name === 'docente' && value) {
-        updated.docente_data = null;
-      }
-
-      if (name === 'carrera' && updated.docente_data) {
-        updated.docente_data = {
-          ...updated.docente_data,
-          carrera: value,
-        };
       }
 
       return updated;
@@ -1776,7 +1761,6 @@ const initialData = {
           rol: '',
           carrera: '',
           docente: '',
-          docente_data: null,
         }));
         setExpandedCarreraRoles((prev) => {
           const next = { ...prev };
@@ -2008,7 +1992,6 @@ const initialData = {
 
     const rolPrincipal = String(formData.rol || '').trim();
     const docenteSeleccionado = formData.docente || '';
-    const docenteDataCreacion = formData.docente_data || null;
 
     let payload = {
       username: formData.username,
@@ -2020,29 +2003,20 @@ const initialData = {
       password_confirm: formData.password_confirm,
     };
 
-    // Si el rol PRINCIPAL es docente, enviamos el docente/docente_data al nivel superior del payload
-    if (rolPrincipal === 'docente') {
-      if (docenteDataCreacion) {
-        payload.docente_data = docenteDataCreacion;
-      } else if (docenteSeleccionado) {
-        payload.docente = docenteSeleccionado;
-      }
+    // Si el rol PRINCIPAL es docente, se vincula la ficha existente elegida (la ficha
+    // nueva se crea en Docentes > Nuevo docente).
+    if (rolPrincipal === 'docente' && docenteSeleccionado) {
+      payload.docente = docenteSeleccionado;
     }
 
-    // Mapear asignaciones extra INCLUYENDO docente/docente_data cuando la asignación secundaria sea de tipo docente.
-    // FIX: Antes se descartaban estos campos, lo que provocaba que el backend no resolviera el docente
-    // cuando venía como asignación secundaria (doble rol con rol principal no-docente).
+    // Mapear asignaciones extra INCLUYENDO la ficha existente cuando la asignación secundaria sea de tipo docente.
     payload.asignaciones = asignacionesExtra.map((item) => {
       const asignacion = {
         rol: String(item.rol || '').trim(),
         carrera: String(item.carrera || '').trim(),
       };
-      if (asignacion.rol === 'docente') {
-        if (docenteDataCreacion) {
-          asignacion.docente_data = docenteDataCreacion;
-        } else if (docenteSeleccionado) {
-          asignacion.docente = docenteSeleccionado;
-        }
+      if (asignacion.rol === 'docente' && docenteSeleccionado) {
+        asignacion.docente = docenteSeleccionado;
       }
       return asignacion;
     });

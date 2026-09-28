@@ -175,16 +175,13 @@ const calcularErrorFondoTiempo = ({ docenteId, asignaciones, docentes }) => {
   return '';
 };
 
-const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, carreras, roles, sidebarCollapsed = false, hasSidebar = true, currentUser }) => {
+const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, carreras, roles, currentUser }) => {
   const [formData, setFormData] = useState({});
   const [asignacionesExtra, setAsignacionesExtra] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [resettingPassword, setResettingPassword] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [showChangePassword, setShowChangePassword] = useState(false);
-  const [changingPassword, setChangingPassword] = useState(false);
-  const [passwordData, setPasswordData] = useState({ password: '', password_confirm: '' });
   const [indiceAsignacionActiva, setIndiceAsignacionActiva] = useState(0);
   // Si el usuario ya tiene datos registrados, su identidad (usuario, nombre, C.I.)
   // no se puede cambiar. null = sin datos (o todavía sin verificar).
@@ -237,7 +234,6 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     setIndiceAsignacionActiva(0);
     setErrors({});
     setShowResetConfirm(false);
-    setShowChangePassword(false);
   }, [userToEdit, carreras, esDirectorEditor]);
 
   const handleChange = (e) => {
@@ -311,7 +307,6 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
   const tieneDocenteVinculado = Boolean(userToEdit?.perfil?.docente_id);
   const nombreDocenteVinculado = userToEdit?.perfil?.docente_nombre || 'Sin nombre';
   const esSuperusuarioEditado = Boolean(userToEdit?.is_superuser);
-  const mostrarOpcionesVinculacion = formData.rol === 'docente' && !tieneDocenteVinculado;
   const mostrarInfoDocente = formData.rol === 'docente' && tieneDocenteVinculado;
   const mostrarCiAutoridad = formData.rol === 'director' || formData.rol === 'jefe_estudios';
   const obtenerRolLabel = (rolValue) => roles.find((item) => item.value === rolValue)?.label || rolValue || 'Sin rol';
@@ -350,52 +345,12 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
       setShowResetConfirm(false);
       onSaveSuccess();
     } catch (err) {
-      toast.error('No se pudo restablecer la contraseña');
+      toast.error(err?.response?.data?.error || err?.response?.data?.detail || 'No se pudo restablecer la contraseña');
     } finally {
       setResettingPassword(false);
     }
   };
 
-  const handlePasswordFieldChange = (e) => {
-    const { name, value } = e.target;
-    setPasswordData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleCambiarPassword = async () => {
-    const password = passwordData.password || '';
-    const passwordConfirm = passwordData.password_confirm || '';
-
-    if (!password || !passwordConfirm) {
-      toast.error('Debes completar ambos campos de contraseña.');
-      return;
-    }
-
-    if (password !== passwordConfirm) {
-      toast.error('Las contraseñas no coinciden.');
-      return;
-    }
-
-    if (password.length < 8) {
-      toast.error('La contraseña debe tener al menos 8 caracteres.');
-      return;
-    }
-
-    setChangingPassword(true);
-    try {
-      await api.post(`/usuarios/${userToEdit.id}/cambiar_password/`, {
-        password,
-        password_confirm: passwordConfirm,
-      });
-      toast.success('Contraseña actualizada correctamente.');
-      setShowChangePassword(false);
-      setPasswordData({ password: '', password_confirm: '' });
-    } catch (err) {
-      const errorMsg = err?.response?.data?.error || 'No se pudo cambiar la contraseña';
-      toast.error(errorMsg);
-    } finally {
-      setChangingPassword(false);
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -754,185 +709,6 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
                 </div>
               </div>
 
-              {false && <div className="md:col-span-2 mt-2">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div>
-                    <h4 className="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">Roles Asignados</h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Los bloques son la unica fuente de verdad para rol y carrera.</p>
-                  </div>
-                  {!esSuperusuarioEditado && (
-                    <button
-                      type="button"
-                      onClick={agregarAsignacion}
-                      disabled={!puedeAgregarAsignacion}
-                      className={`rounded-xl px-3 py-2 font-semibold text-white transition-colors ${puedeAgregarAsignacion ? 'bg-[#2C4AAE] hover:bg-[#1a3a8a]' : 'bg-slate-400 cursor-not-allowed'}`}
-                    >
-                      + Agregar Segundo Rol
-                    </button>
-                  )}
-                </div>
-                {!puedeAgregarAsignacion && (
-                  <p className="mb-3 text-xs text-amber-600 dark:text-amber-300">
-                    Limite alcanzado: maximo 2 roles asignados por usuario.
-                  </p>
-                )}
-
-                <div className="space-y-4">
-                  <div className="space-y-4 rounded-2xl border-2 border-slate-300 bg-slate-50 p-4 dark:border-slate-600 dark:bg-slate-700/40">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Asignacion principal</span>
-                    </div>
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <SelectConDropdown
-                        label="Rol"
-                        name="rol"
-                        value={formData.rol}
-                        onChange={handleRolChange}
-                        options={rolesDisponiblesModal.map((rol) => ({ value: rol.value, label: rol.label }))}
-                        error={errors.rol}
-                        disabled={esSuperusuarioEditado}
-                        required
-                      />
-                      <div>
-                        <SelectConDropdown
-                          label="Carrera"
-                          name="carrera"
-                          value={formData.carrera}
-                          onChange={handleChange}
-                          options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
-                          error={errors.carrera}
-                          disabled={esSuperusuarioEditado}
-                          required={formData.rol !== 'docente'}
-                          placeholder="Seleccione una carrera..."
-                        />
-                        {(formData.rol === 'director' || formData.rol === 'jefe_estudios') && currentUser?.perfil?.rol === 'iiisyp' && !currentUser?.is_superuser && (
-                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                            Carrera asignada automaticamente (no puedes cambiarla)
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {asignacionesExtra.map((asignacion, index) => (
-                    <div key={`segundo-${index}-${asignacion.rol}-${asignacion.carrera}`} className="space-y-4 rounded-2xl border-2 border-slate-300 bg-slate-50 p-4 dark:border-slate-600 dark:bg-slate-700/40">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Segundo rol</span>
-                        {!esSuperusuarioEditado && (
-                          <button
-                            type="button"
-                            onClick={() => eliminarAsignacion(index)}
-                            className="rounded-lg bg-red-100 px-3 py-1.5 text-sm font-semibold text-red-700 transition-colors hover:bg-red-200 dark:bg-red-900/30 dark:text-red-200 dark:hover:bg-red-900/50"
-                          >
-                            Eliminar
-                          </button>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <SelectConDropdown
-                          label="Rol"
-                          name={`asignacion-rol-${index}`}
-                          value={asignacion.rol || ''}
-                          onChange={(e) => handleAsignacionChange(index, 'rol', e.target.value)}
-                          options={rolesDisponiblesModal.map((rol) => ({ value: rol.value, label: rol.label }))}
-                          error={errors[`asignaciones.${index}.rol`]}
-                          disabled={esSuperusuarioEditado}
-                          required
-                        />
-                        <SelectConDropdown
-                          label="Carrera"
-                          name={`asignacion-carrera-${index}`}
-                          value={asignacion.carrera || ''}
-                          onChange={(e) => handleAsignacionChange(index, 'carrera', e.target.value)}
-                          options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
-                          error={errors[`asignaciones.${index}.carrera`]}
-                          disabled={esSuperusuarioEditado}
-                          required
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>}
-
-              {false && !esSuperusuarioEditado && (
-              <div className="md:col-span-2 mt-2">
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <h4 className="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">Asignaciones adicionales</h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Cada bloque define rol y carrera de forma independiente.</p>
-                  </div>
-                  {esSuperusuarioEditado && (<button
-                    type="button"
-                    onClick={agregarAsignacion}
-                    disabled={!puedeAgregarAsignacion}
-                    className={`rounded-xl px-3 py-2 font-semibold text-white transition-colors ${puedeAgregarAsignacion ? 'bg-[#2C4AAE] hover:bg-[#1a3a8a]' : 'bg-slate-400 cursor-not-allowed'}`}
-                  >
-                    +
-                  </button>)}
-                </div>
-                {!puedeAgregarAsignacion && (
-                  <p className="mb-3 text-xs text-amber-600 dark:text-amber-300">
-                    Límite alcanzado: máximo 2 asignaciones totales por usuario.
-                  </p>
-                )}
-
-                {asignacionesExtra.length > 0 && (
-                  <div className="space-y-4">
-                    {asignacionesExtra.map((asignacion, index) => (
-                      <div key={`${index}-${asignacion.rol}-${asignacion.carrera}`} className="space-y-4 rounded-2xl border-2 border-slate-300 bg-slate-50 p-4 dark:border-slate-600 dark:bg-slate-700/40">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Bloque {index + 1}</span>
-                          <button
-                            type="button"
-                            onClick={() => eliminarAsignacion(index)}
-                            className="rounded-lg bg-red-100 px-3 py-1.5 text-sm font-semibold text-red-700 transition-colors hover:bg-red-200 dark:bg-red-900/30 dark:text-red-200 dark:hover:bg-red-900/50"
-                          >
-                            Eliminar
-                          </button>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                          <SelectConDropdown
-                            label="Rol"
-                            name={`asignacion-rol-${index}`}
-                            value={asignacion.rol || ''}
-                            onChange={(e) => handleAsignacionChange(index, 'rol', e.target.value)}
-                          options={rolesDisponiblesModal.map((rol) => ({ value: rol.value, label: rol.label }))}
-                            error={errors[`asignaciones.${index}.rol`]}
-                            required
-                          />
-
-                          <SelectConDropdown
-                            label="Carrera"
-                            name={`asignacion-carrera-${index}`}
-                            value={asignacion.carrera || ''}
-                            onChange={(e) => handleAsignacionChange(index, 'carrera', e.target.value)}
-                            options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
-                            error={errors[`asignaciones.${index}.carrera`]}
-                            required
-                          />
-
-                          {asignacion.rol === 'docente' && (
-                            <div className="md:col-span-2">
-                              <SelectConDropdown
-                                label="Docente"
-                                name={`asignacion-docente-${index}`}
-                                value={asignacion.docente || ''}
-                                onChange={(e) => handleAsignacionChange(index, 'docente', e.target.value)}
-                                options={docentes.map((d) => ({ value: d.id, label: obtenerNombreCompletoDocente(d) }))}
-                                error={errors[`asignaciones.${index}.docente`]}
-                                placeholder="Seleccione un docente"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              )}
             </div>
           </div>
         </form>
@@ -1025,65 +801,6 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
                   }`}
                 >
                   {resettingPassword ? 'Restableciendo...' : 'Confirmar y Restablecer'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {false && showChangePassword && esSuperusuarioEditado && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-            <div
-              className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"
-              onClick={() => !changingPassword && setShowChangePassword(false)}
-            />
-            <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-blue-300/40 bg-slate-900 shadow-2xl dark:border-blue-700/50">
-              <div className="border-b border-slate-700/70 bg-gradient-to-r from-blue-900/30 to-slate-900 px-5 py-4">
-                <h4 className="flex items-center gap-2 text-lg font-bold text-blue-300">
-                  <span>🔒</span>
-                  Cambiar Contraseña
-                </h4>
-              </div>
-              <div className="space-y-4 px-5 py-4 text-slate-200">
-                <p className="text-sm leading-relaxed">
-                  Estás cambiando la contraseña de <strong className="text-white">{userToEdit?.username}</strong>.
-                </p>
-                <InputField
-                  label="Nueva contraseña"
-                  name="password"
-                  type="password"
-                  value={passwordData.password}
-                  onChange={handlePasswordFieldChange}
-                  required
-                />
-                <InputField
-                  label="Confirmar nueva contraseña"
-                  name="password_confirm"
-                  type="password"
-                  value={passwordData.password_confirm}
-                  onChange={handlePasswordFieldChange}
-                  required
-                />
-                <p className="text-xs text-slate-400">Mínimo 8 caracteres.</p>
-              </div>
-              <div className="flex justify-end gap-3 border-t border-slate-700/70 bg-slate-950/70 px-5 py-4">
-                <button
-                  type="button"
-                  onClick={() => setShowChangePassword(false)}
-                  disabled={changingPassword}
-                  className="rounded-lg border border-slate-600 px-4 py-2 font-semibold text-slate-300 hover:bg-slate-800 disabled:opacity-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCambiarPassword}
-                  disabled={changingPassword}
-                  className={`rounded-lg px-4 py-2 font-bold text-white ${
-                    changingPassword ? 'cursor-not-allowed bg-slate-500' : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
-                >
-                  {changingPassword ? 'Guardando...' : 'Guardar Contraseña'}
                 </button>
               </div>
             </div>

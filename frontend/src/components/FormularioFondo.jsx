@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-// eslint-disable-next-line no-unused-vars -- motion se usa en el JSX (<motion.div>), que esta configuración no detecta.
 import { AnimatePresence, motion } from 'framer-motion';
 import { getDocentes, getCarreras, getMaterias, crearFondoTiempo, getCalendarioActivo, getCalendarios } from '../apis/api';
 import api from '../apis/api';

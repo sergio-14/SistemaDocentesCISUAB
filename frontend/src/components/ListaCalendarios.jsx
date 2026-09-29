@@ -1594,7 +1594,8 @@ function ListaCalendarios() {
   const currentYear = Number(hoyBolivia().slice(0, 4));
 
   const buildInitialFormData = () => ({
-    carrera: hayUnaSolaCarrera ? carreras[0].id : '',
+    // Director y Jefe: su carrera (el backend solo les devuelve esa); el superusuario elige.
+    carrera: (!esSuperAdmin || hayUnaSolaCarrera) && carreras.length ? carreras[0].id : '',
     gestion: currentYear,
     periodo: '1',
     fecha_inicio: '',
@@ -1964,6 +1965,11 @@ function ListaCalendarios() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!esSuperAdmin && !formData.carrera) {
+      toast.error('No tienes una carrera asignada.');
+      return;
+    }
 
     const requiredErrors = {};
     if (!formData.carrera) requiredErrors.carrera = 'Este campo es obligatorio.';
@@ -2366,6 +2372,7 @@ function ListaCalendarios() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
+                {esSuperAdmin && (
                 <div className="md:col-span-2">
                   <SelectConDropdown
                     label="Carrera"
@@ -2382,6 +2389,7 @@ function ListaCalendarios() {
                     clearValue=""
                   />
                 </div>
+                )}
                 <div>
                   <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Gestión (Año)</label>
                   <YearPickerField

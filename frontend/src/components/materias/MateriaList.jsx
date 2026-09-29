@@ -458,7 +458,7 @@ const MateriaList = () => {
                                         </div>
                                         {canEdit && (
                                             <div className="flex gap-3 ml-4">
-                                                <Link
+                                                <Link data-escritura
                                                     to={`/fondo-tiempo/materias/editar/${materia.id}`}
                                                     className="text-blue-500 hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300 transition-all duration-200 hover:scale-110"
                                                     title="Editar"

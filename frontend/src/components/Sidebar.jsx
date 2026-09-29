@@ -112,7 +112,7 @@ function Sidebar({ user, collapsed, setCollapsed, onProfileUpdate }) {
     administracion: [
       { path: '/fondo-tiempo/docentes', icon: AcademicCapIcon, label: 'Docentes', roles: ['iiisyp', 'director', 'jefe_estudios'], superuser: true },
       { path: '/fondo-tiempo/cargas-horarias', icon: ClockIcon, label: 'Carga Horaria', roles: ['jefe_estudios'] },
-      { path: '/fondo-tiempo/calendarios', icon: CalendarioIcon, label: 'Calendario Académico', superuser: true },
+      { path: '/fondo-tiempo/calendarios', icon: CalendarioIcon, label: 'Calendario Académico', roles: ['director', 'jefe_estudios'], superuser: true },
       { path: '/fondo-tiempo/materias', icon: BookOpenIcon, label: 'Materias', roles: ['director', 'jefe_estudios'], superuser: true },
     ]
   };

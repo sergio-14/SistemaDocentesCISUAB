@@ -1581,6 +1581,9 @@ function ListaCalendarios() {
     }
   }, []);
   const esSuperAdmin = usuarioActual?.is_superuser === true;
+  // Crean, editan, activan y eliminan: superusuario, Director y Jefe de Estudios (en su
+  // carrera; el backend lo exige). El resto solo consulta.
+  const puedeGestionar = esSuperAdmin || ['director', 'jefe_estudios'].includes(usuarioActual?.perfil?.rol);
   const hayUnaSolaCarrera = carreras.length === 1;
   const carreraOptions = carreras.map((carrera) => ({
     value: String(carrera.id),
@@ -2280,6 +2283,7 @@ function ListaCalendarios() {
                   />
                 </div>
               )}
+            {puedeGestionar && (
             <button data-escritura
               onClick={() => abrirModal()}
               className="w-full sm:w-auto px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 flex items-center justify-center gap-2"
@@ -2287,6 +2291,7 @@ function ListaCalendarios() {
               <span>➕</span>
               Nuevo Calendario
             </button>
+            )}
             </div>
           </div>
         </div>
@@ -2323,10 +2328,14 @@ function ListaCalendarios() {
                   </div>
                   <div className="flex items-center gap-2 flex-wrap justify-end">
                     <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[#263F8A]/10 dark:bg-[#263F8A]/25 border-2 border-[#263F8A]/40 dark:border-[#3A56AF]/55">
-                      <ToggleSwitch
-                        isActive={cal.activo}
-                        onChange={() => handleToggleActivo(cal)}
-                      />
+                      {puedeGestionar && (
+                        <span data-escritura className="flex">
+                          <ToggleSwitch
+                            isActive={cal.activo}
+                            onChange={() => handleToggleActivo(cal)}
+                          />
+                        </span>
+                      )}
                       <span className="text-sm font-semibold">
                         {cal.activo
                           ? <span className="text-emerald-600 dark:text-emerald-400">Activo</span>
@@ -2334,20 +2343,24 @@ function ListaCalendarios() {
                         }
                       </span>
                     </div>
-                    <button
+                    {puedeGestionar && (
+                    <>
+                    <button data-escritura
                       onClick={() => abrirModal(cal)}
                       className="text-blue-500 hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300 transition-all duration-200 hover:scale-110"
                       title="Editar"
                     >
                       <FaEdit size={18} />
                     </button>
-                    <button
+                    <button data-escritura
                       onClick={() => eliminarCalendario(cal)}
                       className="text-red-500 hover:text-red-400 dark:text-red-400 dark:hover:text-red-300 transition-all duration-200 hover:scale-110"
                       title="Eliminar"
                     >
                       <FaTrash size={18} />
                     </button>
+                    </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2357,8 +2370,10 @@ function ListaCalendarios() {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in" style={{ animationDuration: '160ms' }}>
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl max-w-3xl w-full max-h-[98vh] md:max-h-[95vh] overflow-visible animate-slide-up" style={{ animationDuration: '180ms' }}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 overflow-y-auto animate-fade-in" style={{ animationDuration: '160ms' }}>
+          {/* Si el formulario no entra en la pantalla se desplaza el fondo: nada queda cortado. */}
+          <div className="min-h-full flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl max-w-6xl w-full overflow-visible animate-slide-up" style={{ animationDuration: '180ms' }}>
             <div className="px-6 py-4 border-b border-[#7F97E8]/45 bg-[#2C4AAE] rounded-t-2xl">
               <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
                 {calendarioSeleccionado ? '✏️ Editar Calendario' : '➕ Nuevo Calendario'}
@@ -2371,7 +2386,7 @@ function ListaCalendarios() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-5">
                 {esSuperAdmin && (
                 <div className="md:col-span-2">
                   <SelectConDropdown
@@ -2390,7 +2405,7 @@ function ListaCalendarios() {
                   />
                 </div>
                 )}
-                <div>
+                <div className={esSuperAdmin ? '' : 'xl:col-span-2'}>
                   <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Gestión (Año)</label>
                   <YearPickerField
                     value={Number(formData.gestion || currentYear)}
@@ -2402,7 +2417,7 @@ function ListaCalendarios() {
                   />
                   {errors.gestion && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{getErrorMessage(errors.gestion)}</p>}
                 </div>
-                <div>
+                <div className={esSuperAdmin ? '' : 'xl:col-span-2'}>
                   <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Periodo</label>
                   <SegmentedOptions
                     options={periodoOptions}
@@ -2451,40 +2466,46 @@ function ListaCalendarios() {
                   </div>
                 </div>
 
+                <div className="md:col-span-2 rounded-xl border border-[#3D6DE0]/30 dark:border-[#4B67C0]/40 bg-gradient-to-r from-white/60 via-[#3D6DE0]/5 to-cyan-400/10 dark:from-slate-800/55 dark:to-cyan-900/20 p-4 shadow-sm hover:shadow-md transition-all duration-200">
+                  <h4 className="text-sm font-bold text-[#263F8A] dark:text-[#B6C3EC] mb-3">Presentación de Proyectos</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <DatePickerField
+                      label="Inicio Presentación Proyectos"
+                      name="fecha_inicio_presentacion_proyectos"
+                      value={formData.fecha_inicio_presentacion_proyectos}
+                      onDateChange={handleDateFieldChange}
+                      required
+                      error={errors.fecha_inicio_presentacion_proyectos || (isProjectOrderInvalid ? projectOrderErrorMessage : '') || (projectStartOutOfRange ? projectRangeWarning : '')}
+                      errorPulse={errorPulse}
+                      onFieldInteraction={() => notifyProjectRangeIfInvalid('fecha_inicio_presentacion_proyectos')}
+                      onClearError={() => clearFieldError('fecha_inicio_presentacion_proyectos')}
+                    />
+                    <DatePickerField
+                      label="Límite Presentación Proyectos"
+                      name="fecha_limite_presentacion_proyectos"
+                      value={formData.fecha_limite_presentacion_proyectos}
+                      onDateChange={handleDateFieldChange}
+                      required
+                      error={errors.fecha_limite_presentacion_proyectos || (isProjectOrderInvalid ? projectOrderErrorMessage : '') || (projectEndOutOfRange ? projectRangeWarning : '')}
+                      errorPulse={errorPulse}
+                      onFieldInteraction={() => notifyProjectRangeIfInvalid('fecha_limite_presentacion_proyectos')}
+                      onClearError={() => clearFieldError('fecha_limite_presentacion_proyectos')}
+                    />
+                  </div>
+                </div>
+
                 {isDateRangeInvalid && (
-                  <div className="md:col-span-2 rounded-lg border border-amber-400/40 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+                  <div className="md:col-span-2 xl:col-span-4 rounded-lg border border-amber-400/40 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
                     {endDateErrorMessage}
                   </div>
                 )}
 
                 {isCriticalProjectRangeConflict && (
-                  <div className="md:col-span-2 rounded-lg border border-red-600/60 bg-red-100 dark:bg-red-900/25 px-3 py-2 text-sm font-semibold text-red-800 dark:text-red-300">
+                  <div className="md:col-span-2 xl:col-span-4 rounded-lg border border-red-600/60 bg-red-100 dark:bg-red-900/25 px-3 py-2 text-sm font-semibold text-red-800 dark:text-red-300">
                     {criticalProjectRangeMessage}
                   </div>
                 )}
 
-                <DatePickerField
-                  label="Inicio Presentación Proyectos"
-                  name="fecha_inicio_presentacion_proyectos"
-                  value={formData.fecha_inicio_presentacion_proyectos}
-                  onDateChange={handleDateFieldChange}
-                  required
-                  error={errors.fecha_inicio_presentacion_proyectos || (isProjectOrderInvalid ? projectOrderErrorMessage : '') || (projectStartOutOfRange ? projectRangeWarning : '')}
-                  errorPulse={errorPulse}
-                  onFieldInteraction={() => notifyProjectRangeIfInvalid('fecha_inicio_presentacion_proyectos')}
-                  onClearError={() => clearFieldError('fecha_inicio_presentacion_proyectos')}
-                />
-                <DatePickerField
-                  label="Límite Presentación Proyectos"
-                  name="fecha_limite_presentacion_proyectos"
-                  value={formData.fecha_limite_presentacion_proyectos}
-                  onDateChange={handleDateFieldChange}
-                  required
-                  error={errors.fecha_limite_presentacion_proyectos || (isProjectOrderInvalid ? projectOrderErrorMessage : '') || (projectEndOutOfRange ? projectRangeWarning : '')}
-                  errorPulse={errorPulse}
-                  onFieldInteraction={() => notifyProjectRangeIfInvalid('fecha_limite_presentacion_proyectos')}
-                  onClearError={() => clearFieldError('fecha_limite_presentacion_proyectos')}
-                />
                 <DatePickerField
                   label="Fecha limite programas analiticos"
                   name="fecha_limite_programas_analiticos"
@@ -2566,7 +2587,7 @@ function ListaCalendarios() {
                     </p>
                   )}
                 </div>
-                <div className="mt-1 bg-white/70 dark:bg-slate-800/60 rounded-xl p-3 border border-[#3D6DE0]/25 dark:border-[#4B67C0]/40 md:self-end">
+                <div className="mt-1 bg-white/70 dark:bg-slate-800/60 rounded-xl p-3 border border-[#3D6DE0]/25 dark:border-[#4B67C0]/40 md:self-end xl:col-span-2">
                   <div className="flex items-center gap-3">
                     <ToggleSwitch
                       isActive={Boolean(formData.activo)}
@@ -2595,6 +2616,7 @@ function ListaCalendarios() {
                 </button>
               </div>
             </form>
+          </div>
           </div>
         </div>
       )}

@@ -132,17 +132,11 @@ ESTADOS_FONDO_BLOQUEADOS = [
 ]
 
 
-def dias_feriados_habiles(gestion):
-    """Feriados cargados de la gestión (año de la fecha) que caen de lunes a viernes."""
-    # week_day de Django: 1 = domingo ... 7 = sábado.
-    return Feriado.objects.filter(fecha__year=gestion, fecha__week_day__in=[2, 3, 4, 5, 6]).count()
-
-
 def calcular_horas_fondo(horas_semana, dias_vacacion, dias_feriados):
     """Horas anuales del fondo de tiempo.
 
-    Vacaciones y feriados (días hábiles de la gestión, ver dias_feriados_habiles)
-    se descuentan proporcionales a la jornada diaria (horas semanales / 5): un
+    Vacaciones y feriados (CalendarioAcademico.dias_feriados_gestion) se
+    descuentan proporcionales a la jornada diaria (horas semanales / 5): un
     tiempo completo (8 h/día) con 20 días de vacación descuenta 160 h. Cada
     término se redondea hacia abajo.
     La vista previa del frontend (utils/horasFondo.js) replica esta función.
@@ -781,6 +775,12 @@ class CalendarioAcademico(models.Model):
     fecha_limite_presentacion_proyectos = models.DateField(
         help_text="Fecha límite para presentar proyectos"
     )
+    # El fondo descuenta días de feriado x jornada diaria del docente (calcular_horas_fondo).
+    dias_feriados_gestion = models.PositiveIntegerField(
+        validators=[MaxValueValidator(30)],
+        verbose_name='Días de feriado de la gestión',
+        help_text='Feriados de la gestión que caen de lunes a viernes.',
+    )
     semanas_efectivas = models.IntegerField(
         default=16,
         help_text="Número de semanas efectivas del periodo"
@@ -823,41 +823,6 @@ class CalendarioAcademico(models.Model):
             # antes de guardar, especialmente al editar un calendario ya activo.
             CalendarioAcademico.objects.filter(activo=True, carrera=self.carrera).exclude(pk=self.pk).update(activo=False)
         super().save(*args, **kwargs)
-
-
-class Feriado(models.Model):
-    """Feriado de una gestión (el año de la fecha). Lo carga solo el superusuario.
-
-    El fondo de tiempo descuenta los que caen de lunes a viernes, por la jornada
-    diaria del docente (ver dias_feriados_habiles y calcular_horas_fondo).
-    """
-    TIPO_CHOICES = [
-        ('nacional', 'Nacional'),
-        ('departamental', 'Departamental'),
-    ]
-
-    fecha = models.DateField(unique=True, error_messages={'unique': 'Ya hay un feriado registrado en esa fecha.'})
-    nombre = models.CharField(max_length=150)
-    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
-
-    history = HistoricalRecords()
-
-    class Meta:
-        ordering = ['fecha']
-        verbose_name = 'Feriado'
-        verbose_name_plural = 'Feriados'
-
-    def __str__(self):
-        return f"{self.fecha:%d/%m/%Y} - {self.nombre}"
-
-    @property
-    def gestion(self):
-        return self.fecha.year
-
-    @property
-    def es_habil(self):
-        """Cae de lunes a viernes: solo esos se descuentan del fondo."""
-        return self.fecha.weekday() < 5
 
 
 def resolucion_consejo_upload_path(instance, filename):
@@ -1193,6 +1158,15 @@ class FondoTiempo(models.Model):
             pk=self.pk, estado__in=ESTADOS_FONDO_BLOQUEADOS,
         ).exists()
 
+    def _dias_feriados_gestion(self):
+        """Días de feriado de la gestión: los del calendario del fondo o, sin él, los de
+        un calendario de su carrera y gestión (el activo primero)."""
+        calendario = self.calendario_academico if self.calendario_academico_id else (
+            CalendarioAcademico.objects.filter(carrera_id=self.carrera_id, gestion=self.gestion)
+            .order_by('-activo').first()
+        )
+        return calendario.dias_feriados_gestion if calendario else 0
+
     def _calcular_horas_fondo(self):
         """Contrato, vacaciones, feriados y horas efectivas del docente en esta gestión.
 
@@ -1205,7 +1179,7 @@ class FondoTiempo(models.Model):
         return calcular_horas_fondo(
             horas_semana,
             self.docente.calcular_dias_vacacion(self.fecha_referencia_antiguedad()),
-            dias_feriados_habiles(self.gestion),
+            self._dias_feriados_gestion(),
         )
 
     def _obtener_horas_vacacion_docente(self):

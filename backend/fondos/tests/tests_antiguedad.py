@@ -13,7 +13,6 @@ from django.contrib.auth.models import User
 from rest_framework import status
 
 from fondos.models import AsignacionCarrera, CalendarioAcademico, DatosLaborales, Docente, FondoTiempo, PerfilUsuario
-from .tests_usuarios_ajustes import cargar_feriados_2026
 from .tests_usuarios_auditoria import UsuariosBaseTestCase, con_resolucion_jefe
 
 
@@ -48,7 +47,7 @@ class AniosCompletosTests(UsuariosBaseTestCase):
         calendario = None
         if fecha_inicio_gestion:
             calendario = CalendarioAcademico.objects.create(
-                carrera=self.carrera, gestion=2026, periodo=periodo,
+                carrera=self.carrera, gestion=2026, periodo=periodo, dias_feriados_gestion=3,
                 fecha_inicio=fecha_inicio_gestion, fecha_fin=date(2026, 12, 15),
                 fecha_inicio_presentacion_proyectos=fecha_inicio_gestion,
                 fecha_limite_presentacion_proyectos=date(2026, 3, 31),
@@ -75,8 +74,7 @@ class AniosCompletosTests(UsuariosBaseTestCase):
         self.assertEqual(fondo.horas_vacacion, 20 * 8)  # 9 años completos al 1-ene-2026
 
     def test_menos_de_un_anio_no_descuenta_vacaciones(self):
-        cargar_feriados_2026()   # 3 días hábiles
-        fondo = self._fondo('nuevo_ingreso', date(2025, 6, 1), date(2026, 2, 1))
+        fondo = self._fondo('nuevo_ingreso', date(2025, 6, 1), date(2026, 2, 1))  # calendario: 3 días de feriado
 
         self.assertEqual(fondo.horas_vacacion, 0)
         self.assertEqual(fondo.horas_efectivas, 2080 - 3 * 8)

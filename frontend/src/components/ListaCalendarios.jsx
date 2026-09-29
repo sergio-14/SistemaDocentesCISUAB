@@ -1605,6 +1605,7 @@ function ListaCalendarios() {
     fecha_inicio_receso: '',
     fecha_fin_receso: '',
     semanas_efectivas: '',
+    dias_feriados_gestion: '',
     activo: false,
   });
 
@@ -1801,6 +1802,7 @@ function ListaCalendarios() {
       fecha_inicio_receso: calendario.fecha_inicio_receso || '',
       fecha_fin_receso: calendario.fecha_fin_receso || '',
       semanas_efectivas: calendario.semanas_efectivas,
+      dias_feriados_gestion: calendario.dias_feriados_gestion ?? '',
       activo: calendario.activo,
     } : buildInitialFormData());
     setErrors({});
@@ -1810,7 +1812,7 @@ function ListaCalendarios() {
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     clearFieldError(name);
-    const nextValue = name === 'semanas_efectivas' && value !== ''
+    const nextValue = ['semanas_efectivas', 'dias_feriados_gestion'].includes(name) && value !== ''
       ? Math.round(Number(value))
       : value;
     setFormData(prev => ({
@@ -1978,6 +1980,11 @@ function ListaCalendarios() {
     ) {
       requiredErrors.semanas_efectivas = 'Este campo es obligatorio.';
     }
+    if (formData.dias_feriados_gestion === '' || formData.dias_feriados_gestion === null || formData.dias_feriados_gestion === undefined) {
+      requiredErrors.dias_feriados_gestion = 'Este campo es obligatorio.';
+    } else if (Number(formData.dias_feriados_gestion) < 0 || Number(formData.dias_feriados_gestion) > 30) {
+      requiredErrors.dias_feriados_gestion = 'Debe estar entre 0 y 30 días.';
+    }
 
     if (Object.keys(requiredErrors).length > 0) {
       applyErrors(requiredErrors);
@@ -2036,6 +2043,7 @@ function ListaCalendarios() {
       carrera: Number(formData.carrera),
       gestion: parseInt(formData.gestion),
       semanas_efectivas: parseInt(formData.semanas_efectivas),
+      dias_feriados_gestion: parseInt(formData.dias_feriados_gestion),
       fecha_limite_programas_analiticos: formData.fecha_limite_programas_analiticos || null,
       fecha_inicio_receso: formData.fecha_inicio_receso || null,
       fecha_fin_receso: formData.fecha_fin_receso || null,
@@ -2526,6 +2534,27 @@ function ListaCalendarios() {
                   {!errors.semanas_efectivas && !semanasEfectivasExcedenCalendario && (
                     <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                       Semanas efectivas calculadas automaticamente desde el rango de fechas
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <InputField
+                    label="Días de feriado de la gestión"
+                    name="dias_feriados_gestion"
+                    type="number"
+                    min="0"
+                    max="30"
+                    step="1"
+                    value={formData.dias_feriados_gestion}
+                    onChange={handleChange}
+                    required
+                    error={errors.dias_feriados_gestion}
+                    errorPulse={errorPulse}
+                    onClearError={() => clearFieldError('dias_feriados_gestion')}
+                  />
+                  {!errors.dias_feriados_gestion && (
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                      Solo los que caen de lunes a viernes. El fondo descuenta días × jornada diaria del docente.
                     </p>
                   )}
                 </div>

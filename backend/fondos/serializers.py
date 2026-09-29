@@ -3775,28 +3775,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
 # SERIALIZERS PARA MODELOS NUEVOS (Reglamento UAB)
 # ============================================
 
-from .models import CalendarioAcademico, Feriado, Proyecto, InformeFondo, ObservacionFondo, HistorialFondo
-
-
-# =====================================================
-# FERIADOS
-# =====================================================
-
-class FeriadoSerializer(serializers.ModelSerializer):
-    """Feriado de una gestión: la gestión es el año de la fecha."""
-    gestion = serializers.IntegerField(read_only=True)
-    es_habil = serializers.BooleanField(read_only=True)
-    tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
-
-    class Meta:
-        model = Feriado
-        fields = ['id', 'fecha', 'nombre', 'tipo', 'tipo_display', 'gestion', 'es_habil']
-
-    def validate_nombre(self, value):
-        nombre = ' '.join(str(value or '').split())
-        if not nombre:
-            raise serializers.ValidationError('El nombre del feriado es obligatorio.')
-        return nombre
+from .models import CalendarioAcademico, Proyecto, InformeFondo, ObservacionFondo, HistorialFondo
 
 
 # =====================================================
@@ -3817,7 +3796,7 @@ class CalendarioAcademicoSerializer(serializers.ModelSerializer):
             'fecha_limite_programas_analiticos',
             'fecha_inicio_receso',
             'fecha_fin_receso',
-            'semanas_efectivas', 'activo'
+            'semanas_efectivas', 'dias_feriados_gestion', 'activo'
         ]
 
     def validate(self, attrs):

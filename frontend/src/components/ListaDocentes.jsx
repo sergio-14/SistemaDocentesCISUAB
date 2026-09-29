@@ -877,37 +877,31 @@ function ListaDocentes({ sidebarCollapsed = false }) {
 
   // La antigüedad del fondo se mide al inicio de la gestión (calendario académico
   // activo de la carrera). La vista previa usa la misma fecha para dar lo mismo.
-  // Los feriados son los de esa gestión que caen de lunes a viernes (los carga el superusuario).
+  // Los días de feriado son los del mismo calendario (dias_feriados_gestion).
   const [fechaInicioGestion, setFechaInicioGestion] = useState(null);
-  const [feriadosGestion, setFeriadosGestion] = useState(null);
+  const [diasFeriadosGestion, setDiasFeriadosGestion] = useState(0);
+  const [sinCalendarioActivo, setSinCalendarioActivo] = useState(false);
   useEffect(() => {
     setFechaInicioGestion(null);
-    setFeriadosGestion(null);
+    setDiasFeriadosGestion(0);
+    setSinCalendarioActivo(false);
     if (!formData.carrera) return undefined;
     let vigente = true;
-    const cargarFeriados = (gestion) => api.get('/feriados/resumen/', { params: { gestion } })
-      .then((response) => { if (vigente) setFeriadosGestion(response.data); })
-      .catch(() => { if (vigente) setFeriadosGestion({ gestion, error: true }); });
-    const anioActual = Number(hoyBolivia().slice(0, 4));
     api.get('/calendarios/activo/', { params: { carrera: formData.carrera } })
       .then((response) => {
         if (!vigente) return;
         setFechaInicioGestion(response.data?.fecha_inicio || null);
-        cargarFeriados(response.data?.gestion || anioActual);
+        setDiasFeriadosGestion(Number(response.data?.dias_feriados_gestion) || 0);
       })
       .catch(() => {
         // Sin calendario activo: se usa el 1 de enero, igual que un fondo sin calendario.
-        if (vigente) cargarFeriados(anioActual);
+        if (vigente) setSinCalendarioActivo(true);
       });
     return () => { vigente = false; };
   }, [formData.carrera]);
-  const avisoFeriados = !feriadosGestion
-    ? ''
-    : feriadosGestion.error
-      ? 'No se pudieron consultar los feriados de la gestión: las horas efectivas no los descuentan.'
-      : feriadosGestion.feriados_cargados === 0
-        ? `No hay feriados cargados para esta gestión (${feriadosGestion.gestion}): las horas efectivas no los descuentan.`
-        : '';
+  const avisoFeriados = sinCalendarioActivo
+    ? 'No hay calendario activo en la carrera: las horas efectivas no descuentan feriados.'
+    : '';
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -2277,7 +2271,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                               {(() => {
                                 const horas = calcularHorasEfectivas(formData.dedicacion, formData.fecha_ingreso, {
                                   tieneRolGestion: usuarioFormularioTieneRolGestion,
-                                  diasFeriados: feriadosGestion?.dias_habiles ?? 0,
+                                  diasFeriados: diasFeriadosGestion,
                                   fechaReferencia: fechaInicioGestion,
                                 });
                                 const antiguedad = calcularAntiguedad(formData.fecha_ingreso, fechaInicioGestion) ?? 0;

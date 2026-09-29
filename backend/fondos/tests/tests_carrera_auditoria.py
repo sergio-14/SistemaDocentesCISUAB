@@ -102,7 +102,7 @@ class EliminarCarreraTests(CarreraBaseTestCase):
             PerfilUsuario.objects.filter(user=usuario).update(carrera=carrera)
         elif clave == 'calendarios':
             CalendarioAcademico.objects.create(
-                carrera=carrera, gestion=2026, periodo='1',
+                carrera=carrera, gestion=2026, periodo='1', dias_feriados_gestion=12,
                 fecha_inicio=date(2026, 2, 1), fecha_fin=date(2026, 6, 30),
                 fecha_inicio_presentacion_proyectos=date(2026, 2, 1),
                 fecha_limite_presentacion_proyectos=date(2026, 2, 28),

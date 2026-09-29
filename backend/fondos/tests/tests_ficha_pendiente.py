@@ -20,7 +20,7 @@ class FichaDocentePendienteTests(UsuariosBaseTestCase):
         super().setUp()
         self.client.force_authenticate(self.superuser)
         CalendarioAcademico.objects.create(
-            carrera=self.carrera, gestion=2026, periodo='1', activo=True,
+            carrera=self.carrera, gestion=2026, periodo='1', activo=True, dias_feriados_gestion=12,
             fecha_inicio=date(2026, 2, 1), fecha_fin=date(2026, 6, 30),
             fecha_inicio_presentacion_proyectos=date(2026, 2, 1),
             fecha_limite_presentacion_proyectos=date(2026, 2, 28),

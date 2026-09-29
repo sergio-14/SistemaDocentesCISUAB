@@ -33,8 +33,7 @@ export const calcularAntiguedad = (fechaIngreso, fechaReferencia = null) => {
   return Math.max(0, referencia.anio - ingreso.anio - (antesDelAniversario ? 1 : 0));
 };
 
-// diasFeriados: feriados de la gestión que caen de lunes a viernes
-// (GET /feriados/resumen/ -> dias_habiles).
+// diasFeriados: días de feriado de la gestión (CalendarioAcademico.dias_feriados_gestion).
 export const calcularHorasFondo = (horasSemana, diasVacacion, diasFeriados) => {
   const horasDiarias = horasSemana / DIAS_LABORABLES_POR_SEMANA;
   const contratoHoras = piso(horasSemana * SEMANAS_POR_ANIO);

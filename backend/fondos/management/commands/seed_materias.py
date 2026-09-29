@@ -10,8 +10,9 @@ CARRERA_CODIGO = 'CIS'
 CARRERA_FACULTAD = 'Facultad de Ingeniería y Tecnología'
 
 
-# Semestres 1 a 8 del PDC 2021-2025 (Cuadros 4, 5 y 6). En el 8.º: materias comunes,
-# Mención Software (TBD, INS-e) y Mención Teleinformática (CEL, RED-e).
+# Semestres 1 a 9 del PDC 2021-2025 (Cuadros 4, 5 y 6). En el 8.º y el 9.º: materias
+# comunes, de la Mención Software y de la Mención Teleinformática. Modalidad de
+# Graduación no se carga.
 MATERIAS = [
     {'semestre': 1, 'sigla': 'CIS-ALG-o11101', 'nombre': 'Álgebra I', 'horas_teoricas': 4, 'horas_practicas': 2},
     {'semestre': 1, 'sigla': 'CIS-FIS-o11102', 'nombre': 'Física I', 'horas_teoricas': 4, 'horas_practicas': 2},
@@ -63,16 +64,20 @@ MATERIAS = [
     {'semestre': 8, 'sigla': 'CIS-INS-e18412', 'nombre': 'Ingeniería de Software II', 'horas_teoricas': 4, 'horas_practicas': 2},
     {'semestre': 8, 'sigla': 'CIS-CEL-e18011', 'nombre': 'Circuitos Eléctricos', 'horas_teoricas': 4, 'horas_practicas': 2},
     {'semestre': 8, 'sigla': 'CIS-RED-e18416', 'nombre': 'Redes II', 'horas_teoricas': 4, 'horas_practicas': 2},
-]
-
-# Semestres 9 y 10: NO se cargan todavía. El PDC no trae sus horas y los códigos no
-# coinciden entre las mallas. Quedan aquí, sin usar, hasta confirmarlos.
-PENDIENTES_SEMESTRES_9_Y_10 = [
-    {'semestre': 9, 'sigla': 'CIS-MOG-o19411', 'nombre': 'MODALIDAD DE GRADUACIÓN I', 'horas_teoricas': 6, 'horas_practicas': 6},
-    {'semestre': 9, 'sigla': 'CIS-TDG-o19412', 'nombre': 'TESIS DE GRADO', 'horas_teoricas': 6, 'horas_practicas': 6},
-    {'semestre': 9, 'sigla': 'CIS-PDG-o19413', 'nombre': 'PROYECTO DE GRADO', 'horas_teoricas': 6, 'horas_practicas': 6},
-    {'semestre': 10, 'sigla': 'CIS-MOG-o10412', 'nombre': 'MODALIDAD DE GRADUACIÓN II', 'horas_teoricas': 6, 'horas_practicas': 6},
-    {'semestre': 10, 'sigla': 'CIS-TRD-o10413', 'nombre': 'TRABAJO DIRIGIDO', 'horas_teoricas': 6, 'horas_practicas': 6},
+    # 9.º semestre. Horas deducidas del total oficial del PDC (612 h = 34 h/sem); siglas IMA y CEE
+    # asignadas (la malla oficial trae el código ilegible).
+    # Comunes (16 h/sem):
+    {'semestre': 9, 'sigla': 'CIS-MSS-o19415', 'nombre': 'Modelación y Simulación de Sistemas II', 'horas_teoricas': 4, 'horas_practicas': 2},
+    {'semestre': 9, 'sigla': 'CIS-ASI-o19410', 'nombre': 'Auditoría y Seguridad Informática', 'horas_teoricas': 4, 'horas_practicas': 2},
+    {'semestre': 9, 'sigla': 'CIS-PRP-o19210', 'nombre': 'Práctica Profesional', 'horas_teoricas': 2, 'horas_practicas': 2},
+    # Mención Software (18 h/sem):
+    {'semestre': 9, 'sigla': 'CIS-INA-e19415', 'nombre': 'Inteligencia Artificial', 'horas_teoricas': 4, 'horas_practicas': 2},
+    {'semestre': 9, 'sigla': 'CIS-DIS-e19413', 'nombre': 'Dinámica de Sistemas', 'horas_teoricas': 4, 'horas_practicas': 2},
+    {'semestre': 9, 'sigla': 'CIS-TAP-e19414', 'nombre': 'Taller de Programación', 'horas_teoricas': 4, 'horas_practicas': 2},
+    # Mención Teleinformática (18 h/sem):
+    {'semestre': 9, 'sigla': 'CIS-TRE-e19417', 'nombre': 'Taller de Redes', 'horas_teoricas': 4, 'horas_practicas': 2},
+    {'semestre': 9, 'sigla': 'CIS-IMA-e19418', 'nombre': 'Ingeniería de Mantenimiento', 'horas_teoricas': 4, 'horas_practicas': 2},
+    {'semestre': 9, 'sigla': 'CIS-CEE-e19112', 'nombre': 'Circuitos Electrónicos', 'horas_teoricas': 4, 'horas_practicas': 2},
 ]
 
 

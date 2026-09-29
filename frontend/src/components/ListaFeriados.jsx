@@ -14,6 +14,7 @@ const TIPOS = [
 ];
 const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const FORMULARIO_VACIO = { fecha: '', nombre: '', tipo: 'nacional' };
+const AVISO_PRECARGA = 'Revise los decretos de la gestión: la precarga no incluye traslados ni feriados adicionales.';
 
 const leerUsuario = () => {
   try {
@@ -41,6 +42,9 @@ const ListaFeriados = () => {
   const [editandoId, setEditandoId] = useState(null);
   const [guardando, setGuardando] = useState(false);
   const [confirmarBorrarId, setConfirmarBorrarId] = useState(null);
+  const [precargando, setPrecargando] = useState(false);
+  // Gestión recién precargada: se muestra el aviso de revisar los decretos.
+  const [gestionPrecargada, setGestionPrecargada] = useState(null);
 
   const cargarFeriados = useCallback(async () => {
     setCargando(true);
@@ -108,6 +112,21 @@ const ListaFeriados = () => {
     }
   };
 
+  // Precarga desde la librería holidays (Bolivia y Beni), solo en una gestión sin feriados.
+  const precargar = async () => {
+    setPrecargando(true);
+    try {
+      const { data } = await api.post('/feriados/precargar/', { gestion });
+      toast.success(`${data.creados} feriado${data.creados !== 1 ? 's' : ''} precargado${data.creados !== 1 ? 's' : ''}`);
+      setGestionPrecargada(gestion);
+      cargarFeriados();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'No se pudieron precargar los feriados.'));
+    } finally {
+      setPrecargando(false);
+    }
+  };
+
   const borrar = async (id) => {
     try {
       await api.delete(`/feriados/${id}/`);
@@ -154,6 +173,26 @@ const ListaFeriados = () => {
           {!cargando && feriados.length === 0 && (
             <p className="mt-4 rounded-xl border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm font-semibold text-amber-800 dark:text-amber-300">
               No hay feriados cargados para esta gestión.
+            </p>
+          )}
+          {!cargando && (
+            <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-2">
+              <button
+                type="button"
+                onClick={precargar}
+                disabled={precargando || feriados.length > 0}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-semibold"
+              >
+                {precargando ? 'Precargando...' : `Precargar feriados de ${gestion}`}
+              </button>
+              {feriados.length > 0 && (
+                <span className="text-sm text-slate-600 dark:text-slate-400">Esta gestión ya tiene feriados cargados</span>
+              )}
+            </div>
+          )}
+          {gestionPrecargada === gestion && (
+            <p className="mt-4 rounded-xl border-2 border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 px-4 py-3 text-sm font-semibold text-blue-800 dark:text-blue-300">
+              {AVISO_PRECARGA}
             </p>
           )}
         </div>

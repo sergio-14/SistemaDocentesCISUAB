@@ -20,6 +20,7 @@ import io
 from .utils.carrera_pdf_generator import CarreraPDFGenerator
 from .utils.pdf_generator import FondoPDFGenerator, InformePDFGenerator
 from .utils.informe_texto import CAMPOS_TEXTO_INFORME
+from .utils.feriados_bolivia import feriados_precargables
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import (
@@ -1368,6 +1369,38 @@ class FeriadoViewSet(viewsets.ModelViewSet):
             'feriados_cargados': Feriado.objects.filter(fecha__year=gestion).count(),
             'dias_habiles': dias_feriados_habiles(gestion),
         })
+
+    @action(detail=False, methods=['post'])
+    def precargar(self, request):
+        """Precarga los feriados de una gestión sin feriados (librería holidays: Bolivia y Beni)."""
+        try:
+            gestion = int(request.data.get('gestion'))
+        except (TypeError, ValueError):
+            return Response({'gestion': 'La gestión debe ser un año.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not 2020 <= gestion <= 2100:
+            return Response({'gestion': 'La gestión debe estar entre 2020 y 2100.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        ya_cargada = Response(
+            {'detail': 'Esta gestión ya tiene feriados cargados.'},
+            status=status.HTTP_409_CONFLICT,
+        )
+        if Feriado.objects.filter(fecha__year=gestion).exists():
+            return ya_cargada
+        try:
+            with transaction.atomic():
+                creados = [
+                    Feriado.objects.create(fecha=fecha, nombre=nombre, tipo=tipo)
+                    for fecha, nombre, tipo in feriados_precargables(gestion)
+                ]
+        except IntegrityError:
+            # Otra precarga de la misma gestión terminó antes (fecha única).
+            return ya_cargada
+
+        return Response({
+            'gestion': gestion,
+            'creados': len(creados),
+            'feriados': self.get_serializer(creados, many=True).data,
+        }, status=status.HTTP_201_CREATED)
 
 
 class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):

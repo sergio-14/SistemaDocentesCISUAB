@@ -286,7 +286,6 @@ const CustomSelect = ({
 
 const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdicion, onCancelarEdicion, readOnly = true }) => {
     const [cargas, setCargas] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [semestre, setSemestre] = useState('');
     const [materias, setMaterias] = useState([]);
     const [loadingMaterias, setLoadingMaterias] = useState(false);
@@ -358,10 +357,16 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
         { value: 'social_cultural_deportiva', label: 'Social, cultural, deportiva y Otros' },
     ];
 
+    // Las funciones de carga cambian en cada render: se usan desde una ref para recargar
+    // solo cuando cambian el docente o el calendario.
+    const cargasRef = useRef(null);
+    useEffect(() => {
+        cargasRef.current = { cargarCargas, cargarFondoDetalle };
+    });
     useEffect(() => {
         if (docenteId && calendarioId) {
-            cargarCargas();
-            cargarFondoDetalle();
+            cargasRef.current.cargarCargas();
+            cargasRef.current.cargarFondoDetalle();
         }
     }, [docenteId, calendarioId]);
 
@@ -421,7 +426,6 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
 
     const cargarCargas = async () => {
         try {
-            setLoading(true);
             const response = await api.get('/cargas-horarias/', {
                 params: { docente: docenteId, calendario: calendarioId }
             });
@@ -429,8 +433,6 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
         } catch (error) {
             console.error("Error al cargar cargas horarias:", error);
             toast.error("Error al cargar asignaciones");
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -531,26 +533,6 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!confirm("¿Eliminar esta asignación?")) return;
-        try {
-            await api.delete(`/cargas-horarias/${id}/`);
-            toast.success("Eliminado");
-            setCargas((prev) => prev.filter((carga) => carga.id !== id));
-            cargarFondoDetalle();
-            if (onCargaUpdate) onCargaUpdate();
-        } catch (error) {
-            console.error(error);
-            const statusCode = error.response?.status;
-            const data = error.response?.data;
-            if (statusCode === 400) {
-                const validationMessage = extractValidationMessage(data);
-                toast.error(`ERROR DE VALIDACIÓN: ${validationMessage}`);
-            } else {
-                toast.error("Error al eliminar");
-            }
-        }
-    };
 
     const handleMateriaChange = (materiaId) => {
         const materia = materias.find(m => m.id.toString() === materiaId);

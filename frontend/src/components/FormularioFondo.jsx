@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+// eslint-disable-next-line no-unused-vars -- motion se usa en el JSX (<motion.div>), que esta configuración no detecta.
 import { AnimatePresence, motion } from 'framer-motion';
 import { getDocentes, getCarreras, getMaterias, crearFondoTiempo, getCalendarioActivo, getCalendarios } from '../apis/api';
 import api from '../apis/api';
@@ -342,6 +343,7 @@ const VerticalSemesterWheelPicker = ({
     centerFloatRef.current = syncIndex;
     isIntroAnimatingRef.current = true;
     lastInternalSemesterRef.current = Number(semesters[syncIndex]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo se resincroniza al reiniciar la rueda, no con cada valor.
   }, [wheelResetToken, semesters.length]);
 
   useEffect(() => {
@@ -351,6 +353,7 @@ const VerticalSemesterWheelPicker = ({
     lastInternalSemesterRef.current = Number(selectedSemester);
     onChange(selectedSemester);
     onSettled?.(selectedSemester);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- avisa solo cuando la rueda se detiene en un semestre.
   }, [centeredIndex, targetIndex, semesters]);
 
   useEffect(() => {
@@ -391,6 +394,7 @@ const VerticalSemesterWheelPicker = ({
 
     node.addEventListener('wheel', handleWheelNative, { passive: false });
     return () => node.removeEventListener('wheel', handleWheelNative);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- el listener se registra una vez por rueda; usa refs para el estado.
   }, [semesters.length, wheelResetToken]);
 
   useEffect(() => {
@@ -549,7 +553,7 @@ const VerticalSemesterWheelPicker = ({
   );
 };
 
-function FormularioFondo({ isDark, editar = false }) {
+function FormularioFondo({ editar = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams();
@@ -558,7 +562,6 @@ function FormularioFondo({ isDark, editar = false }) {
   const [calendarios, setCalendarios] = useState([]);
   const [calendarioActivo, setCalendarioActivo] = useState(null);
   const [usuarioActual, setUsuarioActual] = useState(null);
-  const [perfilActual, setPerfilActual] = useState(null);
   const [carreraBloqueada, setCarreraBloqueada] = useState(false);
   const [cargandoDocentes, setCargandoDocentes] = useState(false);
   const [materias, setMaterias] = useState([]);
@@ -634,7 +637,6 @@ function FormularioFondo({ isDark, editar = false }) {
   };
 
   const esSuperAdmin = usuarioActual?.is_superuser === true;
-  const rolActual = esSuperAdmin ? 'iiisyp' : perfilActual?.rol;
   const docenteBloqueadoPorNavegacion = !editar && Boolean(location.state?.docenteId);
   const docenteSeleccionado = docentes.find((docente) => String(docente.id) === String(formData.docente || ''));
   const vinculoDocenteSeleccionado = obtenerVinculoActivo(docenteSeleccionado);
@@ -696,6 +698,7 @@ function FormularioFondo({ isDark, editar = false }) {
 
   useEffect(() => {
     cargarDatosPorRol();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- carga inicial: solo al abrir o cambiar de fondo.
   }, [id, editar]);
 
   const cargarDocentesPorCarrera = async (
@@ -759,7 +762,6 @@ function FormularioFondo({ isDark, editar = false }) {
       const carreraInicial = bloquearCarrera ? carreraPerfilId : '';
 
       setUsuarioActual(userData);
-      setPerfilActual(perfilData);
       setCarreraBloqueada(bloquearCarrera);
       setCarreras(normalizarLista(carrerasRes.data));
       setCalendarios(normalizarLista(calendariosRes.data));
@@ -809,11 +811,18 @@ function FormularioFondo({ isDark, editar = false }) {
           }
         }
       } catch (err) {
-        console.warn('No hay calendario activo configurado');
+        // Sin calendario activo el backend responde 404. Cualquier otro error (p. ej. al
+        // cargar docentes o materias) no se oculta como si faltara el calendario.
+        if (err?.response?.status === 404) {
+          console.warn('No hay calendario activo configurado');
+        } else {
+          console.error('Error al cargar el calendario activo y sus datos:', err);
+          toast.error(getApiErrorMessage(err, 'Error al cargar el calendario activo'));
+        }
       }
 
       if (editar && id) {
-        await cargarFondo(userData.is_superuser);
+        await cargarFondo();
       }
     } catch (err) {
       console.error('Error al cargar datos:', err);
@@ -824,7 +833,7 @@ function FormularioFondo({ isDark, editar = false }) {
     }
   };
 
-  const cargarFondo = async (superAdmin = esSuperAdmin) => {
+  const cargarFondo = async () => {
     try {
       const response = await api.get(`/fondos-tiempo/${id}/`);
 

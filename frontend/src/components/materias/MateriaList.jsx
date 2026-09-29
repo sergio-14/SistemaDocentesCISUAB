@@ -5,7 +5,7 @@ import api from '../../apis/api';
 import { Link, Outlet } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
-// Componente Select con diseÃ±o personalizado (mismo estilo que ListaDocentes)
+// Componente Select con diseño personalizado (mismo estilo que ListaDocentes)
 const SelectConDropdown = ({ label, value, onChange, options, name, placeholder = 'Buscar...', emptyText = 'Sin resultados' }) => {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -63,7 +63,7 @@ const SelectConDropdown = ({ label, value, onChange, options, name, placeholder 
     <div ref={containerRef} className="relative">
       {label && <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">{label}</label>}
       
-      {/* BotÃ³n principal */}
+      {/* Botón principal */}
       <div className={`relative w-full min-w-[200px] rounded-xl border-2 bg-slate-50 dark:bg-slate-700 shadow-sm border-slate-300 dark:border-slate-600`}>
         <div className="flex items-center gap-2 px-4 py-2.5">
           <input
@@ -99,7 +99,7 @@ const SelectConDropdown = ({ label, value, onChange, options, name, placeholder 
         </div>
       </div>
 
-      {/* MenÃº desplegable */}
+      {/* Menú desplegable */}
       {open && (
         <div className="absolute z-50 mt-2 w-full rounded-xl border-2 border-[#3A56AF] bg-white dark:bg-slate-900 shadow-xl">
           <div className="max-h-40 overflow-auto p-2">
@@ -184,7 +184,7 @@ const getSemestreLabel = (semestre) => {
     return labels[Number(semestre)] || `${semestre} Semestre`;
 };
 
-const MateriaList = ({ isDark, sidebarCollapsed = false }) => {
+const MateriaList = () => {
     const [materias, setMaterias] = useState([]);
     const [carreras, setCarreras] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -263,6 +263,7 @@ const MateriaList = ({ isDark, sidebarCollapsed = false }) => {
             }
         };
         fetchDatos();
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- carga inicial, una sola vez.
     }, []);
 
     const handleDelete = (materia) => {
@@ -360,7 +361,7 @@ const MateriaList = ({ isDark, sidebarCollapsed = false }) => {
                                 Materias y Asignaturas
                             </h1>
                             <p className="text-sm text-slate-700 dark:text-slate-400 mt-1">
-                                GestiÃ³n del catÃ¡logo de materias por carrera
+                                Gestión del catálogo de materias por carrera
                             </p>
                         </div>
                         
@@ -430,7 +431,7 @@ const MateriaList = ({ isDark, sidebarCollapsed = false }) => {
                                         </div>
                                     </div>
                                     
-                                    {/* TÃ­tulo */}
+                                    {/* Título */}
                                     <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                                         {materia.nombre}
                                     </h3>
@@ -448,10 +449,10 @@ const MateriaList = ({ isDark, sidebarCollapsed = false }) => {
                                             <span>Carga Horaria:</span>
                                         </div>
                                         <div className="flex gap-2">
-                                            <span className="px-2 py-1 rounded-md bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-100 dark:border-indigo-800" title="Horas TeÃ³ricas">
+                                            <span className="px-2 py-1 rounded-md bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-100 dark:border-indigo-800" title="Horas Teóricas">
                                                 T: {materia.horas_teoricas}
                                             </span>
-                                            <span className="px-2 py-1 rounded-md bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold border border-emerald-100 dark:border-emerald-800" title="Horas PrÃ¡cticas">
+                                            <span className="px-2 py-1 rounded-md bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold border border-emerald-100 dark:border-emerald-800" title="Horas Prácticas">
                                                 P: {materia.horas_practicas}
                                             </span>
                                         </div>
@@ -509,27 +510,27 @@ const MateriaList = ({ isDark, sidebarCollapsed = false }) => {
                 )}
             </div>
 
-            {/* Modal de ConfirmaciÃ³n de EliminaciÃ³n */}
+            {/* Modal de Confirmación de Eliminación */}
             {showDeleteModal && (
                 <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={closeDeleteModal} />
                     <div className="relative w-full max-w-lg rounded-2xl border border-red-300/40 dark:border-red-700/50 bg-slate-900 shadow-2xl overflow-hidden animate-slide-up" style={{ animationDuration: '160ms' }}>
                         <div className="px-5 py-4 border-b border-slate-700/70 bg-gradient-to-r from-red-900/30 to-slate-900">
                             <h4 className="text-lg font-bold text-red-300 flex items-center gap-2">
-                                <span>ðŸ—‘ï¸</span>
-                                Confirmar EliminaciÃ³n
+                                <span>🗑️</span>
+                                Confirmar Eliminación
                             </h4>
                         </div>
                         <div className="px-5 py-4 space-y-3 text-slate-200">
                             <p className="text-sm leading-relaxed">
-                                Se eliminarÃ¡ la materia <strong className="text-white">{materiaToDelete?.nombre}</strong> del sistema de forma permanente.
+                                Se eliminará la materia <strong className="text-white">{materiaToDelete?.nombre}</strong> del sistema de forma permanente.
                             </p>
                             <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm">
-                                AcciÃ³n irreversible: <strong className="text-red-300">la materia quedarÃ¡ eliminada definitivamente.</strong>
+                                Acción irreversible: <strong className="text-red-300">la materia quedará eliminada definitivamente.</strong>
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                                    Escribe el nombre exacto de la materia para habilitar la eliminaciÃ³n:
+                                    Escribe el nombre exacto de la materia para habilitar la eliminación:
                                 </label>
                                 <input
                                     type="text"
@@ -540,7 +541,7 @@ const MateriaList = ({ isDark, sidebarCollapsed = false }) => {
                                 />
                             </div>
                             <p className="text-xs text-slate-400">
-                                Esta operaciÃ³n no se puede deshacer.
+                                Esta operación no se puede deshacer.
                             </p>
                         </div>
                         <div className="px-5 py-4 border-t border-slate-700/70 flex justify-end gap-3 bg-slate-950/70">
@@ -557,7 +558,7 @@ const MateriaList = ({ isDark, sidebarCollapsed = false }) => {
                                 disabled={deleteConfirmText !== (materiaToDelete?.nombre || '')}
                                 className="px-4 py-2 rounded-lg font-bold text-white bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 disabled:bg-red-900/40 disabled:text-slate-300 disabled:cursor-not-allowed"
                             >
-                                ðŸ—‘ï¸ Eliminar
+                                🗑️ Eliminar
                             </button>
                         </div>
                     </div>

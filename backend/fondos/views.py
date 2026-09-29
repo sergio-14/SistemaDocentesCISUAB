@@ -1053,14 +1053,18 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
         Filtra la carga horaria según el rol del usuario.
         """
         user = self.request.user
+        queryset = super().get_queryset()
+        # El superusuario ve, edita y elimina todas (su perfil no tiene rol de carrera).
+        if user.is_superuser:
+            return queryset
         try:
             perfil = _obtener_perfil_efectivo(user, self.request)
         except Exception:
             perfil = None
-        queryset = super().get_queryset()
 
+        # Sin perfil no hay carrera ni ficha: no ve ninguna (antes veía todas).
         if not perfil:
-            return queryset
+            return queryset.none()
 
         if perfil.rol in ['director', 'jefe_estudios', 'iiisyp']:
             carreras_activas = _obtener_carreras_activas_usuario(user, self.request)

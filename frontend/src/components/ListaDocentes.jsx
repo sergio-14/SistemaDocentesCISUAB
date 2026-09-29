@@ -276,7 +276,7 @@ function FechaIngresoPicker({ value, onChange, error }) {
                   setOpenQuickPicker((prev) => (prev === 'year' ? null : 'year'));
                 }}
                 className={`w-full h-8 text-left pl-2.5 pr-8 rounded-xl border bg-white dark:bg-slate-800 text-xs shadow-sm ${openQuickPicker === 'year' ? 'border-cyan-500/80 dark:border-cyan-500 ring-2 ring-cyan-400/40 dark:ring-cyan-500/35 text-slate-900 dark:text-slate-100' : 'border-cyan-300/70 dark:border-cyan-700/80 hover:border-cyan-500/70 dark:hover:border-cyan-500/80 text-slate-800 dark:text-slate-100'}`}
-                aria-label="Seleccionar a+�o"
+                aria-label="Seleccionar año"
               >
                 <span className="block truncate font-semibold">{hasSelectedYear && draftYear !== null ? draftYear : year}</span>
                 <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
@@ -358,7 +358,7 @@ function FechaIngresoPicker({ value, onChange, error }) {
   );
 }
 
-// Componente Select con dise+�o personalizado (mismo estilo que FechaIngresoPicker)
+// Componente Select con diseño personalizado (mismo estilo que FechaIngresoPicker)
 const SelectConDropdown = ({
   label,
   value,
@@ -443,7 +443,7 @@ const SelectConDropdown = ({
         </span>
       </label>
       
-      {/* Bot+�n principal */}
+      {/* Botón principal */}
       <div className={`relative w-full rounded-xl border-2 bg-slate-50 dark:bg-slate-700 shadow-sm ${disabled ? 'opacity-70' : ''} ${error ? '!border-red-600 dark:!border-red-500 ring-1 ring-inset ring-red-500/50' : open ? 'border-[#3A56AF] dark:border-[#3A56AF]' : 'border-slate-300 dark:border-slate-600'} ${containerClassName} ${isPulsing ? 'animate-field-error-shake' : ''}`}>
         <button
           type="button"
@@ -472,7 +472,7 @@ const SelectConDropdown = ({
         </button>
       </div>
 
-      {/* Men+� desplegable */}
+      {/* Menú desplegable */}
       {open && menuStyle && createPortal(
         <div ref={menuRef} className="rounded-xl border-2 border-[#3A56AF] bg-white dark:bg-slate-900 shadow-xl" style={menuStyle}>
           <div className={`p-2 ${menuClassName}`}>
@@ -989,7 +989,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     const userData = JSON.parse(localStorage.getItem('user') || 'null');
     setUser(userData);
     
-    // ���� Detectar si venimos desde "Crear Usuario" para abrir modal
+    // Detectar si venimos desde "Crear Usuario" para abrir modal
     const abrirModal = sessionStorage.getItem('abrirModalDesdeUsuarios');
     if (abrirModal === 'true') {
       const datosDocenteGuardados = sessionStorage.getItem('datosCrearDocente');
@@ -1862,11 +1862,11 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     } catch (err) {
       console.error('Error al eliminar docente:', err);
       
-      // Capturar mensaje de error espec+�fico del backend
+      // Capturar mensaje de error específico del backend
       let errorMessage = 'Error al eliminar el docente';
       
       if (err.response && err.response.data && err.response.data.error) {
-        // Backend devolvi+� un error espec+�fico
+        // Backend devolvió un error específico
         errorMessage = err.response.data.error;
       } else if (err.response && err.response.data && err.response.data.detail) {
         errorMessage = err.response.data.detail;

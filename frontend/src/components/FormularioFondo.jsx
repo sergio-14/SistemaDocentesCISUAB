@@ -671,7 +671,8 @@ function FormularioFondo({ isDark, editar = false }) {
 
     try {
       setCargandoMaterias(true);
-      const params = { carrera: carreraId };
+      // Solo materias activas: una inactiva no se asigna en fondos nuevos.
+      const params = { carrera: carreraId, activo: true };
 
       const response = await getMaterias(params);
       let lista = normalizarLista(response.data);

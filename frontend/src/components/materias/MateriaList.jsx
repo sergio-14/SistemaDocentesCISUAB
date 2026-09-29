@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaEdit, FaTrash } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaToggleOn, FaToggleOff } from 'react-icons/fa';
 import { X } from 'lucide-react';
 import api from '../../apis/api';
 import { Link, Outlet } from 'react-router-dom';
@@ -290,7 +290,20 @@ const MateriaList = ({ isDark, sidebarCollapsed = false }) => {
             closeDeleteModal();
         } catch (error) {
             console.error("Error eliminando materia:", error);
-            toast.error('Error al eliminar materia');
+            // Con cargas horarias el backend responde 409 con el motivo (desactivarla).
+            toast.error(error.response?.data?.detail || 'Error al eliminar materia');
+        }
+    };
+
+    // Inactiva: no se asigna en cargas nuevas, pero se conserva en las que ya tiene.
+    const cambiarActivo = async (materia) => {
+        try {
+            const { data } = await api.patch(`/materias/${materia.id}/`, { activo: !materia.activo });
+            setMaterias((prev) => prev.map((m) => (m.id === data.id ? { ...m, ...data } : m)));
+            toast.success(data.activo ? 'Materia activada' : 'Materia desactivada');
+        } catch (error) {
+            console.error('Error cambiando el estado de la materia:', error);
+            toast.error(error.response?.data?.detail || 'No se pudo cambiar el estado de la materia');
         }
     };
 
@@ -405,9 +418,16 @@ const MateriaList = ({ isDark, sidebarCollapsed = false }) => {
                                         <span className="px-3 py-1 rounded-lg text-xs font-bold bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                                             {materia.sigla}
                                         </span>
-                                        <span className="px-3 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
-                                            {getSemestreLabel(materia.semestre)}
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            {materia.activo === false && (
+                                                <span className="px-3 py-1 rounded-lg text-xs font-bold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
+                                                    Inactiva
+                                                </span>
+                                            )}
+                                            <span className="px-3 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
+                                                {getSemestreLabel(materia.semestre)}
+                                            </span>
+                                        </div>
                                     </div>
                                     
                                     {/* TÃ­tulo */}
@@ -444,6 +464,13 @@ const MateriaList = ({ isDark, sidebarCollapsed = false }) => {
                                                 >
                                                     <FaEdit size={18} />
                                                 </Link>
+                                                <button data-escritura
+                                                    onClick={() => cambiarActivo(materia)}
+                                                    className={`${materia.activo === false ? 'text-slate-400 hover:text-emerald-500' : 'text-emerald-500 hover:text-emerald-400'} transition-all duration-200 hover:scale-110`}
+                                                    title={materia.activo === false ? 'Activar' : 'Desactivar'}
+                                                >
+                                                    {materia.activo === false ? <FaToggleOff size={20} /> : <FaToggleOn size={20} />}
+                                                </button>
                                                 <button data-escritura
                                                     onClick={() => handleDelete(materia)}
                                                     className="text-red-500 hover:text-red-400 dark:text-red-400 dark:hover:text-red-300 transition-all duration-200 hover:scale-110"

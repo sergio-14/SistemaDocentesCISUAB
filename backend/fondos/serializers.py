@@ -1293,6 +1293,12 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
                     'docente': 'El docente no tiene una dedicación activa válida para esta carrera.'
                 })
 
+        materia_cambia = not self.instance or self.instance.materia_id != getattr(materia, 'pk', None)
+        if materia and not materia.activo and materia_cambia:
+            raise serializers.ValidationError({
+                'materia': f'La materia {materia.nombre} está inactiva: no se puede asignar en cargas nuevas.'
+            })
+
         if materia and fondo and materia.carrera_id != fondo.carrera_id:
             raise serializers.ValidationError({
                 'materia': 'La materia seleccionada no pertenece a la carrera del Fondo de Tiempo.'
@@ -1306,7 +1312,7 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
                 tipo_actividad=tipo_actividad,
             )
             if categoria == 'academica':
-                tipo_duplicado = tipo_duplicado.filter(materia=materia)
+                tipo_duplicado = tipo_duplicado.filter(materia=materia, paralelo=paralelo)
             if self.instance:
                 tipo_duplicado = tipo_duplicado.exclude(pk=self.instance.pk)
             if tipo_duplicado.exists():
@@ -1315,16 +1321,19 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
                 })
 
         if categoria == 'academica' and tipo_actividad == 'clases_aula' and docente and calendario and materia:
+            # Un docente puede dar varios paralelos de la misma materia: se repite solo si
+            # coincide también el paralelo.
             materia_duplicada = CargaHoraria.objects.filter(
                 docente=docente,
                 calendario=calendario,
                 materia=materia,
+                paralelo=paralelo,
             )
             if self.instance:
                 materia_duplicada = materia_duplicada.exclude(pk=self.instance.pk)
             if materia_duplicada.exists():
                 raise serializers.ValidationError({
-                    'materia': f'La materia {materia.nombre} ya fue asignada a este docente en este periodo'
+                    'materia': f'La materia {materia.nombre} (paralelo {paralelo}) ya fue asignada a este docente en este periodo'
                 })
 
         if hora_inicio and hora_fin and hora_fin <= hora_inicio:
@@ -2318,9 +2327,18 @@ class MateriaSerializer(serializers.ModelSerializer):
         if sigla_normalizada and len(sigla_normalizada) < 2:
             errors = {'sigla': 'La sigla de la materia debe tener al menos 2 caracteres.'}
             raise serializers.ValidationError(errors)
-        if sigla_normalizada and not re.fullmatch(r'[A-Z]{3}-[A-Z]{3}-[OE]\d{5}', sigla_normalizada):
-            errors = {'sigla': 'La sigla debe seguir el formato XXX-XXX-[oe]XXXXX. Ej: CIS-ALG-o11101.'}
+        # Formato CARRERA-XXX-[O|E][-]NNNNN (ej. CIS-ALG-O11101, CP-CBA-O-11101): el
+        # prefijo es el código de la carrera de la materia.
+        formato = re.fullmatch(r'([A-Z0-9]{2,10})-[A-Z]{2,6}-[OE]-?\d{5}', sigla_normalizada or '')
+        if sigla_normalizada and not formato:
+            errors = {'sigla': 'La sigla debe seguir el formato CARRERA-XXX-O-NNNNN. Ej: CIS-ALG-O11101 o CP-CBA-O-11101.'}
             raise serializers.ValidationError(errors)
+        carrera_materia = attrs.get('carrera', getattr(instance, 'carrera', None))
+        codigo_carrera = str(getattr(carrera_materia, 'codigo', '') or '').strip().upper()
+        if formato and codigo_carrera and formato.group(1) != codigo_carrera:
+            raise serializers.ValidationError({
+                'sigla': f'La sigla debe empezar con el código de la carrera ({codigo_carrera}-...).',
+            })
         horas_teoricas = attrs.get('horas_teoricas', getattr(instance, 'horas_teoricas', 0))
         horas_practicas = attrs.get('horas_practicas', getattr(instance, 'horas_practicas', 0))
         semestre = attrs.get('semestre', getattr(instance, 'semestre', None))

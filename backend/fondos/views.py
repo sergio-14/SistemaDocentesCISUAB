@@ -948,7 +948,7 @@ class MateriaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     queryset = Materia.objects.select_related('carrera').all()
     serializer_class = MateriaSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['semestre', 'carrera']
+    filterset_fields = ['semestre', 'carrera', 'activo']
     search_fields = ['nombre', 'sigla', 'carrera__nombre']
     ordering_fields = ['semestre', 'nombre', 'carrera']
     ordering = ['carrera', 'semestre', 'nombre']
@@ -973,11 +973,36 @@ class MateriaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
             return [IsAdminOrDirector()]
         return [IsAuthenticated()]
 
+    def _validar_carrera_propia(self, carrera):
+        """Director y Jefe de Estudios solo gestionan materias de su carrera; el superusuario, de todas."""
+        if not carrera or self.request.user.is_superuser:
+            return
+        if not _usuario_tiene_acceso_a_carrera(self.request.user, carrera, self.request):
+            raise PermissionDenied('Solo puedes gestionar materias de tu carrera.')
+
     def perform_create(self, serializer):
         carrera = serializer.validated_data.get('carrera')
         if carrera and not carrera.activo:
             raise PermissionDenied('No se puede crear una materia en una carrera inactiva.')
+        self._validar_carrera_propia(carrera)
         serializer.save()
+
+    def perform_update(self, serializer):
+        self._validar_carrera_propia(serializer.validated_data.get('carrera'))
+        serializer.save()
+
+    def destroy(self, request, *args, **kwargs):
+        """Una materia con cargas horarias no se elimina (se conserva el historial): se desactiva."""
+        materia = self.get_object()
+        cargas = CargaHoraria.objects.filter(materia=materia).count()
+        if cargas:
+            mensaje = (
+                f'No se puede eliminar la materia {materia.nombre}: tiene {cargas} carga(s) horaria(s). '
+                'Desactívela en su lugar.'
+            )
+            return Response({'error': mensaje, 'detail': mensaje, 'cargas_horarias': cargas},
+                            status=status.HTTP_409_CONFLICT)
+        return super().destroy(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)

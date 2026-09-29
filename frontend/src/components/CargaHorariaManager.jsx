@@ -593,11 +593,14 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
 
     const categoriaOptions = CATEGORIA_OPCIONES.map(opt => ({ value: opt.value, label: opt.label }));
     const semestreOptions = semestresDisponibles.map(s => ({ value: s.toString(), label: `${s}° Semestre` }));
-    const materiaOptions = materias.map(m => ({
-        value: m.id.toString(),
-        label: `${m.nombre} (${m.horas_teoricas} HT / ${m.horas_practicas} HP - Total: ${m.horas_totales} hrs/sem)`
-    }));
     const selectedMateriaId = formData.materia?.toString() || '';
+    // Una materia inactiva no se asigna en cargas nuevas (solo se conserva la ya asignada).
+    const materiaOptions = materias
+        .filter(m => m.activo !== false || m.id.toString() === selectedMateriaId)
+        .map(m => ({
+            value: m.id.toString(),
+            label: `${m.nombre} (${m.horas_teoricas} HT / ${m.horas_practicas} HP - Total: ${m.horas_totales} hrs/sem)`
+        }));
     const esAcademica = formData.categoria === 'academica';
     const requiereMateriaAcademica = esAcademica;
     const esSubactividadAcademica = esAcademica && formData.tipo_actividad && formData.tipo_actividad !== 'clases_aula';

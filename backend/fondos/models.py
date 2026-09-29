@@ -729,6 +729,8 @@ class Materia(models.Model):
     semestre = models.IntegerField()
     horas_teoricas = models.IntegerField(default=0)
     horas_practicas = models.IntegerField(default=0)
+    # Inactiva: no se asigna en cargas nuevas, pero se conserva en las que ya tiene.
+    activo = models.BooleanField(default=True)
 
     class Meta:
         constraints = [
@@ -1604,10 +1606,11 @@ class CargaHoraria(models.Model):
             # en Academica dos materias distintas SI pueden compartir el mismo
             # tipo_actividad (p. ej. 'clases_aula' de dos materias), mientras que en
             # el resto de categorias el tipo_actividad debe ser unico sin mas.
+            # Con el paralelo: un docente puede dar varios paralelos de la misma materia.
             models.UniqueConstraint(
-                fields=['docente', 'calendario', 'categoria', 'tipo_actividad', 'materia'],
+                fields=['docente', 'calendario', 'categoria', 'tipo_actividad', 'materia', 'paralelo'],
                 condition=models.Q(categoria='academica'),
-                name='cargahoraria_unique_tipo_academica_por_materia',
+                name='cargahoraria_unique_tipo_academica_por_materia_paralelo',
             ),
             models.UniqueConstraint(
                 fields=['docente', 'calendario', 'categoria', 'tipo_actividad'],

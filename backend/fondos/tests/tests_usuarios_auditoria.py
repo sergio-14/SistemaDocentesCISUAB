@@ -367,7 +367,7 @@ class SuperusuarioEInstitutoTests(UsuariosBaseTestCase):
 
         response = self.client.post(
             '/api/materias/',
-            {'nombre': 'Física', 'sigla': 'CIS-FIS-O11101', 'carrera': self.carrera.pk, 'semestre': 1, 'horas_teoricas': 2},
+            {'nombre': 'Física', 'sigla': 'SIS-FIS-O11101', 'carrera': self.carrera.pk, 'semestre': 1, 'horas_teoricas': 2},
             format='json',
         )
 
@@ -382,7 +382,7 @@ class SuperusuarioEInstitutoTests(UsuariosBaseTestCase):
         respuestas = {
             'crear materia': self.client.post(
                 '/api/materias/',
-                {'nombre': 'Física', 'sigla': 'CIS-FIS-O11102', 'carrera': self.carrera.pk, 'semestre': 1, 'horas_teoricas': 2},
+                {'nombre': 'Física', 'sigla': 'SIS-FIS-O11102', 'carrera': self.carrera.pk, 'semestre': 1, 'horas_teoricas': 2},
                 format='json',
             ),
             'editar materia': self.client.patch(f'/api/materias/{materia.pk}/', {'nombre': 'Otra'}, format='json'),

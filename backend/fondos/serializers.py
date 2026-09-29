@@ -1617,7 +1617,7 @@ class DocenteSerializer(serializers.ModelSerializer):
             'id', 'user', 'user_id', 'user_data',
             'nombres', 'apellido_paterno', 'apellido_materno',
             'ci', 'email', 'telefono',
-            'fecha_ingreso', 'dias_vacacion', 'horas_feriados_gestion',
+            'fecha_ingreso', 'dias_vacacion',
             'nombre_completo', 'usuario_nombre', 'usuario_email', 'usuario_id',
             'usuario_rol', 'usuario_rol_display', 'asignaciones',
             'horas_declaradas', 'fondos_validados', 'tiene_historial',
@@ -1901,7 +1901,6 @@ class DocenteSerializer(serializers.ModelSerializer):
         }
         fecha_ingreso = validated_data.pop('fecha_ingreso', None)
         dias_vacacion = validated_data.pop('dias_vacacion', 15)
-        horas_feriados = validated_data.pop('horas_feriados_gestion', 128)
 
         if user is None and user_data:
             user = User.objects.create_user(
@@ -1947,9 +1946,6 @@ class DocenteSerializer(serializers.ModelSerializer):
                 if datos_laborales.dias_vacacion != dias_vacacion:
                     datos_laborales.dias_vacacion = dias_vacacion
                     cambios_datos_laborales.append('dias_vacacion')
-                if datos_laborales.horas_feriados_gestion != horas_feriados:
-                    datos_laborales.horas_feriados_gestion = horas_feriados
-                    cambios_datos_laborales.append('horas_feriados_gestion')
 
                 if cambios_datos_laborales:
                     datos_laborales.full_clean()
@@ -1960,7 +1956,6 @@ class DocenteSerializer(serializers.ModelSerializer):
                     ci=effective_ci or f"TEMP_{uuid.uuid4().hex[:15]}",
                     fecha_ingreso=fecha_ingreso or timezone.localdate(),
                     dias_vacacion=dias_vacacion,
-                    horas_feriados_gestion=horas_feriados,
                 )
 
         # La fecha escrita en el formulario manda también cuando se reutilizan
@@ -2037,7 +2032,7 @@ class DocenteSerializer(serializers.ModelSerializer):
         user = validated_data.pop('user', serializers.empty)
         validated_data.pop('user_data', None)
 
-        dl_fields = ['ci', 'fecha_ingreso', 'dias_vacacion', 'horas_feriados_gestion']
+        dl_fields = ['ci', 'fecha_ingreso', 'dias_vacacion']
         dl_data = {}
         for field in dl_fields:
             if field in validated_data:
@@ -2158,7 +2153,7 @@ class DatosLaboralesSerializer(serializers.ModelSerializer):
     class Meta:
         model = DatosLaborales
         fields = [
-            'id', 'ci', 'fecha_ingreso', 'dias_vacacion', 'horas_feriados_gestion',
+            'id', 'ci', 'fecha_ingreso', 'dias_vacacion',
             'nombre_completo', 'rol_usuario', 'antiguedad',
             'fecha_creacion', 'fecha_modificacion',
         ]
@@ -2747,7 +2742,6 @@ class PerfilUsuarioSerializer(serializers.ModelSerializer):
     # Campos de datos laborales (vacaciones, feriados, antiguedad)
     fecha_ingreso = serializers.SerializerMethodField()
     dias_vacacion = serializers.SerializerMethodField()
-    horas_feriados_gestion = serializers.SerializerMethodField()
     antiguedad = serializers.SerializerMethodField()
 
     class Meta:
@@ -2755,7 +2749,7 @@ class PerfilUsuarioSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'rol', 'carrera', 'carrera_nombre', 'docente', 'docente_id', 'docente_nombre',
             'telefono', 'activo', 'foto_perfil', 'foto_perfil_es_propia', 'debe_cambiar_password',
-            'fecha_ingreso', 'dias_vacacion', 'horas_feriados_gestion', 'antiguedad',
+            'fecha_ingreso', 'dias_vacacion', 'antiguedad',
         ]
 
     def get_carrera_nombre(self, obj):
@@ -2779,12 +2773,6 @@ class PerfilUsuarioSerializer(serializers.ModelSerializer):
 
     def get_dias_vacacion(self, obj):
         return obj.dias_vacacion
-
-    def get_horas_feriados_gestion(self, obj):
-        datos = obj.obtener_datos_laborales()
-        if datos:
-            return datos.horas_feriados_gestion
-        return 0
 
     def get_antiguedad(self, obj):
         return obj.calcular_antiguedad()
@@ -3787,7 +3775,28 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
 # SERIALIZERS PARA MODELOS NUEVOS (Reglamento UAB)
 # ============================================
 
-from .models import CalendarioAcademico, Proyecto, InformeFondo, ObservacionFondo, HistorialFondo
+from .models import CalendarioAcademico, Feriado, Proyecto, InformeFondo, ObservacionFondo, HistorialFondo
+
+
+# =====================================================
+# FERIADOS
+# =====================================================
+
+class FeriadoSerializer(serializers.ModelSerializer):
+    """Feriado de una gestión: la gestión es el año de la fecha."""
+    gestion = serializers.IntegerField(read_only=True)
+    es_habil = serializers.BooleanField(read_only=True)
+    tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
+
+    class Meta:
+        model = Feriado
+        fields = ['id', 'fecha', 'nombre', 'tipo', 'tipo_display', 'gestion', 'es_habil']
+
+    def validate_nombre(self, value):
+        nombre = ' '.join(str(value or '').split())
+        if not nombre:
+            raise serializers.ValidationError('El nombre del feriado es obligatorio.')
+        return nombre
 
 
 # =====================================================
@@ -4254,7 +4263,7 @@ class DocenteDetalleSerializer(serializers.ModelSerializer):
         model = Docente
         fields = [
             'id', 'nombres', 'apellido_paterno', 'apellido_materno', 'ci',
-            'fecha_ingreso', 'dias_vacacion', 'horas_feriados_gestion',
+            'fecha_ingreso', 'dias_vacacion',
             'email', 'telefono', 'activo', 'fecha_creacion',
             'nombre_completo', 'vinculos',
         ]

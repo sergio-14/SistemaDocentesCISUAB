@@ -120,28 +120,38 @@ HORAS_MENSUALES_DEDICACION_HORARIO = {
 
 SEMANAS_POR_ANIO = 52
 DIAS_LABORABLES_POR_SEMANA = Decimal('5')
-# Horas de feriados por defecto de la gestión: 16 días x 8 h (tiempo completo).
-DIAS_FERIADOS_GESTION = Decimal('16')
-HORAS_FERIADOS_GESTION_POR_DEFECTO = 128
+# Estados en los que el fondo ya fue presentado: su contenido queda congelado.
+ESTADOS_FONDO_BLOQUEADOS = [
+    'presentado_jefe',
+    'presentado_director',
+    'aprobado_director',
+    'en_ejecucion',
+    'informe_presentado',
+    'finalizado',
+    'archivado',
+]
 
 
-def calcular_horas_fondo(horas_semana, dias_vacacion, horas_feriados_gestion=None):
+def dias_feriados_habiles(gestion):
+    """Feriados cargados de la gestión (año de la fecha) que caen de lunes a viernes."""
+    # week_day de Django: 1 = domingo ... 7 = sábado.
+    return Feriado.objects.filter(fecha__year=gestion, fecha__week_day__in=[2, 3, 4, 5, 6]).count()
+
+
+def calcular_horas_fondo(horas_semana, dias_vacacion, dias_feriados):
     """Horas anuales del fondo de tiempo.
 
-    Vacaciones y feriados se descuentan proporcionales a la jornada diaria
-    (horas semanales / 5): un tiempo completo (8 h/día) con 20 días de vacación
-    descuenta 160 h. Cada término se redondea hacia abajo.
+    Vacaciones y feriados (días hábiles de la gestión, ver dias_feriados_habiles)
+    se descuentan proporcionales a la jornada diaria (horas semanales / 5): un
+    tiempo completo (8 h/día) con 20 días de vacación descuenta 160 h. Cada
+    término se redondea hacia abajo.
     La vista previa del frontend (utils/horasFondo.js) replica esta función.
     """
     horas_semana = Decimal(str(horas_semana))
     horas_diarias = horas_semana / DIAS_LABORABLES_POR_SEMANA
     contrato_horas = int(horas_semana * SEMANAS_POR_ANIO)
     horas_vacacion = int(Decimal(dias_vacacion) * horas_diarias)
-    feriados_gestion = horas_feriados_gestion or HORAS_FERIADOS_GESTION_POR_DEFECTO
-    if feriados_gestion == HORAS_FERIADOS_GESTION_POR_DEFECTO:
-        horas_feriados = int(DIAS_FERIADOS_GESTION * horas_diarias)
-    else:
-        horas_feriados = int(feriados_gestion)
+    horas_feriados = int(Decimal(dias_feriados) * horas_diarias)
     return {
         'contrato_horas': contrato_horas,
         'horas_vacacion': horas_vacacion,
@@ -207,10 +217,6 @@ class DatosLaborales(models.Model):
     dias_vacacion = models.IntegerField(
         default=15,
         help_text="Días de vacación correspondientes según antigüedad"
-    )
-    horas_feriados_gestion = models.IntegerField(
-        default=128,
-        help_text="Total de horas de feriados en la gestión académica"
     )
 
     fecha_creacion = models.DateTimeField(auto_now_add=True)
@@ -386,17 +392,6 @@ class Docente(models.Model):
             self.datos_laborales.dias_vacacion = value
             self.datos_laborales.save()
 
-    @property
-    def horas_feriados_gestion(self):
-        """Propiedad de compatibilidad: accede a horas_feriados_gestion desde DatosLaborales."""
-        return self.datos_laborales.horas_feriados_gestion if self.datos_laborales else 0
-
-    @horas_feriados_gestion.setter
-    def horas_feriados_gestion(self, value):
-        """Setter de compatibilidad para tests y código legacy."""
-        if self.datos_laborales:
-            self.datos_laborales.horas_feriados_gestion = value
-            self.datos_laborales.save()
 
     def calcular_antiguedad(self, fecha_referencia=None):
         """Años completos de antigüedad (ver DatosLaborales.calcular_antiguedad)."""
@@ -830,6 +825,41 @@ class CalendarioAcademico(models.Model):
         super().save(*args, **kwargs)
 
 
+class Feriado(models.Model):
+    """Feriado de una gestión (el año de la fecha). Lo carga solo el superusuario.
+
+    El fondo de tiempo descuenta los que caen de lunes a viernes, por la jornada
+    diaria del docente (ver dias_feriados_habiles y calcular_horas_fondo).
+    """
+    TIPO_CHOICES = [
+        ('nacional', 'Nacional'),
+        ('departamental', 'Departamental'),
+    ]
+
+    fecha = models.DateField(unique=True, error_messages={'unique': 'Ya hay un feriado registrado en esa fecha.'})
+    nombre = models.CharField(max_length=150)
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ['fecha']
+        verbose_name = 'Feriado'
+        verbose_name_plural = 'Feriados'
+
+    def __str__(self):
+        return f"{self.fecha:%d/%m/%Y} - {self.nombre}"
+
+    @property
+    def gestion(self):
+        return self.fecha.year
+
+    @property
+    def es_habil(self):
+        """Cae de lunes a viernes: solo esos se descuentan del fondo."""
+        return self.fecha.weekday() < 5
+
+
 def resolucion_consejo_upload_path(instance, filename):
     """Ruta: usuarios/usuario_<id>/resolucion_jefe_estudios_carrera_<id>.pdf"""
     return (
@@ -1157,6 +1187,12 @@ class FondoTiempo(models.Model):
             return self.calendario_academico.fecha_inicio
         return fecha_referencia_antiguedad(self.gestion)
 
+    def _feriados_congelados(self):
+        """Fondo ya presentado o aprobado: sus feriados quedan con el valor presentado."""
+        return bool(self.pk) and FondoTiempo.objects.filter(
+            pk=self.pk, estado__in=ESTADOS_FONDO_BLOQUEADOS,
+        ).exists()
+
     def _calcular_horas_fondo(self):
         """Contrato, vacaciones, feriados y horas efectivas del docente en esta gestión.
 
@@ -1169,7 +1205,7 @@ class FondoTiempo(models.Model):
         return calcular_horas_fondo(
             horas_semana,
             self.docente.calcular_dias_vacacion(self.fecha_referencia_antiguedad()),
-            self.docente.horas_feriados_gestion,
+            dias_feriados_habiles(self.gestion),
         )
 
     def _obtener_horas_vacacion_docente(self):
@@ -1219,8 +1255,10 @@ class FondoTiempo(models.Model):
         resultado = self._calcular_horas_fondo()
         self.contrato_horas = resultado['contrato_horas']
         self.horas_vacacion = resultado['horas_vacacion']
-        self.horas_feriados = resultado['horas_feriados']
-        self.horas_efectivas = Decimal(resultado['horas_efectivas'])
+        # Presentado o aprobado: los feriados cargados después no lo cambian.
+        if not self._feriados_congelados():
+            self.horas_feriados = resultado['horas_feriados']
+        self.horas_efectivas = Decimal(max(self.contrato_horas - self.horas_vacacion - self.horas_feriados, 0))
 
     def clean(self):
         super().clean()
@@ -1235,15 +1273,7 @@ class FondoTiempo(models.Model):
         # Si el fondo está en un estado bloqueado (presentado, aprobado, etc.),
         # NO permitir cambios. Solo 'borrador' y 'observado' son editables.
         
-        ESTADOS_BLOQUEADOS = [
-            'presentado_jefe',
-            'presentado_director',
-            'aprobado_director',
-            'en_ejecucion',
-            'informe_presentado',
-            'finalizado',
-            'archivado'
-        ]
+        ESTADOS_BLOQUEADOS = ESTADOS_FONDO_BLOQUEADOS
         
         ESTADOS_EDITABLES = ['borrador', 'observado', 'rechazado']
         TRANSICIONES_ESTADO_PERMITIDAS = {
@@ -2195,12 +2225,6 @@ class PerfilUsuario(models.Model):
         datos = self.obtener_datos_laborales()
         return datos.calcular_dias_vacacion() if datos else 0
 
-    @property
-    def horas_feriados_gestion(self):
-        """Accede a horas_feriados_gestion desde DatosLaborales."""
-        datos = self.obtener_datos_laborales()
-        return datos.horas_feriados_gestion if datos else 0
-
     def calcular_antiguedad(self, fecha_referencia=None):
         """Años completos de antigüedad (ver DatosLaborales.calcular_antiguedad)."""
         datos = self.obtener_datos_laborales()
@@ -2315,7 +2339,6 @@ def crear_datos_laborales_si_no_existen(sender, instance, created, **kwargs):
             defaults={
                 'fecha_ingreso': instance.fecha_ingreso if hasattr(instance, 'fecha_ingreso') else timezone.localdate(),
                 'dias_vacacion': instance.dias_vacacion if hasattr(instance, 'dias_vacacion') else 15,
-                'horas_feriados_gestion': instance.horas_feriados_gestion if hasattr(instance, 'horas_feriados_gestion') else 128,
             }
         )
         if created_dl:

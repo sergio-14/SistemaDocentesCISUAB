@@ -35,6 +35,7 @@ import FondosArchivados from './components/FondosArchivados';
 import ListaDocentes from './components/ListaDocentes';
 import ListaCarreras from './components/ListaCarreras';
 import ListaCalendarios from './components/ListaCalendarios';
+import ListaFeriados from './components/ListaFeriados';
 import MateriaList from './components/materias/MateriaList';
 import MateriaForm from './components/materias/MateriaForm';
 import VistaCalendarioActivo from './VistaCalendarioActivo';
@@ -59,15 +60,15 @@ const AnimatedRoute = ({ children }) => {
   );
 };
 
+// Constante de inactividad: 2 horas en milisegundos
+const INACTIVITY_TIMEOUT = 2 * 60 * 60 * 1000;
+
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   
   const { theme, setTheme, isDark } = useTheme();
-
-  // Constante de inactividad: 2 horas en milisegundos
-  const INACTIVITY_TIMEOUT = 2 * 60 * 60 * 1000;
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');
@@ -342,6 +343,7 @@ function App() {
               {/* Rutas de Administración (Integradas en el Sidebar) */}
               <Route path="docentes" element={<AnimatedRoute><ListaDocentes isDark={isDark} sidebarCollapsed={sidebarCollapsed} /></AnimatedRoute>} />
               <Route path="calendarios" element={<AnimatedRoute><ListaCalendarios /></AnimatedRoute>} />
+              <Route path="feriados" element={<AnimatedRoute><ListaFeriados /></AnimatedRoute>} />
               <Route path="materias" element={<MateriaList isDark={isDark} sidebarCollapsed={sidebarCollapsed} />}>
                 <Route path="nueva" element={<MateriaForm sidebarCollapsed={sidebarCollapsed} />} />
                 <Route path="editar/:id" element={<MateriaForm sidebarCollapsed={sidebarCollapsed} />} />

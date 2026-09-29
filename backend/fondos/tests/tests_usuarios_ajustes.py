@@ -14,19 +14,33 @@ from rest_framework import status
 
 from fondos.models import (
     AsignacionCarrera, DatosLaborales, Docente, FondoTiempo, Materia, PerfilUsuario, calcular_horas_fondo,
+    Feriado, dias_feriados_habiles,
 )
 from .tests_usuarios_auditoria import UsuariosBaseTestCase, con_resolucion_jefe
 
+
+def cargar_feriados_2026():
+    # Feriados de prueba de 2026: 3 caen de lunes a viernes y uno en domingo (no cuenta).
+    for fecha, nombre, tipo in [
+        (date(2026, 1, 1), 'Año Nuevo', 'nacional'),              # jueves
+        (date(2026, 5, 1), 'Día del Trabajo', 'nacional'),        # viernes
+        (date(2026, 6, 21), 'Año Nuevo Andino', 'nacional'),      # domingo
+        (date(2026, 11, 18), 'Aniversario del Beni', 'departamental'),  # miércoles
+    ]:
+        Feriado.objects.create(fecha=fecha, nombre=nombre, tipo=tipo)
+
+
 # Misma tabla que frontend/tests/horasFondo.test.js: la vista previa debe dar lo mismo.
-# (horas_semana, dias_vacacion, horas_feriados_gestion) -> (contrato, vacacion, feriados, efectivas)
+# (horas_semana, dias_vacacion, dias_feriados_habiles) -> (contrato, vacacion, feriados, efectivas)
 CASOS_HORAS_FONDO = [
-    ((40, 15, 128), (2080, 120, 128, 1832)),
-    ((40, 30, 128), (2080, 240, 128, 1712)),
-    ((20, 20, 128), (1040, 80, 64, 896)),
-    ((10, 20, 128), (520, 40, 32, 448)),
-    ((6, 15, 128), (312, 18, 19, 275)),
-    ((4, 15, 128), (208, 12, 12, 184)),
-    ((12, 30, 100), (624, 72, 100, 452)),
+    ((40, 15, 16), (2080, 120, 128, 1832)),
+    ((40, 30, 16), (2080, 240, 128, 1712)),
+    ((20, 20, 16), (1040, 80, 64, 896)),
+    ((10, 20, 16), (520, 40, 32, 448)),
+    ((6, 15, 16), (312, 18, 19, 275)),
+    ((4, 15, 16), (208, 12, 12, 184)),
+    ((12, 30, 11), (624, 72, 26, 526)),
+    ((12, 30, 0), (624, 72, 0, 552)),
 ]
 
 
@@ -50,13 +64,15 @@ class VacacionesEnElFondoTests(UsuariosBaseTestCase):
         return FondoTiempo.objects.create(docente=Docente.objects.get(pk=docente.pk), carrera=self.carrera, gestion=2026)
 
     def test_el_fondo_descuenta_vacaciones_segun_antiguedad(self):
+        cargar_feriados_2026()
+        horas_feriados = dias_feriados_habiles(2026) * 8
         # Tiempo completo: 8 h/día x días por antigüedad (antes: 240 h fijas).
         casos = {4: 15 * 8, 7: 20 * 8, 12: 30 * 8}
         for anios, horas_vacacion in casos.items():
             with self.subTest(antiguedad=anios):
                 fondo = self._fondo_con_antiguedad(f'tc_{anios}', anios)
                 self.assertEqual(fondo.horas_vacacion, horas_vacacion)
-                self.assertEqual(fondo.horas_efectivas, 2080 - horas_vacacion - 128)
+                self.assertEqual(fondo.horas_efectivas, 2080 - horas_vacacion - horas_feriados)
 
     def test_proporcional_para_medio_tiempo_y_horario(self):
         medio = self._fondo_con_antiguedad('mt', 7, dedicacion='medio_tiempo')  # 4 h/día

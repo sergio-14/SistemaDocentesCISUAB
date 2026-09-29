@@ -16,7 +16,7 @@ from .models import (
 
 @admin.register(DatosLaborales)
 class DatosLaboralesAdmin(admin.ModelAdmin):
-    list_display = ['id', 'ci', 'fecha_ingreso', 'dias_vacacion', 'horas_feriados_gestion', 'tiene_docente', 'tiene_perfil']
+    list_display = ['id', 'ci', 'fecha_ingreso', 'dias_vacacion', 'tiene_docente', 'tiene_perfil']
     list_filter = []
     search_fields = ['ci']
     ordering = ['-fecha_creacion']
@@ -26,7 +26,7 @@ class DatosLaboralesAdmin(admin.ModelAdmin):
             'fields': ('ci', 'fecha_ingreso')
         }),
         ('Beneficios', {
-            'fields': ('dias_vacacion', 'horas_feriados_gestion')
+            'fields': ('dias_vacacion',)
         }),
     )
     readonly_fields = ('fecha_creacion', 'fecha_modificacion')
@@ -522,7 +522,7 @@ class PerfilUsuarioAdmin(admin.ModelAdmin):
             'fields': ('docente', 'carrera', 'datos_laborales')
         }),
         ('Datos Laborales (solo lectura)', {
-            'fields': ('dl_fecha_ingreso', 'dl_dias_vacacion', 'dl_horas_feriados', 'dl_antiguedad'),
+            'fields': ('dl_fecha_ingreso', 'dl_dias_vacacion', 'dl_antiguedad'),
             'classes': ('collapse',),
             'description': 'Estos campos se muestran desde DatosLaborales asociados. Para editarlos, vaya al registro de Datos Laborales.'
         }),
@@ -530,7 +530,7 @@ class PerfilUsuarioAdmin(admin.ModelAdmin):
             'fields': ('telefono',)
         }),
     )
-    readonly_fields = ('dl_fecha_ingreso', 'dl_dias_vacacion', 'dl_horas_feriados', 'dl_antiguedad')
+    readonly_fields = ('dl_fecha_ingreso', 'dl_dias_vacacion', 'dl_antiguedad')
 
     def rol_display(self, obj):
         return obj.get_rol_display()
@@ -553,10 +553,6 @@ class PerfilUsuarioAdmin(admin.ModelAdmin):
     def dl_dias_vacacion(self, obj):
         return obj.dias_vacacion
     dl_dias_vacacion.short_description = 'Días Vacación'
-
-    def dl_horas_feriados(self, obj):
-        return obj.horas_feriados_gestion
-    dl_horas_feriados.short_description = 'Horas Feriados'
 
     def dl_antiguedad(self, obj):
         return f"{obj.calcular_antiguedad()} años"

@@ -803,7 +803,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
    * cálculo que el backend (calcular_horas_fondo): utils/horasFondo.js.
    * Con un cargo de gestión la jornada contractual es la del cargo (40 h/sem).
    */
-  const calcularHorasEfectivas = (dedicacion, fechaIngreso, { tieneRolGestion = false, horasFeriadosGestion = null, fechaReferencia = null } = {}) => {
+  const calcularHorasEfectivas = (dedicacion, fechaIngreso, { tieneRolGestion = false, diasFeriados = 0, fechaReferencia = null } = {}) => {
     const horasDedicacion = horasSemanalesDedicacion(dedicacion);
     if (!horasDedicacion) return null;
     const antiguedad = calcularAntiguedad(fechaIngreso, fechaReferencia);
@@ -813,7 +813,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       tieneRolGestion ? Math.max(horasDedicacion, TOPE_HORAS_SEMANALES_FONDO) : horasDedicacion,
       TOPE_HORAS_SEMANALES_FONDO,
     );
-    return calcularHorasFondo(horasSemana, diasVacacionPorAntiguedad(antiguedad), horasFeriadosGestion).horas_efectivas;
+    return calcularHorasFondo(horasSemana, diasVacacionPorAntiguedad(antiguedad), diasFeriados).horas_efectivas;
   };
 
   // Obtener roles combinados del docente (solo roles extra, sin docente)
@@ -877,18 +877,37 @@ function ListaDocentes({ sidebarCollapsed = false }) {
 
   // La antigüedad del fondo se mide al inicio de la gestión (calendario académico
   // activo de la carrera). La vista previa usa la misma fecha para dar lo mismo.
+  // Los feriados son los de esa gestión que caen de lunes a viernes (los carga el superusuario).
   const [fechaInicioGestion, setFechaInicioGestion] = useState(null);
+  const [feriadosGestion, setFeriadosGestion] = useState(null);
   useEffect(() => {
     setFechaInicioGestion(null);
+    setFeriadosGestion(null);
     if (!formData.carrera) return undefined;
     let vigente = true;
+    const cargarFeriados = (gestion) => api.get('/feriados/resumen/', { params: { gestion } })
+      .then((response) => { if (vigente) setFeriadosGestion(response.data); })
+      .catch(() => { if (vigente) setFeriadosGestion({ gestion, error: true }); });
+    const anioActual = Number(hoyBolivia().slice(0, 4));
     api.get('/calendarios/activo/', { params: { carrera: formData.carrera } })
-      .then((response) => { if (vigente) setFechaInicioGestion(response.data?.fecha_inicio || null); })
+      .then((response) => {
+        if (!vigente) return;
+        setFechaInicioGestion(response.data?.fecha_inicio || null);
+        cargarFeriados(response.data?.gestion || anioActual);
+      })
       .catch(() => {
         // Sin calendario activo: se usa el 1 de enero, igual que un fondo sin calendario.
+        if (vigente) cargarFeriados(anioActual);
       });
     return () => { vigente = false; };
   }, [formData.carrera]);
+  const avisoFeriados = !feriadosGestion
+    ? ''
+    : feriadosGestion.error
+      ? 'No se pudieron consultar los feriados de la gestión: las horas efectivas no los descuentan.'
+      : feriadosGestion.feriados_cargados === 0
+        ? `No hay feriados cargados para esta gestión (${feriadosGestion.gestion}): las horas efectivas no los descuentan.`
+        : '';
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -2240,7 +2259,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                     <div
                       className={`overflow-hidden transition-all duration-500 ease-out ${
                         showDedicacionInfo && formData.dedicacion
-                          ? 'max-h-[220px] opacity-100 translate-y-0'
+                          ? 'max-h-[280px] opacity-100 translate-y-0'
                           : 'max-h-0 opacity-0 -translate-y-1 pointer-events-none'
                       }`}
                     >
@@ -2258,7 +2277,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                               {(() => {
                                 const horas = calcularHorasEfectivas(formData.dedicacion, formData.fecha_ingreso, {
                                   tieneRolGestion: usuarioFormularioTieneRolGestion,
-                                  horasFeriadosGestion: formData.horas_feriados_gestion,
+                                  diasFeriados: feriadosGestion?.dias_habiles ?? 0,
                                   fechaReferencia: fechaInicioGestion,
                                 });
                                 const antiguedad = calcularAntiguedad(formData.fecha_ingreso, fechaInicioGestion) ?? 0;
@@ -2272,6 +2291,11 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                                 return `${label}: complete la fecha de ingreso para calcular las horas efectivas.`;
                               })()}
                             </p>
+                            {avisoFeriados && formData.dedicacion !== 'dedicacion_exclusiva' && (
+                              <p className="text-xs leading-5 mt-1.5 font-semibold text-amber-700 dark:text-amber-300">
+                                {avisoFeriados}
+                              </p>
+                            )}
                           </div>
                         </div>
                         </div>

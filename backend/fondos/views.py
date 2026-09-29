@@ -24,7 +24,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import (
     Docente, Carrera, Materia, FondoTiempo, CategoriaFuncion, PerfilUsuario, CargaHoraria,
-    CalendarioAcademico, Proyecto, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo,
+    CalendarioAcademico, Feriado, Proyecto, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo,
     SaldoVacacionesGestion, FacultadCatalogo, DatosLaborales, DocenteCarrera, EvidenciaCargaHoraria,
     AsignacionCarrera,
 )
@@ -33,7 +33,7 @@ from .serializers import (
     FondoTiempoListSerializer, CategoriaFuncionSerializer, CargaHorariaSerializer,
     UsuarioSerializer, CrearUsuarioSerializer, ActualizarUsuarioSerializer,
     FotoPerfilSerializer, PerfilUsuarioSerializer,
-    CalendarioAcademicoSerializer, ProyectoSerializer, ProyectoListSerializer,
+    CalendarioAcademicoSerializer, FeriadoSerializer, ProyectoSerializer, ProyectoListSerializer,
     InformeFondoSerializer, InformeFondoListSerializer,
     ObservacionFondoSerializer, MensajeObservacionSerializer,
     HistorialFondoSerializer, DocenteDetalleSerializer,
@@ -54,7 +54,7 @@ from .serializers import (
 )
 from .role_context import get_effective_profile, get_active_careers_for_user
 from .solo_lectura import CarreraInactivaSoloLecturaMixin as CarreraInactivaSoloLecturaBase
-from .models import actualizar_con_historial
+from .models import actualizar_con_historial, dias_feriados_habiles
 from .utils.archivos import es_pdf
 
 
@@ -1332,6 +1332,42 @@ class CalendarioAcademicoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Model
             {'error': 'No hay un calendario académico activo'},
             status=status.HTTP_404_NOT_FOUND
         )
+
+
+class FeriadoViewSet(viewsets.ModelViewSet):
+    """Feriados por gestión (año de la fecha). Solo el superusuario los carga o cambia."""
+    queryset = Feriado.objects.all()
+    serializer_class = FeriadoSerializer
+    pagination_class = None
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve', 'resumen']:
+            return [IsAuthenticated()]
+        return [IsFullAdmin()]
+
+    def _gestion(self):
+        valor = self.request.query_params.get('gestion')
+        if valor in (None, ''):
+            return None
+        try:
+            return int(valor)
+        except (TypeError, ValueError):
+            raise drf_serializers.ValidationError({'gestion': 'La gestión debe ser un año.'})
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        gestion = self._gestion()
+        return queryset.filter(fecha__year=gestion) if gestion else queryset
+
+    @action(detail=False, methods=['get'])
+    def resumen(self, request):
+        """Feriados de una gestión: cuántos hay cargados y cuántos caen de lunes a viernes."""
+        gestion = self._gestion() or timezone.localdate().year
+        return Response({
+            'gestion': gestion,
+            'feriados_cargados': Feriado.objects.filter(fecha__year=gestion).count(),
+            'dias_habiles': dias_feriados_habiles(gestion),
+        })
 
 
 class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):

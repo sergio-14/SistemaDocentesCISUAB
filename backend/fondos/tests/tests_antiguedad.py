@@ -13,6 +13,7 @@ from django.contrib.auth.models import User
 from rest_framework import status
 
 from fondos.models import AsignacionCarrera, CalendarioAcademico, DatosLaborales, Docente, FondoTiempo, PerfilUsuario
+from .tests_usuarios_ajustes import cargar_feriados_2026
 from .tests_usuarios_auditoria import UsuariosBaseTestCase, con_resolucion_jefe
 
 
@@ -74,10 +75,11 @@ class AniosCompletosTests(UsuariosBaseTestCase):
         self.assertEqual(fondo.horas_vacacion, 20 * 8)  # 9 años completos al 1-ene-2026
 
     def test_menos_de_un_anio_no_descuenta_vacaciones(self):
+        cargar_feriados_2026()   # 3 días hábiles
         fondo = self._fondo('nuevo_ingreso', date(2025, 6, 1), date(2026, 2, 1))
 
         self.assertEqual(fondo.horas_vacacion, 0)
-        self.assertEqual(fondo.horas_efectivas, 2080 - 128)
+        self.assertEqual(fondo.horas_efectivas, 2080 - 3 * 8)
 
 
 class UnicidadFueraDelPerfilTests(UsuariosBaseTestCase):

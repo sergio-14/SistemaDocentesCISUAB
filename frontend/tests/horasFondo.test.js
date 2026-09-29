@@ -5,15 +5,16 @@ import assert from 'node:assert/strict';
 
 import { calcularAntiguedad, calcularHorasFondo, diasVacacionPorAntiguedad } from '../src/utils/horasFondo.js';
 
-// [horasSemana, diasVacacion, horasFeriadosGestion] -> [contrato, vacacion, feriados, efectivas]
+// [horasSemana, diasVacacion, diasFeriadosHabiles] -> [contrato, vacacion, feriados, efectivas]
 const CASOS_HORAS_FONDO = [
-  [[40, 15, 128], [2080, 120, 128, 1832]],
-  [[40, 30, 128], [2080, 240, 128, 1712]],
-  [[20, 20, 128], [1040, 80, 64, 896]],
-  [[10, 20, 128], [520, 40, 32, 448]],
-  [[6, 15, 128], [312, 18, 19, 275]],
-  [[4, 15, 128], [208, 12, 12, 184]],
-  [[12, 30, 100], [624, 72, 100, 452]],
+  [[40, 15, 16], [2080, 120, 128, 1832]],
+  [[40, 30, 16], [2080, 240, 128, 1712]],
+  [[20, 20, 16], [1040, 80, 64, 896]],
+  [[10, 20, 16], [520, 40, 32, 448]],
+  [[6, 15, 16], [312, 18, 19, 275]],
+  [[4, 15, 16], [208, 12, 12, 184]],
+  [[12, 30, 11], [624, 72, 26, 526]],
+  [[12, 30, 0], [624, 72, 0, 552]],
 ];
 
 test('calcularHorasFondo coincide con el backend', () => {
@@ -22,7 +23,7 @@ test('calcularHorasFondo coincide con el backend', () => {
     assert.deepEqual(
       [r.contrato_horas, r.horas_vacacion, r.horas_feriados, r.horas_efectivas],
       esperado,
-      `${horasSemana} h/sem, ${dias} días, ${feriados} h feriados`,
+      `${horasSemana} h/sem, ${dias} días, ${feriados} días de feriado`,
     );
   }
 });

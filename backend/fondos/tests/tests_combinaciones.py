@@ -21,6 +21,7 @@ from fondos.models import (
     AsignacionCarrera, CategoriaFuncion, DatosLaborales, DocenteCarrera, FondoTiempo, InformeFondo, PerfilUsuario,
 )
 from fondos.serializers import FondoTiempoSerializer
+from .tests_usuarios_ajustes import cargar_feriados_2026
 from .tests_usuarios_auditoria import UsuariosBaseTestCase
 
 PDF_MINIMO = b'%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n'
@@ -43,13 +44,14 @@ class DocenteUnVinculoTests(UsuariosBaseTestCase):
         return FondoTiempo.objects.create(docente=self.docente, carrera=carrera, gestion=2026, **extra)
 
     def test_el_fondo_usa_las_horas_de_su_vinculo(self):
+        cargar_feriados_2026()   # 3 días hábiles y un domingo
         fondo = self._fondo(self.carrera)
 
         # 6 h/sem = 1,2 h/día.
         self.assertEqual(fondo.horas_semana, Decimal('6'))
         self.assertEqual(fondo.contrato_horas, 312)
         self.assertEqual(fondo.horas_vacacion, 36)   # 30 días x 1,2 h
-        self.assertEqual(fondo.horas_feriados, 19)   # 16 días x 1,2 h (hacia abajo)
+        self.assertEqual(fondo.horas_feriados, 3)    # 3 días hábiles x 1,2 h (hacia abajo)
 
     def test_un_segundo_vinculo_se_rechaza(self):
         with self.assertRaises(ValidationError):

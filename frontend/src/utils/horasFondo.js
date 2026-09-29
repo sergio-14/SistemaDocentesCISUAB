@@ -4,8 +4,6 @@
 
 export const SEMANAS_POR_ANIO = 52;
 export const DIAS_LABORABLES_POR_SEMANA = 5;
-export const DIAS_FERIADOS_GESTION = 16;
-export const HORAS_FERIADOS_GESTION_POR_DEFECTO = 128;
 export const TOPE_HORAS_SEMANALES_FONDO = 40;
 
 // Evita que un 17.999999 de coma flotante se redondee a 17 (el backend usa Decimal).
@@ -35,14 +33,13 @@ export const calcularAntiguedad = (fechaIngreso, fechaReferencia = null) => {
   return Math.max(0, referencia.anio - ingreso.anio - (antesDelAniversario ? 1 : 0));
 };
 
-export const calcularHorasFondo = (horasSemana, diasVacacion, horasFeriadosGestion = null) => {
+// diasFeriados: feriados de la gestión que caen de lunes a viernes
+// (GET /feriados/resumen/ -> dias_habiles).
+export const calcularHorasFondo = (horasSemana, diasVacacion, diasFeriados) => {
   const horasDiarias = horasSemana / DIAS_LABORABLES_POR_SEMANA;
   const contratoHoras = piso(horasSemana * SEMANAS_POR_ANIO);
   const horasVacacion = piso(diasVacacion * horasDiarias);
-  const feriadosGestion = horasFeriadosGestion || HORAS_FERIADOS_GESTION_POR_DEFECTO;
-  const horasFeriados = feriadosGestion === HORAS_FERIADOS_GESTION_POR_DEFECTO
-    ? piso(DIAS_FERIADOS_GESTION * horasDiarias)
-    : piso(feriadosGestion);
+  const horasFeriados = piso(diasFeriados * horasDiarias);
   return {
     contrato_horas: contratoHoras,
     horas_vacacion: horasVacacion,

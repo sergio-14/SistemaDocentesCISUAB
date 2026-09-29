@@ -176,6 +176,7 @@ POSTGRES_USER=sistema_docentes
 POSTGRES_PASSWORD=<contrasena larga y aleatoria>
 VITE_API_URL=https://midominio.com
 PROFILE_IMAGE_ENCRYPTION_KEY=<clave Fernet>
+BACKUP_PASSPHRASE=<contrasena larga y aleatoria para cifrar los backups>
 ```
 
 Generar las claves (usa solo `A-Z a-z 0-9 - _`: un `$` o `#` en un valor
@@ -245,19 +246,18 @@ en variables de entorno y la cuenta la crea una persona identificable.
 ### 7. Antes de cargar datos reales: backups fuera del servidor
 
 **Requisito obligatorio antes de cargar datos reales.** El servicio `backup`
-guarda las copias en el mismo VPS (ver [Backups](#backups)): si el servidor se
-pierde, se pierden tambien las copias. Antes de usar el sistema con datos
-reales hace falta:
+guarda las copias en el mismo VPS: si el servidor se pierde, se pierden tambien
+las copias. Sin otro servidor ni nube, la version simple es:
 
-1. **Destino externo:** un bucket (S3, Backblaze B2...) u otra maquina, fuera
-   de este servidor.
-2. **Cifrado:** las copias llevan datos personales y documentos (resoluciones,
-   actas, evidencias). Se cifran antes de salir del servidor y la clave se
-   guarda aparte.
-3. **Base de datos y `media`:** las dos cosas (`db_*.dump` y `media_*.tar.gz`).
-   Los backups de base de datos de Dokploy no incluyen `media`.
-4. **Prueba de restauracion:** restaurar una copia en otro entorno y comprobar
-   que el sistema funciona con esos datos y archivos. Repetirla periodicamente.
+1. **Cifrado:** definir `BACKUP_PASSPHRASE` en Dokploy (los backups ya se
+   generan cifrados) y guardar esa contrasena en un gestor de contrasenas,
+   **fuera** del servidor. Sin ella los backups no se pueden abrir.
+2. **Descargarlos a otra maquina:** con `scripts/descargar-backup.ps1` desde la
+   PC (ver [Backups](#backups)). Se descargan base de datos **y** `media`.
+3. **Dos copias:** una en la PC y otra en un disco externo.
+4. **Prueba de restauracion:** restaurar una copia en local (ver
+   [Backups](#backups)) y comprobar que el sistema funciona con esos datos.
+   Repetirla periodicamente.
 
 ### 8. HTTPS y HSTS
 
@@ -318,40 +318,129 @@ python manage.py organizar_media             # lo aplica (se puede repetir)
 
 ## Backups
 
-El servicio `backup` de `docker-compose.prod.yml` guarda en el volumen
+### Que se guarda
+
+El servicio `backup` de `docker-compose.prod.yml` genera en el volumen
 `backups`, cada `BACKUP_INTERVAL_HOURS` (24 h por defecto; el primero 10 min
-despues de arrancar):
+despues de arrancar), dos archivos **cifrados**:
 
-- `db_AAAAMMDD_HHMMSS.dump`: base de datos (`pg_dump`, formato custom).
-- `media_AAAAMMDD_HHMMSS.tar.gz`: archivos subidos.
+- `db_AAAAMMDD_HHMMSS.dump.gpg`: base de datos (`pg_dump`, formato custom).
+- `media_AAAAMMDD_HHMMSS.tar.gz.gpg`: archivos subidos (evidencias, actas,
+  resoluciones, fotos).
 
-Se conservan `BACKUP_KEEP_DAYS` dias (14 por defecto).
+Se cifran con GPG (AES-256) usando `BACKUP_PASSPHRASE`, al vuelo: la copia sin
+cifrar nunca se escribe en el disco del servidor. Se conservan
+`BACKUP_KEEP_DAYS` dias (14 por defecto).
 
-> Los backups quedan **en el mismo servidor**: "un backup que solo existe en
-> el mismo VPS no es un backup" (guia IIISyP). Tener copias fuera del servidor
-> es **requisito antes de cargar datos reales**: ver el paso 7 del despliegue.
+> **Sin `BACKUP_PASSPHRASE` los backups no se pueden abrir.** Guardala en un
+> gestor de contrasenas, fuera del servidor. Si se cambia, los backups
+> anteriores se siguen abriendo solo con la contrasena anterior.
 
-Backup inmediato:
+Los backups quedan **en el mismo servidor**: "un backup que solo existe en el
+mismo VPS no es un backup" (guia IIISyP). Hay que descargarlos a otra maquina
+(requisito antes de cargar datos reales: paso 7 del despliegue).
+
+Backup inmediato (en el servidor):
 
 ```bash
 docker compose -f docker-compose.prod.yml exec backup /backup.sh once
 ```
 
-Restaurar la base de datos (reemplazar la fecha por la del backup elegido):
+### Descargar a la PC (Windows)
+
+Requisitos: Cliente OpenSSH de Windows (`ssh` y `scp`; viene con Windows 10/11,
+si no: *Configuracion > Aplicaciones > Caracteristicas opcionales*) y un
+usuario SSH del servidor que pueda usar Docker (root o del grupo `docker`).
+
+Desde la carpeta del repositorio, en PowerShell:
+
+```powershell
+.\scripts\descargar-backup.ps1 -Servidor usuario@IP_DEL_SERVIDOR
+```
+
+Descarga el backup mas reciente (base de datos y media, **cifrados**) a
+`Documentos\Backups-SistemaDocentes`. Opciones: `-Puerto` (SSH, 22 por
+defecto), `-Destino` (otra carpeta) y `-Volumen` (si hay mas de un volumen
+`..._backups`; se ven con `docker volume ls`). El script no acepta un destino
+dentro del repositorio.
+
+**Guarda 2 copias:** la de la PC y otra en un **disco externo** (copia los
+`.gpg` tal cual, cifrados). Asi sobreviven a la perdida del servidor y a la de
+la PC.
+
+### Descifrar
+
+Con Docker (no hace falta instalar GPG). En PowerShell, dentro de la carpeta de
+los backups; pide la contrasena (`BACKUP_PASSPHRASE`):
+
+```powershell
+cd $HOME\Documents\Backups-SistemaDocentes
+docker run --rm -it -v "${PWD}:/b" -w /b alpine sh -c "apk add -q gnupg && gpg --pinentry-mode loopback -o db.dump -d db_AAAAMMDD_HHMMSS.dump.gpg && gpg --pinentry-mode loopback -o media.tar.gz -d media_AAAAMMDD_HHMMSS.tar.gz.gpg"
+```
+
+Quedan `db.dump` y `media.tar.gz` **sin cifrar**: tienen datos personales.
+Borralos cuando termines de restaurar y guarda solo los `.gpg`.
+
+(Alternativa sin Docker: instalar Gpg4win y usar `gpg -o db.dump -d archivo.gpg`.)
+
+### Restaurar en local (prueba de restauracion)
+
+Reemplaza los datos de **desarrollo** por los del backup. Desde la carpeta del
+repositorio, con el entorno de desarrollo (`docker-compose.yml`):
+
+1. Levantar solo la base y detener el backend:
+
+   ```powershell
+   docker compose up -d db
+   docker compose stop backend
+   ```
+
+2. Restaurar la base de datos (ajusta la ruta de `db.dump`):
+
+   ```powershell
+   docker compose cp $HOME\Documents\Backups-SistemaDocentes\db.dump db:/tmp/restore.dump
+   docker compose exec db sh -c 'pg_restore --clean --if-exists --no-owner -U "$POSTGRES_USER" -d "$POSTGRES_DB" /tmp/restore.dump; rm /tmp/restore.dump'
+   ```
+
+3. Restaurar los archivos subidos en la carpeta `media` del repositorio (esta
+   en `.gitignore`; conviene vaciarla antes):
+
+   ```powershell
+   tar -xzf $HOME\Documents\Backups-SistemaDocentes\media.tar.gz -C media
+   ```
+
+4. Arrancar todo y comprobar en <http://localhost:5173> que se puede entrar
+   (los usuarios y contrasenas son los de produccion) y que se ven los datos
+   y los archivos:
+
+   ```powershell
+   docker compose up -d
+   ```
+
+5. Borrar `db.dump` y `media.tar.gz` (sin cifrar). Para volver a los datos de
+   desarrollo, restaurar un backup de desarrollo o recrear la base.
+
+### Restaurar en el servidor
+
+Reemplazar la fecha por la del backup elegido. Base de datos (el backup se
+descifra dentro del contenedor `backup`, que ya tiene la contrasena):
 
 ```bash
 docker compose -f docker-compose.prod.yml stop backend
 docker compose -f docker-compose.prod.yml exec backup sh -c \
-  'pg_restore --clean --if-exists --no-owner --dbname="$PGDATABASE" /backups/db_AAAAMMDD_HHMMSS.dump'
+  'export GNUPGHOME=/tmp/gnupg; mkdir -p -m 700 $GNUPGHOME; gpg --batch --quiet --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" -d /backups/db_AAAAMMDD_HHMMSS.dump.gpg | pg_restore --clean --if-exists --no-owner --dbname="$PGDATABASE"'
 docker compose -f docker-compose.prod.yml start backend
 ```
 
-Restaurar los archivos subidos (el nombre real de los volumenes lleva el
-prefijo del proyecto; se ve con `docker volume ls`):
+Archivos subidos (el volumen `media` esta montado de solo lectura en `backup`;
+se restaura con un contenedor aparte. El nombre real de los volumenes lleva el
+prefijo del proyecto: `docker volume ls`):
 
 ```bash
+docker compose -f docker-compose.prod.yml exec backup sh -c \
+  'export GNUPGHOME=/tmp/gnupg; mkdir -p -m 700 $GNUPGHOME; gpg --batch --quiet --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" -o /backups/media_restaurar.tar.gz -d /backups/media_AAAAMMDD_HHMMSS.tar.gz.gpg'
 docker run --rm -v <proyecto>_media_data:/media -v <proyecto>_backups:/backups \
-  alpine tar -xzf /backups/media_AAAAMMDD_HHMMSS.tar.gz -C /media
+  alpine sh -c 'tar -xzf /backups/media_restaurar.tar.gz -C /media && chown -R 10001:10001 /media && rm /backups/media_restaurar.tar.gz'
 ```
 
 ## Despues del despliegue

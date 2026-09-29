@@ -122,7 +122,6 @@ SEMANAS_POR_ANIO = 52
 DIAS_LABORABLES_POR_SEMANA = Decimal('5')
 # Estados en los que el fondo ya fue presentado: su contenido queda congelado.
 ESTADOS_FONDO_BLOQUEADOS = [
-    'presentado_jefe',
     'presentado_director',
     'aprobado_director',
     'en_ejecucion',
@@ -896,7 +895,6 @@ class FondoTiempo(models.Model):
     
     ESTADO_CHOICES = [
         ('borrador', 'Borrador'),
-        ('presentado_jefe', 'Presentado a Jefe de Estudios'),
         ('observado', 'Con Observaciones'),
         ('presentado_director', 'Presentado a Director de Carrera'),
         ('aprobado_director', 'Aprobado por Director de Carrera'),
@@ -1061,14 +1059,6 @@ class FondoTiempo(models.Model):
     @property
     def horas_disponibles(self):
         return self.horas_efectivas - self.total_asignado
-    
-    def puede_presentar(self):
-        """Verifica si el fondo puede ser presentado a Director"""
-        return (
-            self.estado == 'borrador' and
-            self.tiene_programa_analitico and
-            self.total_asignado > 0
-        )
     
     def puede_editar(self, usuario):
         """Determina si un usuario puede editar este fondo"""
@@ -1240,10 +1230,6 @@ class FondoTiempo(models.Model):
             # El Director solicita correcciones al informe: vuelve a ejecucion
             # para que el docente pueda editarlo y reenviarlo.
             ('informe_presentado', 'en_ejecucion'),
-            # Flujo legado soportado para datos/endpoints antiguos.
-            ('borrador', 'presentado_jefe'),
-            ('presentado_jefe', 'presentado_director'),
-            ('presentado_jefe', 'observado'),
         }
         
         # Si el fondo ya existe en DB, verificar si está en estado bloqueado

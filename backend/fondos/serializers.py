@@ -4280,7 +4280,6 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     total_asignado = serializers.SerializerMethodField()
     # Permisos
     puede_editar = serializers.SerializerMethodField()
-    puede_presentar = serializers.SerializerMethodField()
     # Revisión: nadie revisa su propio fondo; el del Director lo revisa el superusuario.
     es_fondo_propio = serializers.SerializerMethodField()
     es_fondo_de_director = serializers.SerializerMethodField()
@@ -4305,7 +4304,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             'categorias', 'requerimientos', 'proyectos', 'informes', 'asignaturas_ejecutadas', 'observaciones_detalladas',
             'informe_actual',
             # Permisos
-            'puede_editar', 'puede_presentar',
+            'puede_editar',
             'es_fondo_propio', 'es_fondo_de_director', 'documento_decanatura', 'documento_decanatura_informe',
         ]
         read_only_fields = [
@@ -4364,9 +4363,6 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             return obj.puede_editar(request.user)
         return False
     
-    def get_puede_presentar(self, obj):
-        return obj.puede_presentar()
-
     def get_es_fondo_propio(self, obj):
         request = self.context.get('request')
         return obj.pertenece_a(getattr(request, 'user', None))
@@ -4387,31 +4383,6 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
 # =====================================================
 # SERIALIZERS PARA ACCIONES ESPEC\u00cdFICAS
 # =====================================================
-
-class PresentarFondoSerializer(serializers.Serializer):
-    """Serializer para presentar fondo a Director"""
-    observacion = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        help_text="Observación opcional al presentar"
-    )
-    
-    def validate(self, data):
-        fondo = self.context.get('fondo')
-        
-        if not fondo.puede_presentar():
-            errores = []
-            if not fondo.tiene_programa_analitico:
-                errores.append('Debe adjuntar el programa analítico')
-            if fondo.total_asignado == 0:
-                errores.append('Debe asignar horas a al menos una función')
-            
-            raise serializers.ValidationError(
-                f"No se puede presentar el fondo: {', '.join(errores)}"
-            )
-        
-        return data
-
 
 class AprobarFondoSerializer(serializers.Serializer):
     """Serializer para aprobar fondo (Director)"""

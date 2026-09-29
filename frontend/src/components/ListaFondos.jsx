@@ -38,7 +38,6 @@ const SparklesIcon = (props) => (
 
 const ESTADOS_FONDO = {
   borrador: 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600',
-  presentado_jefe: 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700',
   observado: 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700',
   presentado_director: 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700',
   aprobado_director: 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700',
@@ -49,7 +48,7 @@ const ESTADOS_FONDO = {
   archivado: 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-600',
 };
 
-function ListaFondos({ isDark }) {
+function ListaFondos() {
   const { effectiveUser, activeAssignment } = useActiveRole();
   const [fondos, setFondos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +62,7 @@ function ListaFondos({ isDark }) {
     firmaEstadosRef.current = null;
     cargarFondos();
     setUser(effectiveUser || JSON.parse(localStorage.getItem('user') || 'null'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- se recarga al cambiar de rol activo.
   }, [activeAssignment?.id]);
 
   useEffect(() => {

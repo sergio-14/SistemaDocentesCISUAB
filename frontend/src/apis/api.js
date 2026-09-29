@@ -94,9 +94,6 @@ export const getFondosLargoPlazo = () => api.get('/fondos-tiempo/largo-plazo/');
 export const presentarFondoADirector = (fondoId) => {
   return api.patch(`/fondos-tiempo/${fondoId}/presentar-a-director/`);
 };
-export const presentarFondo = (id, observacion = '') => 
-  api.post(`/fondos-tiempo/${id}/presentar/`, { observacion });
-// documentoDecanatura (PDF): obligatorio cuando el superusuario aprueba el fondo de un Director.
 export const aprobarFondo = (fondoId, documentoDecanatura = null) => {
   if (documentoDecanatura) {
     const payload = new FormData();

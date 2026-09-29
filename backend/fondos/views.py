@@ -37,7 +37,7 @@ from .serializers import (
     InformeFondoSerializer, InformeFondoListSerializer,
     ObservacionFondoSerializer, MensajeObservacionSerializer,
     HistorialFondoSerializer, DocenteDetalleSerializer,
-    FondoTiempoDetalleSerializer, PresentarFondoSerializer,
+    FondoTiempoDetalleSerializer,
     AprobarFondoSerializer, ObservarFondoSerializer,
     SaldoVacacionesGestionSerializer, DatosLaboralesSerializer,
     CustomTokenObtainPairSerializer, EvidenciaCargaHorariaSerializer,
@@ -2044,7 +2044,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
     @action(detail=True, methods=['post'])
     @transaction.atomic
     def presentar(self, request, pk=None):
-        """Presentar fondo a Director de Carrera (Art. 18)"""
+        """Presentar el informe final (fondo en ejecución). El fondo lo presenta Jefatura al
+        Director con presentar-a-director."""
         fondo = self.get_object()
         
         # Verificar que sea el docente dueño del fondo
@@ -2053,74 +2054,57 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             if not perfil.docente or fondo.docente != perfil.docente:
                 raise PermissionDenied("No puede presentar fondos de otros docentes")
         
-        # LÓGICA FLEXIBLE: Manejo de estados
-        if fondo.estado == 'en_ejecucion':
-            secciones = self._extraer_secciones_informe(request)
-
-            # Minimos exigibles: Academica (todo docente dicta materias) y
-            # Conclusiones (cierre del informe). Las demas secciones quedan
-            # opcionales porque no todos los docentes tienen actividad en
-            # investigacion, gestion, tutorias, etc. en una gestion dada.
-            errores_secciones = {}
-            if not secciones['seccion_academica']:
-                errores_secciones['seccion_academica'] = 'Debe describir el cumplimiento de la sección Académica.'
-            if not secciones['conclusiones_generales']:
-                errores_secciones['conclusiones_generales'] = 'Debe redactar las conclusiones generales del informe.'
-            if errores_secciones:
-                return Response(errores_secciones, status=status.HTTP_400_BAD_REQUEST)
-
-            # Transición directa para informe (Modo Flexible)
-            estado_anterior = fondo.estado
-            fondo.estado = 'informe_presentado'
-            fondo.fecha_informe = timezone.now()
-            fondo.save()
-
-            # Crear o actualizar el informe con datos reales; queda marcado
-            # 'enviado' (formal, ya no editable por el docente) hasta que el
-            # Director lo apruebe o lo observe.
-            InformeFondo.objects.update_or_create(
-                fondo_tiempo=fondo,
-                tipo='parcial',
-                defaults={
-                    'elaborado_por': request.user,
-                    'estado': 'enviado',
-                    **secciones,
-                }
+        if fondo.estado != 'en_ejecucion':
+            return Response(
+                {'error': 'Solo se presenta el informe con el fondo en ejecución. El fondo lo presenta Jefatura al Director.'},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-            # Registrar en historial
-            HistorialFondo.objects.create(
-                fondo_tiempo=fondo,
-                usuario=request.user,
-                tipo_cambio='informe_presentado',
-                descripcion='Docente presentó Informe Final de cumplimiento.',
-                estado_anterior=estado_anterior,
-                estado_nuevo='informe_presentado'
-            )
-            
-            return Response({'message': 'Informe presentado exitosamente'})
+        secciones = self._extraer_secciones_informe(request)
 
-        serializer = PresentarFondoSerializer(data=request.data, context={'fondo': fondo})
-        serializer.is_valid(raise_exception=True)
-        
-        # Cambiar estado
-        fondo.estado = 'presentado_jefe'
-        fondo.fecha_presentacion = timezone.now()
+        # Minimos exigibles: Academica (todo docente dicta materias) y
+        # Conclusiones (cierre del informe). Las demas secciones quedan
+        # opcionales porque no todos los docentes tienen actividad en
+        # investigacion, gestion, tutorias, etc. en una gestion dada.
+        errores_secciones = {}
+        if not secciones['seccion_academica']:
+            errores_secciones['seccion_academica'] = 'Debe describir el cumplimiento de la sección Académica.'
+        if not secciones['conclusiones_generales']:
+            errores_secciones['conclusiones_generales'] = 'Debe redactar las conclusiones generales del informe.'
+        if errores_secciones:
+            return Response(errores_secciones, status=status.HTTP_400_BAD_REQUEST)
+
+        # Transición directa para informe (Modo Flexible)
+        estado_anterior = fondo.estado
+        fondo.estado = 'informe_presentado'
+        fondo.fecha_informe = timezone.now()
         fondo.save()
-        
+
+        # Crear o actualizar el informe con datos reales; queda marcado
+        # 'enviado' (formal, ya no editable por el docente) hasta que el
+        # Director lo apruebe o lo observe.
+        InformeFondo.objects.update_or_create(
+            fondo_tiempo=fondo,
+            tipo='parcial',
+            defaults={
+                'elaborado_por': request.user,
+                'estado': 'enviado',
+                **secciones,
+            }
+        )
+
         # Registrar en historial
         HistorialFondo.objects.create(
             fondo_tiempo=fondo,
             usuario=request.user,
-            tipo_cambio='presentacion',
-            descripcion='Fondo presentado a Jefe de Estudios para revisión técnica.',
-            estado_anterior='borrador',
-            estado_nuevo='presentado_jefe'
+            tipo_cambio='informe_presentado',
+            descripcion='Docente presentó Informe Final de cumplimiento.',
+            estado_anterior=estado_anterior,
+            estado_nuevo='informe_presentado'
         )
         
-        output_serializer = FondoTiempoDetalleSerializer(fondo, context={'request': request})
-        return Response(output_serializer.data)
-    
+        return Response({'message': 'Informe presentado exitosamente'})
+
     @action(detail=True, methods=['patch'], url_path='presentar-a-director')
     def presentar_a_director(self, request, pk=None):
         """
@@ -2364,105 +2348,6 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
                 {'error': f'Error interno al procesar la observación: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-    @action(detail=True, methods=['post'], url_path='validar-jefe')
-    @transaction.atomic
-    def validar_jefe(self, request, pk=None):
-        """Jefe de Estudios valida el fondo y lo pasa al Director."""
-        fondo = self.get_object()
-        user = request.user
-        try:
-            perfil = _obtener_perfil_efectivo(user, request)
-        except Exception:
-            perfil = None
-
-        # Permission check
-        if not (perfil and perfil.rol == 'jefe_estudios' and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, request)):
-            raise PermissionDenied("Solo el Jefe de Estudios de la carrera puede validar este fondo.")
-
-        if fondo.estado != 'presentado_jefe':
-            return Response(
-                {'error': f'Solo se pueden validar fondos en estado "Presentado a Jefe de Estudios". Estado actual: {fondo.get_estado_display()}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Change state
-        estado_anterior = fondo.estado
-        fondo.estado = 'presentado_director'
-        fondo.validado_por = user
-        fondo.fecha_validacion = timezone.now()
-        fondo.save()
-
-        # Add to history
-        HistorialFondo.objects.create(
-            fondo_tiempo=fondo,
-            usuario=user,
-            tipo_cambio='validacion',
-            descripcion='Fondo validado por Jefe de Estudios y enviado a Director.',
-            estado_anterior=estado_anterior,
-            estado_nuevo=fondo.estado
-        )
-
-        serializer = FondoTiempoDetalleSerializer(fondo, context={'request': request})
-        return Response(serializer.data)
-
-    @action(detail=True, methods=['post'], url_path='observar-jefe')
-    @transaction.atomic
-    def observar_jefe(self, request, pk=None):
-        """Jefe de Estudios observa el fondo y lo devuelve al docente."""
-        fondo = self.get_object()
-        user = request.user
-        try:
-            perfil = _obtener_perfil_efectivo(user, request)
-        except Exception:
-            perfil = None
-
-        # Permission check
-        if not (perfil and perfil.rol == 'jefe_estudios' and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, request)):
-            raise PermissionDenied("Solo el Jefe de Estudios de la carrera puede observar este fondo.")
-
-        if fondo.estado != 'presentado_jefe':
-            return Response(
-                {'error': f'Solo se pueden observar fondos en estado "Presentado a Jefe de Estudios". Estado actual: {fondo.get_estado_display()}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Usamos el mismo serializer que el director, pero ignoramos la acción 'rechazar'
-        serializer = ObservarFondoSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        observacion_texto = serializer.validated_data['observacion']
-
-        # Create observation thread
-        observacion = ObservacionFondo.objects.create(fondo_tiempo=fondo)
-        MensajeObservacion.objects.create(
-            observacion=observacion,
-            autor=user,
-            texto=observacion_texto,
-            es_admin=True # Lo marcamos como autoridad para diferenciarlo del docente en el chat
-        )
-
-        # Change state
-        estado_anterior = fondo.estado
-        fondo.estado = 'observado'
-        fondo.save()
-
-        # Add to history
-        HistorialFondo.objects.create(
-            fondo_tiempo=fondo,
-            usuario=user,
-            tipo_cambio='observacion',
-            descripcion=f'Fondo observado por Jefe de Estudios: {observacion_texto}',
-            estado_anterior=estado_anterior,
-            estado_nuevo=fondo.estado
-        )
-
-        serializer = FondoTiempoDetalleSerializer(fondo, context={'request': request})
-        return Response(serializer.data)
-
-    # =====================================================
-    # NUEVAS ACCIONES PARA COMPLETAR FLUJO DE ESTADOS
-    # =====================================================
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     @transaction.atomic
@@ -3314,31 +3199,7 @@ class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelVie
 
         output_serializer = self.get_serializer(observacion)
         return Response(output_serializer.data)
-    
-        # NUEVO: Si estaba resuelta y el admin envía mensaje, reabrir Y cambiar fondo a observado
-        if observacion.resuelta and es_admin:
-            observacion.reabrir()
-        
-            # Cambiar el estado del fondo a "observado"
-            fondo = observacion.fondo_tiempo
-            estado_anterior = fondo.estado
-            fondo.estado = 'observado'
-            fondo.save()
-        
-            # Registrar en historial
-            HistorialFondo.objects.create(
-                fondo_tiempo=fondo,
-                usuario=request.user,
-                tipo_cambio='observacion',
-                descripcion='Director reabrió observación - Fondo requiere correcciones',
-                estado_anterior=estado_anterior,
-                estado_nuevo=fondo.estado
-          )
-    
-        # Devolver observación actualizada
-        output_serializer = self.get_serializer(observacion)
-        return Response(output_serializer.data)
-    
+
     @action(detail=True, methods=['post'], url_path='marcar-resuelta')
     def marcar_resuelta(self, request, pk=None):
         """Marcar hilo como resuelto."""
@@ -3375,39 +3236,8 @@ class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelVie
 
         output_serializer = self.get_serializer(observacion)
         return Response(output_serializer.data)
-    
-        # NUEVO: Cambiar el estado del fondo a "presentado_director"
-        fondo = observacion.fondo_tiempo
-        estado_anterior = fondo.estado
 
-        # Determinar a quién devolver el fondo (Jefe o Director)
-        primer_mensaje = observacion.mensajes.order_by('fecha').first()
-        siguiente_estado = 'presentado_jefe' # Por defecto, vuelve al Jefe de Estudios
-        descripcion_historial = 'Docente marcó observación como resuelta y presentó a Jefe de Estudios.'
 
-        if request.user.is_superuser or es_jefatura:
-            siguiente_estado = 'presentado_director'
-            descripcion_historial = 'Jefatura marcó observación como resuelta y presentó a Director.'
-        elif primer_mensaje and hasattr(primer_mensaje.autor, 'perfil'):
-            if primer_mensaje.autor.perfil.rol == 'director':
-                siguiente_estado = 'presentado_director'
-                descripcion_historial = 'Docente marcó observación como resuelta y presentó a Director.'
-
-        fondo.estado = siguiente_estado
-        fondo.save()
-    
-        # Registrar en historial
-        HistorialFondo.objects.create(
-            fondo_tiempo=fondo,
-            usuario=request.user,
-            tipo_cambio='presentacion',
-            descripcion=descripcion_historial,
-            estado_anterior=estado_anterior,
-            estado_nuevo=siguiente_estado
-        )
-    
-        output_serializer = self.get_serializer(observacion)
-        return Response(output_serializer.data)
 # =====================================================
 # HISTORIAL FONDO VIEWSET
 # =====================================================

@@ -1220,6 +1220,25 @@ class CalendarioAcademicoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Model
             return [IsAdminOrDirector()]
         return [IsAuthenticated()]
 
+    def _validar_carrera_propia(self, carrera):
+        """Director y Jefe de Estudios solo gestionan calendarios de su carrera; el superusuario, de todas."""
+        if not carrera or self.request.user.is_superuser:
+            return
+        if not _usuario_tiene_acceso_a_carrera(self.request.user, carrera, self.request):
+            raise PermissionDenied('Solo puedes gestionar calendarios de tu carrera.')
+
+    def perform_create(self, serializer):
+        self._validar_carrera_propia(serializer.validated_data.get('carrera'))
+        serializer.save()
+
+    def perform_update(self, serializer):
+        carrera = serializer.validated_data.get('carrera')
+        # Solo el superusuario mueve un calendario a otra carrera.
+        if carrera and carrera.pk != serializer.instance.carrera_id and not self.request.user.is_superuser:
+            raise PermissionDenied('No puedes mover el calendario a otra carrera.')
+        self._validar_carrera_propia(carrera)
+        serializer.save()
+
     def _build_dependency_counts(self, calendario):
         fondos_ids = list(
             FondoTiempo.objects.filter(calendario_academico=calendario)

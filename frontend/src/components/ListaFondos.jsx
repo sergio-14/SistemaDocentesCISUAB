@@ -134,10 +134,8 @@ function ListaFondos() {
     return puedeCrearFondoTiempo(user) && ['borrador', 'observado'].includes(fondo.estado);
   };
 
-  // iiisyp es solo lectura: solo superuser puede archivar fondos
-  const esAdmin = () => {
-    return user?.is_superuser === true;
-  };
+  // Archivar: superusuario, Director y Jefe de Estudios (de su carrera; lo exige el backend).
+  const puedeArchivar = user?.is_superuser === true || ['director', 'jefe_estudios'].includes(user?.perfil?.rol);
 
   const puedeCrear = puedeCrearFondoTiempo(user);
   const esIisyp = user?.perfil?.rol === 'iiisyp' && user?.is_superuser !== true;
@@ -332,8 +330,8 @@ function ListaFondos() {
                         </Link>
                       )}
 
-                      {esAdmin() && ['aprobado_director', 'finalizado', 'rechazado', 'archivado'].includes(fondo.estado) && (
-                        <button
+                      {puedeArchivar && ['aprobado_director', 'finalizado', 'rechazado', 'archivado'].includes(fondo.estado) && (
+                        <button data-escritura
                           onClick={() => archivarFondo(fondo.id)}
                           className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition duration-300 hover:scale-105 shadow-md hover:shadow-lg"
                         >

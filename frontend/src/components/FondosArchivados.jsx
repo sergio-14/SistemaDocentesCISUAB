@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getFondosArchivados, restaurarFondo as restaurarFondoAPI } from '../apis/api';
 
-function FondosArchivados({ isDark }) {
+function FondosArchivados() {
   const [archivados, setArchivados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -226,8 +226,8 @@ function FondosArchivados({ isDark }) {
 
                     {/* Botones de acción */}
                     <div className="flex lg:flex-col gap-2">
-                      {user?.is_staff && (
-                        <button
+                      {(user?.is_superuser || ['director', 'jefe_estudios'].includes(user?.perfil?.rol)) && (
+                        <button data-escritura
                           onClick={() => restaurarFondo(fondo.id, fondo.docente_nombre)}
                           className="flex-1 lg:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
                         >
@@ -269,7 +269,7 @@ function FondosArchivados({ isDark }) {
                   <li>Los fondos archivados no se eliminan permanentemente</li>
                   <li>Puedes restaurarlos en cualquier momento</li>
                   <li>Al restaurar, vuelven al estado en que fueron archivados</li>
-                  <li>Solo los administradores pueden archivar y restaurar fondos</li>
+                  <li>Solo el superusuario, el Director y el Jefe de Estudios de la carrera pueden archivar y restaurar fondos</li>
                 </ul>
               </div>
             </div>

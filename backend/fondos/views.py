@@ -1805,16 +1805,26 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         kwargs['partial'] = True
         return self.update(request, *args, **kwargs)
     
+    def _validar_archivo(self, fondo, accion):
+        """Archivar y restaurar: superusuario, o Director y Jefe de Estudios de la carrera del fondo."""
+        user = self.request.user
+        if user.is_superuser:
+            return
+        perfil = _obtener_perfil_efectivo(user, self.request)
+        if not (
+            perfil
+            and perfil.rol in ['director', 'jefe_estudios']
+            and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, self.request)
+        ):
+            raise PermissionDenied(
+                f"Solo el superusuario o el Director y el Jefe de Estudios de la carrera pueden {accion} fondos."
+            )
+
     def destroy(self, request, *args, **kwargs):
-        """
-        No se elimina realmente, se archiva
-        Solo admin puede archivar
-        """
+        """No se elimina: se archiva (superusuario, o Director y Jefe de Estudios de la carrera)."""
         instance = self.get_object()
-        
-        if not instance.puede_archivar(request.user):
-            raise PermissionDenied("Solo administradores pueden archivar fondos")
-        
+        self._validar_archivo(instance, 'archivar')
+
         # Archivar en lugar de eliminar
         instance.archivado = True
         instance.save()
@@ -1889,10 +1899,12 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         serializer = FondoTiempoListSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
     
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def restaurar(self, request, pk=None):
-        """Restaurar un fondo archivado (solo admin)"""
-        fondo = self.get_object()
+        """Restaurar un fondo archivado (superusuario, o Director y Jefe de Estudios de la carrera)."""
+        # get_object() excluye los archivados: se busca directo y se valida la carrera.
+        fondo = get_object_or_404(FondoTiempo, pk=pk)
+        self._validar_archivo(fondo, 'restaurar')
         
         if not fondo.archivado:
             return Response(

@@ -1080,14 +1080,6 @@ class FondoTiempo(models.Model):
         
         return False
     
-    def puede_archivar(self, usuario):
-        """Solo el staff con rol de gestión real puede archivar"""
-        return bool(
-            usuario.is_staff
-            and hasattr(usuario, 'perfil')
-            and usuario.perfil.rol in ['director', 'jefe_estudios']
-        )
-
     def _obtener_vinculo(self):
         """Obtiene el vínculo DocenteCarrera activo para este fondo."""
         if not self.docente_id or not self.carrera_id:

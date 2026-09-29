@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { FaEdit, FaTrash } from 'react-icons/fa';
 import { X } from 'lucide-react';
 import api from '../apis/api';
-import { hoyBolivia } from '../utils/fechas';
+import { finAnteriorAInicio, hoyBolivia } from '../utils/fechas';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -1058,7 +1058,8 @@ const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse =
 
   useEffect(() => {
     if (open) {
-      const base = selectedDate || today;
+      // Sin fecha elegida se abre en el mes de la fecha mínima (p. ej. el inicio del periodo).
+      const base = selectedDate || minAllowedDate || today;
       setVisibleMonth(new Date(base.getFullYear(), base.getMonth(), 1));
       setDraftDay(null);
       setDraftMonth(base.getMonth());
@@ -1150,12 +1151,8 @@ const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse =
   );
 
   const handlePickDate = (dateObj) => {
-    if (minAllowedDate && dateObj < minAllowedDate) {
-      if (invalidSelectionMessage) toast.error(invalidSelectionMessage);
-      if (onInvalidSelection) onInvalidSelection();
-      return;
-    }
-
+    // El día se elige antes que el mes y el año: la fecha mínima se revisa con la fecha
+    // final armada, no con el día pulsado en el mes que se estaba mirando.
     const nextDay = dateObj.getDate();
     setDraftDay(nextDay);
 
@@ -1168,6 +1165,11 @@ const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse =
     if (nextDay > maxDayForMonth) return;
 
     const finalDate = new Date(yearCandidate, monthCandidate, nextDay);
+    if (minAllowedDate && finalDate < minAllowedDate) {
+      if (invalidSelectionMessage) toast.error(invalidSelectionMessage);
+      if (onInvalidSelection) onInvalidSelection();
+      return;
+    }
     const iso = toIsoDate(finalDate);
     onDateChange(name, iso, { skipRangeToast: true });
     setInputValue(formatDisplayDate(iso));
@@ -1701,11 +1703,9 @@ function ListaCalendarios() {
   const activeCalendarEditWarning = 'ATENCIÓN: Estás editando un calendario en uso. Cambiar las fechas límite puede afectar la visibilidad de los formularios para los docentes.';
   const criticalProjectRangeMessage = 'Error Crítico: el rango del semestre deja fechas de proyectos fuera del periodo académico. Corrige las fechas antes de guardar.';
 
-  const isDateRangeInvalid = Boolean(
-    fechaInicioDate
-    && fechaFinDate
-    && fechaFinDate.getTime() < fechaInicioDate.getTime()
-  );
+  const isDateRangeInvalid = finAnteriorAInicio(formData.fecha_inicio, formData.fecha_fin);
+  const recesoOrderErrorMessage = 'La fecha de fin del receso no puede ser anterior a la de inicio';
+  const isRecesoOrderInvalid = finAnteriorAInicio(formData.fecha_inicio_receso, formData.fecha_fin_receso);
   const projectRangeWarning = 'La presentación de proyectos debe ocurrir dentro del periodo académico seleccionado';
   const projectOrderErrorMessage = 'La fecha límite de proyectos debe ser posterior a la fecha de inicio';
   const isProjectOrderInvalid = Boolean(
@@ -1852,27 +1852,11 @@ function ListaCalendarios() {
           return parsed ? toIsoString(parsed) : '';
         })()
       : '';
-    let accepted = true;
-
-    setFormData((prev) => {
-      if (
-        name === 'fecha_fin'
-        && normalized
-        && prev.fecha_inicio
-      ) {
-        const nextEnd = parseDateValue(normalized);
-        const currentStart = parseDateValue(prev.fecha_inicio);
-        if (nextEnd && currentStart && nextEnd.getTime() < currentStart.getTime()) {
-          accepted = false;
-          return prev;
-        }
-      }
-
-      return {
-        ...prev,
-        [name]: normalized,
-      };
-    });
+    // Solo con las dos fechas llenas: una fecha de fin anterior al inicio no se acepta.
+    const accepted = !(name === 'fecha_fin' && finAnteriorAInicio(formData.fecha_inicio, normalized));
+    if (accepted) {
+      setFormData((prev) => ({ ...prev, [name]: normalized }));
+    }
 
     if (!accepted) {
       if (!skipRangeToast) {
@@ -1978,8 +1962,8 @@ function ListaCalendarios() {
     if (!formData.carrera) requiredErrors.carrera = 'Este campo es obligatorio.';
     if (!formData.gestion) requiredErrors.gestion = 'Este campo es obligatorio.';
     if (!formData.periodo) requiredErrors.periodo = 'Este campo es obligatorio.';
-    if (!formData.fecha_inicio) requiredErrors.fecha_inicio = 'Este campo es obligatorio.';
-    if (!formData.fecha_fin) requiredErrors.fecha_fin = 'Este campo es obligatorio.';
+    if (!formData.fecha_inicio) requiredErrors.fecha_inicio = 'La fecha de inicio es obligatoria.';
+    if (!formData.fecha_fin) requiredErrors.fecha_fin = 'La fecha de fin es obligatoria.';
     if (!formData.fecha_inicio_presentacion_proyectos) requiredErrors.fecha_inicio_presentacion_proyectos = 'Este campo es obligatorio.';
     if (!formData.fecha_limite_presentacion_proyectos) requiredErrors.fecha_limite_presentacion_proyectos = 'Este campo es obligatorio.';
     if (
@@ -2041,6 +2025,12 @@ function ListaCalendarios() {
 
     if (isProjectRangeInvalid) {
       toast.error(projectRangeWarning);
+      return;
+    }
+
+    if (isRecesoOrderInvalid) {
+      applyErrors({ ...errors, fecha_fin_receso: recesoOrderErrorMessage });
+      toast.error(recesoOrderErrorMessage);
       return;
     }
 
@@ -2529,7 +2519,9 @@ function ListaCalendarios() {
                   name="fecha_fin_receso"
                   value={formData.fecha_fin_receso}
                   onDateChange={handleDateFieldChange}
-                  error={errors.fecha_fin_receso}
+                  minDate={formData.fecha_inicio_receso}
+                  invalidSelectionMessage={recesoOrderErrorMessage}
+                  error={errors.fecha_fin_receso || (isRecesoOrderInvalid ? recesoOrderErrorMessage : '')}
                   errorPulse={errorPulse}
                   onClearError={() => clearFieldError('fecha_fin_receso')}
                 />

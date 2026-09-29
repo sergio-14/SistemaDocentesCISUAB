@@ -1226,7 +1226,6 @@ class FondoTiempo(models.Model):
         
         ESTADOS_BLOQUEADOS = ESTADOS_FONDO_BLOQUEADOS
         
-        ESTADOS_EDITABLES = ['borrador', 'observado', 'rechazado']
         TRANSICIONES_ESTADO_PERMITIDAS = {
             ('borrador', 'presentado_director'),
             ('observado', 'presentado_director'),
@@ -1302,16 +1301,14 @@ class FondoTiempo(models.Model):
                         )
                     })
             
-            # Si pasó, al menos el estado actual es editable
+            # Solo las transiciones del flujo: no se vuelve a borrador, observado o
+            # rechazado desde cualquier estado.
             transicion_estado = (fondo_actual.estado, self.estado)
-            if (
-                self.estado not in ESTADOS_EDITABLES + [fondo_actual.estado]
-                and transicion_estado not in TRANSICIONES_ESTADO_PERMITIDAS
-            ):
+            if self.estado != fondo_actual.estado and transicion_estado not in TRANSICIONES_ESTADO_PERMITIDAS:
                 raise ValidationError({
                     'estado': (
-                        f'Transición de estado no permitida. '
-                        f'Estados editables: {", ".join([dict(self.ESTADO_CHOICES)[s] for s in ESTADOS_EDITABLES])}.'
+                        f'Transición de estado no permitida: de "{fondo_actual.get_estado_display()}" '
+                        f'a "{dict(self.ESTADO_CHOICES).get(self.estado, self.estado)}".'
                     )
                 })
 

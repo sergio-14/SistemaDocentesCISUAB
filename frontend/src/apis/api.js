@@ -115,8 +115,6 @@ export const guardarInformeBorrador = (fondoId, secciones) =>
 export const observarInforme = (fondoId, comentario) =>
   api.post(`/fondos-tiempo/${fondoId}/observar-informe/`, { comentario });
 
-export const cambiarEstadoFondo = (id, estado, comentarios = '') => 
-  api.post(`/fondos-tiempo/${id}/cambiar_estado/`, { estado, comentarios });
 export const agregarComentarioFondo = (id, comentario) => 
   api.post(`/fondos-tiempo/${id}/agregar_comentario/`, { comentario });
 

@@ -1090,29 +1090,6 @@ class FondoTiempo(models.Model):
         
         return False
     
-    def puede_cambiar_estado(self, usuario, nuevo_estado=None):
-        """
-        Valida permisos para cambiar el estado del Fondo de Tiempo.
-        
-        - 'observado': Solo jefe_estudios (del mismo programa)
-        - Otros cambios: Solo staff con rol de gestión real
-        """
-        # Necesario ser staff
-        if not usuario.is_staff:
-            return False
-        
-        # Si se especifica nuevo estado, hacer validaciones adicionales
-        if nuevo_estado == 'observado':
-            # Solo admin o jefe_estudios pueden cambiar a 'observado'
-            if hasattr(usuario, 'perfil') and usuario.perfil:
-                rol = usuario.perfil.rol
-                if rol == 'jefe_estudios':
-                    return True
-            return False
-        
-        # Para otros estados, basta con ser staff
-        return True
-    
     def puede_archivar(self, usuario):
         """Solo el staff con rol de gestión real puede archivar"""
         return bool(

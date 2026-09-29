@@ -1825,53 +1825,6 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         )
     
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
-    def cambiar_estado(self, request, pk=None):
-        """
-        Cambiar estado del fondo (solo admin/director/jefe_estudios según permisos)
-        Estados: borrador → revision → aprobado → validado
-        
-        Permisos especiales:
-        - 'observado': Solo jefe_estudios o admin
-        """
-        fondo = self.get_object()
-        nuevo_estado = request.data.get('estado')
-        comentarios = request.data.get('comentarios', '')
-        
-        # Validar permisos (incluyendo validación para 'observado')
-        if not fondo.puede_cambiar_estado(request.user, nuevo_estado):
-            raise PermissionDenied(
-                f"No tiene permisos para cambiar el estado a '{nuevo_estado}'. "
-                f"Solo jefe_estudios o admin pueden cambiar a 'observado'."
-            )
-        
-        estados_validos = [choice[0] for choice in FondoTiempo.ESTADO_CHOICES]
-        if nuevo_estado not in estados_validos:
-            return Response(
-                {'error': f'Estado inválido. Válidos: {estados_validos}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Actualizar estado y registrar quién lo hizo
-        fondo.estado = nuevo_estado
-        
-        if comentarios:
-            if fondo.comentarios_admin:
-                fondo.comentarios_admin += f"\n\n[{request.user.username}]: {comentarios}"
-            else:
-                fondo.comentarios_admin = f"[{request.user.username}]: {comentarios}"
-        
-        # Registrar quién aprobó/validó
-        if nuevo_estado == 'aprobado_director' and not fondo.aprobado_por:
-            fondo.aprobado_por = request.user
-        elif nuevo_estado == 'validado' and not fondo.validado_por:
-            fondo.validado_por = request.user
-        
-        fondo.save()
-        
-        serializer = self.get_serializer(fondo)
-        return Response(serializer.data)
-    
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
     def agregar_comentario(self, request, pk=None):
         """Agregar comentario administrativo"""
         fondo = self.get_object()

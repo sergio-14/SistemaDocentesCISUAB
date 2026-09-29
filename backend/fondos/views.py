@@ -3455,8 +3455,9 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
             return [IsAuthenticated()]
         if self.action in ['create', 'update', 'partial_update', 'toggle_activo', 'cambiar_password', 'resetear_password']:
             return [IsFullAdminOrDirectorCarrera()]
+        # Eliminar: superusuario, o el Director dentro de su carrera (ver destroy).
         if self.action in ['destroy']:
-            return [IsFullAdmin()]
+            return [IsFullAdminOrDirectorCarrera()]
         return [IsAuthenticated()]
     
     def get_queryset(self):
@@ -3561,6 +3562,11 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        if not request.user.is_superuser:
+            error_director = self._validar_eliminacion_por_director(request.user, user)
+            if error_director:
+                return Response({'error': error_director}, status=status.HTTP_403_FORBIDDEN)
+
         datos = datos_registrados_usuario(user)
         if datos['tiene_datos']:
             return Response(
@@ -3588,6 +3594,28 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
                 status=status.HTTP_409_CONFLICT,
             )
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def _validar_eliminacion_por_director(self, director, user):
+        """El Director elimina solo usuarios de su carrera; nunca a sí mismo ni a otro Director.
+
+        Que no tenga datos registrados lo exige destroy igual que al superusuario.
+        """
+        if user.pk == director.pk:
+            return 'No puedes eliminar tu propia cuenta.'
+        perfil = PerfilUsuario.objects.filter(user=user).first()
+        es_director = (perfil is not None and perfil.rol == 'director') or AsignacionCarrera.objects.filter(
+            user=user, rol='director', activo=True,
+        ).exists()
+        if es_director:
+            return 'No puedes eliminar a un Director de Carrera.'
+        propias = set(_obtener_carreras_activas_usuario(director, self.request).values_list('id', flat=True))
+        carreras_usuario = set(AsignacionCarrera.objects.filter(user=user).values_list('carrera_id', flat=True))
+        if perfil and perfil.carrera_id:
+            carreras_usuario.add(perfil.carrera_id)
+        carreras_usuario.discard(None)
+        if not carreras_usuario or not carreras_usuario <= propias:
+            return 'Solo puedes eliminar usuarios de tu carrera.'
+        return None
 
     @staticmethod
     def _eliminar_usuario_sin_datos(user):

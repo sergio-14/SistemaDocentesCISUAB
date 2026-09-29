@@ -1481,7 +1481,7 @@ const initialData = {
   };
 
   const eliminarDesdeDetalle = () => {
-    if (!usuarioDetalle || !puedeEliminarUsuarios() || usuarioDetalle.is_superuser) return;
+    if (!puedeEliminarUsuario(usuarioDetalle)) return;
     const usuario = usuarioDetalle;
     cerrarDetalleUsuario();
     handleEliminar(usuario);
@@ -2145,7 +2145,7 @@ const initialData = {
   }
 
   const puedeGestionarUsuarios = () => esSuperuserActual || esDirectorCarreraActual;
-  const puedeEliminarUsuarios = () => esSuperuserActual;
+  const puedeEliminarUsuarios = () => esSuperuserActual || esDirectorCarreraActual;
   const puedeEditarUsuario = (usuario) => {
     if (!puedeGestionarUsuarios() || usuario?.is_superuser) return false;
     if (esSuperuserActual) return true;
@@ -2153,6 +2153,14 @@ const initialData = {
     return !obtenerRolesUsuario(usuario).includes('director');
   };
   const puedeCambiarEstadoUsuario = (usuario) => puedeEditarUsuario(usuario);
+  // Eliminar: nunca un superusuario ni a sí mismo. El Director, solo usuarios de su
+  // carrera que no sean Director (lo mismo que puede editar). Con datos registrados
+  // el backend lo rechaza: solo se puede desactivar.
+  const puedeEliminarUsuario = (usuario) => {
+    if (!usuario || usuario.is_superuser || !puedeEliminarUsuarios()) return false;
+    if (String(usuario.id) === String(user?.id)) return false;
+    return esSuperuserActual || puedeEditarUsuario(usuario);
+  };
   const obtenerNombreUsuario = (usuario) => ((usuario?.first_name || usuario?.last_name)
     ? `${(usuario.first_name || '').trim()} ${(usuario.last_name || '').trim()}`.trim()
     : (usuario?.nombre_completo || '-'));
@@ -2695,7 +2703,7 @@ const initialData = {
                     <td data-label="Acciones" className={`px-6 py-4 whitespace-nowrap text-center ${filaInactiva ? 'bg-red-200/90 dark:bg-red-950/35' : ''}`}>
                       {puedeGestionarUsuarios() && (() => {
                         const blockedBtn = !puedeEditarUsuario(usuario);
-                        const canDelete = puedeEliminarUsuarios() && !usuario.is_superuser;
+                        const canDelete = puedeEliminarUsuario(usuario);
                         const titleMsg = blockedBtn ? 'Acción deshabilitada: usuario protegido' : '';
                         return (
                           <div className="flex justify-center gap-3">
@@ -2746,7 +2754,7 @@ const initialData = {
         {usuarioDetalle && createPortal((() => {
           const rolesDetalle = obtenerRolesUsuario(usuarioDetalle);
           const puedeEditarDetalle = puedeEditarUsuario(usuarioDetalle);
-          const puedeEliminarDetalle = puedeEliminarUsuarios() && !usuarioDetalle.is_superuser;
+          const puedeEliminarDetalle = puedeEliminarUsuario(usuarioDetalle);
           const perfilDocentePendienteDetalle = usuarioTienePerfilDocentePendiente(usuarioDetalle);
           const docenteInactivoDetalle = usuarioTieneDocenteInactivo(usuarioDetalle);
           const correoDetalle = usuarioDetalle.email || usuarioDetalle.correo || '-';

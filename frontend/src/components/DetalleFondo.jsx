@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getFondoTiempoDetalle, crearActividad, eliminarActividad, presentarFondoADirector, aprobarFondo } from '../apis/api';
+import { getFondoTiempoDetalle, presentarFondoADirector, aprobarFondo } from '../apis/api';
 import api from '../apis/api';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import DistribuirHoras from './DistribuirHoras';
@@ -253,7 +253,7 @@ const CATEGORY_ICONS = {
   'social_cultural_deportiva': VidaUniversitariaIcon,
 };
 
-function DetalleFondo({ isDark }) {
+function DetalleFondo() {
   const { activeAssignment, activeRole, effectiveUser } = useActiveRole();
   const { id } = useParams();
   const navigate = useNavigate();
@@ -261,8 +261,6 @@ function DetalleFondo({ isDark }) {
   const [loading, setLoading] = useState(true);
   const [usuarioActual, setUsuarioActual] = useState(null);
   const [error, setError] = useState(null);
-  const [mostrarFormActividad, setMostrarFormActividad] = useState(false);
-  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState(null);
   const [mostrarFormObservar, setMostrarFormObservar] = useState(false);
 
   // Extraer datos del vínculo DocenteCarrera para el docente de este fondo
@@ -273,10 +271,6 @@ function DetalleFondo({ isDark }) {
   const [documentoDecanatura, setDocumentoDecanatura] = useState(null);
   const observacionesRef = useRef();
   const [observacionesPendientes, setObservacionesPendientes] = useState(0);
-  const [actividadAEditar, setActividadAEditar] = useState(null);
-  const [mostrarFormEditar, setMostrarFormEditar] = useState(false);
-  const [actividadAEliminar, setActividadAEliminar] = useState(null);
-  const scrollPosRef = useRef(0);
   const contenedorRef = useRef(null);
   const refWidgetReferencia = useRef(null);
   const refWidgetAcciones = useRef(null);
@@ -412,6 +406,7 @@ function DetalleFondo({ isDark }) {
     estadoFondoRef.current = null;
     observacionesPendientesRef.current = 0;
     cargarDetalle();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- se recarga al cambiar de fondo o de rol activo.
   }, [id, activeAssignment?.id]);
 
   // Guarda el ultimo total por categoria para detectar aparicion de tarjetas (0 -> >0)
@@ -426,30 +421,24 @@ function DetalleFondo({ isDark }) {
 
   // Evita overlays residuales al entrar a otro detalle
   useEffect(() => {
-    setMostrarFormActividad(false);
-    setMostrarFormEditar(false);
     setMostrarFormObservar(false);
     setMostrarFormPresentarInforme(false);
     setMostrarFormEvaluarInforme(false);
     setMostrarModalAprobar(false);
     setMostrarModalIniciarEjecucion(false);
     setMostrarModalInforme(false);
-    setActividadAEliminar(null);
   }, [id]);
 
   // Limpiar todos los modales al desmontar el componente
   useEffect(() => {
     return () => {
       limpiarSecuenciaGuardado();
-      setMostrarFormActividad(false);
-      setMostrarFormEditar(false);
       setMostrarFormObservar(false);
       setMostrarFormPresentarInforme(false);
       setMostrarFormEvaluarInforme(false);
       setMostrarModalAprobar(false);
       setMostrarModalIniciarEjecucion(false);
       setMostrarModalInforme(false);
-      setActividadAEliminar(null);
     };
   }, [activeAssignment?.id]);
 
@@ -579,153 +568,6 @@ function DetalleFondo({ isDark }) {
 
   const cerrarPanel = () => {
     navigate('/fondo-tiempo');
-  };
-
-  const abrirFormularioActividad = (categoria) => {
-    if (!puedeGestionarDistribucion) {
-      toast.error('Solo Jefatura puede agregar actividades.');
-      return;
-    }
-    setCategoriaSeleccionada(categoria);
-    setMostrarFormActividad(true);
-  };
-
-  const abrirFormularioActividadGlobal = () => {
-    if (!puedeGestionarDistribucion) {
-      toast.error('Solo Jefatura puede agregar actividades.');
-      return;
-    }
-    const catDefault = fondo.categorias?.find(c => c.tipo === 'social_cultural_deportiva') || fondo.categorias?.[0] || { id: '' };
-    setCategoriaSeleccionada({ id: catDefault.id, nombre: catDefault.tipo_display });
-    setMostrarFormActividad(true);
-  };
-
-  const cerrarFormularioActividad = () => {
-    setMostrarFormActividad(false);
-    setCategoriaSeleccionada(null);
-  };
-
-  const getScrollContainer = () => {
-    let element = contenedorRef.current;
-
-    while (element && element !== document.body) {
-      const hasScroll = element.scrollHeight > element.clientHeight;
-      const overflowY = window.getComputedStyle(element).overflowY;
-
-      if (hasScroll && (overflowY === 'auto' || overflowY === 'scroll')) {
-        return element;
-      }
-
-      element = element.parentElement;
-    }
-
-    return null;
-  };
-
-  const guardarActividad = async (actividadData) => {
-    if (!puedeGestionarDistribucion) {
-      toast.error('No tienes permisos para agregar actividades.');
-      return;
-    }
-    try {
-      const scrollContainer = getScrollContainer();
-      scrollPosRef.current = scrollContainer
-        ? scrollContainer.scrollTop
-        : window.scrollY;
-
-      await crearActividad(actividadData);
-      toast.success('Actividad agregada exitosamente');
-      cerrarFormularioActividad();
-      await cargarDetalle({ silencioso: true });
-
-      setTimeout(() => {
-        const container = getScrollContainer();
-        if (container) {
-          container.scrollTop = scrollPosRef.current;
-        } else {
-          window.scrollTo(0, scrollPosRef.current);
-        }
-      }, 300);
-    } catch (err) {
-      console.error('Error al guardar actividad:', err);
-      toast.error(getApiErrorMessage(err, 'Error al guardar la actividad'));
-    }
-  };
-
-  const editarActividadHandler = (actividad) => {
-    if (!puedeGestionarDistribucion) {
-      toast.error('No tienes permisos para editar actividades.');
-      return;
-    }
-    setActividadAEditar(actividad);
-    setCategoriaSeleccionada({
-      id: actividad.categoria,
-      nombre: actividad.categoria_nombre || 'Categoría'
-    });
-    setMostrarFormEditar(true);
-  };
-
-  const actualizarActividad = async (actividadData) => {
-    if (!puedeGestionarDistribucion) {
-      toast.error('No tienes permisos para editar actividades.');
-      return;
-    }
-    try {
-      const scrollContainer = getScrollContainer();
-      scrollPosRef.current = scrollContainer
-        ? scrollContainer.scrollTop
-        : window.scrollY;
-
-      await api.put(`/actividades/${actividadAEditar.id}/`, actividadData);
-      toast.success('Actividad actualizada exitosamente');
-      setMostrarFormEditar(false);
-      setActividadAEditar(null);
-      await cargarDetalle({ silencioso: true });
-
-      setTimeout(() => {
-        const container = getScrollContainer();
-        if (container) {
-          container.scrollTop = scrollPosRef.current;
-        } else {
-          window.scrollTo(0, scrollPosRef.current);
-        }
-      }, 300);
-    } catch (err) {
-      console.error('Error al actualizar actividad:', err);
-      toast.error(getApiErrorMessage(err, 'Error al actualizar la actividad'));
-    }
-  };
-
-  const confirmarEliminarActividad = async () => {
-    if (!actividadAEliminar) return;
-    if (!puedeGestionarDistribucion) {
-      toast.error('No tienes permisos para eliminar actividades.');
-      return;
-    }
-
-    try {
-      const scrollContainer = getScrollContainer();
-      scrollPosRef.current = scrollContainer
-        ? scrollContainer.scrollTop
-        : window.scrollY;
-
-      await eliminarActividad(actividadAEliminar);
-      toast.success('Actividad eliminada');
-      setActividadAEliminar(null);
-      await cargarDetalle({ silencioso: true });
-
-      setTimeout(() => {
-        const container = getScrollContainer();
-        if (container) {
-          container.scrollTop = scrollPosRef.current;
-        } else {
-          window.scrollTo(0, scrollPosRef.current);
-        }
-      }, 300);
-    } catch (err) {
-      console.error('Error al eliminar:', err);
-      toast.error('❌ Error al eliminar la actividad');
-    }
   };
 
   const presentarADirector = async () => {
@@ -912,21 +754,6 @@ function DetalleFondo({ isDark }) {
     return '0 días';
   };
 
-  const getEstadoBadgeColor = (estado) => {
-    const colores = {
-      'borrador': 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-500',
-      'presentado_director': 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700',
-      'revision_director': 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-700',
-      'aprobado_director': 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700',
-      'en_ejecucion': 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-700',
-      'informe_presentado': 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700',
-      'finalizado': 'bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-700',
-      'observado': 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-700',
-      'rechazado': 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border-red-200 dark:border-red-700',
-    };
-    return colores[estado] || colores['borrador'];
-  };
-
   const obtenerIniciales = (nombre) => {
     if (!nombre) return '??';
     return nombre.split(' ')
@@ -949,64 +776,6 @@ function DetalleFondo({ isDark }) {
       micro,
       total: horas && micro
     };
-  };
-
-  // --- RENDERIZADO INTELIGENTE DE EVIDENCIAS ---
-  const renderEvidencia = (actividad) => {
-    const texto = actividad.evidencias;
-    const archivo = actividad.archivo_evidencia;
-
-    // 1. Prioridad: Si hay archivo adjunto, mostrar botón de descarga
-    if (archivo) {
-      return (
-        <a
-          href={archivo}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 text-xs font-bold transition-colors border border-indigo-200 dark:border-indigo-800 shadow-sm group"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 group-hover:scale-110 transition-transform">
-            <path fillRule="evenodd" d="M15.621 4.379a3 3 0 00-4.242 0l-7 7a3 3 0 004.241 4.243h.001l.497-.5a.75.75 0 011.064 1.057l-.498.501-.002.002a4.5 4.5 0 01-6.364-6.364l7-7a4.5 4.5 0 016.368 6.36l-3.455 3.553A2.625 2.625 0 119.52 9.52l3.45-3.451a.75.75 0 111.061 1.06l-3.45 3.451a1.125 1.125 0 001.587 1.595l3.454-3.553a3 3 0 000-4.242z" clipRule="evenodd" />
-          </svg>
-          Ver Archivo
-        </a>
-      );
-    }
-
-    if (!texto) return <span className="text-slate-300 dark:text-slate-600 italic text-xs">-</span>;
-
-    // 2. Detectar URL en el texto (http o www)
-    const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/;
-    const match = texto.match(urlRegex);
-
-    if (match) {
-      let url = match[0];
-      if (!url.startsWith('http')) {
-        url = 'https://' + url;
-      }
-
-      return (
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-xs font-bold transition-colors border border-blue-200 dark:border-blue-800 shadow-sm group"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 group-hover:scale-110 transition-transform">
-            <path d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.224a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.225 5.865.75.75 0 00.977-1.138 2.5 2.5 0 01-.142-3.667l3-3z" />
-            <path d="M11.603 7.96a.75.75 0 00-1.06-1.06l-2.25 2.25a4 4 0 005.656 5.656l3-3a4 4 0 00-.225-5.865.75.75 0 00-.977 1.138 2.5 2.5 0 01.142 3.667l-3 3a2.5 2.5 0 01-3.536-3.536l1.25-1.25z" />
-          </svg>
-          Ver Respaldo
-        </a>
-      );
-    }
-
-    // 3. Texto normal (Memo, Referencia, etc) - Estilo Badge
-    return (
-      <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-medium border border-slate-300 dark:border-slate-600 max-w-full truncate" title={texto}>
-        {texto}
-      </span>
-    );
   };
 
   const handleEditCarga = (detalle, tipoCategoria) => {
@@ -1506,23 +1275,6 @@ function DetalleFondo({ isDark }) {
                 </div>
               )}
 
-              {/* Widget Observaciones Pendientes */}
-              {false && observacionesPendientes > 0 && (
-                <div className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800 rounded-2xl p-6 relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-amber-500 to-orange-600"></div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
-                      <span className="text-lg">⚠️</span>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase">Pendientes</p>
-                      <p className="font-black text-amber-700 dark:text-amber-300 text-2xl">{observacionesPendientes}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
             </div>
 
             {/* ================================================= */}
@@ -1641,26 +1393,6 @@ function DetalleFondo({ isDark }) {
 
                   <div className="space-y-2.5 mt-auto pt-2">
                     {/* JEFATURA: acciones principales de flujo */}
-                    {false && puedePresentarADirector && (
-                      <button
-                        onClick={presentarADirector}
-                        className="w-full py-2 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/30 flex justify-center items-center gap-2 transition-all hover:scale-[1.02] text-xs"
-                      >
-                        <PaperAirplaneIcon className="w-3.5 h-3.5" />
-                        Presentar
-                      </button>
-                    )}
-
-                    {false && puedeReenviarADirector && (
-                      <button
-                        onClick={presentarADirector}
-                        className="w-full py-2 rounded-xl font-bold text-white bg-orange-500 hover:bg-orange-600 shadow-lg shadow-orange-500/30 flex justify-center items-center gap-2 transition-all hover:scale-[1.02] text-xs"
-                      >
-                        <ArrowPathIcon className="w-3.5 h-3.5" />
-                        Reenviar al Director
-                      </button>
-                    )}
-
                     {puedeVolverABorrador && (
                       <button data-escritura
                         onClick={volverABorrador}
@@ -1960,84 +1692,7 @@ function DetalleFondo({ isDark }) {
                             {/* 2. MOSTRAR ACTIVIDADES MANUALES (SI NO ESTÁ BLOQUEADA) */}
                             {vistaActual === 'docente' && !esBloqueada && (
                               <div>
-                                {false && categoria.detalles_carga && categoria.detalles_carga.length > 0 && categoria.actividades && categoria.actividades.length > 0 && (
-                                  <div className="px-6 py-2 bg-slate-50/50 dark:bg-slate-800 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-y border-slate-300 dark:border-slate-700 flex items-center gap-2">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                                    Fondo de Tiempo - Gestion Jefatura
-                                  </div>
-                                )}
-
-                                {false && categoria.actividades && categoria.actividades.length > 0 ? (
-                                  <div className="overflow-x-auto">
-                                    <table className="min-w-full">
-                                      <thead>
-                                        <tr className="bg-slate-50/30 dark:bg-slate-800/30 border-b border-slate-300 dark:border-slate-700">
-                                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-1/3">
-                                            Actividad
-                                          </th>
-                                          <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                            Hrs/Semana
-                                          </th>
-                                          <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                            Hrs/Año
-                                          </th>
-                                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-1/4">
-                                            Evidencias
-                                          </th>
-                                          {puedeEditarDocente && !esBloqueada && (
-                                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                              Acciones
-                                            </th>
-                                          )}
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {categoria.actividades.map((actividad, actIdx) => (
-                                          <tr
-                                            key={actividad.id}
-                                            className={`border-b border-slate-200 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors ${actIdx === categoria.actividades.length - 1 ? 'border-b-0' : ''
-                                              }`}
-                                          >
-                                            <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 font-medium">
-                                              {actividad.detalle}
-                                            </td>
-                                            <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400 text-center">
-                                              {actividad.horas_semana}
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                              <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-sm font-bold text-slate-800 dark:text-white min-w-[3rem]">
-                                                {actividad.horas_año}
-                                              </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
-                                              {renderEvidencia(actividad)}
-                                            </td>
-                                            {puedeEditarDocente && !esBloqueada && (
-                                              <td className="px-6 py-4 text-right">
-                                                <div className="flex gap-1 justify-end">
-                                                  <button
-                                                    onClick={() => editarActividadHandler(actividad)}
-                                                    className="p-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-                                                    title="Editar actividad"
-                                                  >
-                                                    <PencilIcon className="w-4 h-4" />
-                                                  </button>
-                                                  <button
-                                                    onClick={() => setActividadAEliminar(actividad.id)}
-                                                    className="p-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                                                    title="Eliminar actividad"
-                                                  >
-                                                    <TrashIcon className="w-4 h-4" />
-                                                  </button>
-                                                </div>
-                                              </td>
-                                            )}
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                ) : categoria.detalles_carga && categoria.detalles_carga.length > 0 ? (
+                                {categoria.detalles_carga && categoria.detalles_carga.length > 0 ? (
                                   <div>
                                     <div className="px-6 py-2 bg-blue-50/40 dark:bg-blue-900/10 text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider border-b border-blue-100 dark:border-blue-800/30 flex items-center gap-2">
                                       <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
@@ -2493,44 +2148,6 @@ function DetalleFondo({ isDark }) {
             </div>
           </div>
         )}
-      {/* Modal de confirmación para eliminar - Portal para centrar en pantalla */}
-      {actividadAEliminar && ReactDOM.createPortal(
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
-            <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-4">
-              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                <span>🗑️</span> Confirmar Eliminación
-              </h2>
-            </div>
-            <div className="p-6">
-              <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 rounded-lg p-4 mb-4">
-                <p className="text-slate-800 dark:text-slate-200 font-semibold mb-2">
-                  ¿Estás seguro de eliminar esta actividad?
-                </p>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  Esta acción no se puede deshacer. La actividad se eliminará permanentemente.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-3 px-6 pb-6">
-              <button
-                onClick={() => setActividadAEliminar(null)}
-                className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-700 dark:text-slate-300 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={confirmarEliminarActividad}
-                className="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 transition-all shadow-lg hover:shadow-xl hover:scale-105 flex items-center justify-center gap-2"
-              >
-                <span>🗑️</span>
-                <span>Eliminar</span>
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
 
       {/* MODAL EVIDENCIAS DE ACTIVIDAD (Fondo en Ejecucion) */}
       <EvidenciaActividadModal

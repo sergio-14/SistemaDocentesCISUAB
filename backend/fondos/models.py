@@ -1232,6 +1232,8 @@ class FondoTiempo(models.Model):
             ('presentado_director', 'aprobado_director'),
             ('presentado_director', 'observado'),
             ('presentado_director', 'rechazado'),
+            # Un fondo rechazado vuelve a borrador para corregirlo (Jefe o superusuario).
+            ('rechazado', 'borrador'),
             ('aprobado_director', 'en_ejecucion'),
             ('en_ejecucion', 'informe_presentado'),
             ('informe_presentado', 'finalizado'),

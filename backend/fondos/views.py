@@ -2197,6 +2197,35 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
 
         return Response({'status': 'Fondo presentado correctamente'}, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['post'], url_path='volver-a-borrador')
+    @transaction.atomic
+    def volver_a_borrador(self, request, pk=None):
+        """Un fondo rechazado vuelve a borrador para corregirlo: Jefe de su carrera o superusuario."""
+        fondo = self.get_object()
+        user = request.user
+        if not user.is_superuser:
+            perfil = _obtener_perfil_efectivo(user, request)
+            if not (perfil and perfil.rol == 'jefe_estudios' and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, request)):
+                raise PermissionDenied("Solo el Jefe de Estudios de la carrera puede devolver a borrador un fondo rechazado.")
+
+        if fondo.estado != 'rechazado':
+            return Response(
+                {'error': 'Solo un fondo rechazado puede volver a borrador.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        fondo.estado = 'borrador'
+        fondo.save()
+        HistorialFondo.objects.create(
+            fondo_tiempo=fondo,
+            usuario=user,
+            tipo_cambio='edicion',
+            descripcion='Fondo rechazado devuelto a borrador para corregirlo.',
+            estado_anterior='rechazado',
+            estado_nuevo='borrador',
+        )
+        return Response({'status': 'Fondo devuelto a borrador'}, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
     @transaction.atomic
     def aprobar(self, request, pk=None):

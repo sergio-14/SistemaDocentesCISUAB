@@ -377,6 +377,8 @@ function DetalleFondo({ isDark }) {
   const puedePresentarADirector = fondo?.estado === 'borrador' && (esJefeEstudios || esSuperAdmin);
   const puedeReenviarADirector = fondo?.estado === 'observado' && (esJefeEstudios || esSuperAdmin);
   const fondoPresentadoADirector = fondo?.estado === 'presentado_director' && (esJefeEstudios || esSuperAdmin);
+  // Un fondo rechazado vuelve a borrador para corregirlo (Jefe de su carrera o superusuario).
+  const puedeVolverABorrador = fondo?.estado === 'rechazado' && (esJefeEstudios || esSuperAdmin);
 
   useEffect(() => {
     // Define panel inicial por rol al entrar a la vista.
@@ -753,6 +755,17 @@ function DetalleFondo({ isDark }) {
       console.error('Error status:', err.response?.status);
 
       toast.error(getApiErrorMessage(err, 'Error al presentar el fondo'));
+    }
+  };
+
+  const volverABorrador = async () => {
+    try {
+      await api.post(`/fondos-tiempo/${fondo.id}/volver-a-borrador/`);
+      estadoFondoRef.current = 'borrador';
+      toast.success('El fondo volvió a borrador para corregirlo');
+      await cargarDetalle({ silencioso: true });
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'No se pudo devolver el fondo a borrador'));
     }
   };
 
@@ -1645,6 +1658,16 @@ function DetalleFondo({ isDark }) {
                       >
                         <ArrowPathIcon className="w-3.5 h-3.5" />
                         Reenviar al Director
+                      </button>
+                    )}
+
+                    {puedeVolverABorrador && (
+                      <button data-escritura
+                        onClick={volverABorrador}
+                        className="w-full py-2 rounded-xl font-bold text-white bg-slate-600 hover:bg-slate-700 shadow-lg shadow-slate-500/30 flex justify-center items-center gap-2 transition-all hover:scale-[1.02] text-xs"
+                      >
+                        <ArrowPathIcon className="w-3.5 h-3.5" />
+                        Volver a borrador
                       </button>
                     )}
                     {/* Acciones rápidas superiores */}

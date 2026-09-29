@@ -167,7 +167,6 @@ const VerticalSemesterWheelPicker = ({
   const targetY = (centerOffset - targetDisplayIndex) * itemHeight;
   const clampedFloatIndex = Math.max(0, Math.min(semesters.length - 1, centerFloatIndex));
   const visualDisplayIndex = clampedFloatIndex + padSlots;
-  const centeredDisplayIndex = centeredIndex + padSlots;
   const lowerFloatIndex = Math.floor(clampedFloatIndex);
   const upperFloatIndex = Math.ceil(clampedFloatIndex);
   const centerProgress = clampedFloatIndex - lowerFloatIndex;
@@ -218,6 +217,7 @@ const VerticalSemesterWheelPicker = ({
     if (syncSemester !== undefined) {
       lastInternalSemesterRef.current = Number(syncSemester);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo se resincroniza al reiniciar la rueda, no con cada valor.
   }, [wheelResetToken, semesters.length]);
 
   useEffect(() => {
@@ -230,6 +230,7 @@ const VerticalSemesterWheelPicker = ({
     lastInternalSemesterRef.current = Number(selectedSemester);
     onChange(selectedSemester);
     onSettled?.(selectedSemester);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- avisa solo cuando la rueda se detiene en un semestre.
   }, [centeredIndex, targetIndex, semesters]);
 
   useEffect(() => {
@@ -276,6 +277,7 @@ const VerticalSemesterWheelPicker = ({
 
     node.addEventListener('wheel', handleWheelNative, { passive: false });
     return () => node.removeEventListener('wheel', handleWheelNative);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- el listener se registra una vez por rueda; usa refs para el estado.
   }, [semesters.length, wheelResetToken]);
 
   useEffect(() => {

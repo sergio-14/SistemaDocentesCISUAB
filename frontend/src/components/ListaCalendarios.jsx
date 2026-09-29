@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { FaEdit, FaTrash } from 'react-icons/fa';
 import { X } from 'lucide-react';
 import api from '../apis/api';
+import { hoyBolivia } from '../utils/fechas';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -394,6 +395,7 @@ const VerticalYearWheelPicker = ({
     if (syncYear !== undefined) {
       lastInternalYearRef.current = Number(syncYear);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo se resincroniza al reiniciar o abrir la rueda, no con cada valor.
   }, [wheelResetToken, years.length, openInitialYear]);
 
   useEffect(() => {
@@ -406,6 +408,7 @@ const VerticalYearWheelPicker = ({
     lastInternalYearRef.current = Number(selectedYear);
     onChange(selectedYear);
     onSettled?.(selectedYear);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- avisa solo cuando la rueda se detiene en un año.
   }, [centeredIndex, targetIndex, years]);
 
   useEffect(() => {
@@ -659,7 +662,8 @@ const YearPickerField = ({ value, onChange, currentYear, error, errorPulse = 0, 
 
   const clampYear = (year) => Math.max(minYear, Math.min(maxYear, year));
   const isValidYearInRange = (year) => Number.isFinite(year) && year >= minYear && year <= maxYear;
-  const actualCurrentYear = clampYear(new Date().getFullYear());
+  // Año actual en Bolivia, no en la zona horaria del navegador.
+  const actualCurrentYear = clampYear(Number(hoyBolivia().slice(0, 4)));
 
   const commitManualYear = () => {
     const parsed = Number.parseInt(manualYear, 10);
@@ -984,7 +988,7 @@ const InputField = ({
   );
 };
 
-const DatePickerField = ({ label, name, value, onDateChange, required, error, errorPulse = 0, minDate, invalidSelectionMessage, onInvalidSelection, showErrorText = true, onFieldInteraction, onClearError }) => {
+const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse = 0, minDate, invalidSelectionMessage, onInvalidSelection, showErrorText = true, onFieldInteraction, onClearError }) => {
   const [open, setOpen] = useState(false);
   const [openQuickPicker, setOpenQuickPicker] = useState(null);
   const [draftDay, setDraftDay] = useState(null);
@@ -1041,11 +1045,13 @@ const DatePickerField = ({ label, name, value, onDateChange, required, error, er
 
   useEffect(() => {
     setInputValue(formatDisplayDate(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- formatDisplayDate es pura; solo depende de value.
   }, [value]);
 
   const selectedDate = parseIsoDate(value);
   const minAllowedDate = parseIsoDate(minDate);
-  const today = new Date();
+  // Hoy en Bolivia (no en la zona horaria del navegador), como fecha local.
+  const today = parseIsoDate(hoyBolivia());
   const [visibleMonth, setVisibleMonth] = useState(
     selectedDate ? new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1) : new Date(today.getFullYear(), today.getMonth(), 1)
   );
@@ -1067,6 +1073,7 @@ const DatePickerField = ({ label, name, value, onDateChange, required, error, er
       setHasSelectedMonth(false);
       setHasSelectedYear(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- el mes visible se fija al abrir o cerrar el selector.
   }, [open]);
 
   useEffect(() => {
@@ -1583,11 +1590,12 @@ function ListaCalendarios() {
     ? calendarios.filter((cal) => String(cal.carrera) === String(carreraFiltro))
     : calendarios;
 
-  const currentYear = new Date().getFullYear();
+  // Gestión por defecto: el año actual en Bolivia.
+  const currentYear = Number(hoyBolivia().slice(0, 4));
 
   const buildInitialFormData = () => ({
     carrera: hayUnaSolaCarrera ? carreras[0].id : '',
-    gestion: new Date().getFullYear(),
+    gestion: currentYear,
     periodo: '1',
     fecha_inicio: '',
     fecha_fin: '',
@@ -1654,10 +1662,6 @@ function ListaCalendarios() {
     const d = String(dateObj.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   };
-
-  const sortCalendarios = (items) => (
-    [...items].sort((a, b) => b.gestion - a.gestion || b.periodo.localeCompare(a.periodo))
-  );
 
   const extractValidationMessage = (data) => {
     if (!data) return 'Datos inválidos.';
@@ -1745,22 +1749,6 @@ function ListaCalendarios() {
     && semanasEfectivasValue > semanasCalendario
   );
   const semanasEfectivasErrorMessage = 'Las semanas efectivas no pueden exceder las semanas calendario del periodo.';
-  const isFormReady = Boolean(
-    formData.carrera
-    && formData.gestion
-    && formData.periodo
-    && formData.fecha_inicio
-    && formData.fecha_fin
-    && formData.fecha_inicio_presentacion_proyectos
-    && formData.fecha_limite_presentacion_proyectos
-    && formData.semanas_efectivas !== ''
-    && formData.semanas_efectivas !== null
-    && formData.semanas_efectivas !== undefined
-    && !isDateRangeInvalid
-    && !semanasEfectivasExcedenCalendario
-    && !isProjectRangeInvalid
-    && !isProjectOrderInvalid
-  );
   const isSaveBlocked = Boolean(isSubmitting);
 
   useEffect(() => {
@@ -1925,7 +1913,7 @@ function ListaCalendarios() {
     return true;
   };
 
-  const notifyProjectRangeIfInvalid = (fieldName) => {
+  const notifyProjectRangeIfInvalid = () => {
     // Limpia cualquier notificación anterior mientras el usuario vuelve a elegir fecha.
     toast.dismiss(PROJECT_RANGE_TOAST_ID);
   };

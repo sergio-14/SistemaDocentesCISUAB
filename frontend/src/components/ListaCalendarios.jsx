@@ -1973,15 +1973,21 @@ function ListaCalendarios() {
     ) {
       requiredErrors.semanas_efectivas = 'Este campo es obligatorio.';
     }
-    if (formData.dias_feriados_gestion === '' || formData.dias_feriados_gestion === null || formData.dias_feriados_gestion === undefined) {
+    const diasFeriadosVacio = formData.dias_feriados_gestion === ''
+      || formData.dias_feriados_gestion === null
+      || formData.dias_feriados_gestion === undefined;
+    if (diasFeriadosVacio) {
       requiredErrors.dias_feriados_gestion = 'Este campo es obligatorio.';
-    } else if (Number(formData.dias_feriados_gestion) < 0 || Number(formData.dias_feriados_gestion) > 30) {
+    }
+    // "Completa..." solo si de verdad falta un campo; lleno pero inválido: "Revisa...".
+    const faltaCampo = Object.keys(requiredErrors).length > 0;
+    if (!diasFeriadosVacio && (Number(formData.dias_feriados_gestion) < 0 || Number(formData.dias_feriados_gestion) > 30)) {
       requiredErrors.dias_feriados_gestion = 'Debe estar entre 0 y 30 días.';
     }
 
     if (Object.keys(requiredErrors).length > 0) {
       applyErrors(requiredErrors);
-      toast.error('Completa los campos obligatorios.');
+      toast.error(faltaCampo ? 'Completa los campos obligatorios.' : 'Revisa los campos marcados en rojo.');
       return;
     }
 

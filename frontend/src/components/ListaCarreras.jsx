@@ -1397,6 +1397,14 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
       return newErrors;
   };
 
+  // "Completa..." solo si falta un campo; si están llenos pero alguno es inválido
+  // (p. ej. fecha de resolución futura): "Revisa...".
+  const mensajeErroresCarrera = (errores) => (
+    Object.values(errores).flat().some((mensaje) => /obligatori/i.test(String(mensaje)))
+      ? 'Completa los campos obligatorios marcados en rojo.'
+      : 'Revisa los campos marcados en rojo.'
+  );
+
   const handleCreateSubmit = async (e) => {
     // REGLA GLOBAL: detener el comportamiento por defecto para evitar parpadeo.
     if (e && typeof e.preventDefault === 'function') {
@@ -1406,7 +1414,7 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
     setErrors({});
     const newErrors = validateCarreraForm({ requireLogo: true });
     if (Object.keys(newErrors).length > 0) {
-      toast.error('Completa los campos obligatorios marcados en rojo.');
+      toast.error(mensajeErroresCarrera(newErrors));
       pulseFieldErrors(Object.keys(newErrors));
       return;
     }
@@ -1453,7 +1461,7 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
     }
     const newErrors = validateCarreraForm({ requireLogo: false });
     if (Object.keys(newErrors).length > 0) {
-      toast.error('Completa los campos obligatorios marcados en rojo.');
+      toast.error(mensajeErroresCarrera(newErrors));
       pulseFieldErrors(Object.keys(newErrors));
       return;
     }

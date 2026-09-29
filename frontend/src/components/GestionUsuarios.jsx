@@ -1849,8 +1849,8 @@ const initialData = {
       validationErrors.email = 'No debe estar vacío.';
       camposFaltantes.push('Correo institucional');
     } else if (!emailValido) {
+      // Lleno pero inválido: no es un campo faltante.
       validationErrors.email = 'Ingresa un correo electrónico válido.';
-      camposFaltantes.push('Correo institucional');
     }
 
     if (!rolNormalizado) {
@@ -1876,7 +1876,9 @@ const initialData = {
       showToastOnce(
         faltanSoloRolYCarrera
           ? 'Debes seleccionar un rol y una carrera para poder continuar.'
-          : 'Completa los campos obligatorios marcados en rojo.'
+          : camposFaltantes.length > 0
+            ? 'Completa los campos obligatorios marcados en rojo.'
+            : 'Revisa los campos marcados en rojo.'
       );
       return;
     }

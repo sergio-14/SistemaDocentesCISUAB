@@ -816,6 +816,11 @@ class CalendarioAcademico(models.Model):
     def __str__(self):
         carrera = self.carrera.nombre if self.carrera else 'Sin carrera'
         return f"{carrera} - Gestión {self.gestion} - {self.get_periodo_display()}"
+
+    @property
+    def semanas_de_clase(self):
+        """Semanas de clases en aula: 20 en un semestre, 40 en un calendario anual."""
+        return 40 if self.periodo == 'anual' else 20
     
     def save(self, *args, **kwargs):
         """Al guardar, si este calendario está activo, desactiva cualquier otro."""

@@ -1263,7 +1263,7 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'materia': 'Debe seleccionar una materia para la actividad académica.'})
             if tipo_actividad == 'clases_aula':
                 data['titulo_actividad'] = materia.nombre
-                data['horas'] = int(Decimal(materia.horas_totales or 0) * SEMANAS_CLASES_AULA)
+                data['horas'] = (materia.horas_totales or 0) * calendario.semanas_de_clase
                 horas_nuevas = data['horas']
             else:
                 data['titulo_actividad'] = str(titulo_actividad or CARGA_HORARIA_TIPOS_LABELS.get(tipo_actividad, tipo_actividad)).strip()
@@ -1350,21 +1350,8 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
         if hora_inicio and hora_fin and hora_fin <= hora_inicio:
             raise serializers.ValidationError({'hora_fin': 'La hora de fin debe ser mayor que la hora de inicio.'})
 
-        # Tope de plan por materia (horas/semana): horas anuales prorrateadas.
-        horas_asignadas_semana = Decimal(horas_nuevas or 0) / semanas_validacion
-        horas_plan_semana = Decimal((materia.horas_totales or 0)) if materia else Decimal('0')
-        tolerancia_redondeo_anual = Decimal('0.5') / semanas_validacion
-        if materia and horas_asignadas_semana > (horas_plan_semana + tolerancia_redondeo_anual):
-            exceso_semana = horas_asignadas_semana - horas_plan_semana
-            raise serializers.ValidationError({
-                'horas': (
-                    f'La asignación equivale a {horas_asignadas_semana:.3f} hrs/semana y supera el '
-                    f'Plan de Estudios de la materia ({horas_plan_semana:.2f} hrs/semana) '
-                    f'por {exceso_semana:.3f} hrs/semana.'
-                )
-            })
-
         if categoria_macro:
+            tolerancia_redondeo_anual = Decimal('0.5') / semanas_validacion
             cargas_categoria = CargaHoraria.objects.filter(
                 fondo=fondo,
                 categoria=categoria,
@@ -1403,11 +1390,13 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
                     )
                 })
 
-        # Validación de cruces de horario para el mismo calendario.
+        # Cruces de horario del docente en cualquier calendario que coincide en fechas
+        # (un semestre y un anual, o calendarios de otra carrera).
         if docente and calendario and dia_semana and hora_inicio and hora_fin:
             choques_docente = CargaHoraria.objects.filter(
                 docente=docente,
-                calendario=calendario,
+                calendario__fecha_inicio__lte=calendario.fecha_fin,
+                calendario__fecha_fin__gte=calendario.fecha_inicio,
                 dia_semana=dia_semana,
                 hora_inicio__lt=hora_fin,
                 hora_fin__gt=hora_inicio,
@@ -1450,35 +1439,35 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
                     'hora_inicio': 'Ya existe una asignación para esa materia, paralelo, día y hora de inicio.'
                 })
 
-        # Esta regla aplica a la carga docente (materias), no a otras categorías.
-        if not docente or not calendario or categoria != 'academica':
-            return data
-
-        cargas_existentes = CargaHoraria.objects.filter(
-            docente=docente,
-            calendario=calendario,
-            categoria='academica',
-        )
-
-        # En actualización, excluir el registro actual para evitar doble conteo.
-        if self.instance:
-            cargas_existentes = cargas_existentes.exclude(pk=self.instance.pk)
-
-        horas_existentes = cargas_existentes.aggregate(total=Sum('horas'))['total'] or 0
-        total_horas_anuales = Decimal(horas_existentes) + Decimal(horas_nuevas or 0)
-        total_horas_semanales = total_horas_anuales / SEMANAS_CLASES_AULA
-
-        horas_maximas = Decimal(str(vinculo.horas_semanales_maximas if vinculo else 0))
-
-        if total_horas_semanales > horas_maximas:
-            raise serializers.ValidationError(
-                (
-                    f'Error: La carga horaria total ({total_horas_semanales:.2f} hrs) '
-                    f'excede el máximo permitido para la dedicación del docente ({horas_maximas:.2f} hrs).'
-                )
-            )
+        if fondo and calendario and materia and tipo_actividad == 'clases_aula':
+            self._validar_tope_por_semestre(fondo, calendario, materia, vinculo)
 
         return data
+
+    def _validar_tope_por_semestre(self, fondo, calendario, materia, vinculo):
+        """En cada semestre, las horas semanales de clases en aula (materias del semestre y
+        anuales, de todo el fondo) no superan las horas semanales del vínculo."""
+        clases = fondo.cargas.filter(
+            categoria='academica', tipo_actividad='clases_aula', calendario__isnull=False,
+        ).select_related('materia', 'calendario')
+        if self.instance:
+            clases = clases.exclude(pk=self.instance.pk)
+        horas_maximas = vinculo.horas_semanales_maximas if vinculo else 0
+        nombres = dict(CalendarioAcademico.PERIODO_CHOICES)
+        semestres = ['1', '2'] if calendario.periodo == 'anual' else [calendario.periodo]
+        for semestre in semestres:
+            total = (materia.horas_totales or 0) + sum(
+                carga.materia.horas_totales or 0
+                for carga in clases
+                if carga.calendario.periodo in (semestre, 'anual')
+            )
+            if total > horas_maximas:
+                raise serializers.ValidationError({
+                    'materia': (
+                        f'Con esta materia, el {nombres[semestre]} suma {total} h/sem de clases en aula '
+                        f'(materias del semestre y anuales) y supera las {horas_maximas} h/sem del vínculo del docente.'
+                    )
+                })
 
     def create(self, validated_data):
         # Asignar el usuario que crea el registro
@@ -2353,11 +2342,6 @@ class MateriaSerializer(serializers.ModelSerializer):
             errors['non_field_errors'] = ['La suma de horas teoricas y practicas debe ser minimo 2 horas semanales.']
         elif total_horas_semana > 12:
             errors['non_field_errors'] = ['La suma de horas teoricas y practicas no puede exceder 12 horas semanales.']
-
-        # Formula reglamentaria: horas_semana * 40 = horas_anio.
-        horas_anio = total_horas_semana * SEMANAS_CLASES_AULA
-        if horas_anio <= 0 and 'non_field_errors' not in errors:
-            errors['non_field_errors'] = ['La relación con 40 semanas debe resultar en horas mayores a cero.']
 
         if sigla_normalizada:
             sigla_qs = Materia.objects.filter(sigla__iexact=sigla_normalizada)
@@ -3739,6 +3723,7 @@ from .models import CalendarioAcademico, Proyecto
 # =====================================================
 
 class CalendarioAcademicoSerializer(serializers.ModelSerializer):
+    semanas_de_clase = serializers.IntegerField(read_only=True)
     periodo_display = serializers.CharField(source='get_periodo_display', read_only=True)
     carrera_nombre = serializers.CharField(source='carrera.nombre', read_only=True)
     
@@ -3752,7 +3737,7 @@ class CalendarioAcademicoSerializer(serializers.ModelSerializer):
             'fecha_limite_programas_analiticos',
             'fecha_inicio_receso',
             'fecha_fin_receso',
-            'dias_feriados_gestion', 'activo'
+            'dias_feriados_gestion', 'semanas_de_clase', 'activo'
         ]
 
     def validate(self, attrs):

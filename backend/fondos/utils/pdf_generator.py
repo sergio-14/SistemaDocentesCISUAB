@@ -14,7 +14,6 @@ import re
 import base64
 from html import escape
 from html.parser import HTMLParser
-from django.db.models import Sum
 from fondos.utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from fondos.utils.informe_imagenes import leer_imagen as leer_imagen_informe
 
@@ -44,7 +43,7 @@ try:
 except Exception:
     pass
 
-SEMANAS_CLASES_AULA = 40.0
+SEMANAS_CLASES_AULA = 40.0  # para estimar Hrs/Sem de las otras sub-actividades académicas
 # Semanas usadas para estimar Hrs/Sem de actividades que NO son clases en aula
 # (reuniones, proyectos de investigacion, gestion, etc.), igual que en el
 # formulario del frontend (frontend/src/components/CargaHorariaManager.jsx,
@@ -769,8 +768,10 @@ class FondoPDFGenerator:
         # "Carrera de ..." y "Tiempo de dedicación: ..." con la fila de
         # "Feriados Nacionales y Locales", ver mas abajo).
         # Sincronización de Clases Aula (Total de horas anuales asignadas por Jefatura)
-        total_clases_aula = fondo.cargas.filter(categoria='academica').aggregate(total=Sum('horas'))['total'] or 0
-        total_clases_aula = float(total_clases_aula)
+        # Clases en aula: materia x 20 semanas (semestre) o x 40 (calendario anual).
+        clases_aula = fondo.cargas.filter(categoria='academica', tipo_actividad='clases_aula').select_related('calendario')
+        total_clases_aula = float(sum(carga.horas for carga in clases_aula))
+        semanas_de_clase = sorted({carga.calendario.semanas_de_clase for carga in clases_aula if carga.calendario_id})
 
         horas_contrato = fondo.contrato_horas
         horas_vacacion = fondo.horas_vacacion
@@ -778,7 +779,7 @@ class FondoPDFGenerator:
         horas_efectivas = float(fondo.horas_efectivas)
         
         dias_vacacion = fondo.dias_vacacion
-        semanas_clase = SEMANAS_CLASES_AULA
+        semanas_clase = ' y '.join(str(semanas) for semanas in semanas_de_clase) or '-'
         funciones_sustantivas = horas_efectivas - total_clases_aula
 
         def p_c3(txt, align=1, bold=False):
@@ -788,7 +789,7 @@ class FondoPDFGenerator:
         col3_data = [
             ['', p_c3('Semanas/Año'), p_c3('Hrs/Año')],
             [p_c3('Contrato:', 2, True), p_c3('52'), p_c3(_formato_es(horas_contrato))],
-            [p_c3('Clases Aula:', 2, True), p_c3(_formato_es(semanas_clase)), p_c3(_formato_es(total_clases_aula))],
+            [p_c3('Clases Aula:', 2, True), p_c3(semanas_clase), p_c3(_formato_es(total_clases_aula))],
             [p_c3('Funciones Sustantivas:', 2, True), '', p_c3(_formato_es(funciones_sustantivas))],
             [p_c3('Vacación(días):', 2, True), p_c3(_formato_es(dias_vacacion)), p_c3(_formato_es(horas_vacacion))],
             [p_c3('Feriados Nacionales y Locales:', 2, True), '', p_c3(_formato_es(horas_feriados))],
@@ -1162,10 +1163,15 @@ class FondoPDFGenerator:
             for carga in cargas_cat:
                 clave = (carga.tipo_actividad or '').strip() or f'sin_tipo_{carga.id}'
                 if clave not in grupos:
-                    grupos[clave] = {'etiqueta': _etiqueta_tipo_actividad(cat.tipo, carga), 'horas': 0.0, 'evidencia': ''}
+                    grupos[clave] = {
+                        'etiqueta': _etiqueta_tipo_actividad(cat.tipo, carga), 'horas': 0.0, 'horas_semana': 0.0,
+                        'evidencia': '',
+                    }
                     orden_claves.append(clave)
                 grupo = grupos[clave]
                 grupo['horas'] += float(carga.horas)
+                if carga.tipo_actividad == 'clases_aula' and carga.materia:
+                    grupo['horas_semana'] += float(carga.materia.horas_totales)
                 if not grupo['evidencia']:
                     grupo['evidencia'] = (carga.documento_respaldo or '').strip() or (carga.evidencias or '').strip()
 
@@ -1186,7 +1192,8 @@ class FondoPDFGenerator:
                     es_ultima = (idx == n_filas - 1)
 
                     anual = fila['horas']
-                    hs = anual / semanas_divisor if semanas_divisor else 0
+                    # Clases en aula: las horas semanales reales de sus materias.
+                    hs = fila['horas_semana'] or (anual / semanas_divisor if semanas_divisor else 0)
                     detalle = self._limpiar_texto(fila['etiqueta'])
                     evidencia_texto = self._limpiar_texto(fila['evidencia']) if fila['evidencia'] else "-"
 

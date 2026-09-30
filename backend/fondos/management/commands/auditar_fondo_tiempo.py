@@ -29,7 +29,6 @@ from django.db.models import Count, Sum
 from fondos.models import Docente, DocenteCarrera, FondoTiempo
 
 TOLERANCIA = Decimal('0.01')
-SEMANAS_CLASES_AULA = Decimal('40')
 
 
 class Command(BaseCommand):
@@ -175,8 +174,11 @@ class Command(BaseCommand):
             )
 
             for fila in cargas.values('tipo_actividad').annotate(total=Sum('horas'), n=Count('id')).order_by('tipo_actividad'):
-                hrs_sem = (Decimal(str(fila['total'])) / SEMANAS_CLASES_AULA) if cat.tipo == 'academica' else None
-                extra = f', {hrs_sem:.2f} hrs/sem' if hrs_sem is not None else ''
+                # Clases en aula: horas semanales de las materias; el resto se registra por año.
+                hrs_sem = sum(
+                    carga.materia.horas_totales for carga in cargas.filter(tipo_actividad='clases_aula').select_related('materia')
+                ) if fila['tipo_actividad'] == 'clases_aula' else None
+                extra = f', {hrs_sem} hrs/sem' if hrs_sem is not None else ''
                 self.stdout.write(f'       - {fila["tipo_actividad"] or "(sin tipo)"}: {fila["total"]} hrs/año{extra} ({fila["n"]} registro(s))')
 
         self.stdout.write('')

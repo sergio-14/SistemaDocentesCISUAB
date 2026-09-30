@@ -533,6 +533,11 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
     };
 
 
+    // Semanas de clases del calendario (20 en un semestre, 40 en uno anual), dato del backend.
+    const semanasDeClase = (calendarioId) => (
+        calendarios.find(cal => String(cal.id) === String(calendarioId))?.semanas_de_clase || 0
+    );
+
     const handleMateriaChange = (materiaId) => {
         const materia = materias.find(m => m.id.toString() === materiaId);
         if (materia) {
@@ -540,10 +545,20 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                 setFormData({ ...formData, materia: materiaId });
                 return;
             }
-            // 40 semanas de clases según Fondo de Tiempo oficial
-            const horasAnuales = Number(materia.horas_totales || 0) * SEMANAS_CLASES_AULA;
+            const horasAnuales = Number(materia.horas_totales || 0) * semanasDeClase(formData.calendario);
             setFormData({ ...formData, materia: materiaId, tipo_actividad: 'clases_aula', titulo_actividad: materia.nombre, horas: horasAnuales });
         }
+    };
+
+    const handleCalendarioChange = (calendarioId) => {
+        setFormData((prev) => {
+            const materia = materias.find(m => String(m.id) === String(prev.materia));
+            // Clases en aula: las horas dependen de las semanas del calendario.
+            const horas = prev.tipo_actividad === 'clases_aula' && materia
+                ? Number(materia.horas_totales || 0) * semanasDeClase(calendarioId)
+                : prev.horas;
+            return { ...prev, calendario: calendarioId, horas };
+        });
     };
 
     const handleCategoriaChange = (categoria) => {
@@ -691,7 +706,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                                     <CustomSelect
                                         value={formData.calendario}
                                         options={calendarioOptions}
-                                        onChange={(newValue) => setFormData(prev => ({ ...prev, calendario: newValue }))}
+                                        onChange={handleCalendarioChange}
                                         placeholder="-- Calendario --"
                                         disabled={isReadOnly}
                                         emptyText="La gestión no tiene calendarios académicos"
@@ -824,7 +839,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                             </div>
                             <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1.5 leading-tight">
                                 {esAcademica && !esSubactividadAcademica
-                                    ? `Total horas anuales = (HT + HP) x ${SEMANAS_CLASES_AULA} semanas`
+                                    ? `Total horas anuales = (HT + HP) x ${semanasDeClase(formData.calendario) || '20 (semestre) o 40 (anual)'} semanas`
                                     : `Equivalencia semanal aproximada = horas anuales / ${semanasPresupuesto}`}
                             </p>
                         </div>

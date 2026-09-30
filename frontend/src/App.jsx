@@ -38,7 +38,6 @@ import ListaCalendarios from './components/ListaCalendarios';
 import MateriaList from './components/materias/MateriaList';
 import MateriaForm from './components/materias/MateriaForm';
 import VistaCalendarioActivo from './VistaCalendarioActivo';
-import Proximamente from './components/Proximamente';
 import AdminPanel from './components/AdminPanel';
 import SimpleLayout from './components/layouts/SimpleLayout';
 import AdminDashboard from './components/AdminDashboard';
@@ -355,11 +354,6 @@ function App() {
 
             <Route path="/carreras" element={<SimpleLayout theme={theme} setTheme={setTheme} />}>
               <Route index element={<AnimatedRoute><ListaCarreras isDark={isDark} hasSidebar={false} /></AnimatedRoute>} />
-            </Route>
-
-            {/* Módulo: Seguimiento Global */}
-            <Route path="/seguimiento" element={<SimpleLayout theme={theme} setTheme={setTheme} />}>
-              <Route index element={<Proximamente isDark={isDark} />} />
             </Route>
 
             {/* Módulo: POA - Usando el layout con sidebar y header propios */}

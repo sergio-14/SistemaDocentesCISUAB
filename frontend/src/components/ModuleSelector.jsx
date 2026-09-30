@@ -33,13 +33,6 @@ const POAIcon = (props) => (
     </svg>
 );
 
-// Icono para Seguimiento
-const SeguimientoIcon = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m5.231 13.481L15 17.25m-4.5-1.5l-2.625 2.625a.75.75 0 001.06 1.06L10.5 18.75m0 0h-1.5a2.25 2.25 0 01-2.25-2.25v-1.5a2.25 2.25 0 012.25-2.25H10.5m0 0V6.375c0-.621.504-1.125 1.125-1.125h1.5c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125h-1.5Z" />
-    </svg>
-);
-
 const UsersIcon = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m-7.5-2.963A3.426 3.426 0 0012 15.75c1.262 0 2.427-.393 3.379-1.085m-6.758 0a3.426 3.426 0 01-3.379-1.085 3.426 3.426 0 01-3.379 1.085C4.26 15.366 3 16.827 3 18.75V19.5a.75.75 0 00.75.75h12.586a.75.75 0 00.75-.75v-.75c0-1.923-1.26-3.384-3.006-3.963zM12 6a3.75 3.75 0 100 7.5 3.75 3.75 0 000-7.5z" />
@@ -85,14 +78,6 @@ const ModuleSelector = ({ user, onLogout, theme, setTheme }) => {
             path: '/fondo-tiempo',
             icon: FondoTiempoIcon,
             color: 'blue',
-            enabled: true,
-        },
-        {
-            name: 'Seguimiento Global',
-            description: 'Actividad reciente de todos los fondos.',
-            path: '/seguimiento',
-            icon: SeguimientoIcon,
-            color: 'indigo',
             enabled: true,
         },
         {

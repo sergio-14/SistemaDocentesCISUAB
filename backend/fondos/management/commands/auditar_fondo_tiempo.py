@@ -174,11 +174,15 @@ class Command(BaseCommand):
             )
 
             for fila in cargas.values('tipo_actividad').annotate(total=Sum('horas'), n=Count('id')).order_by('tipo_actividad'):
-                # Clases en aula: horas semanales de las materias; el resto se registra por año.
-                hrs_sem = sum(
-                    carga.materia.horas_totales for carga in cargas.filter(tipo_actividad='clases_aula').select_related('materia')
-                ) if fila['tipo_actividad'] == 'clases_aula' else None
-                extra = f', {hrs_sem} hrs/sem' if hrs_sem is not None else ''
+                # Clases en aula: horas semanales de las materias en cada calendario; el resto es por año.
+                extra = ''
+                if fila['tipo_actividad'] == 'clases_aula':
+                    por_calendario = {}
+                    clases = cargas.filter(tipo_actividad='clases_aula').select_related('materia', 'calendario')
+                    for carga in clases.order_by('calendario__fecha_inicio', 'calendario_id'):
+                        nombre = carga.calendario.get_periodo_display()
+                        por_calendario[nombre] = por_calendario.get(nombre, 0) + carga.materia.horas_totales
+                    extra = ', ' + ', '.join(f'{nombre}: {horas} hrs/sem' for nombre, horas in por_calendario.items())
                 self.stdout.write(f'       - {fila["tipo_actividad"] or "(sin tipo)"}: {fila["total"]} hrs/año{extra} ({fila["n"]} registro(s))')
 
         self.stdout.write('')

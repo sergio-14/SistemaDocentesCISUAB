@@ -1324,36 +1324,31 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
                 'materia': 'La materia seleccionada no pertenece a la carrera del calendario académico.'
             })
 
-        if fondo and categoria and tipo_actividad:
-            # Fuera de Académica el ítem es del fondo; en Académica, de la materia y paralelo del calendario.
-            tipo_duplicado = CargaHoraria.objects.filter(
-                fondo=fondo,
-                categoria=categoria,
-                tipo_actividad=tipo_actividad,
-            )
-            if categoria == 'academica':
-                tipo_duplicado = tipo_duplicado.filter(calendario=calendario, materia=materia, paralelo=paralelo)
+        es_clase = categoria == 'academica' and tipo_actividad == 'clases_aula'
+        if fondo and categoria and tipo_actividad and not es_clase:
+            # Cada ítem (y cada sub-actividad académica) se registra una vez por fondo.
+            tipo_duplicado = CargaHoraria.objects.filter(fondo=fondo, categoria=categoria, tipo_actividad=tipo_actividad)
             if self.instance:
                 tipo_duplicado = tipo_duplicado.exclude(pk=self.instance.pk)
             if tipo_duplicado.exists():
                 raise serializers.ValidationError({
-                    'tipo_actividad': 'No puede repetir el mismo tipo de actividad dentro de la misma categoria.'
+                    'tipo_actividad': 'Esta actividad ya está registrada en el Fondo de Tiempo.'
                 })
 
-        if categoria == 'academica' and tipo_actividad == 'clases_aula' and docente and calendario and materia:
-            # Un docente puede dar varios paralelos de la misma materia: se repite solo si
-            # coincide también el paralelo.
+        if es_clase and fondo and calendario and materia:
+            # Clases en aula: una por calendario, materia y paralelo. La misma materia en otro
+            # semestre o en otro paralelo es otra asignación.
             materia_duplicada = CargaHoraria.objects.filter(
-                docente=docente,
-                calendario=calendario,
-                materia=materia,
-                paralelo=paralelo,
+                fondo=fondo, tipo_actividad='clases_aula', calendario=calendario, materia=materia, paralelo=paralelo,
             )
             if self.instance:
                 materia_duplicada = materia_duplicada.exclude(pk=self.instance.pk)
             if materia_duplicada.exists():
                 raise serializers.ValidationError({
-                    'materia': f'La materia {materia.nombre} (paralelo {paralelo}) ya fue asignada a este docente en este periodo'
+                    'materia': (
+                        f'La materia {materia.nombre} (paralelo {paralelo}) ya está asignada en '
+                        f'{calendario.get_periodo_display()} {calendario.gestion}.'
+                    )
                 })
 
         if hora_inicio and hora_fin and hora_fin <= hora_inicio:

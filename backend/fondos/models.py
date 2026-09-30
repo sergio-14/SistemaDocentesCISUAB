@@ -1433,23 +1433,18 @@ class CargaHoraria(models.Model):
                 | (~models.Q(categoria='academica') & models.Q(calendario__isnull=True)),
                 name='cargahoraria_calendario_solo_en_academica',
             ),
-            # Blindaje a nivel de base de datos (auditoria 2026-09-12): la regla de
-            # "no repetir tipo_actividad en la misma categoria" antes solo vivia en
-            # CargaHorariaSerializer.validate(). Se separa en dos constraints porque
-            # en Academica dos materias distintas SI pueden compartir el mismo
-            # tipo_actividad (p. ej. 'clases_aula' de dos materias), mientras que en
-            # el resto de categorias el tipo_actividad debe ser unico sin mas.
-            # Con el paralelo: un docente puede dar varios paralelos de la misma materia.
+            # Clases en aula: una por calendario, materia y paralelo (la misma materia puede
+            # darse en los dos semestres o en varios paralelos).
             models.UniqueConstraint(
-                fields=['docente', 'calendario', 'categoria', 'tipo_actividad', 'materia', 'paralelo'],
-                condition=models.Q(categoria='academica'),
-                name='cargahoraria_unique_tipo_academica_por_materia_paralelo',
+                fields=['fondo', 'calendario', 'materia', 'paralelo'],
+                condition=models.Q(tipo_actividad='clases_aula'),
+                name='cargahoraria_unique_clase_por_calendario_materia_paralelo',
             ),
-            # Fuera de Académica el ítem es del fondo (horas por año), no de un calendario.
+            # El resto (sub-actividades académicas y demás ítems) se registra una vez por fondo.
             models.UniqueConstraint(
                 fields=['fondo', 'categoria', 'tipo_actividad'],
-                condition=~models.Q(categoria='academica'),
-                name='cargahoraria_unique_tipo_no_academica_por_fondo',
+                condition=~models.Q(tipo_actividad='clases_aula'),
+                name='cargahoraria_unique_tipo_por_fondo',
             ),
         ]
 

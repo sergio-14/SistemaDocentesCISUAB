@@ -20,6 +20,8 @@ const XMarkIcon = (props) => (
     </svg>
 );
 
+const PARALELOS = ['A', 'B', 'C', 'D', 'E', 'F'];
+
 const SUBACTIVIDADES_POR_CATEGORIA = {
     academica: {
         tipoLabel: 'Sub-actividad academica',
@@ -336,6 +338,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
         categoria: 'academica',
         calendario: calendarioPorDefecto,
         materia: '',
+        paralelo: 'A',
         titulo_actividad: '',
         tipo_actividad: '',
         horas: '',
@@ -374,6 +377,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                 categoria: cargaEdicion.categoria || 'academica',
                 calendario: cargaEdicion.calendario ? String(cargaEdicion.calendario) : '',
                 materia: cargaEdicion.materia || cargaEdicion.materia_id || '',
+                paralelo: cargaEdicion.paralelo || 'A',
                 titulo_actividad: cargaEdicion.titulo_actividad || '',
                 tipo_actividad: cargaEdicion.tipo_actividad || '',
                 horas: cargaEdicion.horas,
@@ -381,7 +385,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                 documento_respaldo: cargaEdicion.respaldo || ''
             });
         } else {
-            setFormData({ categoria: 'academica', calendario: calendarioPorDefecto, materia: '', titulo_actividad: '', tipo_actividad: '', horas: '', evidencias: '', documento_respaldo: '' });
+            setFormData({ categoria: 'academica', calendario: calendarioPorDefecto, materia: '', paralelo: 'A', titulo_actividad: '', tipo_actividad: '', horas: '', evidencias: '', documento_respaldo: '' });
         }
     }, [cargaEdicion, calendarioPorDefecto]);
 
@@ -463,6 +467,10 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
             toast.error("Seleccione una materia del plan de estudios");
             return;
         }
+        if (esAcademica && formData.tipo_actividad === 'clases_aula' && !formData.paralelo) {
+            toast.error("Seleccione el paralelo");
+            return;
+        }
         if (esAcademica && !formData.tipo_actividad) {
             toast.error("Seleccione la sub-actividad académica");
             return;
@@ -508,7 +516,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                     setCargas((prev) => [response.data, ...prev]);
                 }
             }
-            setFormData({ categoria: 'academica', calendario: calendarioPorDefecto, materia: '', titulo_actividad: '', tipo_actividad: '', horas: '', evidencias: '', documento_respaldo: '' });
+            setFormData({ categoria: 'academica', calendario: calendarioPorDefecto, materia: '', paralelo: 'A', titulo_actividad: '', tipo_actividad: '', horas: '', evidencias: '', documento_respaldo: '' });
             setSemestre('');
             cargarFondoDetalle();
             if (onCargaUpdate) onCargaUpdate();
@@ -562,6 +570,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
             categoria,
             calendario: formData.calendario || calendarioPorDefecto,
             materia: '',
+            paralelo: 'A',
             titulo_actividad: '',
             tipo_actividad: '',
             horas: '',
@@ -584,6 +593,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
     };
 
     const categoriaOptions = CATEGORIA_OPCIONES.map(opt => ({ value: opt.value, label: opt.label }));
+    const paraleloOptions = PARALELOS.map(p => ({ value: p, label: `Paralelo ${p}` }));
     const calendarioOptions = calendarios.map(cal => ({ value: String(cal.id), label: `${cal.periodo_display} ${cal.gestion}` }));
     const semestreOptions = semestresDisponibles.map(s => ({ value: s.toString(), label: `${s}° Semestre` }));
     const selectedMateriaId = formData.materia?.toString() || '';
@@ -610,17 +620,23 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
         .reduce((total, carga) => total + Number(carga.horas || 0), 0);
     const totalAnualProyectado = totalAnualBase + horasFormulario;
     const excedeObjetivoAnual = objetivoAnual > 0 && totalAnualProyectado > objetivoAnual;
-    const duplicadoTipoSeleccionado = Boolean(formData.tipo_actividad) && cargas.some((carga) => (
-        carga.id !== cargaEdicion?.id
-        && carga.categoria === formData.categoria
-        && carga.tipo_actividad === formData.tipo_actividad
-        && (!esAcademica || String(carga.materia || carga.materia_id || '') === String(formData.materia || ''))
-    ));
+    // Misma regla que el backend: clases en aula, una por calendario + materia + paralelo;
+    // el resto (sub-actividades académicas y demás ítems), una por fondo.
+    const esClaseAula = esAcademica && formData.tipo_actividad === 'clases_aula';
+    const duplicadoTipoSeleccionado = Boolean(formData.tipo_actividad) && cargas.some((carga) => {
+        if (carga.id === cargaEdicion?.id || carga.categoria !== formData.categoria
+            || carga.tipo_actividad !== formData.tipo_actividad) return false;
+        if (!esClaseAula) return true;
+        return String(carga.calendario || '') === String(formData.calendario || '')
+            && String(carga.materia || carga.materia_id || '') === String(formData.materia || '')
+            && carga.paralelo === formData.paralelo;
+    });
     const respaldoRequerido = false;
     const respaldoInvalido = respaldoRequerido && !formData.documento_respaldo?.trim();
     const submitDisabled = isSubmitting
         || (requiereMateriaAcademica && !formData.calendario)
         || (requiereMateriaAcademica && !formData.materia)
+        || (esClaseAula && !formData.paralelo)
         || (esSubactividadAcademica && !formData.titulo_actividad?.trim())
         || (!esAcademica && !formData.titulo_actividad?.trim())
         || (esAcademica && !formData.tipo_actividad)
@@ -659,7 +675,9 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
             <div className="flex-1 flex flex-col p-4 sm:p-5 overflow-y-auto">
                 {duplicadoTipoSeleccionado && (
                     <div className="mb-4 shrink-0 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
-                        Ya existe una asignación con este mismo tipo dentro de la categoría seleccionada.
+                        {esClaseAula
+                            ? 'Esa materia ya está asignada en ese calendario y paralelo.'
+                            : 'Esa actividad ya está registrada en el Fondo de Tiempo.'}
                     </div>
                 )}
 
@@ -752,6 +770,18 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                                             disabled={!semestre || isReadOnly}
                                             emptyText={!semestre ? 'Selecciona primero un nivel' : 'No hay materias en este nivel'}
                                             menuMaxHeight="max-h-64"
+                                        />
+                                    </div>
+                                )}
+                                {formData.tipo_actividad === 'clases_aula' && (
+                                    <div className="mt-3">
+                                        <label className={labelCls}>Paralelo</label>
+                                        <CustomSelect
+                                            value={formData.paralelo}
+                                            options={paraleloOptions}
+                                            onChange={(paralelo) => setFormData(prev => ({ ...prev, paralelo }))}
+                                            placeholder="-- Paralelo --"
+                                            disabled={isReadOnly}
                                         />
                                     </div>
                                 )}

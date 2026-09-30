@@ -1552,13 +1552,6 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         elif not perfil:
              raise PermissionDenied("El usuario no tiene un perfil asignado.")
 
-        # Validación de Calendario
-        if not CalendarioAcademico.objects.filter(activo=True).exists():
-            return Response(
-                {'error': 'No existe un periodo académico activo para iniciar la planificación.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         serializer = self.get_serializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)

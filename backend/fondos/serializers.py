@@ -3802,6 +3802,22 @@ class CalendarioAcademicoSerializer(serializers.ModelSerializer):
                     'non_field_errors': ['Ya existe un calendario para esta carrera, gestion y periodo.']
                 })
 
+        # Los feriados son de la gestión: todos sus calendarios en la carrera tienen el mismo
+        # valor. Al editar uno sin cambiar de gestión, el valor se copia a los demás (vista).
+        dias_feriados = attrs.get('dias_feriados_gestion', getattr(instance, 'dias_feriados_gestion', None))
+        misma_gestion = bool(instance) and instance.carrera_id == carrera.pk and instance.gestion == gestion
+        if gestion and dias_feriados is not None and not misma_gestion:
+            otro = CalendarioAcademico.objects.filter(carrera=carrera, gestion=gestion).exclude(
+                pk=getattr(instance, 'pk', None),
+            ).first()
+            if otro and otro.dias_feriados_gestion != dias_feriados:
+                raise serializers.ValidationError({
+                    'dias_feriados_gestion': (
+                        f'Los calendarios de la gestión {gestion} deben tener los mismos días de feriado: '
+                        f'{otro.dias_feriados_gestion}.'
+                    )
+                })
+
         if fecha_inicio and fecha_fin and fecha_fin < fecha_inicio:
             raise serializers.ValidationError({
                 'fecha_fin': 'La fecha de finalización no puede ser anterior a la de inicio.'

@@ -14,7 +14,7 @@ from rest_framework import status
 
 from fondos.models import (
     AsignacionCarrera, CalendarioAcademico, DatosLaborales, Docente, FondoTiempo, Materia, PerfilUsuario,
-    calcular_horas_fondo,
+    calcular_horas_fondo, inicio_de_gestion,
 )
 from .tests_usuarios_auditoria import UsuariosBaseTestCase, con_resolucion_jefe
 
@@ -44,7 +44,22 @@ CASOS_HORAS_FONDO = [
 ]
 
 
+# Misma tabla que frontend/tests/horasFondo.test.js (inicioDeGestion).
+# (fechas de inicio de los calendarios de la gestión, gestión) -> inicio de la gestión
+CASOS_INICIO_GESTION = [
+    (([], 2026), date(2026, 1, 1)),
+    (([date(2026, 3, 16)], 2026), date(2026, 3, 16)),
+    (([date(2026, 8, 3), date(2026, 3, 16)], 2026), date(2026, 3, 16)),
+    (([None, date(2026, 2, 2)], 2026), date(2026, 2, 2)),
+]
+
+
 class VacacionesEnElFondoTests(UsuariosBaseTestCase):
+    def test_inicio_de_la_gestion(self):
+        for (fechas, gestion), esperado in CASOS_INICIO_GESTION:
+            with self.subTest(fechas=fechas):
+                self.assertEqual(inicio_de_gestion(fechas, gestion), esperado)
+
     def test_calculo_de_horas_del_fondo(self):
         for (horas_semana, dias, feriados), esperado in CASOS_HORAS_FONDO:
             with self.subTest(horas_semana=horas_semana, dias=dias, feriados=feriados):

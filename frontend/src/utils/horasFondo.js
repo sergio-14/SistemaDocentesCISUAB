@@ -1,6 +1,6 @@
-// Réplica exacta de calcular_horas_fondo (backend/fondos/models.py) para la vista
-// previa de horas efectivas. Si cambia una, debe cambiar la otra: los tests de
-// ambos lados usan la misma tabla de casos.
+// Réplica exacta de calcular_horas_fondo e inicio_de_gestion (backend/fondos/models.py)
+// para la vista previa de horas efectivas. Si cambia una, debe cambiar la otra: los
+// tests de ambos lados usan la misma tabla de casos.
 
 export const SEMANAS_POR_ANIO = 52;
 export const DIAS_LABORABLES_POR_SEMANA = 5;
@@ -20,6 +20,13 @@ export const diasVacacionPorAntiguedad = (antiguedad) => {
 const leerFecha = (texto) => {
   const [anio, mes, dia] = String(texto || '').split('-').map(Number);
   return anio && mes && dia ? { anio, mes, dia } : null;
+};
+
+// Inicio de la gestión ('AAAA-MM-DD'): la fecha de inicio más temprana de sus calendarios
+// o, sin calendarios, el 1 de enero. Ahí se mide la antigüedad del fondo.
+export const inicioDeGestion = (fechasInicio, gestion) => {
+  const fechas = (fechasInicio || []).filter(Boolean).sort();
+  return fechas.length > 0 ? fechas[0] : `${gestion}-01-01`;
 };
 
 // Años COMPLETOS cumplidos a la fecha de referencia ('AAAA-MM-DD'), mirando día y mes

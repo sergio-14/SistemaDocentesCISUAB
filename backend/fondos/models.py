@@ -173,6 +173,13 @@ def actualizar_con_historial(queryset, **campos):
         obj.save(update_fields=list(campos))
 
 
+def inicio_de_gestion(fechas_inicio, gestion):
+    """Inicio de la gestión: la fecha de inicio más temprana de sus calendarios o, sin
+    calendarios, el 1 de enero. La vista previa (utils/horasFondo.js) usa la misma regla."""
+    fechas = [fecha for fecha in fechas_inicio if fecha]
+    return min(fechas) if fechas else date(gestion, 1, 1)
+
+
 def fecha_referencia_antiguedad(valor=None):
     """Fecha a la que se mide la antigüedad: una fecha, una gestión (1 de enero) o hoy."""
     if valor is None:
@@ -915,6 +922,8 @@ class FondoTiempo(models.Model):
         help_text="Número de semanas efectivas del año para cálculo de horas anuales"
     )
     horas_semana = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text="Horas semanales del docente según su dedicación")
+    # Días de vacación por antigüedad con los que se calcularon horas_vacacion (el PDF los muestra).
+    dias_vacacion = models.IntegerField(default=0)
     horas_vacacion = models.IntegerField(default=120)
     horas_feriados = models.IntegerField(default=0) # Often not subtracted from total effective hours
     contrato_horas = models.IntegerField(default=2080)
@@ -1073,21 +1082,20 @@ class FondoTiempo(models.Model):
         return CalendarioAcademico.objects.filter(carrera_id=self.carrera_id, gestion=self.gestion)
 
     def fecha_referencia_antiguedad(self):
-        """Inicio de la gestión: el primer día del calendario más temprano o, sin calendarios, el 1 de enero."""
-        primero = self.calendarios_de_la_gestion().order_by('fecha_inicio').first()
-        if primero:
-            return primero.fecha_inicio
-        return fecha_referencia_antiguedad(self.gestion)
+        """Inicio de la gestión (ver inicio_de_gestion): ahí se mide la antigüedad."""
+        return inicio_de_gestion(self.calendarios_de_la_gestion().values_list('fecha_inicio', flat=True), self.gestion)
 
-    def _feriados_congelados(self):
-        """Fondo ya presentado o aprobado: sus feriados quedan con el valor presentado."""
+    def _encabezado_congelado(self):
+        """Fondo ya presentado o aprobado: contrato, vacaciones, feriados y horas efectivas
+        quedan con los valores presentados."""
         return bool(self.pk) and FondoTiempo.objects.filter(
             pk=self.pk, estado__in=ESTADOS_FONDO_BLOQUEADOS,
         ).exists()
 
     def _dias_feriados_gestion(self):
-        """Días de feriado de la gestión: los de un calendario de su carrera y gestión (el activo primero)."""
-        calendario = self.calendarios_de_la_gestion().order_by('-activo').first()
+        """Días de feriado de la gestión: todos los calendarios de la carrera en la gestión
+        tienen el mismo valor, así que se descuentan una sola vez."""
+        calendario = self.calendarios_de_la_gestion().first()
         return calendario.dias_feriados_gestion if calendario else 0
 
     def _calcular_horas_fondo(self):
@@ -1136,7 +1144,7 @@ class FondoTiempo(models.Model):
         HORAS SEMANALES: se obtienen del vínculo DocenteCarrera(docente, carrera).
         VACACIONES Y FERIADOS: se obtienen del Docente (son de la persona).
         """
-        if not self.docente:
+        if not self.docente or self._encabezado_congelado():
             return
 
         # Buscar el vínculo DocenteCarrera para esta carrera
@@ -1149,13 +1157,30 @@ class FondoTiempo(models.Model):
         # Horas semanales del vínculo; contrato, vacaciones (por antigüedad) y
         # feriados salen de calcular_horas_fondo.
         self.horas_semana = Decimal(horas_semana)
+        self.dias_vacacion = self.docente.calcular_dias_vacacion(self.fecha_referencia_antiguedad())
         resultado = self._calcular_horas_fondo()
         self.contrato_horas = resultado['contrato_horas']
         self.horas_vacacion = resultado['horas_vacacion']
-        # Presentado o aprobado: los feriados cargados después no lo cambian.
-        if not self._feriados_congelados():
-            self.horas_feriados = resultado['horas_feriados']
-        self.horas_efectivas = Decimal(max(self.contrato_horas - self.horas_vacacion - self.horas_feriados, 0))
+        self.horas_feriados = resultado['horas_feriados']
+        self.horas_efectivas = Decimal(resultado['horas_efectivas'])
+
+    CAMPOS_ENCABEZADO = [
+        'horas_semana', 'dias_vacacion', 'contrato_horas', 'horas_vacacion', 'horas_feriados', 'horas_efectivas',
+    ]
+
+    @classmethod
+    def recalcular_encabezados_de_gestion(cls, carrera_id, gestion):
+        """Tras cambiar los calendarios de una gestión (feriados o fechas), los fondos que
+        aún no se presentaron toman los nuevos valores. Sin validaciones de contenido:
+        solo se actualiza el encabezado."""
+        fondos = cls.objects.filter(carrera_id=carrera_id, gestion=gestion, archivado=False).exclude(
+            estado__in=ESTADOS_FONDO_BLOQUEADOS,
+        ).select_related('docente', 'carrera')
+        for fondo in fondos:
+            fondo._recalcular_horas_automaticas()
+            cls.objects.filter(pk=fondo.pk).update(
+                **{campo: getattr(fondo, campo) for campo in cls.CAMPOS_ENCABEZADO}
+            )
 
     def clean(self):
         super().clean()
@@ -1272,29 +1297,6 @@ class FondoTiempo(models.Model):
                 )
             })
         
-        # ============================================================
-        # VALIDACIÓN 3: Consistencia con SaldoVacacionesGestion
-        # ============================================================
-        # Si el estado es aprobado y hay cambios en saldo de vacaciones, alertar
-        if self.pk:
-            fondo_actual = FondoTiempo.objects.get(pk=self.pk)
-            
-            if fondo_actual.estado == 'aprobado_director':
-                # Verificar si el saldo de vacaciones ha cambiado
-                horas_vacacion_anterior = fondo_actual.horas_vacacion
-                horas_vacacion_nueva = self._obtener_horas_vacacion_docente()
-                
-                if horas_vacacion_nueva != horas_vacacion_anterior:
-                    raise ValidationError({
-                        'horas_vacacion': (
-                            f'⚠️ ALERTA DE CONSISTENCIA: El saldo de vacaciones del docente ha sido '
-                            f'modificado después de la aprobación. Horas anteriores: {horas_vacacion_anterior}, '
-                            f'Horas actuales: {horas_vacacion_nueva}. '
-                            f'Si continúa, el Fondo de Tiempo quedará desalineado con lo aprobado legalmente. '
-                            f'Contacte al administrador para resolver.'
-                        )
-                    })
-    
     def save(self, *args, **kwargs):
         self._recalcular_horas_automaticas()
         self.full_clean()

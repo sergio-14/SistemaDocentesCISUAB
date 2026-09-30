@@ -1216,9 +1216,17 @@ class CalendarioAcademicoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Model
         if not _usuario_tiene_acceso_a_carrera(self.request.user, carrera, self.request):
             raise PermissionDenied('Solo puedes gestionar calendarios de tu carrera.')
 
+    @staticmethod
+    def _recalcular_fondos(*gestiones):
+        """Los fondos no presentados de esas (carrera, gestión) toman feriados e inicio de gestión nuevos."""
+        for carrera_id, gestion in set(gestiones):
+            FondoTiempo.recalcular_encabezados_de_gestion(carrera_id, gestion)
+
     def perform_create(self, serializer):
         self._validar_carrera_propia(serializer.validated_data.get('carrera'))
-        serializer.save()
+        with transaction.atomic():
+            calendario = serializer.save()
+            self._recalcular_fondos((calendario.carrera_id, calendario.gestion))
 
     def perform_update(self, serializer):
         carrera = serializer.validated_data.get('carrera')
@@ -1226,7 +1234,14 @@ class CalendarioAcademicoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Model
         if carrera and carrera.pk != serializer.instance.carrera_id and not self.request.user.is_superuser:
             raise PermissionDenied('No puedes mover el calendario a otra carrera.')
         self._validar_carrera_propia(carrera)
-        serializer.save()
+        anterior = (serializer.instance.carrera_id, serializer.instance.gestion)
+        with transaction.atomic():
+            calendario = serializer.save()
+            # Feriados de la gestión: el mismo valor en todos sus calendarios de la carrera.
+            CalendarioAcademico.objects.filter(
+                carrera_id=calendario.carrera_id, gestion=calendario.gestion,
+            ).exclude(pk=calendario.pk).update(dias_feriados_gestion=calendario.dias_feriados_gestion)
+            self._recalcular_fondos(anterior, (calendario.carrera_id, calendario.gestion))
 
     def _build_dependency_counts(self, calendario):
         cargas_horarias_count = CargaHoraria.objects.filter(calendario=calendario).count()
@@ -1279,7 +1294,10 @@ class CalendarioAcademicoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Model
             )
 
         try:
-            instance.delete()
+            grupo = (instance.carrera_id, instance.gestion)
+            with transaction.atomic():
+                instance.delete()
+                self._recalcular_fondos(grupo)
             return Response({'detail': 'Calendario eliminado correctamente.'}, status=status.HTTP_200_OK)
         except ProtectedError:
             counts = self._build_dependency_counts(instance)

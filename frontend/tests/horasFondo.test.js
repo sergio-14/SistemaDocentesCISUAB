@@ -3,7 +3,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { calcularAntiguedad, calcularHorasFondo, diasVacacionPorAntiguedad } from '../src/utils/horasFondo.js';
+import {
+  calcularAntiguedad, calcularHorasFondo, diasVacacionPorAntiguedad, inicioDeGestion,
+} from '../src/utils/horasFondo.js';
 
 // [horasSemana, diasVacacion, diasFeriadosHabiles] -> [contrato, vacacion, feriados, efectivas]
 const CASOS_HORAS_FONDO = [
@@ -25,6 +27,20 @@ test('calcularHorasFondo coincide con el backend', () => {
       esperado,
       `${horasSemana} h/sem, ${dias} días, ${feriados} días de feriado`,
     );
+  }
+});
+
+// [fechas de inicio de los calendarios de la gestión, gestión] -> inicio de la gestión
+const CASOS_INICIO_GESTION = [
+  [[[], 2026], '2026-01-01'],
+  [[['2026-03-16'], 2026], '2026-03-16'],
+  [[['2026-08-03', '2026-03-16'], 2026], '2026-03-16'],
+  [[[null, '2026-02-02'], 2026], '2026-02-02'],
+];
+
+test('inicioDeGestion coincide con el backend', () => {
+  for (const [[fechas, gestion], esperado] of CASOS_INICIO_GESTION) {
+    assert.equal(inicioDeGestion(fechas, gestion), esperado, `${fechas.join(', ')} (${gestion})`);
   }
 });
 

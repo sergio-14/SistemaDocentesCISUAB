@@ -12,7 +12,9 @@ import {
 } from '../utils/formErrors';
 import { DEDICACIONES_HORARIO, ETIQUETAS_DEDICACION, describirDedicacion, horasSemanalesDedicacion } from '../utils/dedicaciones';
 import { hoyBolivia } from '../utils/fechas';
-import { TOPE_HORAS_SEMANALES_FONDO, calcularAntiguedad, calcularHorasFondo, diasVacacionPorAntiguedad } from '../utils/horasFondo';
+import {
+  TOPE_HORAS_SEMANALES_FONDO, calcularAntiguedad, calcularHorasFondo, diasVacacionPorAntiguedad, inicioDeGestion,
+} from '../utils/horasFondo';
 
 // Normaliza mensajes de error confusos del backend (ej: """" no es una elección válida.")
 // a un texto claro y humano para selects como Dedicación/Categoría.
@@ -875,9 +877,9 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     activo: true,
   });
 
-  // La antigüedad del fondo se mide al inicio de la gestión (calendario académico
-  // activo de la carrera). La vista previa usa la misma fecha para dar lo mismo.
-  // Los días de feriado son los del mismo calendario (dias_feriados_gestion).
+  // La antigüedad del fondo se mide al inicio de la gestión: el calendario más temprano
+  // de la carrera en la gestión del calendario activo (inicioDeGestion, igual que el
+  // backend). Los días de feriado son los de esa gestión (iguales en sus calendarios).
   const [fechaInicioGestion, setFechaInicioGestion] = useState(null);
   const [diasFeriadosGestion, setDiasFeriadosGestion] = useState(0);
   const [sinCalendarioActivo, setSinCalendarioActivo] = useState(false);
@@ -887,14 +889,21 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     setSinCalendarioActivo(false);
     if (!formData.carrera) return undefined;
     let vigente = true;
-    api.get('/calendarios/activo/', { params: { carrera: formData.carrera } })
+    api.get('/calendarios/', { params: { carrera: formData.carrera } })
       .then((response) => {
         if (!vigente) return;
-        setFechaInicioGestion(response.data?.fecha_inicio || null);
-        setDiasFeriadosGestion(Number(response.data?.dias_feriados_gestion) || 0);
+        const calendarios = response.data?.results || response.data || [];
+        const gestion = calendarios.find((calendario) => calendario.activo)?.gestion;
+        if (!gestion) {
+          // Sin calendario activo: se usa el 1 de enero, igual que un fondo sin calendarios.
+          setSinCalendarioActivo(true);
+          return;
+        }
+        const deLaGestion = calendarios.filter((calendario) => calendario.gestion === gestion);
+        setFechaInicioGestion(inicioDeGestion(deLaGestion.map((calendario) => calendario.fecha_inicio), gestion));
+        setDiasFeriadosGestion(Number(deLaGestion[0]?.dias_feriados_gestion) || 0);
       })
       .catch(() => {
-        // Sin calendario activo: se usa el 1 de enero, igual que un fondo sin calendario.
         if (vigente) setSinCalendarioActivo(true);
       });
     return () => { vigente = false; };

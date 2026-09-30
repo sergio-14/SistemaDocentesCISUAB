@@ -1743,6 +1743,19 @@ function ListaCalendarios() {
     : String(semanasCalendario);
   const isSaveBlocked = Boolean(isSubmitting);
 
+  // Los días de feriado son de la gestión: iguales en todos sus calendarios de la carrera.
+  const calendarioDeLaMismaGestion = calendarios.find((calendario) => (
+    String(calendario.carrera) === String(formData.carrera)
+    && String(calendario.gestion) === String(formData.gestion)
+    && calendario.id !== calendarioSeleccionado?.id
+  ));
+  const diasFeriadosDeLaGestion = calendarioDeLaMismaGestion?.dias_feriados_gestion;
+  useEffect(() => {
+    // Calendario nuevo: toma los días de feriado del otro calendario de su gestión.
+    if (calendarioSeleccionado || diasFeriadosDeLaGestion === undefined) return;
+    setFormData((prev) => ({ ...prev, dias_feriados_gestion: diasFeriadosDeLaGestion }));
+  }, [calendarioSeleccionado, diasFeriadosDeLaGestion]);
+
   useEffect(() => {
     cargarCalendarios();
   }, []);
@@ -2032,9 +2045,13 @@ function ListaCalendarios() {
       if (calendarioSeleccionado) {
         const response = await api.put(`/calendarios/${calendarioSeleccionado.id}/`, payload);
         if (response.data?.id) {
-          setCalendarios((prev) => prev.map((calendario) => (
-            calendario.id === response.data.id ? response.data : calendario
-          )));
+          // El backend copia los días de feriado a los demás calendarios de la gestión.
+          setCalendarios((prev) => prev.map((calendario) => {
+            if (calendario.id === response.data.id) return response.data;
+            const mismaGestion = String(calendario.carrera) === String(response.data.carrera)
+              && String(calendario.gestion) === String(response.data.gestion);
+            return mismaGestion ? { ...calendario, dias_feriados_gestion: response.data.dias_feriados_gestion } : calendario;
+          }));
         }
         toast.success('Calendario actualizado correctamente');
         resetAndCloseModal();
@@ -2512,6 +2529,9 @@ function ListaCalendarios() {
                   {!errors.dias_feriados_gestion && (
                     <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                       Solo los que caen de lunes a viernes. El fondo descuenta días × jornada diaria del docente.
+                      {calendarioDeLaMismaGestion && (calendarioSeleccionado
+                        ? ` Al guardar se aplica también al calendario ${calendarioDeLaMismaGestion.periodo_display} de la gestión.`
+                        : ` Igual que el calendario ${calendarioDeLaMismaGestion.periodo_display} de la gestión.`)}
                     </p>
                   )}
                 </div>

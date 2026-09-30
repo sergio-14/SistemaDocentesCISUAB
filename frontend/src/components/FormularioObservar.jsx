@@ -90,7 +90,7 @@ function FormularioObservar({ fondo, onObservar, onCancelar }) {
               <div>
                 <span>Gestion:</span>
                 <p>
-                  {fondo.gestion} - {fondo.periodo}
+                  {fondo.gestion}
                 </p>
               </div>
             </div>

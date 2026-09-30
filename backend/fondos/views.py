@@ -97,7 +97,6 @@ class CarreraInactivaSoloLecturaMixin(CarreraInactivaSoloLecturaBase):
         'carrera': Carrera,
         'fondo_tiempo': FondoTiempo,
         'fondo': FondoTiempo,
-        'calendario_academico': CalendarioAcademico,
         'calendario': CalendarioAcademico,
         'materia': Materia,
         'carga_horaria': CargaHoraria,
@@ -193,7 +192,7 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         carrera_id = self.request.query_params.get('carrera')
-        calendario_id = self.request.query_params.get('calendario')
+        gestion_sin_fondo = self.request.query_params.get('sin_fondo_gestion')
 
         def aplicar_filtros_selector(qs):
             if carrera_id:
@@ -202,9 +201,9 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
                     vinculos_carrera__activo=True,
                 )
 
-            if calendario_id:
+            if gestion_sin_fondo:
                 docentes_con_fondo = FondoTiempo.objects.filter(
-                    calendario_academico_id=calendario_id,
+                    gestion=gestion_sin_fondo,
                     archivado=False,
                 ).values_list('docente_id', flat=True)
                 qs = qs.exclude(id__in=docentes_con_fondo)
@@ -311,7 +310,7 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         cargas_count = cargas_qs.count()
         if cargas_count > 0:
             gestiones = list(
-                cargas_qs.order_by().values_list('calendario__gestion', flat=True).distinct()
+                cargas_qs.order_by().values_list('fondo__gestion', flat=True).distinct()
             )
             detalle_gestiones = f" en la(s) gestión(es) {', '.join(map(str, gestiones))}" if gestiones else ''
             mensaje = (
@@ -1032,8 +1031,8 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['fondo', 'docente', 'calendario', 'categoria', 'materia', 'paralelo', 'dia_semana', 'aula']
     search_fields = ['materia__nombre', 'materia__sigla', 'docente__nombres', 'docente__apellido_paterno', 'aula']
-    ordering_fields = ['calendario__gestion', 'docente', 'horas', 'dia_semana', 'hora_inicio']
-    ordering = ['-calendario__gestion']
+    ordering_fields = ['fondo__gestion', 'docente', 'horas', 'dia_semana', 'hora_inicio']
+    ordering = ['-fondo__gestion']
 
     def get_permissions(self):
         """
@@ -1068,9 +1067,10 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
         if perfil.rol in ['director', 'jefe_estudios', 'iiisyp']:
             carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
             if carreras_activas.exists():
-                # Solo las cargas de su carrera, aunque el docente enseñe también en otra.
-                docentes_carrera = _docentes_por_carreras(carreras_activas)
-                return queryset.filter(docente__in=docentes_carrera, calendario__carrera__in=carreras_activas)
+                # Las cargas de los fondos de su carrera y las materias de sus calendarios.
+                return queryset.filter(
+                    Q(fondo__carrera__in=carreras_activas) | Q(calendario__carrera__in=carreras_activas)
+                )
             return queryset.none()
 
         if perfil.rol == 'docente' and perfil.docente:
@@ -1229,18 +1229,10 @@ class CalendarioAcademicoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Model
         serializer.save()
 
     def _build_dependency_counts(self, calendario):
-        fondos_ids = list(
-            FondoTiempo.objects.filter(calendario_academico=calendario)
-            .values_list('id', flat=True)
-        )
-        fondos_count = len(fondos_ids)
-        informes_count = InformeFondo.objects.filter(fondo_tiempo_id__in=fondos_ids).count() if fondos_ids else 0
         cargas_horarias_count = CargaHoraria.objects.filter(calendario=calendario).count()
-        can_delete = fondos_count == 0 and informes_count == 0 and cargas_horarias_count == 0
+        can_delete = cargas_horarias_count == 0
 
         return {
-            'planificaciones': fondos_count,
-            'informes': informes_count,
             'cargas_horarias': cargas_horarias_count,
             'can_delete': can_delete,
             'has_dependencies': not can_delete,
@@ -1257,18 +1249,10 @@ class CalendarioAcademicoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Model
         instance = self.get_object()
         counts = self._build_dependency_counts(instance)
         if not counts['can_delete']:
-            dependencias = []
-            if counts['planificaciones'] > 0:
-                dependencias.append(f"{counts['planificaciones']} Fondos de Tiempo asociados")
-            if counts['informes'] > 0:
-                dependencias.append(f"{counts['informes']} informes asociados")
-            if counts['cargas_horarias'] > 0:
-                dependencias.append(f"{counts['cargas_horarias']} cargas horarias asociadas")
-
             return Response(
                 {
                     'code': 'protected_error',
-                    'detail': f"No se puede eliminar porque tiene {', '.join(dependencias)}.",
+                    'detail': f"No se puede eliminar porque tiene {counts['cargas_horarias']} cargas horarias asociadas.",
                     'dependencias': counts,
                 },
                 status=status.HTTP_409_CONFLICT
@@ -1279,14 +1263,10 @@ class CalendarioAcademicoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Model
             return Response({'detail': 'Calendario eliminado correctamente.'}, status=status.HTTP_200_OK)
         except ProtectedError:
             counts = self._build_dependency_counts(instance)
-            dependencias = []
-            if counts['planificaciones'] > 0:
-                dependencias.append(f"{counts['planificaciones']} Fondos de Tiempo asociados")
-            if counts['informes'] > 0:
-                dependencias.append(f"{counts['informes']} informes asociados")
-            if counts['cargas_horarias'] > 0:
-                dependencias.append(f"{counts['cargas_horarias']} cargas horarias asociadas")
-            detalle_dependencias = ', '.join(dependencias) if dependencias else 'dependencias protegidas'
+            detalle_dependencias = (
+                f"{counts['cargas_horarias']} cargas horarias asociadas"
+                if counts['cargas_horarias'] else 'dependencias protegidas'
+            )
             return Response(
                 {
                     'code': 'protected_error',
@@ -1330,7 +1310,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
     - Docente: puede editar solo sus borradores
     """
     queryset = FondoTiempo.objects.select_related(
-        'docente', 'carrera', 'calendario_academico', 'aprobado_por', 'validado_por'
+        'docente', 'carrera', 'aprobado_por', 'validado_por'
     ).prefetch_related('categorias', 'proyectos', 'observaciones_detalladas')
     serializer_class = FondoTiempoSerializer
     permission_classes = [IsAuthenticated]
@@ -1352,14 +1332,11 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
 
         def aplicar_filtros_query_params(qs):
             docente_id = self.request.query_params.get('docente')
-            calendario_id = (
-                self.request.query_params.get('calendario')
-                or self.request.query_params.get('calendario_academico')
-            )
+            gestion = self.request.query_params.get('gestion')
             if docente_id:
                 qs = qs.filter(docente_id=docente_id)
-            if calendario_id:
-                qs = qs.filter(calendario_academico_id=calendario_id)
+            if gestion:
+                qs = qs.filter(gestion=gestion)
             return qs
 
         # Permitir que superusuarios vean todo siempre (evita problemas si su rol es 'docente' por defecto)
@@ -1391,7 +1368,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         """
         # 1. Definir Queryset Base SIN Prefetch inicial (para evitar caché obsoleto)
         queryset = FondoTiempo.objects.select_related(
-            'docente', 'carrera', 'calendario_academico', 'aprobado_por', 'validado_por'
+            'docente', 'carrera', 'aprobado_por', 'validado_por'
         )
 
         # 2. Aplicar filtros según la acción
@@ -1622,29 +1599,18 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def perform_create(self, serializer):
-        """Al crear un fondo, se asocia al calendario activo. El docente viene en el payload."""
+        """Un fondo por docente y gestión: la gestión debe tener calendario académico en la carrera."""
         docente = serializer.validated_data.get('docente')
         carrera = serializer.validated_data.get('carrera')
+        gestion = serializer.validated_data.get('gestion')
         self._validar_docente_no_exclusivo(docente, carrera)
-        calendario_activo = serializer.validated_data.get('calendario_academico')
-        if not calendario_activo:
-            calendario_activo = CalendarioAcademico.objects.filter(activo=True, carrera=carrera).first()
-        if not calendario_activo:
+        if not CalendarioAcademico.objects.filter(carrera=carrera, gestion=gestion).exists():
             raise drf_serializers.ValidationError({
-                'calendario_academico': 'No existe un periodo academico activo para esta carrera.'
+                'gestion': f'La carrera no tiene calendario académico de la gestión {gestion}.'
             })
-        if FondoTiempo.objects.filter(
-            docente=docente,
-            calendario_academico=calendario_activo,
-        ).exists():
-            raise drf_serializers.ValidationError({
-                'docente': 'Este docente ya tiene un fondo de tiempo registrado para el periodo seleccionado'
-            })
-        
-        # Ya no forzamos el docente del usuario logueado.
-        # El serializer valida que 'docente' venga en el request.
-        fondo = serializer.save(calendario_academico=calendario_activo)
-        
+
+        fondo = serializer.save()
+
         # CORRECCIÓN DE RAÍZ: Crear inmediatamente las categorías vacías
         tipos = [tipo for tipo, _label in CategoriaFuncion.TIPO_CHOICES]
         for tipo in tipos:
@@ -1726,8 +1692,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
 
                 ya_existe = FondoTiempo.objects.filter(
                     docente=vinculo.docente,
-                    carrera=vinculo.carrera,
-                    calendario_academico=calendario_activo,
+                    gestion=calendario_activo.gestion,
+                    archivado=False,
                 ).exists()
                 if ya_existe:
                     omitidos_ya_existentes += 1
@@ -1736,9 +1702,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
                 fondo = FondoTiempo.objects.create(
                     docente=vinculo.docente,
                     carrera=vinculo.carrera,
-                    calendario_academico=calendario_activo,
                     gestion=calendario_activo.gestion,
-                    periodo=calendario_activo.periodo,
                     estado='borrador',
                 )
 
@@ -1894,6 +1858,12 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         if not fondo.archivado:
             return Response(
                 {'error': 'Este fondo no está archivado'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if FondoTiempo.objects.filter(docente=fondo.docente, gestion=fondo.gestion, archivado=False).exists():
+            return Response(
+                {'error': f'El docente ya tiene otro Fondo de Tiempo vigente de la gestión {fondo.gestion}.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -2621,7 +2591,6 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             gestion = fondo.gestion
             
             # Construimos el nombre final: Ej. Fondo_Victor_Cruz_2026.pdf
-            # (Si tienes un campo 'periodo', puedes agregarlo al f-string también)
             nombre_archivo = f"Fondo_{nombre_docente}_{gestion}.pdf"
 
             # 3. RETORNAR ARCHIVO

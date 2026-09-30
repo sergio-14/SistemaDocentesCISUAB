@@ -692,16 +692,6 @@ function DetalleFondo() {
     }
   };
 
-  const getPeriodoLabel = (periodo) => {
-    const periodos = {
-      '1S': 'Primer Semestre',
-      '2S': 'Segundo Semestre',
-      'A': 'Anual',
-      'V': 'Verano'
-    };
-    return periodos[periodo] || periodo;
-  };
-
   const calcularDiasEnEtapa = () => {
     if (!fondo || !fondo.fecha_creacion) return 0;
     const fechaCreacion = new Date(fondo.fecha_creacion);
@@ -1055,11 +1045,11 @@ function DetalleFondo() {
                   </p>
                 </div>
 
-                {/* Periodo y Gestión (Combinados) */}
+                {/* Carrera y Gestión (Combinados) */}
                 <div className="flex gap-2.5 w-full">
                   <div className="flex-1 bg-slate-50/70 dark:bg-slate-800/40 shadow-sm rounded-xl border border-slate-200 dark:border-slate-700/80 flex flex-col items-center justify-center py-2 px-1">
-                    <span className="text-[9px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-widest pb-0.5">Periodo</span>
-                    <span className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-none">{getPeriodoLabel(fondo.periodo)}</span>
+                    <span className="text-[9px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-widest pb-0.5">Carrera</span>
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-none text-center">{fondo.carrera?.nombre}</span>
                   </div>
                   <div className="flex-1 bg-slate-50/70 dark:bg-slate-800/40 shadow-sm rounded-xl border border-slate-200 dark:border-slate-700/80 flex flex-col items-center justify-center py-2 px-1">
                     <span className="text-[9px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-widest pb-0.5">Gestión</span>
@@ -1331,7 +1321,8 @@ function DetalleFondo() {
                               <CargaHorariaManager
                                 fondoId={fondo.id}
                                 docenteId={fondo.docente?.id}
-                                calendarioId={fondo.calendario_academico?.id}
+                                gestion={fondo.gestion}
+                                calendarios={fondo.calendarios}
                                 onCargaUpdate={handleActualizacionHoras}
                                 cargaEdicion={cargaParaEditar}
                                 onCancelarEdicion={() => setCargaParaEditar(null)}
@@ -1912,7 +1903,7 @@ function DetalleFondo() {
                   <div className="flex justify-between">
                     <span className="text-slate-600 dark:text-slate-400">Gestión:</span>
                     <span className="font-bold text-slate-800 dark:text-white">
-                      {fondo.gestion} - {fondo.periodo_display}
+                      {fondo.gestion}
                     </span>
                   </div>
                 </div>

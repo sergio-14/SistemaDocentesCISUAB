@@ -1190,8 +1190,8 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
     docente_nombre = serializers.CharField(source='docente.nombre_completo', read_only=True)
     materia_nombre = serializers.CharField(source='materia.nombre', read_only=True)
     materia_sigla = serializers.CharField(source='materia.sigla', read_only=True)
-    calendario_gestion = serializers.IntegerField(source='calendario.gestion', read_only=True)
-    calendario_periodo = serializers.CharField(source='calendario.get_periodo_display', read_only=True)
+    # Ítems fuera de Académica (sin calendario): gestión del fondo al que van.
+    gestion = serializers.IntegerField(write_only=True, required=False)
     categoria_display = serializers.CharField(source='get_categoria_display', read_only=True)
     creado_por_nombre = serializers.CharField(source='creado_por.get_full_name', read_only=True)
 
@@ -1223,13 +1223,26 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
                 'docente': 'No se puede asignar carga horaria o materia a un docente inactivo.'
             })
 
+        # Materias: en un calendario (de ahí la gestión). Lo demás: horas por año del fondo, sin calendario.
+        gestion = data.pop('gestion', None)
+        if categoria == 'academica':
+            if not calendario:
+                raise serializers.ValidationError({'calendario': 'Las materias se asignan en un calendario académico.'})
+            gestion = calendario.gestion
+        else:
+            calendario = None
+            data['calendario'] = None
+            gestion = gestion or (self.instance.fondo.gestion if self.instance else None)
+            if not gestion:
+                raise serializers.ValidationError({'gestion': 'Indique la gestión del Fondo de Tiempo.'})
+
         fondo = None
         categoria_macro = None
         semanas = Decimal('45.8')
-        if docente and calendario:
-            fondo = fondo_de_la_carga(docente, calendario)
+        if docente and gestion:
+            fondo = fondo_de_la_carga(docente, gestion)
             if not fondo:
-                raise serializers.ValidationError({'docente': mensaje_sin_fondo(calendario)})
+                raise serializers.ValidationError({'docente': mensaje_sin_fondo(gestion)})
             data['fondo'] = fondo
             semanas = Decimal(str(getattr(fondo, 'semanas_a\u00f1o', '45.8') or '45.8'))
             if semanas <= 0:
@@ -1695,7 +1708,8 @@ class DocenteSerializer(serializers.ModelSerializer):
         cargas = obj.cargas_horarias.all()
         propias = carreras_del_director(self.context)
         if propias is not None:
-            cargas = cargas.filter(calendario__carrera_id__in=propias)
+            # Las del fondo de su carrera y las materias de sus calendarios.
+            cargas = cargas.filter(Q(fondo__carrera_id__in=propias) | Q(calendario__carrera_id__in=propias))
         total_horas = cargas.aggregate(total=Sum('horas')).get('total') or 0
         return int(total_horas)
 
@@ -2529,6 +2543,8 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
     class Meta:
         model = FondoTiempo
         fields = '__all__'
+        # La unicidad (docente, gestión) se valida en validate() con un mensaje claro.
+        validators = []
         read_only_fields = [
             'estado', 'horas_efectivas', 'fecha_aprobacion', 
             'fecha_validacion', 'fecha_inicio_ejecucion', 'fecha_informe', 'fecha_finalizacion'
@@ -2544,7 +2560,7 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
 
     def get_total_asignado(self, obj):
         if not hasattr(obj, '_total_asignado_calculado'):
-            if not obj.docente or not obj.calendario_academico:
+            if not obj.docente:
                 total = 0
             else:
                 total_calculado = 0
@@ -2575,26 +2591,24 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
         if not docente:
             return data
         
-        # El límite sale de la carrera de ESTE fondo (un docente en dos carreras
-        # tiene un fondo por carrera), no del primer vínculo que aparezca.
+        # El fondo va en la carrera del vínculo del docente: el límite sale de ese vínculo.
         carrera = data.get('carrera') or (self.instance.carrera if self.instance else None)
         vinculo_carrera = DocenteCarrera.objects.filter(
             docente=docente, carrera=carrera, activo=True
         ).first() if carrera else None
-        calendario = data.get('calendario_academico')
-        if not calendario and hasattr(self, 'instance') and self.instance:
-            calendario = self.instance.calendario_academico
+        if not self.instance and carrera and not vinculo_carrera:
+            raise serializers.ValidationError({
+                'carrera': 'El Fondo de Tiempo se crea en la carrera del vínculo activo del docente.'
+            })
 
-        if calendario:
-            duplicado_qs = FondoTiempo.objects.filter(
-                docente=docente,
-                calendario_academico=calendario,
-            )
+        gestion = data.get('gestion') or (self.instance.gestion if self.instance else None)
+        if gestion:
+            duplicado_qs = FondoTiempo.objects.filter(docente=docente, gestion=gestion, archivado=False)
             if self.instance:
                 duplicado_qs = duplicado_qs.exclude(pk=self.instance.pk)
             if duplicado_qs.exists():
                 raise serializers.ValidationError({
-                    'docente': 'Este docente ya tiene un fondo de tiempo registrado para el periodo seleccionado'
+                    'docente': f'Este docente ya tiene un Fondo de Tiempo de la gestión {gestion}.'
                 })
 
         # Horas semanales del docente en esta carrera (vínculo + cargo si lo tiene aquí).
@@ -2639,11 +2653,10 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
 
 
 class FondoTiempoListSerializer(serializers.ModelSerializer):
-    descripcion = serializers.CharField(read_only=True)
     """Serializer simplificado para listados"""
+    descripcion = serializers.CharField(read_only=True)
     docente_nombre = serializers.CharField(source='docente.nombre_completo', read_only=True)
     carrera_nombre = serializers.CharField(source='carrera.nombre', read_only=True)
-    periodo_display = serializers.CharField(source='get_periodo_display', read_only=True)
     porcentaje_completado = serializers.SerializerMethodField()
     total_asignado = serializers.SerializerMethodField()
     # Aseguramos que se devuelva la URL como string explícito
@@ -2652,15 +2665,14 @@ class FondoTiempoListSerializer(serializers.ModelSerializer):
     class Meta:
         model = FondoTiempo
         fields = ['id', 'docente', 'docente_nombre', 'carrera', 'carrera_nombre', 
-                  'calendario_academico', 'gestion', 'periodo', 'periodo_display',
-                  'descripcion', 'total_asignado', 'horas_efectivas',
+                  'gestion', 'descripcion', 'total_asignado', 'horas_efectivas',
                   'porcentaje_completado', 'estado', 'programa_analitico_url']
 
     def get_total_asignado(self, obj):
         # NOTA DE RENDIMIENTO: Esto puede causar N+1 queries en la vista de lista.
         # Para optimizar, se podría anotar el queryset en el ViewSet.
         if not hasattr(obj, '_total_asignado_calculado'):
-            if not obj.docente or not obj.calendario_academico:
+            if not obj.docente:
                 total = 0
             else:
                 total_calculado = 0
@@ -4189,13 +4201,13 @@ class DocenteDetalleSerializer(serializers.ModelSerializer):
 # =====================================================
 
 class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
-    descripcion = serializers.CharField(read_only=True)
     """Serializer completo con todas las relaciones"""
+    descripcion = serializers.CharField(read_only=True)
     docente = DocenteDetalleSerializer(read_only=True)
     carrera = CarreraSerializer(read_only=True)
-    calendario_academico = CalendarioAcademicoSerializer(read_only=True)
+    # Calendarios de la carrera en la gestión del fondo (para asignar materias).
+    calendarios = serializers.SerializerMethodField()
     
-    periodo_display = serializers.CharField(source='get_periodo_display', read_only=True)
     estado_display = serializers.CharField(source='get_estado_display', read_only=True)
     # Aseguramos que se devuelva la URL como string explícito
     programa_analitico_url = serializers.URLField(read_only=True)
@@ -4224,8 +4236,8 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     class Meta:
         model = FondoTiempo
         fields = [
-            'id', 'docente', 'carrera', 'calendario_academico',
-            'gestion', 'periodo', 'periodo_display', 'descripcion',
+            'id', 'docente', 'carrera', 'calendarios',
+            'gestion', 'descripcion',
             'semanas_a\u00f1o', 'horas_semana', 'horas_vacacion', 'horas_feriados',
             'contrato_horas',
             'horas_efectivas', 'total_asignado',
@@ -4252,7 +4264,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     
     def get_total_asignado(self, obj):
         if not hasattr(obj, '_total_asignado_calculado'):
-            if not obj.docente or not obj.calendario_academico:
+            if not obj.docente:
                 total = 0
             else:
                 total_calculado = 0
@@ -4277,6 +4289,11 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
         if obj.docente:
             return obj.docente.calcular_antiguedad(obj.fecha_referencia_antiguedad())
         return 0
+
+    def get_calendarios(self, obj):
+        return CalendarioAcademicoSerializer(
+            obj.calendarios_de_la_gestion().order_by('fecha_inicio'), many=True,
+        ).data
 
     def get_puede_editar(self, obj):
         request = self.context.get('request')

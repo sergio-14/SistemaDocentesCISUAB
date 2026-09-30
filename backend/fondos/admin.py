@@ -176,22 +176,19 @@ class CalendarioAcademicoAdmin(admin.ModelAdmin):
 @admin.register(FondoTiempo)
 class FondoTiempoAdmin(admin.ModelAdmin):
     list_display = [
-        'docente', 'carrera', 'gestion', 'periodo',
+        'docente', 'carrera', 'gestion',
         'estado_badge', 'porcentaje_badge', 'programa_badge'
     ]
-    list_filter = ['estado', 'gestion', 'periodo', 'carrera', 'archivado']
+    list_filter = ['estado', 'gestion', 'carrera', 'archivado']
     search_fields = [
         'docente__nombres', 'docente__apellido_paterno',
         'docente__apellido_materno', 'carrera__nombre'
     ]
-    ordering = ['-gestion', '-periodo', 'docente__apellido_paterno']
+    ordering = ['-gestion', 'docente__apellido_paterno']
     
     fieldsets = (
         ('Información Básica', {
-            'fields': ('docente', 'carrera', 'calendario_academico')
-        }),
-        ('Periodo Académico', {
-            'fields': ('gestion', 'periodo')
+            'fields': ('docente', 'carrera', 'gestion')
         }),
         ('Configuración de Horas', {
             'fields': (

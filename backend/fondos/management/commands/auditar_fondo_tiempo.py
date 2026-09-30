@@ -19,7 +19,7 @@ porcentajes sumen 100%.
 
 Uso:
     python manage.py auditar_fondo_tiempo --docente "William Chao Rivero" --gestion 2024
-    python manage.py auditar_fondo_tiempo --docente-id 5 --gestion 2024 --carrera "Ingenieria de Sistemas"
+    python manage.py auditar_fondo_tiempo --docente-id 5 --gestion 2024
 """
 from decimal import Decimal
 
@@ -44,7 +44,6 @@ class Command(BaseCommand):
         parser.add_argument('--docente', type=str, default=None, help='Nombre (o parte) del docente a buscar.')
         parser.add_argument('--docente-id', type=int, default=None, help='ID exacto del Docente.')
         parser.add_argument('--gestion', type=int, required=True, help='Gestion (año) del Fondo de Tiempo a auditar.')
-        parser.add_argument('--carrera', type=str, default=None, help='Nombre (o parte) de la carrera, si el docente tiene mas de un fondo en esa gestion.')
 
     def handle(self, *args, **options):
         docente = self._resolver_docente(options)
@@ -88,22 +87,15 @@ class Command(BaseCommand):
         return coincidencias[0]
 
     def _resolver_fondo(self, docente, options):
-        qs = FondoTiempo.objects.select_related('docente', 'carrera', 'calendario_academico').filter(
-            docente=docente, gestion=options['gestion'],
-        )
-        if options['carrera']:
-            qs = qs.filter(carrera__nombre__icontains=options['carrera'])
-
-        fondos = list(qs)
-        if not fondos:
+        # Un solo fondo vigente por docente y gestión.
+        fondo = FondoTiempo.objects.select_related('docente', 'carrera').filter(
+            docente=docente, gestion=options['gestion'], archivado=False,
+        ).first()
+        if not fondo:
             raise CommandError(
-                f'{docente.nombre_completo} no tiene ningun FondoTiempo en la gestion {options["gestion"]}'
-                + (f' para una carrera que contenga "{options["carrera"]}".' if options['carrera'] else '.')
+                f'{docente.nombre_completo} no tiene Fondo de Tiempo vigente en la gestion {options["gestion"]}.'
             )
-        if len(fondos) > 1:
-            listado = '\n'.join(f'  - id={f.pk}: carrera={f.carrera.nombre!r} periodo={f.periodo!r}' for f in fondos)
-            raise CommandError(f'{docente.nombre_completo} tiene {len(fondos)} fondos en {options["gestion"]}, usa --carrera para elegir uno:\n{listado}')
-        return fondos[0]
+        return fondo
 
     # ------------------------------------------------------------------
     # Secciones de la auditoria

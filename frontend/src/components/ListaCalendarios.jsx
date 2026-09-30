@@ -1554,8 +1554,6 @@ function ListaCalendarios() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteImpact, setDeleteImpact] = useState({
     loading: false,
-    planificaciones: 0,
-    informes: 0,
     cargas_horarias: 0,
     failed: false,
     detail: '',
@@ -2092,8 +2090,6 @@ function ListaCalendarios() {
     setCalendarioToDelete(calendario);
     setDeleteImpact({
       loading: false,
-      planificaciones: impactData?.planificaciones || 0,
-      informes: impactData?.informes || 0,
       cargas_horarias: impactData?.cargas_horarias || 0,
       failed: false,
       detail: customDetail || '',
@@ -2107,8 +2103,6 @@ function ListaCalendarios() {
     setDeleteConfirmText('');
     setDeleteImpact({
       loading: false,
-      planificaciones: 0,
-      informes: 0,
       cargas_horarias: 0,
       failed: false,
       detail: '',
@@ -2148,8 +2142,6 @@ function ListaCalendarios() {
         setDeleteConfirmText('');
         setDeleteImpact({
           loading: false,
-          planificaciones: deps.planificaciones || 0,
-          informes: deps.informes || 0,
           cargas_horarias: deps.cargas_horarias || 0,
           failed: false,
           detail: '',
@@ -2161,7 +2153,7 @@ function ListaCalendarios() {
       openDependencyWarning(
         calendario,
         deps,
-        `ERROR DE INTEGRIDAD: No se puede eliminar el calendario ${calendario.gestion}-${calendario.periodo_display} porque aún tiene ${deps.planificaciones || 0} planificaciones y ${deps.informes || 0} informes vinculados.`
+        `ERROR DE INTEGRIDAD: No se puede eliminar el calendario ${calendario.gestion}-${calendario.periodo_display} porque aún tiene ${deps.cargas_horarias || 0} cargas horarias (materias) asignadas en él.`
       );
     } catch (err) {
       console.error('Error verificando dependencias del calendario:', err);
@@ -2634,7 +2626,7 @@ function ListaCalendarios() {
                 Acción irreversible: <strong className="text-red-900 dark:text-red-300">se perderá el periodo y sus fechas de referencia para este calendario.</strong>
               </div>
               <div className="rounded-lg border border-amber-500/40 bg-amber-100 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
-                Dependencias actuales: {deleteImpact.planificaciones} planificaciones, {deleteImpact.informes} informes, {deleteImpact.cargas_horarias} cargas horarias.
+                Dependencias actuales: {deleteImpact.cargas_horarias} cargas horarias.
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
@@ -2686,7 +2678,7 @@ function ListaCalendarios() {
                 {deleteImpact.detail || `ERROR DE INTEGRIDAD: No se puede eliminar el calendario ${calendarioToDelete.gestion}-${calendarioToDelete.periodo_display} porque aún tiene dependencias vinculadas.`}
               </p>
               <div className="rounded-lg border border-red-700/70 bg-red-200/70 dark:bg-red-500/10 px-3 py-2 text-sm text-red-900 dark:text-red-100">
-                Dependencias detectadas: {deleteImpact.planificaciones} planificaciones, {deleteImpact.informes} informes, {deleteImpact.cargas_horarias} cargas horarias.
+                Dependencias detectadas: {deleteImpact.cargas_horarias} cargas horarias.
               </div>
               <div className="rounded-lg border border-amber-500/40 bg-amber-100 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
                 Para eliminar este calendario, primero debes mover o eliminar manualmente sus registros asociados.

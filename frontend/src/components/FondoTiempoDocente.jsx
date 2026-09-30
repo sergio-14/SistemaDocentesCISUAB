@@ -63,8 +63,8 @@ const FondoTiempoDocente = () => {
 
                 if (cancelado) return;
 
-                const fondosParams = calendarioData?.id
-                    ? { docente: id, calendario: calendarioData.id }
+                const fondosParams = calendarioData?.gestion
+                    ? { docente: id, gestion: calendarioData.gestion }
                     : { docente: id };
                 const fondosRes = await api.get('/fondos-tiempo/', { params: fondosParams });
 
@@ -131,8 +131,8 @@ const FondoTiempoDocente = () => {
     const dedicacion = primerVinculo?.dedicacion || 'N/A';
     const dedicacionLabel = ETIQUETAS_DEDICACION[dedicacion] || dedicacion;
     const puedeCrear = puedeCrearFondoTiempo(user);
-    const tieneFondoPeriodoActivo = Boolean(calendarioActivo?.id && fondos.length > 0);
-    const puedeCrearNuevoFondo = puedeCrear && !tieneFondoPeriodoActivo;
+    const tieneFondoGestionActiva = Boolean(calendarioActivo?.id && fondos.length > 0);
+    const puedeCrearNuevoFondo = puedeCrear && !tieneFondoGestionActiva;
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -209,7 +209,7 @@ const FondoTiempoDocente = () => {
                                         >
                                             <div className="flex justify-between items-start mb-3">
                                                 <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800">
-                                                    {fondo.gestion} - {fondo.periodo}
+                                                    Gestión {fondo.gestion}
                                                 </span>
                                                 <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
                                                     fondo.estado === 'validado' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800' :

@@ -284,7 +284,7 @@ const CustomSelect = ({
     );
 };
 
-const CargaHorariaManager = ({ fondoId, docenteId, calendarioId, onCargaUpdate, cargaEdicion, onCancelarEdicion, readOnly = true }) => {
+const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], onCargaUpdate, cargaEdicion, onCancelarEdicion, readOnly = true }) => {
     const [cargas, setCargas] = useState([]);
     const [semestre, setSemestre] = useState('');
     const [materias, setMaterias] = useState([]);
@@ -335,8 +335,11 @@ const CargaHorariaManager = ({ fondoId, docenteId, calendarioId, onCargaUpdate, 
     const [allMaterias, setAllMaterias] = useState([]);
     const [semestresDisponibles, setSemestresDisponibles] = useState([]);
     const [fondoDetalle, setFondoDetalle] = useState(null);
+    // Las materias van en un calendario de la gestión; con uno solo, se elige solo.
+    const calendarioPorDefecto = calendarios.length === 1 ? String(calendarios[0].id) : '';
     const [formData, setFormData] = useState({
         categoria: 'academica',
+        calendario: calendarioPorDefecto,
         materia: '',
         titulo_actividad: '',
         tipo_actividad: '',
@@ -374,6 +377,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, calendarioId, onCargaUpdate, 
         if (cargaEdicion) {
             setFormData({
                 categoria: cargaEdicion.categoria || 'academica',
+                calendario: cargaEdicion.calendario ? String(cargaEdicion.calendario) : '',
                 materia: cargaEdicion.materia || cargaEdicion.materia_id || '',
                 titulo_actividad: cargaEdicion.titulo_actividad || '',
                 tipo_actividad: cargaEdicion.tipo_actividad || '',
@@ -382,9 +386,9 @@ const CargaHorariaManager = ({ fondoId, docenteId, calendarioId, onCargaUpdate, 
                 documento_respaldo: cargaEdicion.respaldo || ''
             });
         } else {
-            setFormData({ categoria: 'academica', materia: '', titulo_actividad: '', tipo_actividad: '', horas: '', evidencias: '', documento_respaldo: '' });
+            setFormData({ categoria: 'academica', calendario: calendarioPorDefecto, materia: '', titulo_actividad: '', tipo_actividad: '', horas: '', evidencias: '', documento_respaldo: '' });
         }
-    }, [cargaEdicion]);
+    }, [cargaEdicion, calendarioPorDefecto]);
 
     useEffect(() => {
         const fetchAllMaterias = async () => {
@@ -456,6 +460,10 @@ const CargaHorariaManager = ({ fondoId, docenteId, calendarioId, onCargaUpdate, 
             toast.error(`No se puede guardar: el Micro excede ${objetivoAnual} horas anuales`);
             return;
         }
+        if (esAcademica && !formData.calendario) {
+            toast.error("Seleccione el calendario académico de la materia");
+            return;
+        }
         if (esAcademica && !formData.materia) {
             toast.error("Seleccione una materia del plan de estudios");
             return;
@@ -484,7 +492,9 @@ const CargaHorariaManager = ({ fondoId, docenteId, calendarioId, onCargaUpdate, 
             tipo_actividad: formData.tipo_actividad,
             evidencias: formData.evidencias?.trim(),
             docente: docenteId,
-            calendario: calendarioId
+            // Las materias van en su calendario; lo demás son horas por año de la gestión del fondo.
+            calendario: esAcademica ? formData.calendario : null,
+            gestion,
         };
         try {
             if (cargaEdicion) {
@@ -503,7 +513,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, calendarioId, onCargaUpdate, 
                     setCargas((prev) => [response.data, ...prev]);
                 }
             }
-            setFormData({ categoria: 'academica', materia: '', titulo_actividad: '', tipo_actividad: '', horas: '', evidencias: '', documento_respaldo: '' });
+            setFormData({ categoria: 'academica', calendario: calendarioPorDefecto, materia: '', titulo_actividad: '', tipo_actividad: '', horas: '', evidencias: '', documento_respaldo: '' });
             setSemestre('');
             cargarFondoDetalle();
             if (onCargaUpdate) onCargaUpdate();
@@ -540,6 +550,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, calendarioId, onCargaUpdate, 
         setSemestre('');
         setFormData({
             categoria,
+            calendario: formData.calendario || calendarioPorDefecto,
             materia: '',
             titulo_actividad: '',
             tipo_actividad: '',
@@ -563,6 +574,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, calendarioId, onCargaUpdate, 
     };
 
     const categoriaOptions = CATEGORIA_OPCIONES.map(opt => ({ value: opt.value, label: opt.label }));
+    const calendarioOptions = calendarios.map(cal => ({ value: String(cal.id), label: `${cal.periodo_display} ${cal.gestion}` }));
     const semestreOptions = semestresDisponibles.map(s => ({ value: s.toString(), label: `${s}° Semestre` }));
     const selectedMateriaId = formData.materia?.toString() || '';
     // Una materia inactiva no se asigna en cargas nuevas (solo se conserva la ya asignada).
@@ -601,6 +613,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, calendarioId, onCargaUpdate, 
     const respaldoRequerido = false;
     const respaldoInvalido = respaldoRequerido && !formData.documento_respaldo?.trim();
     const submitDisabled = isSubmitting
+        || (requiereMateriaAcademica && !formData.calendario)
         || (requiereMateriaAcademica && !formData.materia)
         || (esSubactividadAcademica && !formData.titulo_actividad?.trim())
         || (!esAcademica && !formData.titulo_actividad?.trim())
@@ -660,7 +673,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, calendarioId, onCargaUpdate, 
                     {/* Campos superiores */}
                     <div className="space-y-4">
 
-                        {/* Fila 1: Categoría + Semestre */}
+                        {/* Fila 1: Categoría + Calendario + Semestre */}
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className={labelCls}>Categoría</label>
@@ -672,6 +685,19 @@ const CargaHorariaManager = ({ fondoId, docenteId, calendarioId, onCargaUpdate, 
                                     disabled={isReadOnly}
                                 />
                             </div>
+                            {esAcademica && (
+                                <div>
+                                    <label className={labelCls}>Calendario</label>
+                                    <CustomSelect
+                                        value={formData.calendario}
+                                        options={calendarioOptions}
+                                        onChange={(newValue) => setFormData(prev => ({ ...prev, calendario: newValue }))}
+                                        placeholder="-- Calendario --"
+                                        disabled={isReadOnly}
+                                        emptyText="La gestión no tiene calendarios académicos"
+                                    />
+                                </div>
+                            )}
                             {esAcademica && (
                                 <div>
                                     <label className={labelCls}>Semestre / Nivel</label>

@@ -39,33 +39,45 @@ class AniosCompletosTests(UsuariosBaseTestCase):
             with self.subTest(referencia=referencia):
                 self.assertEqual(datos.calcular_dias_vacacion(referencia), dias)
 
-    def _fondo(self, username, fecha_ingreso, fecha_inicio_gestion=None, periodo='anual'):
-        usuario = self.crear_usuario(username, 'docente', carrera=self.carrera)
-        docente = self.crear_docente(f'CI-{username}', usuario=usuario)
+    def _fondo(self, username, fecha_ingreso, calendarios=(), carrera=None):
+        """calendarios: (periodo, fecha_inicio, fecha_fin) de la carrera en la gestión 2026."""
+        carrera = carrera or self.carrera
+        usuario = self.crear_usuario(username, 'docente', carrera=carrera)
+        docente = self.crear_docente(f'CI-{username}', usuario=usuario, carrera=carrera)
         docente.vinculos_carrera.update(dedicacion='tiempo_completo')  # 8 h/día
         DatosLaborales.objects.filter(pk=docente.datos_laborales_id).update(fecha_ingreso=fecha_ingreso)
-        calendario = None
-        if fecha_inicio_gestion:
-            calendario = CalendarioAcademico.objects.create(
-                carrera=self.carrera, gestion=2026, periodo=periodo, dias_feriados_gestion=3,
-                fecha_inicio=fecha_inicio_gestion, fecha_fin=date(2026, 12, 15),
-                fecha_inicio_presentacion_proyectos=fecha_inicio_gestion,
-                fecha_limite_presentacion_proyectos=date(2026, 3, 31),
+        for periodo, inicio, fin in calendarios:
+            CalendarioAcademico.objects.create(
+                carrera=carrera, gestion=2026, periodo=periodo, dias_feriados_gestion=3,
+                fecha_inicio=inicio, fecha_fin=fin,
+                fecha_inicio_presentacion_proyectos=inicio,
+                fecha_limite_presentacion_proyectos=fin,
             )
         return FondoTiempo.objects.create(
-            docente=Docente.objects.get(pk=docente.pk), carrera=self.carrera, gestion=2026,
-            calendario_academico=calendario,
+            docente=Docente.objects.get(pk=docente.pk), carrera=carrera, gestion=2026,
         )
 
     def test_el_fondo_mide_la_antiguedad_al_inicio_de_su_gestion(self):
         # Ingresó el 1-mar-2016. Si la gestión empieza el 1-feb-2026 tiene 9 años
         # completos (20 días); si empieza el 15-mar-2026 ya tiene 10 (30 días).
-        antes = self._fondo('antes_aniv', date(2016, 3, 1), date(2026, 2, 1))
-        despues = self._fondo('despues_aniv', date(2016, 3, 1), date(2026, 3, 15), periodo='1')
+        antes = self._fondo('antes_aniv', date(2016, 3, 1), [('anual', date(2026, 2, 1), date(2026, 12, 15))])
+        despues = self._fondo(
+            'despues_aniv', date(2016, 3, 1), [('1', date(2026, 3, 15), date(2026, 7, 15))],
+            carrera=self.otra_carrera,
+        )
 
         self.assertEqual(antes.fecha_referencia_antiguedad(), date(2026, 2, 1))
         self.assertEqual(antes.horas_vacacion, 20 * 8)
         self.assertEqual(despues.horas_vacacion, 30 * 8)
+
+    def test_la_gestion_empieza_con_su_calendario_mas_temprano(self):
+        fondo = self._fondo('dos_semestres', date(2016, 3, 1), [
+            ('2', date(2026, 8, 3), date(2026, 12, 11)),
+            ('1', date(2026, 3, 16), date(2026, 7, 10)),
+        ])
+
+        self.assertEqual(fondo.fecha_referencia_antiguedad(), date(2026, 3, 16))
+        self.assertEqual(fondo.horas_vacacion, 30 * 8)  # 10 años cumplidos el 1-mar
 
     def test_sin_calendario_se_usa_el_1_de_enero_de_la_gestion(self):
         fondo = self._fondo('sin_calendario', date(2016, 3, 1))
@@ -74,7 +86,7 @@ class AniosCompletosTests(UsuariosBaseTestCase):
         self.assertEqual(fondo.horas_vacacion, 20 * 8)  # 9 años completos al 1-ene-2026
 
     def test_menos_de_un_anio_no_descuenta_vacaciones(self):
-        fondo = self._fondo('nuevo_ingreso', date(2025, 6, 1), date(2026, 2, 1))  # calendario: 3 días de feriado
+        fondo = self._fondo('nuevo_ingreso', date(2025, 6, 1), [('anual', date(2026, 2, 1), date(2026, 12, 15))])  # 3 días de feriado
 
         self.assertEqual(fondo.horas_vacacion, 0)
         self.assertEqual(fondo.horas_efectivas, 2080 - 3 * 8)

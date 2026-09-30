@@ -60,12 +60,19 @@ class DocenteUnVinculoTests(UsuariosBaseTestCase):
             )
         self.assertEqual(self.docente.vinculos_carrera.count(), 1)
 
-    def test_en_la_misma_carrera_la_restriccion_sigue(self):
-        self._fondo(self.carrera, periodo='1')
+    def test_un_solo_fondo_vigente_por_docente_y_gestion(self):
+        self._fondo(self.carrera)
         with self.assertRaises(IntegrityError), transaction.atomic():
             FondoTiempo.objects.bulk_create([
-                FondoTiempo(docente=self.docente, carrera=self.carrera, gestion=2026, periodo='1'),
+                FondoTiempo(docente=self.docente, carrera=self.otra_carrera, gestion=2026),
             ])
+
+    def test_un_fondo_archivado_no_cuenta(self):
+        FondoTiempo.objects.filter(pk=self._fondo(self.carrera).pk).update(archivado=True)
+        FondoTiempo.objects.bulk_create([
+            FondoTiempo(docente=self.docente, carrera=self.carrera, gestion=2026),
+        ])
+        self.assertEqual(FondoTiempo.objects.filter(docente=self.docente, gestion=2026).count(), 2)
 
     def test_la_distribucion_se_valida_en_horas_semanales_con_su_vinculo(self):
         fondo = self._fondo(self.carrera)

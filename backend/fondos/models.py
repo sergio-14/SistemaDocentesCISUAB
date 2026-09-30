@@ -901,30 +901,11 @@ class FondoTiempo(models.Model):
         ('archivado', 'Archivado'),
     ]
     
-    PERIODO_CHOICES = [
-        ('1', 'Primer Semestre'),
-        ('2', 'Segundo Semestre'),
-        ('anual', 'Anual'),
-    ]
-    
+    # Un fondo por docente y gestión, en la carrera de su vínculo: reúne las cargas
+    # de todos los calendarios de esa gestión.
     docente = models.ForeignKey(Docente, on_delete=models.PROTECT, related_name='fondos_tiempo')
     carrera = models.ForeignKey(Carrera, on_delete=models.PROTECT, related_name='fondos_tiempo')
-    calendario_academico = models.ForeignKey(
-        CalendarioAcademico,
-        on_delete=models.PROTECT,
-        related_name='fondos',
-        null=True,
-        blank=True,
-        help_text="Calendario académico al que pertenece este fondo (si aplica)"
-    )
-    
     gestion = models.IntegerField(validators=[MinValueValidator(2020), MaxValueValidator(2100)])
-    periodo = models.CharField(
-        max_length=10, 
-        choices=PERIODO_CHOICES,
-        blank=True,
-        help_text="Periodo académico según calendario (si aplica)"
-    )
 
     # Configuración temporal
     semanas_año = models.DecimalField(
@@ -1010,10 +991,11 @@ class FondoTiempo(models.Model):
         verbose_name_plural = "Fondos de Tiempo"
         ordering = ['-gestion', 'docente']
         constraints = [
-            # Por carrera: un docente en dos carreras tiene un fondo en cada una.
+            # Un solo fondo vigente por docente y gestión (los archivados no cuentan).
             models.UniqueConstraint(
-                fields=['docente', 'carrera', 'gestion', 'periodo'],
-                name='unique_fondo_por_carrera_y_periodo',
+                fields=['docente', 'gestion'],
+                condition=models.Q(archivado=False),
+                name='unique_fondo_por_docente_y_gestion',
             )
         ]
 
@@ -1086,10 +1068,15 @@ class FondoTiempo(models.Model):
             activo=True,
         ).exists()
 
+    def calendarios_de_la_gestion(self):
+        """Calendarios académicos de la carrera del fondo en su gestión."""
+        return CalendarioAcademico.objects.filter(carrera_id=self.carrera_id, gestion=self.gestion)
+
     def fecha_referencia_antiguedad(self):
-        """Inicio de la gestión del fondo: el del calendario académico o el 1 de enero."""
-        if self.calendario_academico_id and self.calendario_academico.fecha_inicio:
-            return self.calendario_academico.fecha_inicio
+        """Inicio de la gestión: el primer día del calendario más temprano o, sin calendarios, el 1 de enero."""
+        primero = self.calendarios_de_la_gestion().order_by('fecha_inicio').first()
+        if primero:
+            return primero.fecha_inicio
         return fecha_referencia_antiguedad(self.gestion)
 
     def _feriados_congelados(self):
@@ -1099,12 +1086,8 @@ class FondoTiempo(models.Model):
         ).exists()
 
     def _dias_feriados_gestion(self):
-        """Días de feriado de la gestión: los del calendario del fondo o, sin él, los de
-        un calendario de su carrera y gestión (el activo primero)."""
-        calendario = self.calendario_academico if self.calendario_academico_id else (
-            CalendarioAcademico.objects.filter(carrera_id=self.carrera_id, gestion=self.gestion)
-            .order_by('-activo').first()
-        )
+        """Días de feriado de la gestión: los de un calendario de su carrera y gestión (el activo primero)."""
+        calendario = self.calendarios_de_la_gestion().order_by('-activo').first()
         return calendario.dias_feriados_gestion if calendario else 0
 
     def _calcular_horas_fondo(self):
@@ -1217,7 +1200,6 @@ class FondoTiempo(models.Model):
                 # (docente, carrera, gestion, periodo, horas_vacacion,
                 # horas_feriados, horas_efectivas) y dejaba editables campos
                 # como semanas_año, horas_semana, contrato_horas,
-                # calendario_academico,
                 # tiene_programa_analitico, programa_analitico_url y
                 # observaciones aunque el fondo ya estuviera presentado.
                 #
@@ -1239,7 +1221,7 @@ class FondoTiempo(models.Model):
                 # `comentarios_admin`, `archivado`, y los automaticos
                 # `fecha_creacion`/`fecha_modificacion`.
                 campos_criticos = [
-                    'docente', 'carrera', 'calendario_academico', 'gestion', 'periodo',
+                    'docente', 'carrera', 'gestion',
                     'semanas_año', 'horas_semana',
                     'horas_vacacion', 'horas_feriados', 'contrato_horas', 'horas_efectivas',
                     'observaciones', 'tiene_programa_analitico', 'programa_analitico_url',
@@ -1326,17 +1308,15 @@ class FondoTiempo(models.Model):
     )['total'] or 0
 
 
-def fondo_de_la_carga(docente, calendario):
-    """Fondo de Tiempo (no archivado) al que va una carga del docente en ese calendario."""
-    if not docente or not calendario:
+def fondo_de_la_carga(docente, gestion):
+    """Fondo de Tiempo vigente (no archivado) del docente en esa gestión."""
+    if not docente or not gestion:
         return None
-    return FondoTiempo.objects.filter(
-        docente=docente, calendario_academico=calendario, archivado=False,
-    ).first()
+    return FondoTiempo.objects.filter(docente=docente, gestion=gestion, archivado=False).first()
 
 
-def mensaje_sin_fondo(calendario):
-    return f'El docente aún no tiene Fondo de Tiempo de la gestión {calendario.gestion} en su carrera.'
+def mensaje_sin_fondo(gestion):
+    return f'El docente aún no tiene Fondo de Tiempo de la gestión {gestion} en su carrera.'
 
 
 class CategoriaFuncion(models.Model):
@@ -1493,7 +1473,11 @@ class CargaHoraria(models.Model):
     docente = models.ForeignKey(Docente, on_delete=models.PROTECT, related_name='cargas_horarias')
     # Se asigna solo al guardar desde la API (fondo_de_la_carga): no se elige a mano.
     fondo = models.ForeignKey(FondoTiempo, on_delete=models.PROTECT, related_name='cargas')
-    calendario = models.ForeignKey(CalendarioAcademico, on_delete=models.PROTECT, related_name='cargas_horarias')
+    # Solo Académica (materias): semestre o año de la materia y horario. El resto son
+    # horas por año del fondo, sin calendario.
+    calendario = models.ForeignKey(
+        CalendarioAcademico, on_delete=models.PROTECT, related_name='cargas_horarias', null=True, blank=True,
+    )
     categoria = models.CharField(max_length=30, choices=CATEGORIA_CHOICES)
     materia = models.ForeignKey(
         Materia,
@@ -1536,7 +1520,7 @@ class CargaHoraria(models.Model):
     class Meta:
         verbose_name = "Carga Horaria"
         verbose_name_plural = "Cargas Horarias"
-        ordering = ['-calendario__gestion', 'docente', 'categoria']
+        ordering = ['-fondo__gestion', 'docente', 'categoria']
         unique_together = ['docente', 'calendario', 'materia', 'paralelo', 'dia_semana', 'hora_inicio']
         constraints = [
             models.CheckConstraint(
@@ -1551,6 +1535,11 @@ class CargaHoraria(models.Model):
                 condition=models.Q(categoria='academica', materia__isnull=False)
                 | ~models.Q(categoria='academica'),
                 name='cargahoraria_materia_obligatoria_si_academica',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(categoria='academica', calendario__isnull=False)
+                | (~models.Q(categoria='academica') & models.Q(calendario__isnull=True)),
+                name='cargahoraria_calendario_solo_en_academica',
             ),
             # Blindaje a nivel de base de datos (auditoria 2026-09-12): la regla de
             # "no repetir tipo_actividad en la misma categoria" antes solo vivia en
@@ -1589,7 +1578,7 @@ def evidencia_carga_horaria_upload_path(instance, filename):
     try:
         carga = instance.carga_horaria
         docente_id = carga.docente_id
-        gestion = carga.calendario.gestion if carga.calendario_id else 'sin_gestion'
+        gestion = carga.fondo.gestion
         return f'fondos/evidencias_carga/docente_{docente_id}/gestion_{gestion}/{carga.categoria}/actividad_{carga.id}/{filename}'
     except Exception:
         return f'fondos/evidencias_carga/sin_clasificar/{filename}'

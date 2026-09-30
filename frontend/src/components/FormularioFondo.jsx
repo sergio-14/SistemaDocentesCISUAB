@@ -188,9 +188,7 @@ function FormularioFondo({ editar = false }) {
   const [formData, setFormData] = useState({
     docente: '',
     carrera: '',
-    calendario_academico: '',
-    gestion: new Date().getFullYear(),
-    periodo: '',
+    gestion: '',
     tiene_programa_analitico: false,
     programa_analitico_url: '',
     estado: 'borrador',
@@ -237,7 +235,6 @@ function FormularioFondo({ editar = false }) {
     ));
   };
 
-  const esSuperAdmin = usuarioActual?.is_superuser === true;
   const docenteBloqueadoPorNavegacion = !editar && Boolean(location.state?.docenteId);
   const docenteSeleccionado = docentes.find((docente) => String(docente.id) === String(formData.docente || ''));
   const vinculoDocenteSeleccionado = obtenerVinculoActivo(docenteSeleccionado);
@@ -251,7 +248,7 @@ function FormularioFondo({ editar = false }) {
   const cargarDocentesPorCarrera = async (
     carreraId,
     docenteActual = '',
-    calendarioId = formData.calendario_academico
+    gestion = formData.gestion
   ) => {
     if (!carreraId) {
       setDocentes([]);
@@ -264,8 +261,8 @@ function FormularioFondo({ editar = false }) {
     try {
       setCargandoDocentes(true);
       const params = { carrera: carreraId };
-      if (calendarioId && !editar) {
-        params.calendario = calendarioId;
+      if (gestion && !editar) {
+        params.sin_fondo_gestion = gestion;
       }
       const response = await getDocentes(params);
       const lista = normalizarLista(response.data);
@@ -318,7 +315,6 @@ function FormularioFondo({ editar = false }) {
           ...prev,
           carrera: carreraInicial,
           docente: docenteDesdeNavegacion,
-          calendario_academico: '',
         }));
 
         if (carreraInicial) {
@@ -335,15 +331,13 @@ function FormularioFondo({ editar = false }) {
         if (!editar && calendarioActivoRes.data) {
           setFormData(prev => ({
             ...prev,
-            calendario_academico: calendarioActivoRes.data.id,
             gestion: calendarioActivoRes.data.gestion,
-            periodo: calendarioActivoRes.data.periodo,
             carrera: carreraInicial,
             docente: docenteDesdeNavegacion,
           }));
 
           if (carreraInicial) {
-            await cargarDocentesPorCarrera(carreraInicial, docenteDesdeNavegacion, calendarioActivoRes.data.id);
+            await cargarDocentesPorCarrera(carreraInicial, docenteDesdeNavegacion, calendarioActivoRes.data.gestion);
           } else {
             setDocentes([]);
           }
@@ -378,19 +372,16 @@ function FormularioFondo({ editar = false }) {
       const fondo = response.data;
       const docenteId = obtenerId(fondo.docente);
       const carreraId = obtenerId(fondo.carrera);
-      const calendarioId = obtenerId(fondo.calendario_academico);
       setFormData({
         docente: docenteId,
         carrera: carreraId,
-        calendario_academico: calendarioId,
         gestion: fondo.gestion,
-        periodo: fondo.periodo || '',
         tiene_programa_analitico: fondo.tiene_programa_analitico || false,
         programa_analitico_url: fondo.programa_analitico_url || '',
         estado: fondo.estado,
       });
       if (carreraId) {
-        await cargarDocentesPorCarrera(carreraId, docenteId, calendarioId);
+        await cargarDocentesPorCarrera(carreraId, docenteId, fondo.gestion);
       }
     } catch (err) {
       console.error('Error al cargar fondo:', err);
@@ -410,15 +401,8 @@ function FormularioFondo({ editar = false }) {
         [name]: newValue
       };
 
-      if (name === 'calendario_academico' && value) {
-        const calendarioSeleccionado = calendarios.find(c => c.id === parseInt(value));
-        if (calendarioSeleccionado) {
-          updated.gestion = calendarioSeleccionado.gestion;
-          updated.periodo = calendarioSeleccionado.periodo;
-          if (!docenteBloqueadoPorNavegacion) {
-            updated.docente = '';
-          }
-        }
+      if (name === 'gestion' && !docenteBloqueadoPorNavegacion) {
+        updated.docente = '';
       }
 
       if (name === 'carrera') {
@@ -429,13 +413,13 @@ function FormularioFondo({ editar = false }) {
     });
 
     if (name === 'carrera') {
-      cargarDocentesPorCarrera(value, '', formData.calendario_academico);
+      cargarDocentesPorCarrera(value, '', formData.gestion);
     }
 
-    if (name === 'calendario_academico' && value) {
+    if (name === 'gestion' && value) {
       cargarDocentesPorCarrera(formData.carrera, '', value);
     }
-    
+
     if (erroresCampos[name]) {
       setErroresCampos({
         ...erroresCampos,
@@ -473,19 +457,6 @@ function FormularioFondo({ editar = false }) {
     }
   };
 
-  const getPeriodoLabel = (periodo) => {
-    const periodos = {
-      '1': 'Primer Semestre',
-      '2': 'Segundo Semestre',
-      'anual': 'Anual',
-      '1S': 'Primer Semestre',
-      '2S': 'Segundo Semestre',
-      'A': 'Anual',
-      'V': 'Verano'
-    };
-    return periodos[periodo] || periodo;
-  };
-
   const validarFormulario = () => {
     const errores = {};
 
@@ -498,14 +469,8 @@ function FormularioFondo({ editar = false }) {
     if (!formData.carrera) {
       errores.carrera = 'Por favor, seleccione una opción.';
     }
-    if (!formData.calendario_academico) {
-      errores.calendario_academico = 'Por favor, seleccione una opción.';
-    }
-    if (!formData.gestion || formData.gestion < 2020) {
-      errores.gestion = 'Gestión inválida';
-    }
-    if (!formData.periodo) {
-      errores.periodo = 'Por favor, seleccione una opción.';
+    if (!formData.gestion) {
+      errores.gestion = 'Por favor, seleccione una opción.';
     }
     if (formData.tiene_programa_analitico && !formData.programa_analitico_url) {
       errores.programa_analitico_url = 'Debe proporcionar la URL del programa analítico';
@@ -521,7 +486,6 @@ function FormularioFondo({ editar = false }) {
         params: {
           docente: formData.docente,
           gestion: formData.gestion,
-          periodo: formData.periodo,
         }
       });
       
@@ -530,8 +494,7 @@ function FormularioFondo({ editar = false }) {
       const duplicados = fondos.filter(f => 
         (!editar || f.id !== parseInt(id)) &&
         f.docente === parseInt(formData.docente) &&
-        f.gestion === parseInt(formData.gestion) &&
-        f.periodo === formData.periodo
+        f.gestion === parseInt(formData.gestion)
       );
       
       return duplicados.length > 0;
@@ -579,16 +542,12 @@ function FormularioFondo({ editar = false }) {
     const origen = data?.details || data;
     if (!origen || typeof origen !== 'object') return {};
 
-    const mapaClaves = {
-      calendario: 'calendario_academico',
-    };
-
     const errores = {};
 
     Object.entries(origen).forEach(([clave, valor]) => {
       if (['error', 'detail', 'details', 'non_field_errors'].includes(clave)) return;
 
-      const claveCampo = mapaClaves[clave] || clave;
+      const claveCampo = clave;
       const mensaje = Array.isArray(valor)
         ? String(valor[0])
         : typeof valor === 'string'
@@ -646,7 +605,7 @@ function FormularioFondo({ editar = false }) {
       const esDuplicado = await verificarDuplicado();
       
       if (esDuplicado) {
-        const mensajeError = '⚠️ Ya existe un fondo de tiempo con estos datos (mismo docente, gestión y periodo). No se permiten duplicados.';
+        const mensajeError = '⚠️ Ya existe un fondo de tiempo con estos datos (mismo docente y gestión). No se permiten duplicados.';
         setError(mensajeError);
         toast.error(mensajeError, {
           duration: 6000,
@@ -665,7 +624,7 @@ function FormularioFondo({ editar = false }) {
         ...formData,
         docente: (formData.docente && typeof formData.docente === 'object') ? formData.docente.id : formData.docente,
         carrera: (formData.carrera && typeof formData.carrera === 'object') ? formData.carrera.id : formData.carrera,
-        calendario_academico: parseInt(formData.calendario_academico),
+        gestion: parseInt(formData.gestion),
       };
       
       if (editar && id) {
@@ -762,10 +721,13 @@ function FormularioFondo({ editar = false }) {
       }))
     : [];
 
-  const calendarioOptions = calendarios.map((calendario) => ({
-    value: calendario.id,
-    label: `${calendario.gestion} - ${getPeriodoLabel(calendario.periodo)}${calendario.activo ? ' (Activo)' : ''}`,
-  }));
+  const gestionOptions = [...new Set(
+    calendarios
+      .filter((calendario) => String(obtenerId(calendario.carrera)) === String(formData.carrera))
+      .map((calendario) => calendario.gestion)
+  )]
+    .sort((a, b) => b - a)
+    .map((gestion) => ({ value: gestion, label: `Gestión ${gestion}` }));
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6 animate-fade-in flex items-center justify-center">
@@ -823,17 +785,17 @@ function FormularioFondo({ editar = false }) {
                           value={formData.docente}
                           onChange={handleDocenteChange}
                           onFocus={() => handleFieldFocus({ target: { name: 'docente' } })}
-                          disabled={editar || docenteBloqueadoPorNavegacion || !formData.calendario_academico}
+                          disabled={editar || docenteBloqueadoPorNavegacion || !formData.gestion}
                           options={docenteOptions}
                           placeholder={
                             !formData.carrera
                               ? 'Seleccione una carrera primero'
-                              : !formData.calendario_academico
-                                ? 'Seleccione un calendario primero'
+                              : !formData.gestion
+                                ? 'Seleccione una gestión primero'
                                 : cargandoDocentes
                                   ? 'Cargando docentes...'
                                   : docenteOptions.length === 0
-                                    ? 'Todos los docentes tienen fondo de tiempo para este periodo'
+                                    ? 'Todos los docentes tienen fondo de tiempo en esta gestión'
                                     : 'Seleccione un docente'
                           }
                           error={erroresCampos.docente}
@@ -841,9 +803,9 @@ function FormularioFondo({ editar = false }) {
                         {erroresCampos.docente && (
                           <p className="text-xs text-red-600 dark:text-red-400 mt-1">{erroresCampos.docente}</p>
                         )}
-                        {formData.carrera && formData.calendario_academico && !cargandoDocentes && docenteOptions.length === 0 && (
+                        {formData.carrera && formData.gestion && !cargandoDocentes && docenteOptions.length === 0 && (
                           <p className="text-xs text-amber-600 dark:text-amber-300 mt-1">
-                            Todos los docentes tienen fondo de tiempo para este periodo
+                            Todos los docentes tienen fondo de tiempo en esta gestión
                           </p>
                         )}
                         {docenteDedicacionExclusiva && (
@@ -874,61 +836,39 @@ function FormularioFondo({ editar = false }) {
                         )}
                       </div>
 
-                      {/* Calendario */}
-                      <div className={`${shakingFields.calendario_academico ? ERROR_MOTION_CLASS : ''} order-3`}>
+                      {/* Gestión */}
+                      <div className={`${shakingFields.gestion ? ERROR_MOTION_CLASS : ''} order-3`}>
                         <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
-                          Calendario Académico {erroresCampos.calendario_academico && <span className="text-red-500">*</span>}
-                          {calendarioActivo && formData.calendario_academico == calendarioActivo.id && (
+                          Gestión {erroresCampos.gestion && <span className="text-red-500">*</span>}
+                          {calendarioActivo && String(formData.gestion) === String(calendarioActivo.gestion) && (
                             <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
                               <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                               </svg>
-                              Activo
+                              Activa
                             </span>
                           )}
                         </label>
                         <SelectConDropdown
-                          name="calendario_academico"
+                          name="gestion"
                           label=""
-                          value={formData.calendario_academico}
-                          onChange={handleChange}
-                          onFocus={() => handleFieldFocus({ target: { name: 'calendario_academico' } })}
-                          disabled={loading || editar}
-                          options={calendarioOptions}
-                          placeholder="Seleccione un calendario academico"
-                          error={erroresCampos.calendario_academico}
-                        />
-                        {erroresCampos.calendario_academico && (
-                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">{erroresCampos.calendario_academico}</p>
-                        )}
-                      </div>
-
-                      {/* Gestion y Periodo */}
-                      <div className={esSuperAdmin ? 'order-6' : 'order-5'}>
-                        <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
-                          Gestion (Año)
-                        </label>
-                        <input
-                          type="number"
                           value={formData.gestion}
-                          readOnly
-                          disabled
-                          className="h-[46px] w-full px-4 py-0 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-slate-400 shadow-sm"
+                          onChange={handleChange}
+                          onFocus={() => handleFieldFocus({ target: { name: 'gestion' } })}
+                          disabled={loading || editar || !formData.carrera}
+                          options={gestionOptions}
+                          placeholder={
+                            !formData.carrera
+                              ? 'Seleccione una carrera primero'
+                              : gestionOptions.length === 0
+                                ? 'La carrera no tiene calendarios académicos'
+                                : 'Seleccione una gestión'
+                          }
+                          error={erroresCampos.gestion}
                         />
-                      </div>
-
-                      <div className={esSuperAdmin ? 'order-7' : 'order-6'}>
-                        <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
-                          Periodo
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.periodo ? getPeriodoLabel(formData.periodo) : ''}
-                          readOnly
-                          disabled
-                          placeholder="Automatico"
-                          className="h-[46px] w-full px-4 py-0 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-slate-400 placeholder-slate-500 shadow-sm"
-                        />
+                        {erroresCampos.gestion && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">{erroresCampos.gestion}</p>
+                        )}
                       </div>
               </div>
 
@@ -1012,7 +952,7 @@ function FormularioFondo({ editar = false }) {
                         <p className="font-bold mb-2">Resumen:</p>
                         <ul className="list-disc list-inside space-y-1">
                           <li>Después de crear, distribuya las horas semanales del docente (ej. 40h para TC) entre las 7 categorías oficiales</li>
-                          <li>No se permiten duplicados (mismo docente, gestión y periodo)</li>
+                          <li>Un solo fondo por docente y gestión: reúne las materias de todos los calendarios del año</li>
                           <li>Solo fondos en "borrador" pueden editarse</li>
                         </ul>
                       </div>

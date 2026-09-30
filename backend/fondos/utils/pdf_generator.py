@@ -947,7 +947,7 @@ class FondoPDFGenerator:
         if lineas_asignaturas:
             asignatura_texto = "<br/>".join(lineas_asignaturas)
         else:
-            asignatura_texto = escape(str(fondo.asignatura or "Sin asignaturas")).replace('\n', '<br/>')
+            asignatura_texto = "Sin asignaturas"
 
         # Tabla anidada para alineación (Label | Contenido)
         lbl_asig = Paragraph("Asignatura:", estilo_docente_label)

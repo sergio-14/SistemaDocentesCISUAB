@@ -82,9 +82,9 @@ function FormularioObservar({ fondo, onObservar, onCancelar }) {
                 </p>
               </div>
               <div>
-                <span>Asignatura:</span>
+                <span>Fondo:</span>
                 <p>
-                  {fondo.asignatura || 'N/A'}
+                  {fondo.descripcion}
                 </p>
               </div>
               <div>

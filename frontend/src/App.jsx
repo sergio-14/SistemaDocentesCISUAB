@@ -39,8 +39,6 @@ import MateriaList from './components/materias/MateriaList';
 import MateriaForm from './components/materias/MateriaForm';
 import VistaCalendarioActivo from './VistaCalendarioActivo';
 import Proximamente from './components/Proximamente';
-import FondosLargoPlazo from './components/FondosLargoPlazo';
-import SeguimientoGlobal from './components/SeguimientoGlobal';
 import AdminPanel from './components/AdminPanel';
 import SimpleLayout from './components/layouts/SimpleLayout';
 import AdminDashboard from './components/AdminDashboard';
@@ -330,12 +328,12 @@ function App() {
               
               {/* Las rutas hijas son relativas al padre */}
               <Route path="fondo/:id" element={<AnimatedRoute><DetalleFondo isDark={isDark} /></AnimatedRoute>} />
-              <Route path="comparar" element={<AnimatedRoute><Comparador isDark={isDark} /></AnimatedRoute>} />
+              <Route path="comparar" element={<AnimatedRoute><Comparador /></AnimatedRoute>} />
               <Route path="nuevo-fondo" element={<AnimatedRoute><FormularioFondo isDark={isDark} /></AnimatedRoute>} />
               <Route path="editar-fondo/:id" element={<AnimatedRoute><FormularioFondo isDark={isDark} editar={true} /></AnimatedRoute>} />
 
               <Route path="cargas-horarias" element={<AnimatedRoute><CargaHorariaGeneral isDark={isDark} /></AnimatedRoute>} />
-              <Route path="docentes/:id" element={<AnimatedRoute><FondoTiempoDocente isDark={isDark} /></AnimatedRoute>} />
+              <Route path="docentes/:id" element={<AnimatedRoute><FondoTiempoDocente /></AnimatedRoute>} />
               {/* Ruta para los fondos archivados dentro del módulo de Fondo de Tiempo */}
               <Route path="archivados" element={<AnimatedRoute><FondosArchivados isDark={isDark} /></AnimatedRoute>} />
 
@@ -348,11 +346,6 @@ function App() {
               </Route>
 
               <Route path="*" element={<Navigate to="/fondo-tiempo" replace />} />
-            </Route>
-
-            {/* Módulo: Fondos a Largo Plazo */}
-            <Route path="/largo-plazo" element={<SimpleLayout theme={theme} setTheme={setTheme} />}>
-              <Route index element={<Proximamente isDark={isDark} />} />
             </Route>
 
             {/* Módulo Principal: Gestión Global de Usuarios/Carreras */}

@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
-import { getDocentes, getCarreras, getMaterias, crearFondoTiempo, getCalendarioActivo, getCalendarios } from '../apis/api';
+import { getDocentes, getCarreras, crearFondoTiempo, getCalendarioActivo, getCalendarios } from '../apis/api';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
 import {
@@ -159,399 +158,6 @@ const SelectConDropdown = ({
   );
 };
 
-const SemesterPicker = ({ value, onChange, error, onClearError, disabled = false }) => {
-  const [open, setOpen] = useState(false);
-  const [draftSemester, setDraftSemester] = useState(Number(value || 1));
-  const [pickerOpenToken, setPickerOpenToken] = useState(0);
-  const minSemester = 1;
-  const maxSemester = 10;
-  const errorMessage = Array.isArray(error) ? error[0] : error;
-  const motionClass = errorMessage ? ERROR_MOTION_CLASS : '';
-
-  const clampSemester = (sem) => Math.max(minSemester, Math.min(maxSemester, sem));
-
-  useEffect(() => {
-    if (!open) {
-      setDraftSemester(Number(value || 1));
-    }
-  }, [value, open]);
-
-  const commitDraftAndClose = () => {
-    onChange({ target: { name: 'semestre', value: String(clampSemester(Number(draftSemester || 1))) } });
-    setOpen(false);
-  };
-
-  const openSemesterSelector = () => {
-    if (disabled) return;
-    onClearError?.();
-    setDraftSemester(Number(value || 1));
-    setPickerOpenToken((prev) => prev + 1);
-    setOpen(true);
-  };
-
-  return (
-    <>
-      <div>
-        <button
-          type="button"
-          name="semestre"
-          onClick={openSemesterSelector}
-          disabled={disabled}
-          aria-invalid={Boolean(errorMessage)}
-          className={`h-[46px] w-full px-4 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-slate-100 text-left flex items-center justify-between transition-all disabled:cursor-not-allowed disabled:opacity-70 ${
-            errorMessage ? `${ERROR_FIELD_BORDER_CLASS} ${motionClass}` : 'border-2 border-slate-300 dark:border-slate-600 hover:border-[#3D6DE0]/70'
-          }`}
-        >
-          <span className="font-semibold">{value ? `${value}° Semestre` : 'Seleccione un semestre'}</span>
-        </button>
-        {errorMessage && <p className={`text-xs text-red-600 dark:text-red-400 mt-1 ${motionClass}`}>{errorMessage}</p>}
-      </div>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            className="fixed inset-0 z-[90] flex items-center justify-center p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.14 }}
-          >
-            <div className="absolute inset-0 bg-black/35 backdrop-blur-[1px]" onClick={commitDraftAndClose} />
-            <motion.div
-              className="relative w-full max-w-xs rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl shadow-2xl overflow-hidden border border-[#7F97E8]/45"
-              initial={{ y: 14, scale: 0.98, opacity: 0 }}
-              animate={{ y: 0, scale: 1, opacity: 1 }}
-              exit={{ y: 10, scale: 0.99, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-            >
-              <div className="p-4">
-                <VerticalSemesterWheelPicker
-                  key={`semester-wheel-${pickerOpenToken}`}
-                  value={Number(draftSemester || 1)}
-                  onChange={(sem) => setDraftSemester(Number(sem))}
-                  onSettled={(sem) => onChange({ target: { name: 'semestre', value: String(sem) } })}
-                  onConfirm={commitDraftAndClose}
-                  wheelResetToken={pickerOpenToken}
-                  minSemester={minSemester}
-                  maxSemester={maxSemester}
-                  visibleCount={5}
-                  itemHeight={44}
-                />
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
-  );
-};
-
-const VerticalSemesterWheelPicker = ({
-  value,
-  onChange,
-  onSettled,
-  onConfirm,
-  wheelResetToken,
-  minSemester = 1,
-  maxSemester = 10,
-  visibleCount = 5,
-  itemHeight = 52,
-}) => {
-  const iosWheelTransition = {
-    type: 'spring',
-    stiffness: 240,
-    damping: 30,
-    mass: 0.9,
-    restDelta: 0.2,
-    restSpeed: 0.2,
-  };
-
-  const semesters = useMemo(() => {
-    const list = [];
-    for (let s = minSemester; s <= maxSemester; s += 1) list.push(s);
-    return list;
-  }, [minSemester, maxSemester]);
-
-  const getIndexFromSemester = (semValue) => {
-    const numeric = Number(semValue);
-    const fallbackSemester = Math.round((minSemester + maxSemester) / 2);
-    const safeSemester = Number.isFinite(numeric) ? numeric : fallbackSemester;
-    const clampedSemester = Math.max(minSemester, Math.min(maxSemester, safeSemester));
-    return clampedSemester - minSemester;
-  };
-
-  const initialIndex = getIndexFromSemester(value ?? minSemester);
-  const viewportRef = useRef(null);
-  const padSlots = 3;
-  const [targetIndex, setTargetIndex] = useState(initialIndex);
-  const [centeredIndex, setCenteredIndex] = useState(initialIndex);
-  const [centerFloatIndex, setCenterFloatIndex] = useState(initialIndex);
-  const centeredIndexRef = useRef(initialIndex);
-  const centerFloatRef = useRef(initialIndex);
-  const isIntroAnimatingRef = useRef(true);
-  const lastInternalSemesterRef = useRef(null);
-  const wheelDeltaAccumRef = useRef(0);
-  const wheelLastStepAtRef = useRef(0);
-  const wheelIdleResetTimerRef = useRef(null);
-  const wheelIgnoreUntilRef = useRef(0);
-
-  const clampIndex = (idx) => Math.max(0, Math.min(semesters.length - 1, idx));
-  const wheelHeight = visibleCount * itemHeight;
-  const centerOffset = Math.floor(visibleCount / 2);
-  const displaySemesters = useMemo(() => {
-    const top = new Array(padSlots).fill(null);
-    const bottom = new Array(padSlots).fill(null);
-    return [...top, ...semesters, ...bottom];
-  }, [semesters]);
-
-  const targetDisplayIndex = targetIndex + padSlots;
-  const targetY = (centerOffset - targetDisplayIndex) * itemHeight;
-  const clampedFloatIndex = Math.max(0, Math.min(semesters.length - 1, centerFloatIndex));
-  const visualDisplayIndex = clampedFloatIndex + padSlots;
-  const centeredDisplayIndex = centeredIndex + padSlots;
-  const lowerFloatIndex = Math.floor(clampedFloatIndex);
-  const upperFloatIndex = Math.ceil(clampedFloatIndex);
-  const centerProgress = clampedFloatIndex - lowerFloatIndex;
-
-  const getOverlayStyle = (offsetY) => {
-    const ratio = Math.max(0, 1 - Math.abs(offsetY) / itemHeight);
-    const eased = ratio * ratio;
-    const scale = 0.92 + 0.48 * eased;
-    const opacity = 0.22 + 0.78 * ratio;
-    const brightness = 0.85 + 0.25 * eased;
-    return {
-      transform: `translateY(${offsetY}px) scale(${scale})`,
-      opacity,
-      filter: `brightness(${brightness})`,
-    };
-  };
-
-  const stepSelection = (steps) => {
-    if (!semesters.length || steps === 0) return;
-    setTargetIndex((prev) => clampIndex(prev + steps));
-  };
-
-  useEffect(() => {
-    if (!semesters.length || wheelResetToken === 0) return;
-    const idx = semesters.findIndex((s) => Number(s) === Number(value || minSemester));
-    const syncIndex = idx >= 0 ? idx : 0;
-    setTargetIndex(syncIndex);
-    setCenteredIndex(syncIndex);
-    setCenterFloatIndex(syncIndex);
-    centeredIndexRef.current = syncIndex;
-    centerFloatRef.current = syncIndex;
-    isIntroAnimatingRef.current = true;
-    lastInternalSemesterRef.current = Number(semesters[syncIndex]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo se resincroniza al reiniciar la rueda, no con cada valor.
-  }, [wheelResetToken, semesters.length]);
-
-  useEffect(() => {
-    if (centeredIndex !== targetIndex) return;
-    const selectedSemester = semesters[centeredIndex];
-    if (selectedSemester === undefined || Number(selectedSemester) === lastInternalSemesterRef.current) return;
-    lastInternalSemesterRef.current = Number(selectedSemester);
-    onChange(selectedSemester);
-    onSettled?.(selectedSemester);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- avisa solo cuando la rueda se detiene en un semestre.
-  }, [centeredIndex, targetIndex, semesters]);
-
-  useEffect(() => {
-    const node = viewportRef.current;
-    if (!node) return;
-
-    wheelIgnoreUntilRef.current = Date.now() + 360;
-    wheelDeltaAccumRef.current = 0;
-    wheelLastStepAtRef.current = 0;
-
-    const handleWheelNative = (event) => {
-      event.preventDefault();
-      const now = Date.now();
-      if (now < wheelIgnoreUntilRef.current) return;
-
-      const normalizedDelta =
-        event.deltaMode === 1
-          ? event.deltaY * 16
-          : event.deltaMode === 2
-            ? event.deltaY * wheelHeight
-            : event.deltaY;
-
-      if (event.deltaMode === 0 && Math.abs(normalizedDelta) < 8) return;
-      wheelDeltaAccumRef.current += normalizedDelta;
-
-      if (Math.abs(wheelDeltaAccumRef.current) < 48) return;
-      if (now - wheelLastStepAtRef.current < 95) return;
-
-      stepSelection(wheelDeltaAccumRef.current > 0 ? 1 : -1);
-      wheelLastStepAtRef.current = now;
-      wheelDeltaAccumRef.current = 0;
-
-      if (wheelIdleResetTimerRef.current) clearTimeout(wheelIdleResetTimerRef.current);
-      wheelIdleResetTimerRef.current = setTimeout(() => {
-        wheelDeltaAccumRef.current = 0;
-      }, 140);
-    };
-
-    node.addEventListener('wheel', handleWheelNative, { passive: false });
-    return () => node.removeEventListener('wheel', handleWheelNative);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- el listener se registra una vez por rueda; usa refs para el estado.
-  }, [semesters.length, wheelResetToken]);
-
-  useEffect(() => {
-    return () => {
-      if (wheelIdleResetTimerRef.current) clearTimeout(wheelIdleResetTimerRef.current);
-    };
-  }, []);
-
-  return (
-    <div
-      className="relative rounded-xl border border-[#3D6DE0]/35 dark:border-[#4B67C0]/45 bg-white/70 dark:bg-slate-800/60 overflow-hidden transition-all duration-100"
-      style={{
-        height: `${wheelHeight}px`,
-        perspective: '1000px',
-        perspectiveOrigin: '50% 50%',
-        transformStyle: 'preserve-3d',
-      }}
-    >
-      <div
-        className="pointer-events-none absolute inset-x-0 z-10 border-y-2 border-[#3D6DE0]/60 dark:border-[#6B86DE]/70 bg-gradient-to-r from-[#3D6DE0]/15 to-[#3D6DE0]/15 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.35),inset_0_-1px_0_0_rgba(255,255,255,0.25)]"
-        style={{
-          top: `${centerOffset * itemHeight}px`,
-          height: `${itemHeight}px`,
-        }}
-      >
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="relative h-full w-full flex items-center justify-center">
-            {semesters[lowerFloatIndex] !== undefined && (
-              <span
-                className="absolute tracking-wide font-extrabold text-[#1F3274] dark:text-white text-base drop-shadow-[0_1px_2px_rgba(255,255,255,0.35)] dark:drop-shadow-lg"
-                style={getOverlayStyle(-centerProgress * itemHeight)}
-              >
-                {semesters[lowerFloatIndex]}° Semestre
-              </span>
-            )}
-
-            {upperFloatIndex !== lowerFloatIndex && semesters[upperFloatIndex] !== undefined && (
-              <span
-                className="absolute tracking-wide font-extrabold text-[#1F3274] dark:text-white text-base drop-shadow-[0_1px_2px_rgba(255,255,255,0.35)] dark:drop-shadow-lg"
-                style={getOverlayStyle((1 - centerProgress) * itemHeight)}
-              >
-                {semesters[upperFloatIndex]}° Semestre
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-white/70 via-white/30 to-transparent dark:from-slate-900/70 dark:via-slate-900/25 z-10" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-white/70 via-white/30 to-transparent dark:from-slate-900/70 dark:via-slate-900/25 z-10" />
-
-      <div
-        ref={viewportRef}
-        className="relative select-none overflow-hidden cursor-default"
-        style={{ height: '100%', touchAction: 'auto' }}
-        tabIndex={0}
-        onKeyDown={(event) => {
-          if (event.repeat) return;
-          const key = event.key.toLowerCase();
-          if (key === 'w' || key === 'arrowup') {
-            event.preventDefault();
-            stepSelection(-1);
-          } else if (key === 's' || key === 'arrowdown') {
-            event.preventDefault();
-            stepSelection(1);
-          } else if (key === 'enter') {
-            event.preventDefault();
-            const selectedSemester = semesters[centeredIndex];
-            if (selectedSemester !== undefined) onConfirm?.(selectedSemester);
-          }
-        }}
-        onPointerDown={(event) => event.currentTarget.focus()}
-      >
-        <motion.div
-          className="flex flex-col"
-          initial={{ y: targetY + itemHeight * 2 }}
-          animate={{ y: targetY }}
-          transition={iosWheelTransition}
-          style={{ willChange: 'transform' }}
-          onUpdate={(latest) => {
-            const y = typeof latest === 'number' ? latest : latest?.y;
-            if (!Number.isFinite(y)) return;
-            const floatDisplayIndex = centerOffset - y / itemHeight;
-            const floatIndex = floatDisplayIndex - padSlots;
-            const boundedFloat = Math.max(0, Math.min(semesters.length - 1, floatIndex));
-            if (Math.abs(boundedFloat - centerFloatRef.current) > 0.005) {
-              centerFloatRef.current = boundedFloat;
-              setCenterFloatIndex(boundedFloat);
-            }
-
-            if (isIntroAnimatingRef.current) return;
-
-            const displayIndex = Math.round(centerOffset - y / itemHeight);
-            const idx = clampIndex(displayIndex - padSlots);
-            if (idx === centeredIndexRef.current) return;
-
-            const current = centeredIndexRef.current;
-            const directionToTarget = Math.sign(targetIndex - current);
-            if (directionToTarget > 0 && idx <= current) return;
-            if (directionToTarget < 0 && idx >= current) return;
-            if (directionToTarget === 0) return;
-
-            centeredIndexRef.current = idx;
-            setCenteredIndex(idx);
-          }}
-          onAnimationComplete={() => {
-            if (!isIntroAnimatingRef.current) return;
-            isIntroAnimatingRef.current = false;
-            setCenterFloatIndex(centeredIndexRef.current);
-          }}
-        >
-          {displaySemesters.map((sem, idx) => {
-            const isPlaceholder = sem === null;
-            const distance = idx - visualDisplayIndex;
-            const clamped = Math.max(-4, Math.min(4, distance));
-            const abs = Math.abs(clamped);
-            const rotationX = Math.max(-62, Math.min(62, Math.sign(clamped) * Math.pow(abs, 1.08) * 16));
-            const opacity = abs < 0.35 ? 1 : Math.max(0.4, 1 - abs * 0.2);
-            const translateZ = -Math.min(58, abs * 16);
-
-            return (
-              <div
-                key={`semester-${sem !== null ? sem : 'placeholder'}-${idx}`}
-                className="flex items-center justify-center flex-shrink-0"
-                style={{
-                  height: `${itemHeight}px`,
-                  width: '100%',
-                  transformStyle: 'preserve-3d',
-                  transform: `translateY(${Math.sign(clamped) * abs * 0.35}px) rotateX(${rotationX}deg) translateZ(${translateZ}px) scale(${abs < 0.35 ? 1 : 0.97})`,
-                  transformOrigin: 'center center',
-                  opacity: isPlaceholder ? 0 : opacity,
-                }}
-              >
-                {isPlaceholder ? null : abs < 0.35 ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (idx === centeredDisplayIndex) onConfirm?.(sem);
-                    }}
-                    className="w-full h-full flex items-center justify-center tracking-wide font-extrabold text-transparent text-base scale-125 cursor-pointer select-none"
-                    title="Confirmar semestre seleccionado"
-                    aria-label={`Seleccionar semestre ${sem}`}
-                  >
-                    {sem}° Semestre
-                  </button>
-                ) : (
-                  <span className="tracking-wide font-semibold text-slate-700 dark:text-slate-300 text-base">
-                    {sem}°
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </motion.div>
-      </div>
-    </div>
-  );
-};
-
 function FormularioFondo({ editar = false }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -563,8 +169,6 @@ function FormularioFondo({ editar = false }) {
   const [usuarioActual, setUsuarioActual] = useState(null);
   const [carreraBloqueada, setCarreraBloqueada] = useState(false);
   const [cargandoDocentes, setCargandoDocentes] = useState(false);
-  const [materias, setMaterias] = useState([]);
-  const [cargandoMaterias, setCargandoMaterias] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingDatos, setLoadingDatos] = useState(true);
   const [error, setError] = useState('');
@@ -585,10 +189,8 @@ function FormularioFondo({ editar = false }) {
     docente: '',
     carrera: '',
     calendario_academico: '',
-    semestre: '',
     gestion: new Date().getFullYear(),
     periodo: '',
-    asignatura: '',
     tiene_programa_analitico: false,
     programa_analitico_url: '',
     estado: 'borrador',
@@ -640,60 +242,6 @@ function FormularioFondo({ editar = false }) {
   const docenteSeleccionado = docentes.find((docente) => String(docente.id) === String(formData.docente || ''));
   const vinculoDocenteSeleccionado = obtenerVinculoActivo(docenteSeleccionado);
   const docenteDedicacionExclusiva = vinculoDocenteSeleccionado?.dedicacion === 'dedicacion_exclusiva';
-
-  const obtenerSemestrePorPeriodo = (periodo) => {
-    const valor = String(periodo || '').toLowerCase();
-    if (['1', '1s', 'primer_semestre'].includes(valor)) return 1;
-    if (['2', '2s', 'segundo_semestre'].includes(valor)) return 2;
-    return null;
-  };
-
-  const obtenerSemestreMateria = (materia) => {
-    const sigla = String(materia?.sigla || '');
-    const match = sigla.match(/o\d(\d)/i);
-    if (match) return Number(match[1]);
-    return Number(materia?.semestre || 0);
-  };
-
-  const formatearMateria = (materia) => {
-    const horas = materia.horas_totales ?? ((Number(materia.horas_teoricas) || 0) + (Number(materia.horas_practicas) || 0));
-    return `${materia.sigla} - ${materia.nombre} (${horas} hrs/sem)`;
-  };
-
-  const materiaExisteEnLista = (asignatura) => (
-    materias.some((materia) => materia.nombre === asignatura)
-  );
-
-  const cargarMateriasFiltradas = async ({ carreraId, periodo = formData.periodo } = {}) => {
-    if (!carreraId) {
-      setMaterias([]);
-      return [];
-    }
-
-    try {
-      setCargandoMaterias(true);
-      // Solo materias activas: una inactiva no se asigna en fondos nuevos.
-      const params = { carrera: carreraId, activo: true };
-
-      const response = await getMaterias(params);
-      let lista = normalizarLista(response.data);
-
-      const semestrePeriodo = obtenerSemestrePorPeriodo(periodo);
-      if (semestrePeriodo) {
-        lista = lista.filter((materia) => obtenerSemestreMateria(materia) === semestrePeriodo);
-      }
-
-      setMaterias(lista);
-      return lista;
-    } catch (err) {
-      console.error('Error al cargar materias:', err);
-      toast.error(getApiErrorMessage(err, 'Error al cargar materias de la carrera'));
-      setMaterias([]);
-      return [];
-    } finally {
-      setCargandoMaterias(false);
-    }
-  };
 
   useEffect(() => {
     cargarDatosPorRol();
@@ -771,8 +319,6 @@ function FormularioFondo({ editar = false }) {
           carrera: carreraInicial,
           docente: docenteDesdeNavegacion,
           calendario_academico: '',
-          semestre: '',
-          asignatura: '',
         }));
 
         if (carreraInicial) {
@@ -793,25 +339,18 @@ function FormularioFondo({ editar = false }) {
             gestion: calendarioActivoRes.data.gestion,
             periodo: calendarioActivoRes.data.periodo,
             carrera: carreraInicial,
-            semestre: '',
-            asignatura: '',
             docente: docenteDesdeNavegacion,
           }));
 
           if (carreraInicial) {
             await cargarDocentesPorCarrera(carreraInicial, docenteDesdeNavegacion, calendarioActivoRes.data.id);
-            await cargarMateriasFiltradas({
-              carreraId: carreraInicial,
-              periodo: calendarioActivoRes.data.periodo,
-            });
           } else {
             setDocentes([]);
-            setMaterias([]);
           }
         }
       } catch (err) {
         // Sin calendario activo el backend responde 404. Cualquier otro error (p. ej. al
-        // cargar docentes o materias) no se oculta como si faltara el calendario.
+        // cargar docentes) no se oculta como si faltara el calendario.
         if (err?.response?.status === 404) {
           console.warn('No hay calendario activo configurado');
         } else {
@@ -844,24 +383,14 @@ function FormularioFondo({ editar = false }) {
         docente: docenteId,
         carrera: carreraId,
         calendario_academico: calendarioId,
-        semestre: '',
         gestion: fondo.gestion,
         periodo: fondo.periodo || '',
-        asignatura: fondo.asignatura,
         tiene_programa_analitico: fondo.tiene_programa_analitico || false,
         programa_analitico_url: fondo.programa_analitico_url || '',
         estado: fondo.estado,
       });
       if (carreraId) {
         await cargarDocentesPorCarrera(carreraId, docenteId, calendarioId);
-        const listaMaterias = await cargarMateriasFiltradas({
-          carreraId,
-          periodo: fondo.periodo || '',
-        });
-        const materiaFondo = listaMaterias.find((materia) => materia.nombre === fondo.asignatura);
-        if (materiaFondo) {
-          setFormData(prev => ({ ...prev, semestre: String(materiaFondo.semestre) }));
-        }
       }
     } catch (err) {
       console.error('Error al cargar fondo:', err);
@@ -886,7 +415,6 @@ function FormularioFondo({ editar = false }) {
         if (calendarioSeleccionado) {
           updated.gestion = calendarioSeleccionado.gestion;
           updated.periodo = calendarioSeleccionado.periodo;
-          updated.asignatura = '';
           if (!docenteBloqueadoPorNavegacion) {
             updated.docente = '';
           }
@@ -895,12 +423,6 @@ function FormularioFondo({ editar = false }) {
 
       if (name === 'carrera') {
         updated.docente = '';
-        updated.semestre = '';
-        updated.asignatura = '';
-      }
-
-      if (name === 'semestre') {
-        updated.asignatura = '';
       }
 
       return updated;
@@ -908,16 +430,10 @@ function FormularioFondo({ editar = false }) {
 
     if (name === 'carrera') {
       cargarDocentesPorCarrera(value, '', formData.calendario_academico);
-      cargarMateriasFiltradas({ carreraId: value, periodo: formData.periodo });
     }
 
     if (name === 'calendario_academico' && value) {
-      const calendarioSeleccionado = calendarios.find(c => c.id === parseInt(value));
       cargarDocentesPorCarrera(formData.carrera, '', value);
-      cargarMateriasFiltradas({
-        carreraId: formData.carrera,
-        periodo: calendarioSeleccionado?.periodo || '',
-      });
     }
     
     if (erroresCampos[name]) {
@@ -991,13 +507,6 @@ function FormularioFondo({ editar = false }) {
     if (!formData.periodo) {
       errores.periodo = 'Por favor, seleccione una opción.';
     }
-    if (!formData.asignatura || !materiaExisteEnLista(formData.asignatura)) {
-      errores.asignatura = 'Debe seleccionar una asignatura registrada.';
-      errores.asignatura = 'Asignatura inválida (mínimo 3 caracteres)';
-    }
-    if (errores.asignatura) {
-      errores.asignatura = 'Debe seleccionar una asignatura registrada.';
-    }
     if (formData.tiene_programa_analitico && !formData.programa_analitico_url) {
       errores.programa_analitico_url = 'Debe proporcionar la URL del programa analítico';
     }
@@ -1013,7 +522,6 @@ function FormularioFondo({ editar = false }) {
           docente: formData.docente,
           gestion: formData.gestion,
           periodo: formData.periodo,
-          asignatura: formData.asignatura
         }
       });
       
@@ -1023,8 +531,7 @@ function FormularioFondo({ editar = false }) {
         (!editar || f.id !== parseInt(id)) &&
         f.docente === parseInt(formData.docente) &&
         f.gestion === parseInt(formData.gestion) &&
-        f.periodo === formData.periodo &&
-        f.asignatura.toLowerCase() === formData.asignatura.toLowerCase()
+        f.periodo === formData.periodo
       );
       
       return duplicados.length > 0;
@@ -1074,7 +581,6 @@ function FormularioFondo({ editar = false }) {
 
     const mapaClaves = {
       calendario: 'calendario_academico',
-      materia: 'asignatura',
     };
 
     const errores = {};
@@ -1140,7 +646,7 @@ function FormularioFondo({ editar = false }) {
       const esDuplicado = await verificarDuplicado();
       
       if (esDuplicado) {
-        const mensajeError = '⚠️ Ya existe un fondo de tiempo con estos datos (mismo docente, gestión, periodo y asignatura). No se permiten duplicados.';
+        const mensajeError = '⚠️ Ya existe un fondo de tiempo con estos datos (mismo docente, gestión y periodo). No se permiten duplicados.';
         setError(mensajeError);
         toast.error(mensajeError, {
           duration: 6000,
@@ -1258,12 +764,7 @@ function FormularioFondo({ editar = false }) {
 
   const calendarioOptions = calendarios.map((calendario) => ({
     value: calendario.id,
-    label: `${calendario.gestion} - ${getPeriodoLabel(calendario.periodo)}${calendario.activo ? ' (Activo)' : ''} | ${calendario.semanas_efectivas} semanas`,
-  }));
-
-  const materiaOptions = materias.map((materia) => ({
-    value: materia.nombre,
-    label: formatearMateria(materia),
+    label: `${calendario.gestion} - ${getPeriodoLabel(calendario.periodo)}${calendario.activo ? ' (Activo)' : ''}`,
   }));
 
   return (
@@ -1402,51 +903,6 @@ function FormularioFondo({ editar = false }) {
                         )}
                       </div>
 
-                      {/* Asignatura */}
-                      <div className={`${shakingFields.asignatura ? ERROR_MOTION_CLASS : ''} order-4`}>
-                        <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
-                          Nombre de la Asignatura {erroresCampos.asignatura && <span className="text-red-500">*</span>}
-                        </label>
-                        <SelectConDropdown
-                          name="asignatura"
-                          label=""
-                          value={formData.asignatura}
-                          onChange={handleChange}
-                          onFocus={() => handleFieldFocus({ target: { name: 'asignatura' } })}
-                          disabled={loading || editar || !formData.carrera || cargandoMaterias}
-                          options={materiaOptions}
-                          placeholder={
-                            !formData.carrera
-                              ? 'Seleccione una carrera primero'
-                              : cargandoMaterias
-                                  ? 'Cargando materias...'
-                                  : materiaOptions.length === 0
-                                    ? 'No hay materias registradas'
-                                    : 'Seleccione una asignatura'
-                          }
-                          error={erroresCampos.asignatura}
-                        />
-                        {formData.carrera && !cargandoMaterias && materiaOptions.length === 0 && (
-                          <p className="text-xs text-amber-600 dark:text-amber-300 mt-1">No hay materias registradas para este semestre</p>
-                        )}
-                        <input
-                          hidden
-                          type="text"
-                          name="asignatura"
-                          value={formData.asignatura}
-                          onChange={handleChange}
-                          onFocus={handleFieldFocus}
-                          onClick={handleFieldFocus}
-                          disabled={loading || editar}
-                          placeholder="Ej: Programación Web, Álgebra II, etc."
-                          className={`h-[46px] w-full px-4 py-0 rounded-xl border-2 ${
-                            erroresCampos.asignatura ? ERROR_FIELD_BORDER_CLASS : 'border-slate-300 dark:border-slate-600'
-                          } bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm`}
-                        />
-                        {erroresCampos.asignatura && (
-                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">{erroresCampos.asignatura}</p>
-                        )}
-                      </div>
                       {/* Gestion y Periodo */}
                       <div className={esSuperAdmin ? 'order-6' : 'order-5'}>
                         <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
@@ -1556,7 +1012,7 @@ function FormularioFondo({ editar = false }) {
                         <p className="font-bold mb-2">Resumen:</p>
                         <ul className="list-disc list-inside space-y-1">
                           <li>Después de crear, distribuya las horas semanales del docente (ej. 40h para TC) entre las 7 categorías oficiales</li>
-                          <li>No se permiten duplicados (mismo docente, gestión y asignatura)</li>
+                          <li>No se permiten duplicados (mismo docente, gestión y periodo)</li>
                           <li>Solo fondos en "borrador" pueden editarse</li>
                         </ul>
                       </div>

@@ -88,7 +88,6 @@ export const generarFondosTiempoMasivo = () => api.post('/fondos-tiempo/generar-
 export const distribuirHorasFondoTiempo = (id, data) => api.patch(`/fondos-tiempo/${id}/distribuir-horas/`, data);
 export const actualizarFondoTiempo = (id, data) => api.put(`/fondos-tiempo/${id}/`, data);
 export const eliminarFondoTiempo = (id) => api.delete(`/fondos-tiempo/${id}/`);
-export const getFondosLargoPlazo = () => api.get('/fondos-tiempo/largo-plazo/');
 
 // Acciones de estado
 export const presentarFondoADirector = (fondoId) => {
@@ -252,7 +251,6 @@ export const responderObservacion = (id, respuesta) =>
 // ===================================
 // ENDPOINTS - HISTORIAL (Solo lectura)
 // ===================================
-export const getHistorial = () => api.get('/historial/');
 export const getHistorialDetalle = (id) => api.get(`/historial/${id}/`);
 export const getHistorialPorFondo = (fondoId) => 
   api.get('/historial/', { params: { fondo_tiempo: fondoId } });

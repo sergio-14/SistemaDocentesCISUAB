@@ -147,7 +147,7 @@ def asignatura_principal_html(fondo):
         vistos.add(carga.materia_id)
         materias.append(carga.materia.nombre)
     if not materias:
-        return escape(fondo.asignatura or 'las asignaturas asignadas')
+        return 'las asignaturas asignadas'
     nombres = [f'<b>{escape(nombre)}</b>' for nombre in materias]
     if len(nombres) == 1:
         return nombres[0]

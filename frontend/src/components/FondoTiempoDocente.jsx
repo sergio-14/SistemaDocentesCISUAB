@@ -20,7 +20,7 @@ const ArrowLeftIcon = (props) => (
     </svg>
 );
 
-const FondoTiempoDocente = ({ isDark }) => {
+const FondoTiempoDocente = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const [docente, setDocente] = useState(null);
@@ -78,8 +78,7 @@ const FondoTiempoDocente = ({ isDark }) => {
                 console.error("Error al cargar datos:", error);
                 toast.error("Error al cargar la información del docente.");
             } finally {
-                if (cancelado) return;
-                setLoading(false);
+                if (!cancelado) setLoading(false);
             }
         };
 
@@ -222,7 +221,7 @@ const FondoTiempoDocente = ({ isDark }) => {
                                             </div>
 
                                             <h3 className="text-base font-bold text-slate-800 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
-                                                {fondo.asignatura || 'Sin asignatura definida'}
+                                                {fondo.descripcion}
                                             </h3>
 
                                             <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">

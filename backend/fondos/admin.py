@@ -135,8 +135,7 @@ class CarreraAdmin(admin.ModelAdmin):
 @admin.register(CalendarioAcademico)
 class CalendarioAcademicoAdmin(admin.ModelAdmin):
     list_display = [
-        '__str__', 'fecha_inicio', 'fecha_fin',
-        'semanas_efectivas', 'activo_badge'
+        '__str__', 'fecha_inicio', 'fecha_fin', 'activo_badge'
     ]
     list_filter = ['gestion', 'periodo', 'activo']
     search_fields = ['gestion']
@@ -144,7 +143,7 @@ class CalendarioAcademicoAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Periodo Académico', {
-            'fields': ('gestion', 'periodo', 'semanas_efectivas')
+            'fields': ('gestion', 'periodo')
         }),
         ('Fechas del Periodo', {
             'fields': ('fecha_inicio', 'fecha_fin')
@@ -177,13 +176,13 @@ class CalendarioAcademicoAdmin(admin.ModelAdmin):
 @admin.register(FondoTiempo)
 class FondoTiempoAdmin(admin.ModelAdmin):
     list_display = [
-        'docente', 'asignatura', 'gestion', 'periodo',
+        'docente', 'carrera', 'gestion', 'periodo',
         'estado_badge', 'porcentaje_badge', 'programa_badge'
     ]
     list_filter = ['estado', 'gestion', 'periodo', 'carrera', 'archivado']
     search_fields = [
         'docente__nombres', 'docente__apellido_paterno',
-        'docente__apellido_materno', 'asignatura'
+        'docente__apellido_materno', 'carrera__nombre'
     ]
     ordering = ['-gestion', '-periodo', 'docente__apellido_paterno']
     
@@ -192,7 +191,7 @@ class FondoTiempoAdmin(admin.ModelAdmin):
             'fields': ('docente', 'carrera', 'calendario_academico')
         }),
         ('Periodo Académico', {
-            'fields': ('gestion', 'periodo', 'asignatura')
+            'fields': ('gestion', 'periodo')
         }),
         ('Configuración de Horas', {
             'fields': (
@@ -270,7 +269,7 @@ class FondoTiempoAdmin(admin.ModelAdmin):
 class CategoriaFuncionAdmin(admin.ModelAdmin):
     list_display = ['fondo_tiempo', 'tipo_display', 'total_horas', 'porcentaje']
     list_filter = ['tipo']
-    search_fields = ['fondo_tiempo__asignatura', 'fondo_tiempo__docente__apellido_paterno']
+    search_fields = ['fondo_tiempo__carrera__nombre', 'fondo_tiempo__docente__apellido_paterno']
     
     def tipo_display(self, obj):
         return obj.get_tipo_display()
@@ -288,7 +287,7 @@ class CategoriaFuncionAdmin(admin.ModelAdmin):
 class ActividadAdmin(admin.ModelAdmin):
     list_display = ['detalle', 'categoria', 'horas_semana', 'horas_año', 'proyecto']
     list_filter = ['categoria__tipo']
-    search_fields = ['detalle', 'categoria__fondo_tiempo__asignatura']
+    search_fields = ['detalle', 'categoria__fondo_tiempo__carrera__nombre']
     ordering = ['categoria', 'orden']
 
     def has_add_permission(self, request):
@@ -313,7 +312,7 @@ class ProyectoAdmin(admin.ModelAdmin):
     ]
     list_filter = ['tipo', 'estado', 'es_curso_seminario', 'modalidad']
     search_fields = [
-        'titulo', 'fondo_tiempo__asignatura',
+        'titulo', 'fondo_tiempo__carrera__nombre',
         'fondo_tiempo__docente__apellido_paterno'
     ]
     ordering = ['-fecha_creacion']
@@ -380,7 +379,7 @@ class InformeFondoAdmin(admin.ModelAdmin):
     ]
     list_filter = ['tipo', 'cumplimiento', 'fecha_elaboracion']
     search_fields = [
-        'fondo_tiempo__asignatura',
+        'fondo_tiempo__carrera__nombre',
         'fondo_tiempo__docente__apellido_paterno',
         'elaborado_por__username'
     ]
@@ -466,7 +465,7 @@ class HistorialFondoAdmin(admin.ModelAdmin):
     ]
     list_filter = ['tipo_cambio', 'fecha']
     search_fields = [
-        'fondo_tiempo__asignatura',
+        'fondo_tiempo__carrera__nombre',
         'fondo_tiempo__docente__apellido_paterno',
         'usuario__username', 'descripcion'
     ]

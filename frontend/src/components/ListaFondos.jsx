@@ -286,7 +286,7 @@ function ListaFondos() {
                       📅 {fondo.gestion}
                     </span>
                     <span className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-2 border-slate-300 dark:border-slate-600">
-                      📚 {fondo.asignatura}
+                      📚 {fondo.descripcion}
                     </span>
                   </div>
 

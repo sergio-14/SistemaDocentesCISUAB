@@ -1610,7 +1610,6 @@ function ListaCalendarios() {
     fecha_limite_programas_analiticos: '',
     fecha_inicio_receso: '',
     fecha_fin_receso: '',
-    semanas_efectivas: '',
     dias_feriados_gestion: '',
     activo: false,
   });
@@ -1744,24 +1743,7 @@ function ListaCalendarios() {
   const semanasCalendarioDisplay = semanasCalendario === null
     ? ''
     : String(semanasCalendario);
-  const semanasEfectivasCalculadas = semanasCalendario === null
-    ? ''
-    : String(semanasCalendario <= 18 ? 16 : semanasCalendario - 2);
-  const semanasEfectivasValue = Number(formData.semanas_efectivas);
-  const semanasEfectivasExcedenCalendario = Boolean(
-    semanasCalendario !== null
-    && Number.isFinite(semanasEfectivasValue)
-    && semanasEfectivasValue > semanasCalendario
-  );
-  const semanasEfectivasErrorMessage = 'Las semanas efectivas no pueden exceder las semanas calendario del periodo.';
   const isSaveBlocked = Boolean(isSubmitting);
-
-  useEffect(() => {
-    setFormData((prev) => {
-      if (prev.semanas_efectivas === semanasEfectivasCalculadas) return prev;
-      return { ...prev, semanas_efectivas: semanasEfectivasCalculadas };
-    });
-  }, [semanasEfectivasCalculadas]);
 
   useEffect(() => {
     cargarCalendarios();
@@ -1805,7 +1787,6 @@ function ListaCalendarios() {
       fecha_limite_programas_analiticos: calendario.fecha_limite_programas_analiticos || '',
       fecha_inicio_receso: calendario.fecha_inicio_receso || '',
       fecha_fin_receso: calendario.fecha_fin_receso || '',
-      semanas_efectivas: calendario.semanas_efectivas,
       dias_feriados_gestion: calendario.dias_feriados_gestion ?? '',
       activo: calendario.activo,
     } : buildInitialFormData());
@@ -1816,7 +1797,7 @@ function ListaCalendarios() {
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     clearFieldError(name);
-    const nextValue = ['semanas_efectivas', 'dias_feriados_gestion'].includes(name) && value !== ''
+    const nextValue = name === 'dias_feriados_gestion' && value !== ''
       ? Math.round(Number(value))
       : value;
     setFormData(prev => ({
@@ -1842,9 +1823,6 @@ function ListaCalendarios() {
 
   const handleDateFieldChange = (name, isoDate, options = {}) => {
     clearFieldError(name);
-    if (name === 'fecha_inicio' || name === 'fecha_fin') {
-      clearFieldError('semanas_efectivas');
-    }
     const { skipRangeToast = false } = options;
     const normalized = isoDate
       ? (() => {
@@ -1966,13 +1944,6 @@ function ListaCalendarios() {
     if (!formData.fecha_fin) requiredErrors.fecha_fin = 'La fecha de fin es obligatoria.';
     if (!formData.fecha_inicio_presentacion_proyectos) requiredErrors.fecha_inicio_presentacion_proyectos = 'Este campo es obligatorio.';
     if (!formData.fecha_limite_presentacion_proyectos) requiredErrors.fecha_limite_presentacion_proyectos = 'Este campo es obligatorio.';
-    if (
-      formData.semanas_efectivas === ''
-      || formData.semanas_efectivas === null
-      || formData.semanas_efectivas === undefined
-    ) {
-      requiredErrors.semanas_efectivas = 'Este campo es obligatorio.';
-    }
     const diasFeriadosVacio = formData.dias_feriados_gestion === ''
       || formData.dias_feriados_gestion === null
       || formData.dias_feriados_gestion === undefined;
@@ -2020,15 +1991,6 @@ function ListaCalendarios() {
       return;
     }
 
-    if (semanasEfectivasExcedenCalendario) {
-      applyErrors({
-        ...errors,
-        semanas_efectivas: semanasEfectivasErrorMessage,
-      });
-      toast.error(semanasEfectivasErrorMessage);
-      return;
-    }
-
     if (isProjectRangeInvalid) {
       toast.error(projectRangeWarning);
       return;
@@ -2047,7 +2009,6 @@ function ListaCalendarios() {
       ...formData,
       carrera: Number(formData.carrera),
       gestion: parseInt(formData.gestion),
-      semanas_efectivas: parseInt(formData.semanas_efectivas),
       dias_feriados_gestion: parseInt(formData.dias_feriados_gestion),
       fecha_limite_programas_analiticos: formData.fecha_limite_programas_analiticos || null,
       fecha_inicio_receso: formData.fecha_inicio_receso || null,
@@ -2543,26 +2504,6 @@ function ListaCalendarios() {
                   <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                     Total de semanas del periodo (calculado)
                   </p>
-                </div>
-                <div>
-                  <InputField
-                    label="Semanas Efectivas"
-                    name="semanas_efectivas"
-                    type="number"
-                    step="1"
-                    value={formData.semanas_efectivas}
-                    onChange={handleChange}
-                    required
-                    error={errors.semanas_efectivas || (semanasEfectivasExcedenCalendario ? semanasEfectivasErrorMessage : '')}
-                    errorPulse={errorPulse}
-                    onClearError={() => clearFieldError('semanas_efectivas')}
-                    readOnly
-                  />
-                  {!errors.semanas_efectivas && !semanasEfectivasExcedenCalendario && (
-                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                      Semanas efectivas calculadas automaticamente desde el rango de fechas
-                    </p>
-                  )}
                 </div>
                 <div>
                   <InputField

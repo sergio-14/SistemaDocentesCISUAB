@@ -989,7 +989,7 @@ function DetalleFondo() {
                   <div className="flex justify-center md:justify-start w-full">
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800/80 text-sm font-medium">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-                      {fondo.asignatura}
+                      {fondo.descripcion}
                     </div>
                   </div>
                 </div>
@@ -1903,9 +1903,9 @@ function DetalleFondo() {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-600 dark:text-slate-400">Asignatura:</span>
+                    <span className="text-slate-600 dark:text-slate-400">Fondo:</span>
                     <span className="font-bold text-slate-800 dark:text-white">
-                      {fondo.asignatura || 'N/A'}
+                      {fondo.descripcion}
                     </span>
                   </div>
                   <div className="flex justify-between">

@@ -82,7 +82,7 @@ class DocenteUnVinculoTests(UsuariosBaseTestCase):
         self.assertIn('horas_efectivas', serializer.errors)
 
     def test_editar_parcialmente_un_fondo_no_da_error_500(self):
-        # Antes: KeyError 'tipo_fondo' en el validador de unicidad de DRF.
+        # Antes: KeyError en el validador de unicidad de DRF.
         fondo = self._fondo(self.carrera)
         self.client.force_authenticate(self.superuser)
 

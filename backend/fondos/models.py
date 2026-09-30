@@ -780,10 +780,6 @@ class CalendarioAcademico(models.Model):
         verbose_name='Días de feriado de la gestión',
         help_text='Feriados de la gestión que caen de lunes a viernes.',
     )
-    semanas_efectivas = models.IntegerField(
-        default=16,
-        help_text="Número de semanas efectivas del periodo"
-    )
     fecha_limite_programas_analiticos = models.DateField(
         null=True,
         blank=True,
@@ -911,11 +907,6 @@ class FondoTiempo(models.Model):
         ('anual', 'Anual'),
     ]
     
-    TIPO_FONDO_CHOICES = [
-        ('semestral', 'Semestral/Anual'),
-        ('largo_plazo', 'Largo Plazo'),
-    ]
-    
     docente = models.ForeignKey(Docente, on_delete=models.PROTECT, related_name='fondos_tiempo')
     carrera = models.ForeignKey(Carrera, on_delete=models.PROTECT, related_name='fondos_tiempo')
     calendario_academico = models.ForeignKey(
@@ -934,15 +925,7 @@ class FondoTiempo(models.Model):
         blank=True,
         help_text="Periodo académico según calendario (si aplica)"
     )
-    asignatura = models.CharField(max_length=200, blank=True, help_text="Asignatura o descripción general del fondo")
-    
-    tipo_fondo = models.CharField(
-        max_length=20,
-        choices=TIPO_FONDO_CHOICES,
-        default='semestral',
-        help_text="Define si el fondo es para un periodo académico específico o a largo plazo."
-    )
-    
+
     # Configuración temporal
     semanas_año = models.DecimalField(
         max_digits=4,
@@ -954,8 +937,6 @@ class FondoTiempo(models.Model):
     horas_vacacion = models.IntegerField(default=120)
     horas_feriados = models.IntegerField(default=0) # Often not subtracted from total effective hours
     contrato_horas = models.IntegerField(default=2080)
-    clases_aula_horas = models.IntegerField(default=240)
-    funciones_sustantivas_horas = models.IntegerField(default=1124)
     horas_efectivas = models.DecimalField(max_digits=6, decimal_places=2, default=1832.0)
     
     estado = models.CharField(max_length=30, choices=ESTADO_CHOICES, default='borrador')
@@ -1028,22 +1009,22 @@ class FondoTiempo(models.Model):
         verbose_name = "Fondo de Tiempo"
         verbose_name_plural = "Fondos de Tiempo"
         ordering = ['-gestion', 'docente']
-        # Se elimina unique_together para permitir fondos a largo plazo sin periodo/asignatura definidos.
-        # Se recomienda implementar una `UniqueConstraint` condicional en la base de datos
-        # o una validación personalizada en el método `clean` o `save` del modelo.
-        # unique_together = ['docente', 'gestion', 'periodo', 'asignatura']
         constraints = [
-            # Por carrera: un docente en dos carreras tiene un fondo en cada una y
-            # nunca deben chocar aunque coincidan gestión, periodo y asignatura.
+            # Por carrera: un docente en dos carreras tiene un fondo en cada una.
             models.UniqueConstraint(
-                fields=['docente', 'carrera', 'gestion', 'periodo', 'asignatura'],
-                condition=models.Q(tipo_fondo='semestral'),
-                name='unique_semestral_fondo_por_carrera'
+                fields=['docente', 'carrera', 'gestion', 'periodo'],
+                name='unique_fondo_por_carrera_y_periodo',
             )
         ]
 
     def __str__(self):
-        return f"{self.docente.nombre_completo} - {self.gestion} - {self.asignatura}"
+        return f"{self.docente.nombre_completo} - {self.descripcion}"
+
+    @property
+    def descripcion(self):
+        """Cómo se nombra el fondo en pantallas y documentos: "Gestión 2026 · Carrera"."""
+        carrera = self.carrera.nombre if self.carrera_id else 'Sin carrera'
+        return f"Gestión {self.gestion} · {carrera}"
     
     @property
     def porcentaje_completado(self):
@@ -1235,9 +1216,8 @@ class FondoTiempo(models.Model):
                 # Auditoria 2026-09-12: la lista original solo cubria 7 campos
                 # (docente, carrera, gestion, periodo, horas_vacacion,
                 # horas_feriados, horas_efectivas) y dejaba editables campos
-                # como asignatura, tipo_fondo, semanas_año, horas_semana,
-                # contrato_horas, clases_aula_horas,
-                # funciones_sustantivas_horas, calendario_academico,
+                # como semanas_año, horas_semana, contrato_horas,
+                # calendario_academico,
                 # tiene_programa_analitico, programa_analitico_url y
                 # observaciones aunque el fondo ya estuviera presentado.
                 #
@@ -1260,9 +1240,8 @@ class FondoTiempo(models.Model):
                 # `fecha_creacion`/`fecha_modificacion`.
                 campos_criticos = [
                     'docente', 'carrera', 'calendario_academico', 'gestion', 'periodo',
-                    'asignatura', 'tipo_fondo', 'semanas_año', 'horas_semana',
-                    'horas_vacacion', 'horas_feriados', 'contrato_horas',
-                    'clases_aula_horas', 'funciones_sustantivas_horas', 'horas_efectivas',
+                    'semanas_año', 'horas_semana',
+                    'horas_vacacion', 'horas_feriados', 'contrato_horas', 'horas_efectivas',
                     'observaciones', 'tiene_programa_analitico', 'programa_analitico_url',
                 ]
 

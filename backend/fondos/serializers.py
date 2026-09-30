@@ -2549,6 +2549,7 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
             self.fields['programa_analitico_url'].read_only = True
     # Aseguramos que se devuelva la URL como string explícito
     programa_analitico_url = serializers.URLField(required=False, allow_blank=True)
+    descripcion = serializers.CharField(read_only=True)
 
     class Meta:
         model = FondoTiempo
@@ -2595,13 +2596,6 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
             return 0
         return (total_asignado / obj.horas_efectivas) * 100
 
-    def run_validators(self, value):
-        # DRF no completa los campos de la condición de una UniqueConstraint
-        # (tipo_fondo) en ediciones parciales y falla con KeyError: se toman del
-        # fondo actual solo para los validadores.
-        if self.instance is not None and isinstance(value, dict) and 'tipo_fondo' not in value:
-            value = {'tipo_fondo': self.instance.tipo_fondo, **value}
-        super().run_validators(value)
 
     def validate(self, data):
         """
@@ -2626,12 +2620,10 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
         if not calendario and hasattr(self, 'instance') and self.instance:
             calendario = self.instance.calendario_academico
 
-        tipo_fondo = data.get('tipo_fondo', self.instance.tipo_fondo if self.instance else 'semestral')
-        if calendario and tipo_fondo == 'semestral':
+        if calendario:
             duplicado_qs = FondoTiempo.objects.filter(
                 docente=docente,
                 calendario_academico=calendario,
-                tipo_fondo='semestral',
             )
             if self.instance:
                 duplicado_qs = duplicado_qs.exclude(pk=self.instance.pk)
@@ -2682,6 +2674,7 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
 
 
 class FondoTiempoListSerializer(serializers.ModelSerializer):
+    descripcion = serializers.CharField(read_only=True)
     """Serializer simplificado para listados"""
     docente_nombre = serializers.CharField(source='docente.nombre_completo', read_only=True)
     carrera_nombre = serializers.CharField(source='carrera.nombre', read_only=True)
@@ -2695,7 +2688,7 @@ class FondoTiempoListSerializer(serializers.ModelSerializer):
         model = FondoTiempo
         fields = ['id', 'docente', 'docente_nombre', 'carrera', 'carrera_nombre', 
                   'calendario_academico', 'gestion', 'periodo', 'periodo_display',
-                  'asignatura', 'total_asignado', 'horas_efectivas',
+                  'descripcion', 'total_asignado', 'horas_efectivas',
                   'porcentaje_completado', 'estado', 'programa_analitico_url']
 
     def get_total_asignado(self, obj):
@@ -3796,7 +3789,7 @@ class CalendarioAcademicoSerializer(serializers.ModelSerializer):
             'fecha_limite_programas_analiticos',
             'fecha_inicio_receso',
             'fecha_fin_receso',
-            'semanas_efectivas', 'dias_feriados_gestion', 'activo'
+            'dias_feriados_gestion', 'activo'
         ]
 
     def validate(self, attrs):
@@ -3825,7 +3818,6 @@ class CalendarioAcademicoSerializer(serializers.ModelSerializer):
             'fecha_fin_receso',
             getattr(instance, 'fecha_fin_receso', None)
         )
-        semanas_efectivas = attrs.get('semanas_efectivas', getattr(instance, 'semanas_efectivas', None))
         gestion = attrs.get('gestion', getattr(instance, 'gestion', None))
         periodo = attrs.get('periodo', getattr(instance, 'periodo', None))
 
@@ -3864,13 +3856,6 @@ class CalendarioAcademicoSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'non_field_errors': ['Las fechas se solapan con otro calendario academico existente.']
                 })
-
-            if semanas_efectivas is not None:
-                semanas_reales = (fecha_fin - fecha_inicio).days / 7
-                if abs(float(semanas_efectivas) - semanas_reales) > 2:
-                    raise serializers.ValidationError({
-                        'semanas_efectivas': 'Las semanas efectivas no son coherentes con el rango de fechas seleccionado (margen máximo de 2 semanas)'
-                    })
 
         if fecha_inicio_proy and fecha_fin_proy and fecha_fin_proy <= fecha_inicio_proy:
             raise serializers.ValidationError({
@@ -3923,13 +3908,13 @@ class ProyectoSerializer(serializers.ModelSerializer):
     tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
     estado_display = serializers.CharField(source='get_estado_display', read_only=True)
     modalidad_display = serializers.CharField(source='get_modalidad_display', read_only=True)
-    fondo_asignatura = serializers.CharField(source='fondo_tiempo.asignatura', read_only=True)
+    fondo_descripcion = serializers.CharField(source='fondo_tiempo.descripcion', read_only=True)
     categoria_nombre = serializers.CharField(source='categoria.get_tipo_display', read_only=True)
     
     class Meta:
         model = Proyecto
         fields = [
-            'id', 'fondo_tiempo', 'fondo_asignatura', 'categoria', 'categoria_nombre',
+            'id', 'fondo_tiempo', 'fondo_descripcion', 'categoria', 'categoria_nombre',
             'titulo', 'tipo', 'tipo_display',
             # Campos obligatorios Art. 16
             'antecedentes', 'justificacion', 'objetivos', 'problema', 'cronograma',
@@ -3949,13 +3934,13 @@ class ProyectoListSerializer(serializers.ModelSerializer):
     """Serializer simplificado para listados"""
     tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
     estado_display = serializers.CharField(source='get_estado_display', read_only=True)
-    fondo_asignatura = serializers.CharField(source='fondo_tiempo.asignatura', read_only=True)
+    fondo_descripcion = serializers.CharField(source='fondo_tiempo.descripcion', read_only=True)
     
     class Meta:
         model = Proyecto
         fields = [
             'id', 'titulo', 'tipo', 'tipo_display', 'estado', 'estado_display',
-            'fondo_tiempo', 'fondo_asignatura', 'fecha_inicio', 'fecha_fin'
+            'fondo_tiempo', 'fondo_descripcion', 'fecha_inicio', 'fecha_fin'
         ]
 
 
@@ -3969,12 +3954,12 @@ class InformeFondoSerializer(serializers.ModelSerializer):
     cumplimiento_display = serializers.CharField(source='get_cumplimiento_display', read_only=True)
     elaborado_por_nombre = serializers.CharField(source='elaborado_por.get_full_name', read_only=True)
     evaluado_por_nombre = serializers.SerializerMethodField()
-    fondo_asignatura = serializers.CharField(source='fondo_tiempo.asignatura', read_only=True)
+    fondo_descripcion = serializers.CharField(source='fondo_tiempo.descripcion', read_only=True)
 
     class Meta:
         model = InformeFondo
         fields = [
-            'id', 'fondo_tiempo', 'fondo_asignatura',
+            'id', 'fondo_tiempo', 'fondo_descripcion',
             'tipo', 'tipo_display', 'estado', 'estado_display', 'fecha_elaboracion',
             'elaborado_por', 'elaborado_por_nombre',
             'resumen_ejecutivo', 'actividades_realizadas', 'resultados',
@@ -4055,12 +4040,12 @@ class InformeFondoListSerializer(serializers.ModelSerializer):
     """Serializer simplificado para listados"""
     tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
     cumplimiento_display = serializers.CharField(source='get_cumplimiento_display', read_only=True)
-    fondo_asignatura = serializers.CharField(source='fondo_tiempo.asignatura', read_only=True)
+    fondo_descripcion = serializers.CharField(source='fondo_tiempo.descripcion', read_only=True)
     
     class Meta:
         model = InformeFondo
         fields = [
-            'id', 'fondo_tiempo', 'fondo_asignatura', 'tipo', 'tipo_display',
+            'id', 'fondo_tiempo', 'fondo_descripcion', 'tipo', 'tipo_display',
             'cumplimiento', 'cumplimiento_display', 'fecha_elaboracion',
             'archivo_adjunto', 'evidencia'
         ]
@@ -4212,12 +4197,12 @@ class ObservacionFondoSerializer(serializers.ModelSerializer):
 class HistorialFondoSerializer(serializers.ModelSerializer):
     tipo_cambio_display = serializers.CharField(source='get_tipo_cambio_display', read_only=True)
     usuario_nombre = serializers.CharField(source='usuario.get_full_name', read_only=True)
-    fondo_asignatura = serializers.CharField(source='fondo_tiempo.asignatura', read_only=True)
+    fondo_descripcion = serializers.CharField(source='fondo_tiempo.descripcion', read_only=True)
     
     class Meta:
         model = HistorialFondo
         fields = [
-            'id', 'fondo_tiempo', 'fondo_asignatura',
+            'id', 'fondo_tiempo', 'fondo_descripcion',
             'usuario', 'usuario_nombre', 'fecha',
             'tipo_cambio', 'tipo_cambio_display', 'descripcion',
             'estado_anterior', 'estado_nuevo', 'datos_cambio'
@@ -4253,6 +4238,7 @@ class DocenteDetalleSerializer(serializers.ModelSerializer):
 # =====================================================
 
 class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
+    descripcion = serializers.CharField(read_only=True)
     """Serializer completo con todas las relaciones"""
     docente = DocenteDetalleSerializer(read_only=True)
     carrera = CarreraSerializer(read_only=True)
@@ -4288,9 +4274,9 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
         model = FondoTiempo
         fields = [
             'id', 'docente', 'carrera', 'calendario_academico',
-            'gestion', 'periodo', 'periodo_display', 'asignatura',
+            'gestion', 'periodo', 'periodo_display', 'descripcion',
             'semanas_a\u00f1o', 'horas_semana', 'horas_vacacion', 'horas_feriados',
-            'contrato_horas', 'clases_aula_horas', 'funciones_sustantivas_horas',
+            'contrato_horas',
             'horas_efectivas', 'total_asignado',
             'estado', 'estado_display', 'observaciones',
             'tiene_programa_analitico', 'programa_analitico_url',

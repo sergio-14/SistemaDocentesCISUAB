@@ -205,7 +205,6 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
             if calendario_id:
                 docentes_con_fondo = FondoTiempo.objects.filter(
                     calendario_academico_id=calendario_id,
-                    tipo_fondo='semestral',
                     archivado=False,
                 ).values_list('docente_id', flat=True)
                 qs = qs.exclude(id__in=docentes_con_fondo)
@@ -1644,11 +1643,9 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             raise drf_serializers.ValidationError({
                 'calendario_academico': 'No existe un periodo academico activo para esta carrera.'
             })
-        tipo_fondo = serializer.validated_data.get('tipo_fondo', 'semestral')
-        if tipo_fondo == 'semestral' and FondoTiempo.objects.filter(
+        if FondoTiempo.objects.filter(
             docente=docente,
             calendario_academico=calendario_activo,
-            tipo_fondo='semestral',
         ).exists():
             raise drf_serializers.ValidationError({
                 'docente': 'Este docente ya tiene un fondo de tiempo registrado para el periodo seleccionado'
@@ -1746,14 +1743,12 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
                     omitidos_ya_existentes += 1
                     continue
 
-                etiqueta_carrera = vinculo.carrera.codigo or vinculo.carrera.nombre
                 fondo = FondoTiempo.objects.create(
                     docente=vinculo.docente,
                     carrera=vinculo.carrera,
                     calendario_academico=calendario_activo,
                     gestion=calendario_activo.gestion,
                     periodo=calendario_activo.periodo,
-                    asignatura=f"Fondo de Tiempo - {etiqueta_carrera}",
                     estado='borrador',
                 )
 
@@ -1918,22 +1913,6 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         serializer = self.get_serializer(fondo)
         return Response(serializer.data)
 
-    @action(detail=False, methods=['get'], url_path='largo-plazo')
-    def largo_plazo(self, request):
-        """
-        Obtener fondos de tiempo a largo plazo.
-        """
-        queryset = self.get_queryset().filter(tipo_fondo='largo_plazo')
-        
-        # Aplicar paginación
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = FondoTiempoListSerializer(page, many=True, context={'request': request})
-            return self.get_paginated_response(serializer.data)
-
-        serializer = FondoTiempoListSerializer(queryset, many=True, context={'request': request})
-        return Response(serializer.data)
-    
     # NUEVAS ACCIONES SEGÚN REGLAMENTO UAB
 
     def _extraer_secciones_informe(self, request):

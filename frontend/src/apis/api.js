@@ -85,7 +85,6 @@ export const getFondosTiempo = () => api.get('/fondos-tiempo/');
 export const getFondoTiempoDetalle = (id) => api.get(`/fondos-tiempo/${id}/`);
 export const crearFondoTiempo = (data) => api.post('/fondos-tiempo/', data);
 export const generarFondosTiempoMasivo = () => api.post('/fondos-tiempo/generar-masivo/');
-export const distribuirHorasFondoTiempo = (id, data) => api.patch(`/fondos-tiempo/${id}/distribuir-horas/`, data);
 export const actualizarFondoTiempo = (id, data) => api.put(`/fondos-tiempo/${id}/`, data);
 export const eliminarFondoTiempo = (id) => api.delete(`/fondos-tiempo/${id}/`);
 
@@ -164,12 +163,6 @@ export const eliminarCalendario = (id) => api.delete(`/calendarios/${id}/`);
 // ===================================
 // ENDPOINTS - CATEGORÍAS Y ACTIVIDADES
 // ===================================
-export const getCategorias = () => api.get('/categorias/');
-export const getCategoriasPorFondo = (fondoId) => 
-  api.get('/categorias/', { params: { fondo_tiempo: fondoId } });
-export const crearCategoria = (data) => api.post('/categorias/', data);
-export const actualizarCategoria = (id, data) => api.put(`/categorias/${id}/`, data);
-export const eliminarCategoria = (id) => api.delete(`/categorias/${id}/`);
 
 export const getActividades = () => api.get('/actividades/');
 export const getActividadesPorCategoria = (categoriaId) => 

@@ -192,7 +192,7 @@ class FondoTiempoAdmin(admin.ModelAdmin):
         }),
         ('Configuración de Horas', {
             'fields': (
-                'semanas_año', 'horas_semana', 'horas_vacacion',
+                'horas_semana', 'horas_vacacion',
                 'horas_feriados', 'horas_efectivas'
             ),
             'classes': ('collapse',)
@@ -264,7 +264,7 @@ class FondoTiempoAdmin(admin.ModelAdmin):
 
 @admin.register(CategoriaFuncion)
 class CategoriaFuncionAdmin(admin.ModelAdmin):
-    list_display = ['fondo_tiempo', 'tipo_display', 'total_horas', 'porcentaje']
+    list_display = ['fondo_tiempo', 'tipo_display']
     list_filter = ['tipo']
     search_fields = ['fondo_tiempo__carrera__nombre', 'fondo_tiempo__docente__apellido_paterno']
     

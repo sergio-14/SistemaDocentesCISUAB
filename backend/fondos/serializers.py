@@ -6,7 +6,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import actualizar_con_historial, fondo_de_la_carga, horas_semanales_contractuales, mensaje_sin_fondo
+from .models import actualizar_con_historial, fondo_de_la_carga, mensaje_sin_fondo
 from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, CategoriaFuncion, Actividad, PerfilUsuario, AsignacionCarrera, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, EvidenciaCargaHoraria
 from .role_context import get_active_assignment, get_active_careers_for_user, get_effective_profile, serialize_assignment
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
@@ -17,7 +17,6 @@ from django.db import transaction
 from decimal import Decimal
 from django.utils import timezone
     
-SEMANAS_CLASES_AULA = Decimal('40')
 
 CARGA_HORARIA_TIPOS_POR_CATEGORIA = {
     'academica': [
@@ -1237,21 +1236,11 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'gestion': 'Indique la gestión del Fondo de Tiempo.'})
 
         fondo = None
-        categoria_macro = None
-        semanas = Decimal('45.8')
         if docente and gestion:
             fondo = fondo_de_la_carga(docente, gestion)
             if not fondo:
                 raise serializers.ValidationError({'docente': mensaje_sin_fondo(gestion)})
             data['fondo'] = fondo
-            semanas = Decimal(str(getattr(fondo, 'semanas_a\u00f1o', '45.8') or '45.8'))
-            if semanas <= 0:
-                semanas = Decimal('45.8')
-            categoria_macro = CategoriaFuncion.objects.filter(
-                fondo_tiempo=fondo,
-                tipo=categoria,
-            ).first()
-        semanas_validacion = SEMANAS_CLASES_AULA if categoria == 'academica' else semanas
 
         if categoria == 'academica':
             tipo_actividad = str(tipo_actividad or '').strip()
@@ -1350,29 +1339,6 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
         if hora_inicio and hora_fin and hora_fin <= hora_inicio:
             raise serializers.ValidationError({'hora_fin': 'La hora de fin debe ser mayor que la hora de inicio.'})
 
-        if categoria_macro:
-            tolerancia_redondeo_anual = Decimal('0.5') / semanas_validacion
-            cargas_categoria = CargaHoraria.objects.filter(
-                fondo=fondo,
-                categoria=categoria,
-            )
-            if self.instance:
-                cargas_categoria = cargas_categoria.exclude(pk=self.instance.pk)
-
-            horas_existentes_anuales = Decimal(cargas_categoria.aggregate(total=Sum('horas'))['total'] or 0)
-            total_categoria_semana = (horas_existentes_anuales + Decimal(horas_nuevas or 0)) / semanas_validacion
-            presupuesto_semana = Decimal(str(categoria_macro.total_horas or 0))
-            if total_categoria_semana > (presupuesto_semana + tolerancia_redondeo_anual):
-                categoria_label = dict(CategoriaFuncion.TIPO_CHOICES).get(categoria, categoria)
-                exceso_semana = total_categoria_semana - presupuesto_semana
-                raise serializers.ValidationError({
-                    'horas': (
-                        f'Las horas asignadas en la categoría {categoria_label} exceden el presupuesto de '
-                        f'{presupuesto_semana:g} hrs/sem establecido en la distribución Macro '
-                        f'por {exceso_semana:.3f} hrs/sem.'
-                    )
-                })
-
         if fondo:
             cargas_fondo = CargaHoraria.objects.filter(fondo=fondo)
             if self.instance:
@@ -1380,13 +1346,13 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
 
             horas_existentes_fondo = Decimal(cargas_fondo.aggregate(total=Sum('horas'))['total'] or 0)
             total_fondo_anual = horas_existentes_fondo + Decimal(horas_nuevas or 0)
-            objetivo_anual = Decimal(str(fondo.horas_efectivas or 1712))
-            if objetivo_anual > 0 and total_fondo_anual > objetivo_anual:
+            objetivo_anual = Decimal(str(fondo.horas_efectivas or 0))
+            if total_fondo_anual > objetivo_anual:
                 exceso_anual = total_fondo_anual - objetivo_anual
                 raise serializers.ValidationError({
                     'horas': (
-                        f'El Micro excede el total anual permitido de {objetivo_anual:g} horas '
-                        f'por {exceso_anual:g} horas.'
+                        f'La suma de las unidades superaría las horas efectivas del fondo ({objetivo_anual.normalize():f}) '
+                        f'por {exceso_anual.normalize():f} horas.'
                     )
                 })
 
@@ -2423,42 +2389,32 @@ class ActividadSerializer(serializers.ModelSerializer):
 
 
 class CategoriaFuncionSerializer(serializers.ModelSerializer):
-    actividades = ActividadSerializer(many=True, read_only=True) # IMPORTANTE: Devuelve TODAS las actividades sin filtrar
+    """Unidad del fondo: su total es la suma de sus ítems (horas por año) y su
+    porcentaje, ese total sobre las horas efectivas."""
+    actividades = ActividadSerializer(many=True, read_only=True)
     tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
-    # total_horas se elimina como SerializerMethodField para permitir escritura (guardado en BD)
+    total_horas = serializers.SerializerMethodField()
     porcentaje = serializers.SerializerMethodField()
     detalles_carga = serializers.SerializerMethodField()
-    total_carga_horaria = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = CategoriaFuncion
-        fields = ['id', 'fondo_tiempo', 'tipo', 'tipo_display', 'total_horas', 
-                  'porcentaje', 'actividades', 'detalles_carga', 'total_carga_horaria']
+        fields = ['id', 'fondo_tiempo', 'tipo', 'tipo_display', 'total_horas',
+                  'porcentaje', 'actividades', 'detalles_carga']
 
-    def get_total_carga_horaria(self, obj):
-        """Total de asignaciones micro registradas en CargaHoraria para esta categoria."""
-        # obj is CategoriaFuncion
+    def get_total_horas(self, obj):
+        # Una sola consulta por fondo para sus 7 unidades.
         fondo = obj.fondo_tiempo
-
-        # Usar el contexto para evitar recalcular para cada categoría del mismo fondo.
-        context = self.context
-        cache_key = f"carga_horaria_fondo_{fondo.id}"
-
-        if cache_key not in context:
-            # Calcular totales para todas las categorías de este fondo una sola vez.
-            cargas = fondo.cargas.values('categoria').annotate(total=Sum('horas'))
-            
-            context[cache_key] = {item['categoria']: item['total'] for item in cargas}
-
-        horas_jefatura = context[cache_key].get(obj.tipo, 0) or 0
-        return horas_jefatura
+        cache_key = f'horas_por_unidad_{fondo.id}'
+        if cache_key not in self.context:
+            self.context[cache_key] = fondo.horas_por_unidad()
+        return self.context[cache_key].get(obj.tipo, 0)
 
     def get_porcentaje(self, obj):
-        total_horas_categoria = obj.total_horas or 0
-        fondo = obj.fondo_tiempo
-        if not fondo.horas_efectivas or fondo.horas_efectivas == 0:
+        horas_efectivas = Decimal(str(obj.fondo_tiempo.horas_efectivas or 0))
+        if not horas_efectivas:
             return 0
-        return (total_horas_categoria / fondo.horas_efectivas) * 100
+        return round(Decimal(self.get_total_horas(obj)) / horas_efectivas * 100, 2)
 
     def get_detalles_carga(self, obj):
         fondo = obj.fondo_tiempo
@@ -2544,15 +2500,7 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
 
     def get_total_asignado(self, obj):
         if not hasattr(obj, '_total_asignado_calculado'):
-            if not obj.docente:
-                total = 0
-            else:
-                total_calculado = 0
-                for cat in obj.categorias.all():
-                    total_calculado += cat.total_horas
-                
-                total = total_calculado
-            obj._total_asignado_calculado = total
+            obj._total_asignado_calculado = obj.total_asignado
         return obj._total_asignado_calculado
 
     def get_porcentaje_completado(self, obj):
@@ -2563,10 +2511,7 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
 
 
     def validate(self, data):
-        """
-         BLINDAJE: Validación de horas acumuladas (Límite 56 horas semanales)
-        Verifica que la suma de todas las actividades no supere el límite del docente.
-        """
+        """Un fondo por docente y gestión, en la carrera de su vínculo."""
         # Obtener el docente (puede venir en data o ya existir en la instancia)
         docente = data.get('docente')
         if not docente and hasattr(self, 'instance') and self.instance:
@@ -2595,35 +2540,6 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
                     'docente': f'Este docente ya tiene un Fondo de Tiempo de la gestión {gestion}.'
                 })
 
-        # Horas semanales del docente en esta carrera (vínculo + cargo si lo tiene aquí).
-        horas_maximas_semanales = horas_semanales_contractuales(docente, carrera) if carrera else Decimal('0')
-
-        # La distribución por categorías se guarda en horas SEMANALES
-        # (distribuir-horas exige que sumen exactamente horas_semana).
-        horas_semanales_asignadas = Decimal(0)
-        if self.instance and hasattr(self.instance, 'categorias'):
-            for categoria in self.instance.categorias.all():
-                horas_semanales_asignadas += categoria.total_horas or Decimal(0)
-
-        # VALIDACION DE LIMITE DE 56 HORAS SEMANALES
-        if horas_semanales_asignadas > Decimal('56'):
-            raise serializers.ValidationError({
-                'horas_efectivas':
-                f'ALERTA LÍMITE EXCEDIDO: La suma de todas las actividades ({horas_semanales_asignadas:.2f} horas/semana) '
-                f'supera el máximo permitido de 56 horas semanales. '
-                f'Por favor, reduce la carga de actividades.'
-            })
-
-        # Validación adicional: comparar con el límite del docente en esta carrera
-        if horas_semanales_asignadas > horas_maximas_semanales:
-            dedicacion_label = vinculo_carrera.get_dedicacion_display() if vinculo_carrera else 'N/A'
-            raise serializers.ValidationError({
-                'horas_efectivas':
-                f'ALERTA L\u00cdMITE PERSONAL EXCEDIDO: Tu dedicaci\u00f3n ({dedicacion_label}) tiene un l\u00edmite de '
-                f'{horas_maximas_semanales} horas semanales, pero has asignado {horas_semanales_asignadas:.2f} horas. '
-                f'Por favor, ajusta las actividades para cumplir con tu dedicación.'
-            })
-        
         return data
 
     def get_horas_disponibles(self, obj):
@@ -2653,18 +2569,8 @@ class FondoTiempoListSerializer(serializers.ModelSerializer):
                   'porcentaje_completado', 'estado', 'programa_analitico_url']
 
     def get_total_asignado(self, obj):
-        # NOTA DE RENDIMIENTO: Esto puede causar N+1 queries en la vista de lista.
-        # Para optimizar, se podría anotar el queryset en el ViewSet.
         if not hasattr(obj, '_total_asignado_calculado'):
-            if not obj.docente:
-                total = 0
-            else:
-                total_calculado = 0
-                for cat in obj.categorias.all():
-                    total_calculado += cat.total_horas
-                
-                total = total_calculado
-            obj._total_asignado_calculado = total
+            obj._total_asignado_calculado = obj.total_asignado
         return obj._total_asignado_calculado
 
     def get_porcentaje_completado(self, obj):
@@ -4239,7 +4145,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'docente', 'carrera', 'calendarios',
             'gestion', 'descripcion',
-            'semanas_a\u00f1o', 'horas_semana', 'horas_vacacion', 'horas_feriados',
+            'horas_semana', 'horas_vacacion', 'horas_feriados',
             'contrato_horas',
             'horas_efectivas', 'total_asignado',
             'estado', 'estado_display', 'observaciones',
@@ -4265,15 +4171,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     
     def get_total_asignado(self, obj):
         if not hasattr(obj, '_total_asignado_calculado'):
-            if not obj.docente:
-                total = 0
-            else:
-                total_calculado = 0
-                for cat in obj.categorias.all():
-                    total_calculado += cat.total_horas
-                
-                total = total_calculado
-            obj._total_asignado_calculado = total
+            obj._total_asignado_calculado = obj.total_asignado
         return obj._total_asignado_calculado
 
     def get_porcentaje_completado(self, obj):

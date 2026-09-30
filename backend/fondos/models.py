@@ -919,13 +919,6 @@ class FondoTiempo(models.Model):
     carrera = models.ForeignKey(Carrera, on_delete=models.PROTECT, related_name='fondos_tiempo')
     gestion = models.IntegerField(validators=[MinValueValidator(2020), MaxValueValidator(2100)])
 
-    # Configuración temporal
-    semanas_año = models.DecimalField(
-        max_digits=4,
-        decimal_places=1,
-        default=Decimal('45.8'),
-        help_text="Número de semanas efectivas del año para cálculo de horas anuales"
-    )
     horas_semana = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text="Horas semanales del docente según su dedicación")
     # Días de vacación por antigüedad con los que se calcularon horas_vacacion (el PDF los muestra).
     dias_vacacion = models.IntegerField(default=0)
@@ -1229,7 +1222,7 @@ class FondoTiempo(models.Model):
                 # Auditoria 2026-09-12: la lista original solo cubria 7 campos
                 # (docente, carrera, gestion, periodo, horas_vacacion,
                 # horas_feriados, horas_efectivas) y dejaba editables campos
-                # como semanas_año, horas_semana, contrato_horas,
+                # como horas_semana, contrato_horas,
                 # tiene_programa_analitico, programa_analitico_url y
                 # observaciones aunque el fondo ya estuviera presentado.
                 #
@@ -1252,7 +1245,7 @@ class FondoTiempo(models.Model):
                 # `fecha_creacion`/`fecha_modificacion`.
                 campos_criticos = [
                     'docente', 'carrera', 'gestion',
-                    'semanas_año', 'horas_semana',
+                    'horas_semana',
                     'horas_vacacion', 'horas_feriados', 'contrato_horas', 'horas_efectivas',
                     'observaciones', 'tiene_programa_analitico', 'programa_analitico_url',
                 ]
@@ -1289,30 +1282,23 @@ class FondoTiempo(models.Model):
         # Recalcula aquí también para que la validación use valores actualizados.
         self._recalcular_horas_automaticas()
 
-        # Validación reglamentaria: suma de las 7 dimensiones no debe exceder las horas efectivas.
-        total_dimensiones = Decimal('0.00')
-        if self.pk:
-            total_dimensiones = self.categorias.aggregate(total=models.Sum('total_horas'))['total'] or Decimal('0.00')
-
-        if Decimal(total_dimensiones) > Decimal(self.horas_efectivas):
-            raise ValidationError({
-                'horas_efectivas': (
-                    'La suma de las 7 dimensiones no puede superar las horas disponibles '
-                    f'({self.horas_efectivas}). Total actual: {total_dimensiones}.'
-                )
-            })
-        
     def save(self, *args, **kwargs):
         self._recalcular_horas_automaticas()
         self.full_clean()
 
         super(FondoTiempo, self).save(*args, **kwargs)
         
+    def horas_por_unidad(self):
+        """Horas por año de cada unidad (categoría): la suma de sus ítems."""
+        return {
+            fila['categoria']: fila['total']
+            for fila in self.cargas.values('categoria').annotate(total=models.Sum('horas'))
+        }
+
     @property
     def total_asignado(self):
-      return self.categorias.aggregate(
-        total=models.Sum('total_horas')
-    )['total'] or 0
+        """Suma de todas las unidades (horas por año). Para presentar debe ser igual a horas_efectivas."""
+        return self.cargas.aggregate(total=models.Sum('horas'))['total'] or 0
 
 
 def fondo_de_la_carga(docente, gestion):
@@ -1341,8 +1327,6 @@ class CategoriaFuncion(models.Model):
     
     fondo_tiempo = models.ForeignKey(FondoTiempo, on_delete=models.CASCADE, related_name='categorias')
     tipo = models.CharField(max_length=30, choices=TIPO_CHOICES)
-    total_horas = models.DecimalField(max_digits=6, decimal_places=2, default=0)
-    porcentaje = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     
     class Meta:
         verbose_name = "Categoría de Función"
@@ -1351,7 +1335,7 @@ class CategoriaFuncion(models.Model):
         unique_together = ['fondo_tiempo', 'tipo']
     
     def __str__(self):
-        return f"{self.get_tipo_display()} - {self.total_horas}h ({self.porcentaje}%)"
+        return self.get_tipo_display()
 
 
 def evidencia_upload_path(instance, filename):
@@ -2262,15 +2246,6 @@ def crear_datos_laborales_si_no_existen(sender, instance, created, **kwargs):
         )
         if created_dl:
             actualizar_con_historial(Docente.objects.filter(pk=instance.pk), datos_laborales=datos)
-
-@receiver(post_save, sender=Actividad)
-@receiver(post_delete, sender=Actividad)
-def actualizar_horas_categoria(sender, instance, **kwargs):
-    """Actualiza el total de horas de la categoría al modificar actividades"""
-    categoria = instance.categoria
-    total = categoria.actividades.aggregate(models.Sum('horas_año'))['horas_año__sum'] or 0
-    categoria.total_horas = total
-    categoria.save()
 
 @receiver(post_save, sender=Docente)
 def actualizar_fondos_docente(sender, instance, **kwargs):

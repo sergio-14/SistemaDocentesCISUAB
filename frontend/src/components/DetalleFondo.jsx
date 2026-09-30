@@ -4,7 +4,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getFondoTiempoDetalle, presentarFondoADirector, aprobarFondo } from '../apis/api';
 import api from '../apis/api';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-import DistribuirHoras from './DistribuirHoras';
 import { useActiveRole } from '../contexts/ActiveRoleContext';
 import FormularioObservar from './FormularioObservar';
 import BotonFlotanteObservaciones from './BotonFlotanteObservaciones';
@@ -20,7 +19,7 @@ import ThemeToggle from './ThemeToggle';
 import CargaHorariaManager from './CargaHorariaManager';
 import { getApiErrorMessage } from '../utils/formErrors';
 import { FileText as ArchivoIcon, Check as CheckIcon, Trash2 as TrashIcon, AlertTriangle as AlertTriangleIcon, Info as InfoIcon, Send as SendIcon, EyeOff as EyeOffIcon, X as XIcon, Plus as PlusIcon, ChevronDown as ChevronDownIcon, ChevronUp as ChevronUpIcon, Pencil as PencilIcon, Calendar as CalendarIcon, User as UserIcon } from 'lucide-react';
-import { Eye, CheckCircle2, FileDown, ChevronLeft, ChevronRight, Paperclip } from 'lucide-react';
+import { Eye, CheckCircle2, FileDown, Paperclip } from 'lucide-react';
 
 // Alias for template consistency
 const EyeIcon = Eye;
@@ -282,9 +281,6 @@ function DetalleFondo() {
   const [mostrarModalInforme, setMostrarModalInforme] = useState(false);
   const [evidenciaActividadModal, setEvidenciaActividadModal] = useState(null);
   const [cargaParaEditar, setCargaParaEditar] = useState(null);
-  const [panelCentral, setPanelCentral] = useState('resumen');
-  const [direccionPanel, setDireccionPanel] = useState('derecha');
-  const [animarPanelCentral, setAnimarPanelCentral] = useState(false);
   const [slideGrafico, setSlideGrafico] = useState(0);
   const vistaActual = 'docente';
   const slideGraficoRef = useRef(0);
@@ -292,58 +288,6 @@ function DetalleFondo() {
   const prevTotalesCategoriasRef = useRef({});
   const estadoFondoRef = useRef(null);
   const observacionesPendientesRef = useRef(0);
-  const [animarTransicionMacroMicro, setAnimarTransicionMacroMicro] = useState(false);
-  const secuenciaGuardadoTimeoutsRef = useRef([]);
-  const limpiarSecuenciaGuardado = () => {
-    secuenciaGuardadoTimeoutsRef.current.forEach((timeoutId) => clearTimeout(timeoutId));
-    secuenciaGuardadoTimeoutsRef.current = [];
-  };
-  const [secuenciaGuardado, setSecuenciaGuardado] = useState({
-    activa: false,
-    balance: true,
-    distribucion: true,
-    acciones: true,
-  });
-  const iniciarSecuenciaGuardado = () => {
-    limpiarSecuenciaGuardado();
-    setAnimarPanelCentral(false);
-    setPanelCentral('resumen');
-    setAnimarTransicionMacroMicro(false);
-    setSecuenciaGuardado({
-      activa: true,
-      balance: false,
-      distribucion: false,
-      acciones: false,
-    });
-
-    secuenciaGuardadoTimeoutsRef.current = [
-      setTimeout(() => {
-        setAnimarTransicionMacroMicro(true);
-        setSecuenciaGuardado((prev) => ({ ...prev, balance: true }));
-      }, 0),
-      setTimeout(() => {
-        setSecuenciaGuardado((prev) => ({ ...prev, distribucion: true }));
-      }, 500),
-      setTimeout(() => {
-        setSecuenciaGuardado((prev) => ({ ...prev, acciones: true }));
-      }, 1000),
-      setTimeout(() => {
-        setDireccionPanel('derecha');
-        setAnimarPanelCentral(true);
-        setPanelCentral('carga');
-      }, 1500),
-      setTimeout(() => {
-        setAnimarTransicionMacroMicro(false);
-        setSecuenciaGuardado({
-          activa: false,
-          balance: true,
-          distribucion: true,
-          acciones: true,
-        });
-      }, 2250),
-    ];
-  };
-
   // La redacción/edición del Informe de Cumplimiento vive ahora en una página
   // dedicada (EditorInformePage.jsx, ruta /fondos/:id/informe) en vez de un
   // modal aquí. Solo quedan los estados para "Ver Informe" (solo lectura) y
@@ -355,7 +299,6 @@ function DetalleFondo() {
   // iiisyp es solo lectura: no puede aprobar ni gestionar fondos
   const rolOperativo = activeRole || activeAssignment?.rol || effectiveUser?.perfil?.rol || usuarioActual?.perfil?.rol;
   const esSuperAdmin = usuarioActual?.is_superuser === true;
-  const esAdmin = false;
   const esDirector = rolOperativo === 'director';
   const esJefeEstudios = rolOperativo === 'jefe_estudios';
   const esIisyp = rolOperativo === 'iiisyp';
@@ -365,7 +308,6 @@ function DetalleFondo() {
     fondo.es_fondo_de_director ? esSuperAdmin : (esDirector && !esIisyp)
   );
   const requiereDocumentoDecanatura = Boolean(fondo?.es_fondo_de_director);
-  const puedeGestionarDistribucion = esSuperAdmin || esJefeEstudios;
   const puedeGestionarCarga = esSuperAdmin || esJefeEstudios;
   const soloLecturaPorRol = !puedeGestionarCarga;
   const puedePresentarADirector = fondo?.estado === 'borrador' && (esJefeEstudios || esSuperAdmin);
@@ -373,12 +315,6 @@ function DetalleFondo() {
   const fondoPresentadoADirector = fondo?.estado === 'presentado_director' && (esJefeEstudios || esSuperAdmin);
   // Un fondo rechazado vuelve a borrador para corregirlo (Jefe de su carrera o superusuario).
   const puedeVolverABorrador = fondo?.estado === 'rechazado' && (esJefeEstudios || esSuperAdmin);
-
-  useEffect(() => {
-    // Define panel inicial por rol al entrar a la vista.
-    setAnimarPanelCentral(false);
-    setPanelCentral('resumen');
-  }, [puedeGestionarCarga]);
 
   const solicitarCorreccionesInforme = async () => {
     if (comentarioObservarInforme.trim().length < 10) {
@@ -432,7 +368,6 @@ function DetalleFondo() {
   // Limpiar todos los modales al desmontar el componente
   useEffect(() => {
     return () => {
-      limpiarSecuenciaGuardado();
       setMostrarFormObservar(false);
       setMostrarFormPresentarInforme(false);
       setMostrarFormEvaluarInforme(false);
@@ -573,9 +508,8 @@ function DetalleFondo() {
   const presentarADirector = async () => {
     const esReenvio = fondo.estado === 'observado';
     try {
-      const requisitosPresentacion = validarRequisitos();
-      if (!requisitosPresentacion.total) {
-        toast.error('Complete la distribución de horas y asigne al menos una materia antes de presentar');
+      if (!unidadesCompletas) {
+        toast.error(`La suma de las unidades debe ser exactamente ${horasEfectivasAnuales} horas (horas efectivas).`);
         return;
       }
 
@@ -753,21 +687,6 @@ function DetalleFondo() {
       .toUpperCase();
   };
 
-  const validarRequisitos = () => {
-    if (!fondo) return { horas: false, micro: false, total: false };
-
-    const totalAsignado = Number(fondo.total_asignado || 0);
-    const horasObjetivo = Number(fondo.horas_semana || 0);
-    const horas = horasObjetivo > 0 && Math.abs(totalAsignado - horasObjetivo) < 0.1;
-    const micro = microCompletoExacto;
-
-    return {
-      horas,
-      micro,
-      total: horas && micro
-    };
-  };
-
   const handleEditCarga = (detalle, tipoCategoria) => {
     setCargaParaEditar({ ...detalle, categoria: tipoCategoria });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -861,68 +780,18 @@ function DetalleFondo() {
       value: parseFloat(cat.total_horas),
       porcentaje: parseFloat(cat.porcentaje)
     })) || [];
-  const tieneDistribucionGuardada = Number(fondo.total_asignado || 0) > 0 || datosGrafico.length > 0;
-  const mostrarBalanceWidget = secuenciaGuardado.activa ? secuenciaGuardado.balance : tieneDistribucionGuardada;
-  const mostrarDistribucionWidget = secuenciaGuardado.activa ? secuenciaGuardado.distribucion : tieneDistribucionGuardada;
-  const mostrarAccionesWidget = secuenciaGuardado.activa ? secuenciaGuardado.acciones : tieneDistribucionGuardada;
-  const objetivoMicroAnual = Math.round(Number(fondo.horas_efectivas || 1712));
-  const totalMicroAnual = Math.round((fondo.categorias || []).reduce(
-    (total, categoria) => total + Number(categoria.total_carga_horaria || 0),
-    0
-  ));
-  const microCompletoExacto = objetivoMicroAnual > 0 && totalMicroAnual === objetivoMicroAnual;
+  // Cada unidad suma sus ítems (horas por año); para presentar, el total es exactamente
+  // las horas efectivas.
+  const horasEfectivasAnuales = Math.round(Number(fondo.horas_efectivas || 0));
+  const totalUnidades = Math.round(Number(fondo.total_asignado || 0));
+  const unidadesCompletas = horasEfectivasAnuales > 0 && totalUnidades === horasEfectivasAnuales;
   const tieneProgramaAnalitico = Boolean(fondo.tiene_programa_analitico);
-  const puedeConfirmarPresentacion = microCompletoExacto && tieneProgramaAnalitico;
-  const motivoPresentacionBloqueada = !microCompletoExacto
-    ? `Micro incompleto: ${totalMicroAnual}/${objetivoMicroAnual} hrs/año`
+  const puedeConfirmarPresentacion = unidadesCompletas && tieneProgramaAnalitico;
+  const motivoPresentacionBloqueada = !unidadesCompletas
+    ? `Unidades: ${totalUnidades} de ${horasEfectivasAnuales} h/año (deben sumar exactamente las horas efectivas)`
     : (!tieneProgramaAnalitico ? 'Debe adjuntar el Programa Analítico antes de presentar al Director' : '');
 
-  const puedeEditar = fondo.puede_editar;
   const ocultarDetallePorBorradorDirector = esDirector && !esSuperAdmin && fondo.estado === 'borrador';
-  const puedeEditarDocente = (Boolean(puedeEditar) || esSuperAdmin) && !esAdmin && puedeGestionarDistribucion;
-  const puedeEditarDistribucion = puedeEditarDocente && ['borrador', 'observado'].includes(fondo.estado);
-
-  const mostrarCargaAcademica = panelCentral === 'carga';
-  const panelCentralInfo = mostrarCargaAcademica
-    ? {
-        titulo: 'Asignacion de Carga Especifica (Micro)',
-        descripcion: 'Detalle las materias, paralelos y horarios que sustentan la categoria Academica.'
-      }
-    : {
-        titulo: 'Distribucion de Horas (Macro)',
-        descripcion: `Asigne las ${Math.round(Number(fondo.horas_semana || 40))} horas semanales en las 7 categorias reglamentarias.`
-      };
-
-  const desplazarDerecha = () => {
-    if (!puedeGestionarCarga) return;
-    setDireccionPanel('derecha');
-    setAnimarPanelCentral(true);
-    setPanelCentral((prev) => (prev === 'resumen' ? 'carga' : 'resumen'));
-  };
-
-  const desplazarIzquierda = () => {
-    if (!puedeGestionarCarga) return;
-    setDireccionPanel('izquierda');
-    setAnimarPanelCentral(true);
-    setPanelCentral((prev) => (prev === 'resumen' ? 'carga' : 'resumen'));
-  };
-
-  const handleDistribucionGuardada = () => {
-    limpiarSecuenciaGuardado();
-    setPanelCentral('resumen');
-    setAnimarTransicionMacroMicro(false);
-    setSecuenciaGuardado({
-      activa: true,
-      balance: false,
-      distribucion: false,
-      acciones: false,
-    });
-
-    toast.success('Distribución guardada correctamente');
-    secuenciaGuardadoTimeoutsRef.current.push(
-      setTimeout(iniciarSecuenciaGuardado, 1000)
-    );
-  };
 
   return (
     <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900">
@@ -1071,7 +940,7 @@ function DetalleFondo() {
                     Fondo pendiente de presentacion
                   </h2>
                   <p className="mt-1.5 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                    Este fondo aun no ha sido presentado por el Jefe de Estudios. La distribucion Macro, las asignaciones Micro y las acciones de revision estaran disponibles cuando el fondo sea presentado formalmente al Director.
+                    Este fondo aun no ha sido presentado por el Jefe de Estudios. La carga por unidad y las acciones de revision estaran disponibles cuando el fondo sea presentado formalmente al Director.
                   </p>
                 </div>
               </div>
@@ -1088,10 +957,7 @@ function DetalleFondo() {
               <div ref={refWidgetReferencia} className="flex flex-col gap-6 sticky top-24">
 
                 {/* Widget Balance de Horas */}
-                <div
-                  className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm p-6 relative overflow-hidden ${!mostrarBalanceWidget ? 'hidden' : ''} ${animarTransicionMacroMicro ? 'animate-slide-up' : ''}`}
-                  style={animarTransicionMacroMicro ? { animationDuration: '140ms', animationFillMode: 'both' } : undefined}
-                >
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm p-6 relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
                   <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-5 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-blue-500"></span>
@@ -1099,15 +965,15 @@ function DetalleFondo() {
                   </h3>
                   <div className="space-y-5">
                     <div className="flex justify-between items-center pb-4 border-b border-slate-300 dark:border-slate-700">
-                      <span className="text-slate-500 dark:text-slate-400 font-medium text-sm">Requerido</span>
-                      <span className="font-black text-slate-800 dark:text-white">{Math.round(fondo.horas_efectivas)}h</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium text-sm">Horas efectivas</span>
+                      <span className="font-black text-slate-800 dark:text-white">{horasEfectivasAnuales}h</span>
                     </div>
                     <div className="flex justify-between items-center pb-4 border-b border-slate-300 dark:border-slate-700">
-                      <span className="text-slate-500 dark:text-slate-400 font-medium text-sm">Asignado</span>
-                      <span className="font-black text-green-600 dark:text-green-400">{Math.round(fondo.total_asignado)}h</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium text-sm">Suma de unidades</span>
+                      <span className="font-black text-green-600 dark:text-green-400">{totalUnidades}h</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-500 dark:text-slate-400 font-medium text-sm">Disponible</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium text-sm">Por asignar</span>
                       <span className={`font-black text-lg ${fondo.horas_disponibles < 0 ? 'text-red-500' : 'text-blue-600 dark:text-blue-400'}`}>
                         {Math.round(fondo.horas_disponibles)}h
                       </span>
@@ -1116,7 +982,7 @@ function DetalleFondo() {
                 </div>
 
                 {/* Widget Gráfico Distribución - Carrusel */}
-                {mostrarDistribucionWidget && datosGrafico.length > 0 && (() => {
+                {datosGrafico.length > 0 && (() => {
                   const totalHoras = datosGrafico.reduce((s, d) => s + d.value, 0);
                   const maxVal = Math.max(...datosGrafico.map(d => d.value));
 
@@ -1133,10 +999,7 @@ function DetalleFondo() {
                   };
 
                   return (
-                    <div
-                      className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm p-6 relative overflow-hidden ${animarTransicionMacroMicro ? 'animate-slide-up' : ''}`}
-                      style={animarTransicionMacroMicro ? { animationDuration: '140ms', animationFillMode: 'both' } : undefined}
-                    >
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm p-6 relative overflow-hidden">
                       <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
                       <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-blue-500"></span>
@@ -1276,47 +1139,20 @@ function DetalleFondo() {
               <div className="relative bg-white dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm overflow-visible min-h-[34rem] flex flex-col">
                 <div className="h-1.5 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
 
-                {puedeGestionarCarga ? (
-                  <div className="fondo-central-nav-overlay">
-                    <div className="fondo-central-nav">
-                      <button
-                        onClick={desplazarIzquierda}
-                        className="fondo-central-nav-btn btn-left"
-                        title={mostrarCargaAcademica ? 'Ver distribucion macro' : 'Ver asignacion micro'}
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        onClick={desplazarDerecha}
-                        className="fondo-central-nav-btn btn-right"
-                        title={mostrarCargaAcademica ? 'Ver distribucion macro' : 'Ver asignacion micro'}
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-
                 <div className="p-5 flex-1 min-h-0 overflow-hidden">
-                  <div
-                    key={panelCentral}
-                    className={`fondo-panel-shell ${animarPanelCentral ? (direccionPanel === 'derecha' ? 'fondo-panel-enter-right' : 'fondo-panel-enter-left') : ''}`}
-                  >
-                    {puedeGestionarCarga && (
-                      <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50/80 px-4 py-3 text-center dark:border-blue-900/40 dark:bg-blue-950/20">
-                        <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                          {panelCentralInfo.titulo}
-                        </h2>
-                        <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                          {panelCentralInfo.descripcion}
-                        </p>
-                      </div>
-                    )}
+                  <div className="fondo-panel-shell">
+                    <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50/80 px-4 py-3 text-center dark:border-blue-900/40 dark:bg-blue-950/20">
+                      <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                        {puedeGestionarCarga ? 'Carga del Fondo de Tiempo' : 'Horas por unidad'}
+                      </h2>
+                      <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                        Cada unidad suma sus ítems en horas por año; las clases en aula salen de la materia y su calendario.
+                      </p>
+                    </div>
                     <div className="fondo-central-flex flex-1 min-h-0 gap-4">
                       <div className="fondo-central-stage">
-                        {puedeGestionarCarga && mostrarCargaAcademica ? (
-                          <div key="panel-carga" className="fondo-panel-anim">
+                        {puedeGestionarCarga ? (
+                          <div className="fondo-panel-anim">
                             <div className="h-full overflow-y-auto pr-1">
                               <CargaHorariaManager
                                 fondoId={fondo.id}
@@ -1331,23 +1167,35 @@ function DetalleFondo() {
                             </div>
                           </div>
                         ) : (
-                          <div key="panel-resumen" className="fondo-panel-anim fondo-distribucion-grow">
-                            <div className="h-full flex flex-col justify-center">
-                              <DistribuirHoras
-                                fondoId={fondo.id}
-                                horasEfectivas={fondo.horas_efectivas}
-                                horasObjetivo={fondo.horas_semana}
-                                editable={puedeEditarDistribucion}
-                                onActualizar={handleActualizacionHoras}
-                                onGuardarExitoso={handleDistribucionGuardada}
-                                canAddActivity={false}
-                                hideActionButtons={esAdmin || !puedeEditarDistribucion}
-                              />
-                            </div>
+                          <div className="fondo-panel-anim overflow-y-auto">
+                            <table className="min-w-full text-sm">
+                              <thead>
+                                <tr className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                  <th className="px-3 py-2 text-left">Unidad</th>
+                                  <th className="px-3 py-2 text-right">Horas/año</th>
+                                  <th className="px-3 py-2 text-right">%</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(fondo.categorias || []).map((categoria) => (
+                                  <tr key={categoria.id} className="border-t border-slate-200 dark:border-slate-700">
+                                    <td className="px-3 py-2 text-slate-700 dark:text-slate-200">{categoria.tipo_display}</td>
+                                    <td className="px-3 py-2 text-right font-semibold text-slate-800 dark:text-white">{Math.round(Number(categoria.total_horas || 0))}</td>
+                                    <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{Number(categoria.porcentaje || 0).toFixed(1)}%</td>
+                                  </tr>
+                                ))}
+                                <tr className="border-t-2 border-slate-300 dark:border-slate-600 font-bold">
+                                  <td className="px-3 py-2 text-slate-800 dark:text-white">Total</td>
+                                  <td className="px-3 py-2 text-right text-slate-800 dark:text-white">{totalUnidades}</td>
+                                  <td className="px-3 py-2 text-right text-slate-800 dark:text-white">
+                                    {horasEfectivasAnuales > 0 ? ((totalUnidades / horasEfectivasAnuales) * 100).toFixed(1) : '0.0'}%
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
                           </div>
                         )}
                       </div>
-
                     </div>
                   </div>
                 </div>
@@ -1365,8 +1213,7 @@ function DetalleFondo() {
                 {/* Widget Acciones - alineado con Balance de Horas (top) y Distribución (bottom) */}
                 <div
                   ref={refWidgetAcciones}
-                  className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm p-5 relative overflow-hidden flex flex-col ${!mostrarAccionesWidget ? 'hidden' : ''} ${animarTransicionMacroMicro ? 'animate-slide-up' : ''}`}
-                  style={animarTransicionMacroMicro ? { animationDuration: '140ms', animationFillMode: 'both' } : undefined}
+                  className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm p-5 relative overflow-hidden flex flex-col"
                 >
                   <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
 
@@ -1572,7 +1419,6 @@ function DetalleFondo() {
                       const Icon = CATEGORY_ICONS[categoria.tipo] || DocumentTextIcon;
                       const color = COLORS[idx % COLORS.length];
                       const totalActual = Number(categoria.total_horas || 0);
-                      const totalCargaHoraria = Number(categoria.total_carga_horaria || 0);
                       const totalPrevio = Number(prevTotalesCategoriasRef.current[categoria.id] || 0);
                       const aparecioRecien = totalPrevio <= 0 && totalActual > 0;
 
@@ -1595,15 +1441,10 @@ function DetalleFondo() {
                                   </h3>
                                   <div className="flex items-center gap-3 text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">
                                     <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
-                                      Presupuesto: <span className="font-bold" style={{ color: color }}>{categoria.total_horas}</span> hrs/sem
+                                      Total: <span className="font-bold" style={{ color: color }}>{Math.round(totalActual)}</span> h/año
                                     </span>
-                                    {totalCargaHoraria > 0 && (
-                                      <span className="px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800/50">
-                                        Detalle de carga: <span className="font-bold">{totalCargaHoraria}</span> hrs/anio
-                                      </span>
-                                    )}
                                     <span className="text-slate-300 dark:text-slate-600">|</span>
-                                    <span>{parseFloat(categoria.porcentaje).toFixed(1)}% del total</span>
+                                    <span>{parseFloat(categoria.porcentaje).toFixed(1)}% de las horas efectivas</span>
                                   </div>
                                 </div>
                               </div>

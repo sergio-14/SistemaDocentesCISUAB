@@ -6,7 +6,7 @@
    lo aprueba el superusuario con el documento de la Decanatura (PDF). El Jefe de
    Estudios sí puede presentar su propio fondo.
 3. Cargo + docencia en la misma carrera: todo dentro de 40 h/sem.
-4. FondoTiempoSerializer: distribución en horas semanales con el límite del vínculo.
+4. Cada unidad del fondo suma sus ítems (horas por año); su porcentaje es sobre las horas efectivas.
 """
 from datetime import date
 from decimal import Decimal
@@ -18,9 +18,10 @@ from django.test import override_settings
 from rest_framework import status
 
 from fondos.models import (
-    AsignacionCarrera, CategoriaFuncion, DatosLaborales, DocenteCarrera, FondoTiempo, InformeFondo, PerfilUsuario,
+    AsignacionCarrera, CargaHoraria, CategoriaFuncion, DatosLaborales, DocenteCarrera, FondoTiempo, InformeFondo,
+    PerfilUsuario,
 )
-from fondos.serializers import FondoTiempoSerializer
+from fondos.serializers import CategoriaFuncionSerializer
 from .tests_usuarios_ajustes import calendario_con_feriados
 from .tests_usuarios_auditoria import UsuariosBaseTestCase
 
@@ -74,19 +75,19 @@ class DocenteUnVinculoTests(UsuariosBaseTestCase):
         ])
         self.assertEqual(FondoTiempo.objects.filter(docente=self.docente, gestion=2026).count(), 2)
 
-    def test_la_distribucion_se_valida_en_horas_semanales_con_su_vinculo(self):
-        fondo = self._fondo(self.carrera)
-        tipos = [tipo for tipo, _ in CategoriaFuncion.TIPO_CHOICES]
+    def test_la_unidad_suma_sus_items_y_su_porcentaje_es_sobre_horas_efectivas(self):
+        fondo = self._fondo(self.carrera)   # 312 contrato - 36 vacación = 276 horas efectivas
+        for tipo_actividad, horas in (('participacion_iic_cis', 50), ('organizacion_eventos_cientificos', 19)):
+            CargaHoraria.objects.create(
+                fondo=fondo, docente=self.docente, categoria='investigacion',
+                tipo_actividad=tipo_actividad, titulo_actividad='Ítem', horas=horas,
+            )
+        unidad = CategoriaFuncion.objects.create(fondo_tiempo=fondo, tipo='investigacion')
 
-        # 6 h/sem: justo el límite del vínculo.
-        CategoriaFuncion.objects.create(fondo_tiempo=fondo, tipo=tipos[0], total_horas=Decimal('6'))
-        self.assertTrue(FondoTiempoSerializer(instance=fondo, data={}, partial=True).is_valid())
-
-        # 8 h/sem: lo supera.
-        CategoriaFuncion.objects.create(fondo_tiempo=fondo, tipo=tipos[1], total_horas=Decimal('2'))
-        serializer = FondoTiempoSerializer(instance=fondo, data={}, partial=True)
-        self.assertFalse(serializer.is_valid())
-        self.assertIn('horas_efectivas', serializer.errors)
+        self.assertEqual(fondo.total_asignado, 69)
+        datos = CategoriaFuncionSerializer(unidad).data
+        self.assertEqual(datos['total_horas'], 69)
+        self.assertEqual(datos['porcentaje'], Decimal('25.00'))
 
     def test_editar_parcialmente_un_fondo_no_da_error_500(self):
         # Antes: KeyError en el validador de unicidad de DRF.

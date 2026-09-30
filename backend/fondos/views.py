@@ -10,11 +10,11 @@ from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 from django.http import HttpResponse, FileResponse
 from django.db import transaction, IntegrityError
-from django.db.models import ProtectedError, prefetch_related_objects, Q, Sum
+from django.db.models import ProtectedError, prefetch_related_objects, Q
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.cache import cache
 from datetime import datetime, date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 import json
 import io
 from .utils.carrera_pdf_generator import CarreraPDFGenerator
@@ -30,7 +30,7 @@ from .models import (
 )
 from .serializers import (
     DocenteSerializer, CarreraSerializer, MateriaSerializer, FondoTiempoSerializer,
-    FondoTiempoListSerializer, CategoriaFuncionSerializer, CargaHorariaSerializer,
+    FondoTiempoListSerializer, CargaHorariaSerializer,
     UsuarioSerializer, CrearUsuarioSerializer, ActualizarUsuarioSerializer,
     FotoPerfilSerializer, PerfilUsuarioSerializer,
     CalendarioAcademicoSerializer, ProyectoSerializer, ProyectoListSerializer,
@@ -1506,22 +1506,6 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
                 {'docente': 'Docente exento de distribución de tiempo según Art. 25°'}
             )
 
-    def _validar_permiso_distribucion(self, fondo):
-        user = self.request.user
-        perfil = _obtener_perfil_efectivo(user, self.request)
-
-        if not user.is_superuser:
-            if not perfil or perfil.rol != 'jefe_estudios':
-                raise PermissionDenied("Solo Jefes de Estudio pueden modificar la distribucion de horas.")
-            if not _usuario_tiene_acceso_a_carrera(user, fondo.carrera, self.request):
-                raise PermissionDenied("No tienes acceso a la carrera de este Fondo de Tiempo.")
-
-        if fondo.carrera and not fondo.carrera.activo:
-            raise PermissionDenied("No se puede modificar la distribucion porque la carrera esta inactiva.")
-
-        if fondo.estado not in ['borrador', 'observado']:
-            raise PermissionDenied(f"No se puede modificar la distribucion. El fondo esta en estado '{fondo.get_estado_display()}'.")
-
     def _puede_editar_fondo(self, fondo):
         user = self.request.user
         if user.is_superuser:
@@ -1539,52 +1523,6 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
 
         return False
 
-    def _normalizar_horas_distribucion(self, raw_categorias):
-        if not isinstance(raw_categorias, dict):
-            raise drf_serializers.ValidationError({
-                'categorias': 'Debe enviar un objeto con las 7 categorias y sus horas.'
-            })
-
-        tipos_requeridos = [tipo for tipo, _label in CategoriaFuncion.TIPO_CHOICES]
-        faltantes = [tipo for tipo in tipos_requeridos if tipo not in raw_categorias]
-        extras = [tipo for tipo in raw_categorias.keys() if tipo not in tipos_requeridos]
-
-        errores = {}
-        if faltantes:
-            errores['faltantes'] = faltantes
-        if extras:
-            errores['no_permitidas'] = extras
-        if errores:
-            raise drf_serializers.ValidationError({'categorias': errores})
-
-        horas_por_tipo = {}
-        for tipo in tipos_requeridos:
-            try:
-                horas = Decimal(str(raw_categorias.get(tipo, 0)))
-            except (InvalidOperation, TypeError, ValueError):
-                raise drf_serializers.ValidationError({
-                    'categorias': {tipo: 'Las horas deben ser numericas.'}
-                })
-            if horas < 0:
-                raise drf_serializers.ValidationError({
-                    'categorias': {tipo: 'Las horas no pueden ser negativas.'}
-                })
-            horas_por_tipo[tipo] = horas.quantize(Decimal('0.01'))
-
-        return horas_por_tipo
-
-    def _validar_suma_exacta_semanal(self, fondo, horas_por_tipo):
-        total = sum(horas_por_tipo.values(), Decimal('0.00'))
-        horas_semana = Decimal(str(fondo.horas_semana or 0)).quantize(Decimal('0.01'))
-
-        if total != horas_semana:
-            raise drf_serializers.ValidationError({
-                'categorias': (
-                    f'La suma de las 7 categorias debe ser exactamente igual a '
-                    f'{horas_semana} horas semanales. Total enviado: {total}.'
-                )
-            })
-    
     def create(self, request, *args, **kwargs):
         """
         Aplica reglas de negocio para la creación de Fondos de Tiempo.
@@ -1653,34 +1591,6 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         tipos = [tipo for tipo, _label in CategoriaFuncion.TIPO_CHOICES]
         for tipo in tipos:
             CategoriaFuncion.objects.create(fondo_tiempo=fondo, tipo=tipo)
-
-    @action(detail=True, methods=['post', 'patch'], url_path='distribuir-horas')
-    def distribuir_horas(self, request, pk=None):
-        fondo = self.get_object()
-        self._validar_permiso_distribucion(fondo)
-
-        try:
-            horas_por_tipo = self._normalizar_horas_distribucion(request.data.get('categorias'))
-            self._validar_suma_exacta_semanal(fondo, horas_por_tipo)
-        except drf_serializers.ValidationError as exc:
-            return self._validation_error_response(exc.detail)
-
-        with transaction.atomic():
-            self._asegurar_categorias(fondo)
-            categorias = {
-                categoria.tipo: categoria
-                for categoria in CategoriaFuncion.objects.select_for_update().filter(fondo_tiempo=fondo)
-            }
-            for tipo, horas in horas_por_tipo.items():
-                categoria = categorias[tipo]
-                categoria.total_horas = horas
-                categoria.save(update_fields=['total_horas'])
-
-        serializer = FondoTiempoDetalleSerializer(
-            self.get_object(),
-            context=self.get_serializer_context()
-        )
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], url_path='generar-masivo')
     def generar_masivo(self, request):
@@ -2119,24 +2029,15 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        total_macro = Decimal(str(fondo.total_asignado or 0)).quantize(Decimal('0.01'))
-        horas_objetivo = Decimal(str(fondo.horas_semana or 0)).quantize(Decimal('0.01'))
-        tiene_micro = fondo.cargas.exists()
-
-        total_micro_anual = Decimal(str(
-            fondo.cargas.aggregate(total=Sum('horas'))['total'] or 0
-        )).quantize(Decimal('0.01'))
-        objetivo_micro_anual = Decimal(str(fondo.horas_efectivas or 1712)).quantize(Decimal('0.01'))
-
-        if horas_objetivo <= 0 or total_macro != horas_objetivo or not tiene_micro:
+        # La suma de todas las unidades debe ser exactamente las horas efectivas.
+        total_unidades = Decimal(fondo.total_asignado)
+        horas_efectivas = Decimal(str(fondo.horas_efectivas or 0))
+        if horas_efectivas <= 0 or total_unidades != horas_efectivas:
             return Response(
-                {'error': 'Complete la distribución de horas y asigne al menos una materia antes de presentar'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if total_micro_anual != objetivo_micro_anual:
-            return Response(
-                {'error': f'El Micro debe sumar exactamente {objetivo_micro_anual:g} horas anuales. Total actual: {total_micro_anual:g}.'},
+                {'error': (
+                    f'La suma de las unidades debe ser exactamente {horas_efectivas.normalize():f} horas '
+                    f'(horas efectivas). Total actual: {total_unidades.normalize():f}.'
+                )},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -2804,93 +2705,6 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         checklist = self._build_checklist_salud_pdf(fondo)
         return Response(checklist, status=status.HTTP_200_OK)
         
-class FondoTiempoDistribucionAccessMixin(CarreraInactivaSoloLecturaMixin):
-    permission_classes = [IsAuthenticated]
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            user = self.request.user
-            perfil = _obtener_perfil_efectivo(user, self.request)
-            if not user.is_superuser and (not perfil or perfil.rol != 'jefe_estudios'):
-                raise PermissionDenied("Solo Jefes de Estudio pueden modificar la distribución de horas.")
-
-        return super().get_permissions()
-
-    def _validar_fondo_modificable(self, fondo):
-        user = self.request.user
-        perfil = _obtener_perfil_efectivo(user, self.request)
-
-        if not fondo:
-            raise PermissionDenied("No se pudo identificar el Fondo de Tiempo asociado.")
-
-        if not user.is_superuser:
-            if not perfil or perfil.rol != 'jefe_estudios':
-                raise PermissionDenied("Solo Jefes de Estudio pueden modificar la distribución de horas.")
-            if not _usuario_tiene_acceso_a_carrera(user, fondo.carrera, self.request):
-                raise PermissionDenied("No tienes acceso a la carrera de este Fondo de Tiempo.")
-
-        if fondo.carrera and not fondo.carrera.activo:
-            raise PermissionDenied("No se puede modificar la distribución porque la carrera está inactiva.")
-
-        if fondo.estado not in ['borrador', 'observado']:
-            raise PermissionDenied(f"No se puede modificar la distribución. El fondo está en estado '{fondo.get_estado_display()}'.")
-
-    def _filtrar_por_rol(self, queryset, fondo_path):
-        user = self.request.user
-        perfil = _obtener_perfil_efectivo(user, self.request)
-
-        if user.is_superuser:
-            return queryset
-
-        if not perfil:
-            return queryset.none()
-
-        if perfil.rol in ['director', 'jefe_estudios', 'iiisyp']:
-            carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
-            if carreras_activas.exists():
-                return queryset.filter(**{f'{fondo_path}__carrera__in': carreras_activas})
-            return queryset.none()
-
-        if perfil.rol == 'docente' and perfil.docente:
-            return queryset.filter(**{f'{fondo_path}__docente': perfil.docente})
-
-        return queryset.none()
-
-
-class CategoriaFuncionViewSet(FondoTiempoDistribucionAccessMixin, viewsets.ModelViewSet):
-    queryset = CategoriaFuncion.objects.select_related('fondo_tiempo', 'fondo_tiempo__docente', 'fondo_tiempo__carrera').all()
-    serializer_class = CategoriaFuncionSerializer
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['fondo_tiempo', 'tipo']
-
-    def get_queryset(self):
-        return self._filtrar_por_rol(super().get_queryset(), 'fondo_tiempo')
-
-    def perform_create(self, serializer):
-        fondo = serializer.validated_data.get('fondo_tiempo')
-        self._validar_fondo_modificable(fondo)
-        total_horas = serializer.validated_data.get('total_horas', Decimal('0'))
-        if 'total_horas' in self.request.data and Decimal(str(total_horas or 0)) != Decimal('0'):
-            raise drf_serializers.ValidationError({
-                'total_horas': 'Use el endpoint de distribucion del fondo para asignar horas.'
-            })
-        serializer.save()
-
-    def perform_update(self, serializer):
-        instance = self.get_object()
-        fondo = serializer.validated_data.get('fondo_tiempo', instance.fondo_tiempo)
-        self._validar_fondo_modificable(fondo)
-        if 'total_horas' in self.request.data:
-            raise drf_serializers.ValidationError({
-                'total_horas': 'Use el endpoint de distribucion del fondo para asignar horas.'
-            })
-        serializer.save()
-
-    def perform_destroy(self, instance):
-        self._validar_fondo_modificable(instance.fondo_tiempo)
-        instance.delete()
-
-
 # =====================================================
 # PROYECTO VIEWSET
 # =====================================================

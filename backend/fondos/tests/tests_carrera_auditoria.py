@@ -480,9 +480,6 @@ class CarreraInactivaSoloLecturaTests(CarreraBaseTestCase):
             'editar materia': self.client.patch(f'/api/materias/{materia.pk}/', {'nombre': 'Otra'}, format='json'),
             'borrar materia': self.client.delete(f'/api/materias/{materia.pk}/'),
             'editar fondo': self.client.patch(f'/api/fondos-tiempo/{self.fondo.pk}/', {'gestion': 2027}, format='json'),
-            'distribuir horas': self.client.patch(
-                f'/api/fondos-tiempo/{self.fondo.pk}/distribuir-horas/', {'categorias': {}}, format='json',
-            ),
             'crear fondo': self.client.post(
                 '/api/fondos-tiempo/', {'docente': self.docente.pk, 'carrera': self.carrera.pk}, format='json',
             ),

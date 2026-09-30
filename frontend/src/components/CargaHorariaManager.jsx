@@ -20,9 +20,6 @@ const XMarkIcon = (props) => (
     </svg>
 );
 
-const SEMANAS_GESTION = 45.8;
-const SEMANAS_CLASES_AULA = 40;
-
 const SUBACTIVIDADES_POR_CATEGORIA = {
     academica: {
         tipoLabel: 'Sub-actividad academica',
@@ -180,8 +177,6 @@ const HORAS_ANUALES_OFICIALES = {
         capacitacion_complementaria: 16,
     },
 };
-
-const HORAS_ANUALES_TIEMPO_COMPLETO = 1712;
 
 const ChevronDown = ({ open = false }) => (
     <div className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
@@ -443,7 +438,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
             const detalle = await api.get(`/fondos-tiempo/${fondoId}/`);
             setFondoDetalle(detalle.data);
         } catch (error) {
-            console.error("Error al cargar presupuesto macro:", error);
+            console.error("Error al cargar el detalle del fondo:", error);
             setFondoDetalle(null);
         }
     };
@@ -457,7 +452,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
             return;
         }
         if (excedeObjetivoAnual) {
-            toast.error(`No se puede guardar: el Micro excede ${objetivoAnual} horas anuales`);
+            toast.error(`No se puede guardar: la suma de las unidades superaría las ${objetivoAnual} horas efectivas`);
             return;
         }
         if (esAcademica && !formData.calendario) {
@@ -604,15 +599,11 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
     const esSubactividadAcademica = esAcademica && formData.tipo_actividad && formData.tipo_actividad !== 'clases_aula';
     const configCategoria = SUBACTIVIDADES_POR_CATEGORIA[formData.categoria] || null;
     const tipoActividadOptions = configCategoria?.opciones || [];
-    const semanasPresupuesto = Number(fondoDetalle?.semanas_año || SEMANAS_GESTION);
-    const categoriaPresupuesto = fondoDetalle?.categorias?.find(cat => cat.tipo === formData.categoria);
-    const presupuestoSemana = Number(categoriaPresupuesto?.total_horas || 0);
-    const semanasCategoria = esAcademica ? SEMANAS_CLASES_AULA : semanasPresupuesto;
-    const asignadoSemana = cargas
+    // La unidad suma sus ítems; el fondo, todas sus unidades (horas por año) hasta las horas efectivas.
+    const totalUnidad = cargas
         .filter(carga => carga.categoria === formData.categoria && carga.id !== cargaEdicion?.id)
-        .reduce((total, carga) => total + (Number(carga.horas || 0) / semanasCategoria), 0);
-    const disponibleSemana = presupuestoSemana - asignadoSemana;
-    const objetivoAnual = Math.round(Number(fondoDetalle?.horas_efectivas || HORAS_ANUALES_TIEMPO_COMPLETO));
+        .reduce((total, carga) => total + Number(carga.horas || 0), 0);
+    const objetivoAnual = Math.round(Number(fondoDetalle?.horas_efectivas || 0));
     const horasFormulario = Number(formData.horas || 0);
     const totalAnualBase = cargas
         .filter((carga) => carga.id !== cargaEdicion?.id)
@@ -732,7 +723,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                         </div>
 
                         <div className="rounded-lg border border-cyan-200 bg-cyan-50/70 px-3 py-2 text-[11px] font-semibold text-cyan-800 dark:border-cyan-800/70 dark:bg-cyan-950/25 dark:text-cyan-200">
-                            Presupuesto: {presupuestoSemana.toFixed(2)} hrs/sem | Asignado: {asignadoSemana.toFixed(2)} hrs/sem | Disponible: {disponibleSemana.toFixed(2)} hrs/sem
+                            Unidad: {totalUnidad} h/año | Fondo: {totalAnualBase} de {objetivoAnual} h/año (horas efectivas) | Por asignar: {objetivoAnual - totalAnualBase} h/año
                         </div>
 
                         {/* Fila 2: Materia o actividad */}
@@ -840,7 +831,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                             <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1.5 leading-tight">
                                 {esAcademica && !esSubactividadAcademica
                                     ? `Total horas anuales = (HT + HP) x ${semanasDeClase(formData.calendario) || '20 (semestre) o 40 (anual)'} semanas`
-                                    : `Equivalencia semanal aproximada = horas anuales / ${semanasPresupuesto}`}
+                                    : 'Horas por año del ítem: se suman al total de su unidad'}
                             </p>
                         </div>
 

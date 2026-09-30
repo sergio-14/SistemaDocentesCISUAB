@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { FaChevronLeft, FaChevronRight, FaEdit, FaTrash } from 'react-icons/fa';
+import { FaChevronLeft, FaChevronRight, FaEdit, FaEye, FaTrash } from 'react-icons/fa';
 import { getDocentes } from '../apis/api';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
@@ -852,6 +852,8 @@ function ListaDocentes({ sidebarCollapsed = false }) {
 
   // Modal de crear/editar
   const [showModal, setShowModal] = useState(false);
+  // El Director ve la ficha de los docentes de su carrera sin poder editarla.
+  const [fichaSoloLectura, setFichaSoloLectura] = useState(false);
   const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
 
   // Formulario
@@ -1341,7 +1343,8 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     });
   };
 
-  const abrirModalEditar = (docente) => {
+  const abrirModalEditar = (docente, { soloLectura = false } = {}) => {
+    setFichaSoloLectura(soloLectura);
     setDocenteSeleccionado(docente);
     setFormData({
       user: docente.user_id || docente.usuario_id || '',
@@ -1902,11 +1905,15 @@ function ListaDocentes({ sidebarCollapsed = false }) {
 
   // iiisyp es solo lectura: solo superuser y director pueden crear/editar/eliminar
   const esAdmin = () => user?.is_superuser || (user?.perfil?.rol === 'director');
+  // Editar y eliminar fichas: solo el superusuario (igual que el backend).
+  const esSuperusuario = Boolean(user?.is_superuser);
   const docenteVinculadoAUsuario = Boolean(docenteSeleccionado?.usuario_id);
-  const horasDeclaradasDocente = Number(docenteSeleccionado?.horas_declaradas || 0);
-  const fondosValidadosDocente = Number(docenteSeleccionado?.fondos_validados || 0);
-  const docenteTieneHistorial = horasDeclaradasDocente > 0 || fondosValidadosDocente > 0;
-  const tooltipBloqueoHistorial = 'No editable: existe historial de horas declaradas';
+  // Misma regla que el backend: con historial (fondo presentado, evidencias o informes) la
+  // ficha queda fija; con fondos, cargas o saldos la carrera no cambia.
+  const docenteTieneHistorial = Boolean(docenteSeleccionado?.tiene_historial);
+  const docenteTieneRegistros = Boolean(docenteSeleccionado?.tiene_registros);
+  const tooltipBloqueoHistorial = 'No editable: el docente tiene un Fondo de Tiempo presentado, evidencias o informes';
+  const tooltipBloqueoCarrera = 'No editable: el docente tiene fondos, cargas o saldos en su carrera';
   const tooltipDatosUsuarios = 'Estos datos se gestionan desde Usuarios';
   const estiloBloqueado = 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-100 border-slate-500 dark:border-slate-600';
   const estiloAdvertenciaEditable = 'border-amber-300 dark:border-amber-700';
@@ -2377,26 +2384,37 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                           </h3>
                         </div>
                       </div>
-                      {/* Botones de acción - Solo admin */}
-                      {esAdmin() && (() => {
-                        // tiene_historial cuenta todas las carreras; las horas que ve el Director son solo las de la suya.
-                        const blockedBtn = Boolean(docente?.tiene_historial) || (docente?.horas_declaradas || 0) > 0 || (docente?.fondos_validados || 0) > 0;
-                        const titleMsg = blockedBtn ? 'Acción deshabilitada: existe historial operativo' : '';
+                      {/* Director: ver la ficha (solo lectura) */}
+                      {!esSuperusuario && esAdmin() && (
+                        <div className="flex gap-3 flex-shrink-0">
+                          <button
+                            onClick={() => abrirModalEditar(docente, { soloLectura: true })}
+                            className="text-blue-500 hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300 transition-all duration-200 hover:scale-110"
+                            title="Ver ficha"
+                          >
+                            <FaEye size={18} />
+                          </button>
+                        </div>
+                      )}
+                      {/* Superusuario: editar (sin historial) y eliminar (sin fondos, cargas ni saldos) */}
+                      {esSuperusuario && (() => {
+                        const bloqueoEditar = Boolean(docente?.tiene_historial);
+                        const bloqueoEliminar = Boolean(docente?.tiene_registros);
                         return (
                           <div className="flex gap-3 flex-shrink-0">
                             <button
-                              onClick={() => !blockedBtn && abrirModalEditar(docente)}
-                              disabled={blockedBtn}
-                              className={`text-blue-500 ${blockedBtn ? 'opacity-50 cursor-not-allowed' : 'hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300'} transition-all duration-200 ${blockedBtn ? '' : 'hover:scale-110'}`}
-                              title={titleMsg || 'Editar'}
+                              onClick={() => !bloqueoEditar && abrirModalEditar(docente)}
+                              disabled={bloqueoEditar}
+                              className={`text-blue-500 ${bloqueoEditar ? 'opacity-50 cursor-not-allowed' : 'hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300 hover:scale-110'} transition-all duration-200`}
+                              title={bloqueoEditar ? 'Ficha fija: el docente tiene un Fondo de Tiempo presentado, evidencias o informes' : 'Editar'}
                             >
                               <FaEdit size={18} />
                             </button>
                             <button
-                              onClick={() => !blockedBtn && eliminarDocente(docente)}
-                              disabled={blockedBtn}
-                              className={`text-red-500 ${blockedBtn ? 'opacity-50 cursor-not-allowed' : 'hover:text-red-400 dark:text-red-400 dark:hover:text-red-300'} transition-all duration-200 ${blockedBtn ? '' : 'hover:scale-110'}`}
-                              title={titleMsg || 'Eliminar'}
+                              onClick={() => !bloqueoEliminar && eliminarDocente(docente)}
+                              disabled={bloqueoEliminar}
+                              className={`text-red-500 ${bloqueoEliminar ? 'opacity-50 cursor-not-allowed' : 'hover:text-red-400 dark:text-red-400 dark:hover:text-red-300 hover:scale-110'} transition-all duration-200`}
+                              title={bloqueoEliminar ? 'No se puede eliminar: el docente tiene fondos, cargas o saldos' : 'Eliminar'}
                             >
                               <FaTrash size={18} />
                             </button>
@@ -2489,10 +2507,11 @@ function ListaDocentes({ sidebarCollapsed = false }) {
             <div className="bg-[#2C4AAE] px-6 py-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  Editar Docente
+                  {fichaSoloLectura ? 'Ficha del Docente' : 'Editar Docente'}
                 </h2>
                 <button
                   type="button"
+                  disabled={fichaSoloLectura}
                   role="switch"
                   aria-checked={formData.activo}
                   aria-label={formData.activo ? 'Marcar docente como inactivo' : 'Marcar docente como activo'}
@@ -2523,7 +2542,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
 
             {/* Body */}
             <form id="editar-docente-form" onSubmit={handleUpdateSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50 dark:bg-slate-900 transition-all duration-300 ease-out">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <fieldset disabled={fichaSoloLectura} className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <InputField
                   label="Nombre completo"
                   name="nombre_completo"
@@ -2535,7 +2554,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                   lockTooltip={tooltipDatosUsuarios}
                   inputClassName={estiloBloqueado}
                 />
-                {/* El C.I. se puede corregir mientras el docente no tenga historial (fondos, cargas, saldos). */}
+                {/* El C.I. se puede corregir mientras el docente no tenga historial (fondo presentado, evidencias o informes). */}
                 <InputField
                   label="Cedula de Identidad (CI)"
                   name="ci"
@@ -2543,10 +2562,10 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                   onChange={handleChange}
                   error={errors.ci}
                   maxLength={20}
-                  readOnly={Boolean(docenteSeleccionado?.tiene_historial)}
-                  showLock={Boolean(docenteSeleccionado?.tiene_historial)}
-                  lockTooltip="El docente ya tiene datos registrados: su C.I. no se puede cambiar."
-                  inputClassName={docenteSeleccionado?.tiene_historial ? estiloBloqueado : ''}
+                  readOnly={docenteTieneHistorial}
+                  showLock={docenteTieneHistorial}
+                  lockTooltip={tooltipBloqueoHistorial}
+                  inputClassName={docenteTieneHistorial ? estiloBloqueado : ''}
                 />
                 <InputField
                   label="Email"
@@ -2567,10 +2586,10 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                   onChange={handleChange}
                   options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
                   error={errors.carrera}
-                  disabled={docenteTieneHistorial}
-                  showLock={docenteTieneHistorial}
-                  lockTooltip={tooltipBloqueoHistorial}
-                  containerClassName={docenteTieneHistorial ? estiloBloqueado : ''}
+                  disabled={docenteTieneRegistros}
+                  showLock={docenteTieneRegistros}
+                  lockTooltip={tooltipBloqueoCarrera}
+                  containerClassName={docenteTieneRegistros ? estiloBloqueado : ''}
                 />
                 {docenteTieneHistorial ? (
                   <div>
@@ -2666,6 +2685,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                     </p>
                   </div>
                 </div>
+                {!fichaSoloLectura && (
                 <div className="gestion-warning-accent md:col-span-2 slide-down min-h-[180px] rounded-xl border border-blue-200 border-l-[12px] border-l-[#1E3A8A] bg-gradient-to-r from-blue-50 to-indigo-50 p-4 shadow-sm ring-1 ring-inset ring-blue-600/30 transition-all duration-300 dark:border-blue-900/40 dark:border-l-blue-400 dark:from-blue-600/20 dark:to-indigo-600/20 dark:ring-blue-400/50">
                   <div className="flex items-start gap-3">
                     <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-800 dark:text-blue-300" />
@@ -2711,12 +2731,13 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                     </div>
                   </div>
                 </div>
-              </div>
+                )}
+              </fieldset>
             </form>
 
             {/* Footer */}
             <div className="px-6 py-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-                {docenteVinculadoAUsuario && infoEdicionIndex === 0 && (
+                {!fichaSoloLectura && docenteVinculadoAUsuario && infoEdicionIndex === 0 && (
                   <button
                     type="button"
                     onClick={handleEditarEnUsuarios}
@@ -2730,8 +2751,9 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                 onClick={() => setShowModal(false)}
                 className="px-6 py-2.5 rounded-xl font-bold text-slate-700 dark:text-slate-300 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
               >
-                Cancelar
+                {fichaSoloLectura ? 'Cerrar' : 'Cancelar'}
               </button>
+              {!fichaSoloLectura && (
               <button
                 type="submit"
                 form="editar-docente-form"
@@ -2749,6 +2771,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                   </>
                 )}
               </button>
+              )}
             </div>
           </div>
         </div>

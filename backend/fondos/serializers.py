@@ -544,7 +544,31 @@ def obtener_perfil_por_ci(ci):
     return PerfilUsuario.objects.filter(ci=ci_normalizado).select_related('user', 'docente').first()
 
 
+# Estados en los que el fondo ya se presentó: desde ahí la ficha del docente queda fija.
+ESTADOS_FONDO_CON_HISTORIAL = [
+    'presentado_director', 'aprobado_director', 'en_ejecucion', 'informe_presentado', 'finalizado',
+]
+MENSAJE_FICHA_CON_HISTORIAL = (
+    'La ficha no se puede cambiar: el docente tiene un Fondo de Tiempo presentado, evidencias o informes.'
+)
+
+
 def docente_tiene_historial_operativo(docente):
+    """Historial de la ficha: algún fondo presentado (o más avanzado), evidencias o informes.
+    Con historial no cambian C.I., fecha de ingreso, carrera ni vínculo. Los fondos en
+    borrador u observado no cuentan: al editar la ficha se recalculan."""
+    if not docente:
+        return False
+    return (
+        FondoTiempo.objects.filter(docente=docente, estado__in=ESTADOS_FONDO_CON_HISTORIAL).exists()
+        or EvidenciaCargaHoraria.objects.filter(carga_horaria__docente=docente).exists()
+        or InformeFondo.objects.filter(fondo_tiempo__docente=docente).exists()
+    )
+
+
+def docente_tiene_registros(docente):
+    """Cualquier fondo, carga o saldo: el docente no se elimina ni cambia de carrera (sus
+    fondos quedarían en otra carrera) y su perfil no se reutiliza por C.I."""
     if not docente:
         return False
     return (
@@ -589,7 +613,7 @@ def validar_fecha_ingreso(fecha_ingreso):
 
 
 def validar_cambio_fecha_ingreso(datos_laborales, fecha_nueva):
-    """Con historial (fondos, cargas o saldos), la fecha de ingreso del docente queda fija.
+    """Con historial (ver docente_tiene_historial_operativo), la fecha de ingreso queda fija.
 
     La usan la edición del docente y PATCH /api/datos-laborales/.
     """
@@ -598,7 +622,7 @@ def validar_cambio_fecha_ingreso(datos_laborales, fecha_nueva):
     docente = Docente.objects.filter(datos_laborales=datos_laborales).first()
     if docente and docente_tiene_historial_operativo(docente):
         raise serializers.ValidationError({
-            'fecha_ingreso': 'No se puede cambiar la fecha de ingreso porque el docente ya tiene historial (fondos, cargas horarias o saldos).',
+            'fecha_ingreso': MENSAJE_FICHA_CON_HISTORIAL,
         })
 
 
@@ -616,7 +640,7 @@ def usuario_con_varias_carreras_docentes(user):
 def perfil_ci_es_reutilizable(perfil_ci, rol_objetivo):
     if not perfil_ci or perfil_ci.user_id:
         return False
-    if docente_tiene_historial_operativo(perfil_ci.docente):
+    if docente_tiene_registros(perfil_ci.docente):
         return False
     return True
 
@@ -1552,6 +1576,7 @@ class DocenteSerializer(serializers.ModelSerializer):
     # El C.I. vive en DatosLaborales: se guarda y solo se edita sin historial.
     ci = serializers.CharField(required=False, allow_blank=True, max_length=20)
     tiene_historial = serializers.SerializerMethodField()
+    tiene_registros = serializers.SerializerMethodField()
     categoria = serializers.ChoiceField(choices=Docente.CATEGORIA_CHOICES, write_only=True, required=False)
     dedicacion = serializers.ChoiceField(choices=Docente.DEDICACION_CHOICES, write_only=True, required=False)
     condicion = serializers.ChoiceField(choices=DocenteCarrera.CONDICION_CHOICES, write_only=True, required=False)
@@ -1571,7 +1596,7 @@ class DocenteSerializer(serializers.ModelSerializer):
             'fecha_ingreso', 'dias_vacacion',
             'nombre_completo', 'usuario_nombre', 'usuario_email', 'usuario_id',
             'usuario_rol', 'usuario_rol_display', 'asignaciones',
-            'horas_declaradas', 'fondos_validados', 'tiene_historial',
+            'horas_declaradas', 'fondos_validados', 'tiene_historial', 'tiene_registros',
             'carrera', 'carrera_id', 'carrera_nombre',
             'categoria', 'dedicacion', 'condicion',
             'vinculos', 'activo',
@@ -1678,6 +1703,9 @@ class DocenteSerializer(serializers.ModelSerializer):
     def get_tiene_historial(self, obj):
         return docente_tiene_historial_operativo(obj)
 
+    def get_tiene_registros(self, obj):
+        return docente_tiene_registros(obj)
+
     def validate_ci(self, value):
         ci_normalizado = (value or '').strip()
         return ci_normalizado
@@ -1699,17 +1727,17 @@ class DocenteSerializer(serializers.ModelSerializer):
         return vinculo
 
     def _validar_cambio_carrera(self, carrera, user):
-        """Un solo vínculo: cambiar de carrera lo mueve a la carrera del usuario, y solo sin historial
-        (un fondo o una carga en la carrera anterior quedaría sin horas)."""
+        """Un solo vínculo: cambiar de carrera lo mueve a la carrera del usuario, y solo sin
+        registros (un fondo o una carga en la carrera anterior quedaría sin horas)."""
         actual = self.instance.vinculos_carrera.filter(activo=True).select_related('carrera').first()
         if not carrera or (actual and actual.carrera_id == carrera.pk):
             return
         carreras_usuario = carreras_docencia_usuario(user)
         if carreras_usuario and carrera.pk not in carreras_usuario:
             raise serializers.ValidationError({'carrera': MENSAJE_FICHA_EN_CARRERA_DEL_USUARIO})
-        if actual and docente_tiene_historial_operativo(self.instance):
+        if actual and docente_tiene_registros(self.instance):
             raise serializers.ValidationError({
-                'carrera': f'No se puede cambiar la carrera: el docente tiene historial en {actual.carrera.nombre}.',
+                'carrera': f'No se puede cambiar la carrera: el docente tiene fondos, cargas o saldos en {actual.carrera.nombre}.',
             })
 
     def _validar_reglas_ficha(self, data, dedicacion, user):
@@ -1747,9 +1775,7 @@ class DocenteSerializer(serializers.ModelSerializer):
         if docente and ci == (docente.ci or ''):
             return
         if docente and docente_tiene_historial_operativo(docente):
-            raise serializers.ValidationError({
-                'ci': 'No se puede cambiar el C.I. porque el docente ya tiene datos registrados.'
-            })
+            raise serializers.ValidationError({'ci': MENSAJE_FICHA_CON_HISTORIAL})
 
         usuario = data.get('user') or (docente.user if docente else None)
         datos_propios = docente.datos_laborales_id if docente else None
@@ -1766,8 +1792,18 @@ class DocenteSerializer(serializers.ModelSerializer):
         if conflicto_laboral.exists() or conflicto_perfil.exists():
             raise serializers.ValidationError({'ci': 'Este C.I. ya está registrado.'})
 
+    def _validar_vinculo_con_historial(self, data):
+        """Con historial, categoría, dedicación y condición del vínculo quedan fijas."""
+        if not self.instance or not docente_tiene_historial_operativo(self.instance):
+            return
+        vinculo = self.instance.vinculos_carrera.filter(activo=True).first()
+        for campo in ('categoria', 'dedicacion', 'condicion'):
+            if campo in data and vinculo and data[campo] != getattr(vinculo, campo):
+                raise serializers.ValidationError({campo: MENSAJE_FICHA_CON_HISTORIAL})
+
     def validate(self, data):
         self._validar_ci(data)
+        self._validar_vinculo_con_historial(data)
 
         user_existente = data.get('user')
         user_data = data.get('user_data')
@@ -3142,11 +3178,11 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
         docente = docente_del_usuario(self.instance)
         vinculo = docente.vinculos_carrera.filter(activo=True).select_related('carrera').first() if docente else None
         if vinculo and carreras and vinculo.carrera_id not in carreras:
-            if docente_tiene_historial_operativo(docente):
+            if docente_tiene_registros(docente):
                 raise serializers.ValidationError({
                     'carrera': (
-                        f'No se puede cambiar la carrera: el docente tiene historial (fondos, cargas '
-                        f'horarias o saldos) en {vinculo.carrera.nombre}.'
+                        f'No se puede cambiar la carrera: el docente tiene fondos, cargas '
+                        f'horarias o saldos en {vinculo.carrera.nombre}.'
                     ),
                 })
             self._mover_vinculo_a = next(iter(carreras))

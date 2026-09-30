@@ -1179,11 +1179,11 @@ class FondoTiempo(models.Model):
     ]
 
     @classmethod
-    def recalcular_encabezados_de_gestion(cls, carrera_id, gestion):
-        """Tras cambiar los calendarios de una gestión (feriados o fechas), los fondos que
-        aún no se presentaron toman los nuevos valores. Sin validaciones de contenido:
-        solo se actualiza el encabezado."""
-        fondos = cls.objects.filter(carrera_id=carrera_id, gestion=gestion, archivado=False).exclude(
+    def recalcular_encabezados(cls, fondos):
+        """Los fondos que aún no se presentaron toman los datos actuales (antigüedad,
+        dedicación, feriados, inicio de gestión). Sin validaciones de contenido: solo se
+        actualiza el encabezado."""
+        fondos = fondos.filter(archivado=False).exclude(
             estado__in=ESTADOS_FONDO_BLOQUEADOS,
         ).select_related('docente', 'carrera')
         for fondo in fondos:
@@ -1191,6 +1191,11 @@ class FondoTiempo(models.Model):
             cls.objects.filter(pk=fondo.pk).update(
                 **{campo: getattr(fondo, campo) for campo in cls.CAMPOS_ENCABEZADO}
             )
+
+    @classmethod
+    def recalcular_encabezados_de_gestion(cls, carrera_id, gestion):
+        """Tras cambiar los calendarios de una gestión (feriados o fechas)."""
+        cls.recalcular_encabezados(cls.objects.filter(carrera_id=carrera_id, gestion=gestion))
 
     def clean(self):
         super().clean()
@@ -2145,25 +2150,19 @@ def crear_datos_laborales_si_no_existen(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=Docente)
 def actualizar_fondos_docente(sender, instance, **kwargs):
-    """
-    Sincroniza los fondos de tiempo cuando cambian datos críticos del docente
-    (antigüedad, vacaciones) para recalcular horas efectivas.
-    """
-    fondos = FondoTiempo.objects.filter(docente=instance)
-    for fondo in fondos:
-        fondo.save()
+    """Al editar la ficha (antigüedad, vacaciones), sus fondos no presentados se recalculan."""
+    FondoTiempo.recalcular_encabezados(FondoTiempo.objects.filter(docente=instance))
+
+@receiver(post_save, sender=DatosLaborales)
+def actualizar_fondos_al_cambiar_datos_laborales(sender, instance, **kwargs):
+    """La fecha de ingreso también se edita por /api/datos-laborales/: sus fondos no presentados se recalculan."""
+    FondoTiempo.recalcular_encabezados(FondoTiempo.objects.filter(docente__datos_laborales=instance))
+
 
 @receiver(post_save, sender=DocenteCarrera)
 def actualizar_fondos_al_cambiar_vinculo(sender, instance, **kwargs):
-    """
-    Sincroniza los fondos de tiempo cuando cambia la dedicación del vínculo.
-    """
-    fondos = FondoTiempo.objects.filter(
-        docente=instance.docente,
-        carrera=instance.carrera
-    )
-    for fondo in fondos:
-        fondo.save()
+    """Al cambiar la dedicación del vínculo, los fondos no presentados de esa carrera se recalculan."""
+    FondoTiempo.recalcular_encabezados(FondoTiempo.objects.filter(docente=instance.docente, carrera=instance.carrera))
 
 
 @receiver(post_save, sender=AsignacionCarrera)

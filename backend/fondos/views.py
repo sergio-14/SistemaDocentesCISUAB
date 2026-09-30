@@ -85,9 +85,13 @@ def _usuario_tiene_acceso_a_carrera(user, carrera, request=None):
 
 
 def _docentes_por_carreras(carreras):
+    """Docentes de esas carreras: con su vínculo (ficha) o una asignación activa en ellas."""
     if not carreras:
         return Docente.objects.none()
-    return Docente.objects.filter(asignaciones_carrera__carrera__in=carreras, asignaciones_carrera__activo=True).distinct()
+    return Docente.objects.filter(
+        Q(vinculos_carrera__carrera__in=carreras, vinculos_carrera__activo=True)
+        | Q(asignaciones_carrera__carrera__in=carreras, asignaciones_carrera__activo=True)
+    ).distinct()
 
 
 class CarreraInactivaSoloLecturaMixin(CarreraInactivaSoloLecturaBase):

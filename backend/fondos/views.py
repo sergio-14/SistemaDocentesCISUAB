@@ -1,5 +1,5 @@
 from rest_framework import viewsets, filters, status, generics, serializers as drf_serializers
-from rest_framework.decorators import action, api_view, permission_classes, renderer_classes
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, BasePermission
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -8,9 +8,9 @@ from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
-from django.http import HttpResponse, JsonResponse, FileResponse
+from django.http import HttpResponse, FileResponse
 from django.db import transaction, IntegrityError
-from django.db.models import Prefetch, ProtectedError, prefetch_related_objects, Q, Sum
+from django.db.models import ProtectedError, prefetch_related_objects, Q, Sum
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.cache import cache
 from datetime import datetime, date
@@ -35,8 +35,8 @@ from .serializers import (
     FotoPerfilSerializer, PerfilUsuarioSerializer,
     CalendarioAcademicoSerializer, ProyectoSerializer, ProyectoListSerializer,
     InformeFondoSerializer, InformeFondoListSerializer,
-    ObservacionFondoSerializer, MensajeObservacionSerializer,
-    HistorialFondoSerializer, DocenteDetalleSerializer,
+    ObservacionFondoSerializer,
+    HistorialFondoSerializer,
     FondoTiempoDetalleSerializer,
     AprobarFondoSerializer, ObservarFondoSerializer,
     SaldoVacacionesGestionSerializer, DatosLaboralesSerializer,
@@ -3159,7 +3159,7 @@ class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelVie
         es_interno = puede_marcar_interno and str(request.data.get('es_interno', '')).lower() in ('1', 'true', 'yes')
 
         # Crear mensaje
-        mensaje = MensajeObservacion.objects.create(
+        MensajeObservacion.objects.create(
             observacion=observacion,
             autor=request.user,
             responde_a=responde_a,

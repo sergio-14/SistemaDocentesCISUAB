@@ -6,7 +6,7 @@ from .models import (
     Docente, DocenteCarrera, Carrera, CalendarioAcademico, FondoTiempo,
     CategoriaFuncion, Actividad, Proyecto, InformeFondo,
     ObservacionFondo, HistorialFondo, PerfilUsuario,
-    MensajeObservacion, HistorialFondo, DatosLaborales, SaldoVacacionesGestion
+    MensajeObservacion, DatosLaborales,
 )
 
 

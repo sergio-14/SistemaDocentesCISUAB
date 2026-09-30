@@ -1802,8 +1802,6 @@ class DocenteSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'ci': 'Este C.I. ya está registrado.'})
 
     def validate(self, data):
-        from django.utils import timezone
-
         self._validar_ci(data)
 
         user_existente = data.get('user')
@@ -2549,15 +2547,8 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
             if not obj.docente or not obj.calendario_academico:
                 total = 0
             else:
-                # Obtener mapa de horas de Jefatura
-                cargas = obj.cargas.values('categoria').annotate(total=Sum('horas'))
-                cargas_map = {c['categoria']: c['total'] for c in cargas}
-
-                # Sumar iterando sobre las categorías del fondo
                 total_calculado = 0
                 for cat in obj.categorias.all():
-                    horas_jefatura = cargas_map.get(cat.tipo, 0)
-                    # Si hay horas de jefatura (>0), se usan esas. Si no, las manuales.
                     total_calculado += cat.total_horas
                 
                 total = total_calculado
@@ -2672,13 +2663,8 @@ class FondoTiempoListSerializer(serializers.ModelSerializer):
             if not obj.docente or not obj.calendario_academico:
                 total = 0
             else:
-                # Lógica Híbrida Unificada (Igual que en Detalle)
-                cargas = obj.cargas.values('categoria').annotate(total=Sum('horas'))
-                cargas_map = {c['categoria']: c['total'] for c in cargas}
-
                 total_calculado = 0
                 for cat in obj.categorias.all():
-                    horas_jefatura = cargas_map.get(cat.tipo, 0)
                     total_calculado += cat.total_horas
                 
                 total = total_calculado
@@ -2979,11 +2965,6 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
             docente_por_defecto=data.get('docente'),
         )
         
-        # Identificar tipos de roles en el conjunto de asignaciones
-        roles_totales = [data.get('rol')] + [a.get('rol') for a in asignaciones]
-        tiene_rol_docente = 'docente' in roles_totales
-        es_administrativo = any(r in ['director', 'jefe_estudios'] for r in roles_totales)
-
         # Validar que las contraseñas coincidan
         if data['password'] != data['password_confirm']:
             raise serializers.ValidationError({
@@ -3575,9 +3556,8 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
         instance.last_name = validated_data.get('last_name', instance.last_name)
         instance.is_active = validated_data.get('is_active', instance.is_active)
 
-        # 2. Determinar el rol final y si ha cambiado
+        # 2. Determinar el rol final
         new_rol = validated_data.get('rol')
-        role_changed = new_rol and new_rol != perfil.rol
         final_rol = new_rol or perfil.rol
 
         # Lógica de Doble Rol para el guardado
@@ -3739,7 +3719,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
 # SERIALIZERS PARA MODELOS NUEVOS (Reglamento UAB)
 # ============================================
 
-from .models import CalendarioAcademico, Proyecto, InformeFondo, ObservacionFondo, HistorialFondo
+from .models import CalendarioAcademico, Proyecto
 
 
 # =====================================================
@@ -4275,12 +4255,8 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             if not obj.docente or not obj.calendario_academico:
                 total = 0
             else:
-                cargas = obj.cargas.values('categoria').annotate(total=Sum('horas'))
-                cargas_map = {c['categoria']: c['total'] for c in cargas}
-
                 total_calculado = 0
                 for cat in obj.categorias.all():
-                    horas_jefatura = cargas_map.get(cat.tipo, 0) or 0
                     total_calculado += cat.total_horas
                 
                 total = total_calculado

@@ -2,12 +2,11 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import LETTER, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
-from reportlab.lib.units import inch, cm
+from reportlab.lib.units import cm
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas as pdfgen_canvas
 from reportlab.pdfbase.pdfmetrics import stringWidth, registerFont, registerFontFamily
 from reportlab.pdfbase.ttfonts import TTFont
-from django.conf import settings
 import os
 from datetime import datetime, date
 import io
@@ -688,7 +687,7 @@ class FondoPDFGenerator:
         que una posicion fija por canvas se superponga con el contenido de
         la tabla cuando esta ocupa toda la ultima pagina.
         """
-        ancho_pagina, alto_pagina = self.width, self.height
+        ancho_pagina = self.width
         margen_lateral = 1.5 * cm
 
         class _CanvasPie(pdfgen_canvas.Canvas):
@@ -757,8 +756,6 @@ class FondoPDFGenerator:
         # horas de la Columna 3), tomando como referencia "Docente: ...".
         estilo_header_bold = ParagraphStyle('HeaderBold', parent=estilo_normal, fontName='Helvetica-Bold', fontSize=8, alignment=1, leading=9)
         estilo_docente_label = ParagraphStyle('DocenteLabel', parent=estilo_normal, fontName='Helvetica-Bold', fontSize=8, alignment=0, leading=9)
-        estilo_docente_val_right = ParagraphStyle('DocenteValRight', parent=estilo_normal, fontName='Helvetica-Bold', fontSize=8, alignment=2, leading=9)
-        estilo_docente_actividad = ParagraphStyle('DocenteActividad', parent=estilo_docente_label, leftIndent=1.5*cm)
         estilo_tabla_col3 = ParagraphStyle('TablaCol3', parent=estilo_normal, fontSize=8, alignment=1, leading=9)
         # Relleno casi sin alto para la 2da columna de las filas de
         # espaciador de la Columna 2 (ver espacio_fila0_col2/espacio_col2 mas

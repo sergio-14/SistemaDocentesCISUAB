@@ -2091,6 +2091,7 @@ function ListaCalendarios() {
     setDeleteImpact({
       loading: false,
       cargas_horarias: impactData?.cargas_horarias || 0,
+      fondos_gestion: impactData?.fondos_gestion || 0,
       failed: false,
       detail: customDetail || '',
     });
@@ -2150,11 +2151,7 @@ function ListaCalendarios() {
         return;
       }
 
-      openDependencyWarning(
-        calendario,
-        deps,
-        `ERROR DE INTEGRIDAD: No se puede eliminar el calendario ${calendario.gestion}-${calendario.periodo_display} porque aún tiene ${deps.cargas_horarias || 0} cargas horarias (materias) asignadas en él.`
-      );
+      openDependencyWarning(calendario, deps, deps.detalle);
     } catch (err) {
       console.error('Error verificando dependencias del calendario:', err);
       toast.error('No se pudo verificar dependencias del calendario. Intenta nuevamente.');
@@ -2678,7 +2675,7 @@ function ListaCalendarios() {
                 {deleteImpact.detail || `ERROR DE INTEGRIDAD: No se puede eliminar el calendario ${calendarioToDelete.gestion}-${calendarioToDelete.periodo_display} porque aún tiene dependencias vinculadas.`}
               </p>
               <div className="rounded-lg border border-red-700/70 bg-red-200/70 dark:bg-red-500/10 px-3 py-2 text-sm text-red-900 dark:text-red-100">
-                Dependencias detectadas: {deleteImpact.cargas_horarias} cargas horarias.
+                Dependencias detectadas: {deleteImpact.cargas_horarias} cargas horarias, {deleteImpact.fondos_gestion || 0} fondos de la gestión sin otro calendario.
               </div>
               <div className="rounded-lg border border-amber-500/40 bg-amber-100 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
                 Para eliminar este calendario, primero debes mover o eliminar manualmente sus registros asociados.

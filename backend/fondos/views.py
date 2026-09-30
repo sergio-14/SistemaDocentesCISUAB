@@ -1230,10 +1230,30 @@ class CalendarioAcademicoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Model
 
     def _build_dependency_counts(self, calendario):
         cargas_horarias_count = CargaHoraria.objects.filter(calendario=calendario).count()
-        can_delete = cargas_horarias_count == 0
+        # El último calendario de la gestión en la carrera da a sus fondos los feriados y
+        # el inicio de la gestión (antigüedad): no se borra mientras haya fondos.
+        es_el_unico = not CalendarioAcademico.objects.filter(
+            carrera_id=calendario.carrera_id, gestion=calendario.gestion,
+        ).exclude(pk=calendario.pk).exists()
+        fondos_gestion_count = FondoTiempo.objects.filter(
+            carrera_id=calendario.carrera_id, gestion=calendario.gestion,
+        ).count() if es_el_unico else 0
+        can_delete = cargas_horarias_count == 0 and fondos_gestion_count == 0
+
+        if fondos_gestion_count:
+            detalle = (
+                f'No se puede eliminar: es el único calendario de la gestión {calendario.gestion} '
+                f'y hay {fondos_gestion_count} fondos de esa gestión.'
+            )
+        elif cargas_horarias_count:
+            detalle = f'No se puede eliminar porque tiene {cargas_horarias_count} cargas horarias asociadas.'
+        else:
+            detalle = ''
 
         return {
             'cargas_horarias': cargas_horarias_count,
+            'fondos_gestion': fondos_gestion_count,
+            'detalle': detalle,
             'can_delete': can_delete,
             'has_dependencies': not can_delete,
         }
@@ -1252,7 +1272,7 @@ class CalendarioAcademicoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Model
             return Response(
                 {
                     'code': 'protected_error',
-                    'detail': f"No se puede eliminar porque tiene {counts['cargas_horarias']} cargas horarias asociadas.",
+                    'detail': counts['detalle'],
                     'dependencias': counts,
                 },
                 status=status.HTTP_409_CONFLICT

@@ -191,9 +191,9 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='buscar')
     def buscar(self, request):
-        """Búsqueda por nombre para el Jefe de Estudios que asigna una materia de su carrera
-        a un docente de otra (doble carrera). Solo nombre completo y los últimos 4 dígitos del
-        C.I.: no expone la ficha de otra carrera."""
+        """Búsqueda por nombre de docentes de OTRAS carreras, para el Jefe de Estudios que les
+        asigna una materia de la suya (doble carrera). Solo nombre completo y los últimos 4
+        dígitos del C.I.: no expone la ficha de otra carrera."""
         perfil = _obtener_perfil_efectivo(request.user, request)
         if not request.user.is_superuser and (not perfil or perfil.rol != 'jefe_estudios'):
             raise PermissionDenied('Solo Jefatura de Estudios busca docentes de otras carreras.')
@@ -203,6 +203,12 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         docentes = Docente.objects.filter(activo=True, vinculos_carrera__activo=True).select_related(
             'user', 'datos_laborales',
         )
+        if not request.user.is_superuser:
+            # Los docentes de su propia carrera se gestionan desde su fondo.
+            docentes = docentes.exclude(
+                vinculos_carrera__carrera__in=_obtener_carreras_activas_usuario(request.user, request),
+                vinculos_carrera__activo=True,
+            )
         for palabra in palabras:
             docentes = docentes.filter(
                 Q(nombres__icontains=palabra) | Q(apellido_paterno__icontains=palabra)

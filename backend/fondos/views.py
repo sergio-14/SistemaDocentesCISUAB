@@ -189,6 +189,36 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
             
         return [IsAuthenticated()]
 
+    @action(detail=False, methods=['get'], url_path='buscar')
+    def buscar(self, request):
+        """Búsqueda por nombre para el Jefe de Estudios que asigna una materia de su carrera
+        a un docente de otra (doble carrera). Solo nombre completo y los últimos 4 dígitos del
+        C.I.: no expone la ficha de otra carrera."""
+        perfil = _obtener_perfil_efectivo(request.user, request)
+        if not request.user.is_superuser and (not perfil or perfil.rol != 'jefe_estudios'):
+            raise PermissionDenied('Solo Jefatura de Estudios busca docentes de otras carreras.')
+        palabras = str(request.query_params.get('q') or '').split()
+        if sum(len(palabra) for palabra in palabras) < 3:
+            return Response([])
+        docentes = Docente.objects.filter(activo=True, vinculos_carrera__activo=True).select_related(
+            'user', 'datos_laborales',
+        )
+        for palabra in palabras:
+            docentes = docentes.filter(
+                Q(nombres__icontains=palabra) | Q(apellido_paterno__icontains=palabra)
+                | Q(apellido_materno__icontains=palabra) | Q(user__first_name__icontains=palabra)
+                | Q(user__last_name__icontains=palabra)
+            )
+        resultados = []
+        for docente in docentes.distinct().order_by('apellido_paterno', 'nombres')[:20]:
+            ci = (docente.ci or '').strip()
+            resultados.append({
+                'id': docente.pk,
+                'nombre_completo': docente.nombre_completo,
+                'ci_ultimos': ci[-4:] if ci else '',
+            })
+        return Response(resultados)
+
     def get_queryset(self):
         user = self.request.user
         carrera_id = self.request.query_params.get('carrera')
@@ -1089,18 +1119,35 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
         if fondo.estado not in ['borrador', 'observado']:
             raise PermissionDenied(f"No se puede modificar la carga horaria. El fondo está en estado '{fondo.get_estado_display()}'.")
 
+    def _validar_carrera_responsable(self, fondo, calendario):
+        """Las materias las gestiona el Jefe de la carrera del calendario (en doble carrera,
+        el de otra carrera asigna al fondo del docente en la suya); los demás ítems, el
+        Jefe de la carrera del fondo."""
+        carrera = calendario.carrera if calendario else fondo.carrera
+        if not _usuario_tiene_acceso_a_carrera(self.request.user, carrera, self.request):
+            raise PermissionDenied(
+                f'Solo el Jefe de Estudios de {carrera.nombre} puede gestionar esta carga horaria.'
+            )
+
     def perform_create(self, serializer):
         # El serializer asigna el fondo (o rechaza la carga si el docente no tiene).
-        self._validar_estado_fondo(serializer.validated_data['fondo'])
+        datos = serializer.validated_data
+        self._validar_carrera_responsable(datos['fondo'], datos.get('calendario'))
+        self._validar_estado_fondo(datos['fondo'])
         serializer.save()
 
     def perform_update(self, serializer):
         # Si cambian el docente o el calendario, la carga pasa a otro fondo: ambos deben ser editables.
-        self._validar_estado_fondo(serializer.instance.fondo)
-        self._validar_estado_fondo(serializer.validated_data['fondo'])
+        instance = serializer.instance
+        datos = serializer.validated_data
+        self._validar_carrera_responsable(instance.fondo, instance.calendario)
+        self._validar_carrera_responsable(datos['fondo'], datos.get('calendario'))
+        self._validar_estado_fondo(instance.fondo)
+        self._validar_estado_fondo(datos['fondo'])
         serializer.save()
 
     def perform_destroy(self, instance):
+        self._validar_carrera_responsable(instance.fondo, instance.calendario)
         self._validar_estado_fondo(instance.fondo)
         instance.delete()
 

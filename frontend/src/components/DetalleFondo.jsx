@@ -24,15 +24,25 @@ import { Eye, CheckCircle2, FileDown, Paperclip } from 'lucide-react';
 // Alias for template consistency
 const EyeIcon = Eye;
 
+// Materia asignada por el Jefe de otra carrera (doble carrera): la gestiona esa Jefatura.
+const EtiquetaOtraCarrera = ({ detalle }) => (
+  detalle?.es_de_otra_carrera ? (
+    <span className="ml-2 rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+      {detalle.carrera_calendario}
+    </span>
+  ) : null
+);
+
 const ActividadAsignadaCell = ({ detalle, compact = false }) => {
   if (!detalle?.es_subactividad_academica) {
-    return <>{detalle?.titulo_actividad || '-'}</>;
+    return <>{detalle?.titulo_actividad || '-'}<EtiquetaOtraCarrera detalle={detalle} /></>;
   }
 
   return (
     <div className="flex items-center gap-2 pl-5 whitespace-nowrap">
       <span className="font-black text-sky-700 dark:text-sky-300">-</span>
       <span className={compact ? 'font-semibold' : ''}>{detalle.titulo_actividad || '-'}</span>
+      <EtiquetaOtraCarrera detalle={detalle} />
     </div>
   );
 };
@@ -1591,6 +1601,11 @@ function DetalleFondo() {
                                               )}
                                               {puedeGestionarCarga && (
                                                 <td className="px-6 py-4 text-right">
+                                                  {detalle.es_de_otra_carrera ? (
+                                                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                      Jefatura de {detalle.carrera_calendario}
+                                                    </span>
+                                                  ) : (
                                                   <div className="flex gap-1 justify-end">
                                                     <button
                                                       type="button"
@@ -1609,6 +1624,7 @@ function DetalleFondo() {
                                                       <TrashIcon className="w-4 h-4" />
                                                     </button>
                                                   </div>
+                                                  )}
                                                 </td>
                                               )}
                                             </tr>

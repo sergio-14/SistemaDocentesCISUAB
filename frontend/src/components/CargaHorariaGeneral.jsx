@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../apis/api';
 import { ETIQUETAS_DEDICACION } from '../utils/dedicaciones';
+import AsignarMateriaOtraCarrera from './AsignarMateriaOtraCarrera';
 
 // --- ICONOS ---
 const SearchIcon = (props) => (
@@ -22,7 +23,7 @@ const BriefcaseIcon = (props) => (
   </svg>
 );
 
-const CargaHorariaGeneral = ({ isDark }) => {
+const CargaHorariaGeneral = () => {
   const [docentes, setDocentes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -122,6 +123,8 @@ const CargaHorariaGeneral = ({ isDark }) => {
             </div>
           </div>
         </div>
+
+        <AsignarMateriaOtraCarrera />
 
         {/* Grid of Cards */}
         {filteredDocentes.length > 0 ? (

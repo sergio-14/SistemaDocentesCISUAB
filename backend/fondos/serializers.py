@@ -1299,9 +1299,9 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
                 'materia': f'La materia {materia.nombre} está inactiva: no se puede asignar en cargas nuevas.'
             })
 
-        if materia and fondo and materia.carrera_id != fondo.carrera_id:
+        if materia and calendario and materia.carrera_id != calendario.carrera_id:
             raise serializers.ValidationError({
-                'materia': 'La materia seleccionada no pertenece a la carrera del Fondo de Tiempo.'
+                'materia': 'La materia seleccionada no pertenece a la carrera del calendario académico.'
             })
 
         if fondo and categoria and tipo_actividad:
@@ -2425,7 +2425,7 @@ class CategoriaFuncionSerializer(serializers.ModelSerializer):
 
         if cache_key not in context:
             # Obtener todas las cargas de este fondo en una sola consulta
-            cargas = fondo.cargas.all()
+            cargas = fondo.cargas.select_related('materia', 'calendario__carrera')
             
             # Agrupar por categoría en memoria
             detalles_map = {}
@@ -2450,7 +2450,9 @@ class CategoriaFuncionSerializer(serializers.ModelSerializer):
                     ),
                     "horas": carga.horas,
                     "evidencias": carga.evidencias,
-                    "respaldo": carga.documento_respaldo
+                    "respaldo": carga.documento_respaldo,
+                    "carrera_calendario": carga.calendario.carrera.nombre if carga.calendario_id else None,
+                    "es_de_otra_carrera": bool(carga.calendario_id) and carga.calendario.carrera_id != fondo.carrera_id,
                 })
             
             context[cache_key] = detalles_map

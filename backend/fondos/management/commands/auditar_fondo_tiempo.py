@@ -8,7 +8,7 @@ metodos auxiliares), sin guardar nada -- si difieren, es que algo cambio
 despues (dedicacion, antiguedad, etc.) y el fondo quedo desactualizado.
 
 Tambien suma CargaHoraria por categoria (las mismas 7 categorias de
-CategoriaFuncion.TIPO_CHOICES: academica, investigacion,
+UNIDADES_FONDO: academica, investigacion,
 extension_universitaria, interaccion_social, gestion,
 academica_administrativa, social_cultural_deportiva -- OJO: no son
 necesariamente las mismas 7 etiquetas/agrupaciones que puede traer un PDF de
@@ -26,7 +26,7 @@ from decimal import Decimal
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Count, Sum
 
-from fondos.models import Docente, DocenteCarrera, FondoTiempo
+from fondos.models import UNIDADES_FONDO, Docente, DocenteCarrera, FondoTiempo
 
 TOLERANCIA = Decimal('0.01')
 
@@ -158,18 +158,17 @@ class Command(BaseCommand):
         self.stdout.write('CATEGORIAS - SUMA REAL DE CargaHoraria (agrupada por tipo_actividad, igual que el PDF):')
         horas_efectivas = Decimal(str(fondo.horas_efectivas)) or Decimal('1')
 
-        categorias = fondo.categorias.all().order_by('id')
         totales = {}
-        for idx, cat in enumerate(categorias, start=1):
-            cargas = fondo.cargas.filter(categoria=cat.tipo)
+        for idx, (tipo, nombre) in enumerate(UNIDADES_FONDO, start=1):
+            cargas = fondo.cargas.filter(categoria=tipo)
             agregados = cargas.aggregate(total=Sum('horas'), n=Count('id'))
             total_cat = Decimal(str(agregados['total'] or 0))
             porcentaje = (total_cat / horas_efectivas) * 100 if horas_efectivas else Decimal('0')
-            totales[cat.tipo] = total_cat
+            totales[tipo] = total_cat
 
             n_tipos = cargas.values('tipo_actividad').distinct().count()
             self.stdout.write(
-                f'  {idx}. {cat.get_tipo_display().upper()}: {total_cat} hrs/año  '
+                f'  {idx}. {nombre.upper()}: {total_cat} hrs/año  '
                 f'({porcentaje:.2f}%)  [{agregados["n"]} registros de CargaHoraria en {n_tipos} tipos de actividad distintos]'
             )
 

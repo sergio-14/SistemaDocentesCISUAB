@@ -14,6 +14,7 @@ import re
 import base64
 from html import escape
 from html.parser import HTMLParser
+from fondos.models import UNIDADES_FONDO
 from fondos.utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from fondos.utils.informe_imagenes import leer_imagen as leer_imagen_informe
 
@@ -1133,7 +1134,6 @@ class FondoPDFGenerator:
 
         datos_tabla = [headers_1, headers_2]
 
-        categorias = fondo.categorias.all().order_by('id')
         # El % de cada categoria se calcula sobre las horas efectivas totales
         # del fondo (su cupo anual, p. ej. 1712), no sobre la suma de lo
         # asignado: asi el reporte muestra cuanto del cupo cubre cada una.
@@ -1164,8 +1164,8 @@ class FondoPDFGenerator:
         cat_index = 1
         row_cursor = 2
 
-        for cat in categorias:
-            cargas_cat = fondo.cargas.filter(categoria=cat.tipo).select_related(
+        for tipo_unidad, nombre_unidad in UNIDADES_FONDO:
+            cargas_cat = fondo.cargas.filter(categoria=tipo_unidad).select_related(
                 'materia', 'calendario', 'calendario__carrera',
             ).order_by('calendario__fecha_inicio', 'id')
 
@@ -1176,7 +1176,7 @@ class FondoPDFGenerator:
             for carga in cargas_cat:
                 es_clase = carga.tipo_actividad == 'clases_aula' and carga.calendario_id
                 clave = (carga.tipo_actividad or '').strip() or f'sin_tipo_{carga.id}'
-                etiqueta = _etiqueta_tipo_actividad(cat.tipo, carga)
+                etiqueta = _etiqueta_tipo_actividad(tipo_unidad, carga)
                 if es_clase:
                     # Una fila por calendario: sus horas semanales no se suman con las de otro semestre.
                     clave = f'clases_aula_{carga.calendario_id}'
@@ -1199,7 +1199,7 @@ class FondoPDFGenerator:
             total_cat = sum(fila['horas'] for fila in filas_categoria)
             suma_asignada_global += total_cat
             porc_cat = (total_cat / total_horas_efectivas) * 100
-            nombre_cat = cat.get_tipo_display().upper()
+            nombre_cat = nombre_unidad.upper()
 
             if n_filas > 0:
                 start_row = row_cursor

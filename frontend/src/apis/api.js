@@ -161,17 +161,6 @@ export const actualizarCalendario = (id, data) => api.put(`/calendarios/${id}/`,
 export const eliminarCalendario = (id) => api.delete(`/calendarios/${id}/`);
 
 // ===================================
-// ENDPOINTS - CATEGORÍAS Y ACTIVIDADES
-// ===================================
-
-export const getActividades = () => api.get('/actividades/');
-export const getActividadesPorCategoria = (categoriaId) => 
-  api.get('/actividades/', { params: { categoria: categoriaId } });
-export const crearActividad = (data) => api.post('/actividades/', data);
-export const actualizarActividad = (id, data) => api.put(`/actividades/${id}/`, data);
-export const eliminarActividad = (id) => api.delete(`/actividades/${id}/`);
-
-// ===================================
 // ENDPOINTS - PROYECTOS
 // ===================================
 export const getProyectos = () => api.get('/proyectos/');

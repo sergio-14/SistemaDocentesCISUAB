@@ -898,6 +898,18 @@ def horas_semanales_contractuales(docente, carrera):
     return min(max(horas_docencia, horas_gestion), TOPE_HORAS_SEMANALES_FONDO)
 
 
+# Las 7 unidades (funciones) del Fondo de Tiempo. Cada una suma sus ítems (CargaHoraria).
+UNIDADES_FONDO = [
+    ('academica', 'Académica'),
+    ('investigacion', 'Investigación'),
+    ('extension_universitaria', 'Extensión universitaria'),
+    ('interaccion_social', 'Interacción social'),
+    ('gestion', 'Gestión'),
+    ('academica_administrativa', 'Académica-administrativa'),
+    ('social_cultural_deportiva', 'Social, cultural, deportiva y Otros'),
+]
+
+
 class FondoTiempo(models.Model):
     """Modelo principal para el fondo de tiempo anual de un docente"""
     
@@ -1312,34 +1324,9 @@ def mensaje_sin_fondo(gestion):
     return f'El docente aún no tiene Fondo de Tiempo de la gestión {gestion} en su carrera.'
 
 
-class CategoriaFuncion(models.Model):
-    """Categorías de funciones sustantivas"""
-    
-    TIPO_CHOICES = [
-        ('academica', 'Académica'),
-        ('investigacion', 'Investigación'),
-        ('extension_universitaria', 'Extensión universitaria'),
-        ('interaccion_social', 'Interacción social'),
-        ('gestion', 'Gestión'),
-        ('academica_administrativa', 'Académica-administrativa'),
-        ('social_cultural_deportiva', 'Social, cultural, deportiva y Otros'),
-    ]
-    
-    fondo_tiempo = models.ForeignKey(FondoTiempo, on_delete=models.CASCADE, related_name='categorias')
-    tipo = models.CharField(max_length=30, choices=TIPO_CHOICES)
-    
-    class Meta:
-        verbose_name = "Categoría de Función"
-        verbose_name_plural = "Categorías de Funciones"
-        ordering = ['fondo_tiempo', 'tipo']
-        unique_together = ['fondo_tiempo', 'tipo']
-    
-    def __str__(self):
-        return self.get_tipo_display()
-
-
 def evidencia_upload_path(instance, filename):
-    """Ruta: fondos/evidencias_actividades/docente_<id>/gestion_<año>/<categoria>/<archivo>"""
+    """Ruta de archivos del modelo Actividad, ya eliminado. Se conserva porque la importan
+    migraciones antiguas (0001, 0090)."""
     try:
         fondo = instance.categoria.fondo_tiempo
         docente_id = fondo.docente.id
@@ -1349,101 +1336,10 @@ def evidencia_upload_path(instance, filename):
     except Exception:
         return f'fondos/evidencias_actividades/sin_clasificar/{filename}'
 
-class Actividad(models.Model):
-    """
-    OBSOLETO desde 2026-09-12 — no usar en código nuevo.
-
-    Este modelo era el catálogo original de sub-actividades por CategoriaFuncion,
-    de la primera versión del Fondo de Tiempo. Quedó reemplazado por
-    `CargaHoraria.tipo_actividad` (texto libre validado contra
-    `CARGA_HORARIA_TIPOS_POR_CATEGORIA` en `fondos/serializers.py`), que es el
-    único catálogo que alimenta hoy la carga horaria real de un docente.
-
-    Motivo de la deprecación (auditoría técnica de Fondo de Tiempo, 2026-09-12):
-    - 0 filas en toda la base de datos: ningún fondo real usa este modelo.
-    - Sus 15 `SUBACTIVIDAD_ACADEMICA_CHOICES` ya divergieron de los tipos
-      vigentes en `CARGA_HORARIA_TIPOS_POR_CATEGORIA['academica']` (p. ej.
-      `practica_laboratorios` aquí vs. `practica_laboratorios_centro_computo`
-      en el catálogo vivo), por lo que ya no son intercambiables.
-    - El único formulario que lo usaba (`FormularioActividad.jsx`) fue
-      eliminado del frontend; en `DetalleFondo.jsx` la sección que leía
-      `categoria.actividades` quedó deshabilitada de forma permanente
-      (`{false && ...}`).
-    - El único código que aún podía escribir filas aquí,
-      `fondos/management/commands/cargar_excel.py`, ya está roto por
-      cambios previos e independientes en `Docente` (usa campos
-      `categoria`/`dedicacion` que ya no existen en ese modelo), así que en
-      la práctica no hay ninguna ruta de escritura activa.
-
-    No se elimina la tabla ni el modelo para no romper el historial de
-    migraciones ni la serialización existente (`ActividadSerializer`,
-    expuesta como `CategoriaFuncion.actividades`), que sigue devolviendo una
-    lista vacía sin efectos secundarios. `ActividadAdmin` quedó en solo
-    lectura para impedir que se creen filas nuevas manualmente desde
-    /admin/. No agregar funcionalidad nueva sobre este modelo: cualquier
-    necesidad de sub-actividades académicas debe implementarse sobre
-    `CargaHoraria`.
-    """
-
-    SUBACTIVIDAD_ACADEMICA_CHOICES = [
-        ('preparacion_temas', 'Preparación de temas'),
-        ('clases_aula', 'Clases en aula'),
-        ('elaboracion_trabajos_practicos', 'Elaboración de Trabajos Prácticos'),
-        ('revision_calificacion_trabajos_practicos', 'Revisión y Calificación de Trabajos Prácticos'),
-        ('elaboracion_examenes', 'Elaboración de Exámenes'),
-        ('revision_calificacion_examenes', 'Revisión y Calificación de Exámenes'),
-        ('practica_laboratorios', 'Práctica de Laboratorios'),
-        ('practicas_campo', 'Prácticas de Campo'),
-        ('produccion_docente_textos_guias', 'Producción docente (textos guías)'),
-        ('consultas_reclamos_calificaciones', 'Consultas y Reclamos de Calificaciones'),
-        ('elaboracion_planillas_introduccion_notas', 'Elaboración de planillas e Introducción de notas'),
-        ('planificacion_gestion_practica_extra_aula', 'Planificación y gestión de práctica extra aula'),
-        ('ejecucion_practica_extra_aula', 'Ejecución de práctica extra aula'),
-        ('informe_descargo_viaje_practicas_extra_aula', 'Informe de descargo de viaje en prácticas extra aula'),
-        ('cursos_verano', 'Cursos de verano'),
-    ]
-    
-    categoria = models.ForeignKey(CategoriaFuncion, on_delete=models.CASCADE, related_name='actividades')
-    subactividad_academica = models.CharField(
-        max_length=60,
-        choices=SUBACTIVIDAD_ACADEMICA_CHOICES,
-        blank=True,
-        help_text="Sub-actividad pedagógica reglamentaria para la categoría Académica"
-    )
-    detalle = models.CharField(max_length=300)
-    horas_semana = models.DecimalField(max_digits=5, decimal_places=2, default=0, validators=[MinValueValidator(0)])
-    horas_año = models.DecimalField(max_digits=6, decimal_places=2, default=0, validators=[MinValueValidator(0)])
-    evidencias = models.TextField(blank=True, default='')
-    archivo_evidencia = models.FileField(
-        upload_to=evidencia_upload_path, 
-        null=True, 
-        blank=True,
-        help_text="Prueba visual (Imagen/PDF)"
-    )
-    orden = models.IntegerField(default=0)
-    proyecto = models.ForeignKey(
-        'Proyecto',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='actividades',
-        help_text="Proyecto al que pertenece esta actividad"
-    )
-    
-    class Meta:
-        # Nombres visibles en /admin/ marcados a proposito: ver docstring de la clase (OBSOLETO desde 2026-09-12).
-        verbose_name = "Actividad (OBSOLETO - usar CargaHoraria)"
-        verbose_name_plural = "Actividades (OBSOLETO - usar CargaHoraria)"
-        ordering = ['categoria', 'orden', 'id']
-    
-    def __str__(self):
-        return f"{self.detalle} - {self.horas_año}h/año"
-
-
 class CargaHoraria(models.Model):
     """Asignación de horas a un docente por parte de una autoridad (Jefe de Estudios)."""
     
-    CATEGORIA_CHOICES = CategoriaFuncion.TIPO_CHOICES
+    CATEGORIA_CHOICES = UNIDADES_FONDO
     PARALELO_CHOICES = [
         ('A', 'A'),
         ('B', 'B'),
@@ -1672,7 +1568,7 @@ class Proyecto(models.Model):
     ]
     
     fondo_tiempo = models.ForeignKey(FondoTiempo, on_delete=models.CASCADE, related_name='proyectos')
-    categoria = models.ForeignKey(CategoriaFuncion, on_delete=models.CASCADE, related_name='proyectos')
+    categoria = models.CharField(max_length=30, choices=UNIDADES_FONDO)
     titulo = models.CharField(max_length=200)
     tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
     

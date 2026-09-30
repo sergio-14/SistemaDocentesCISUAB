@@ -23,7 +23,7 @@ from .utils.informe_texto import CAMPOS_TEXTO_INFORME
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import (
-    Docente, Carrera, Materia, FondoTiempo, CategoriaFuncion, PerfilUsuario, CargaHoraria,
+    Docente, Carrera, Materia, FondoTiempo, PerfilUsuario, CargaHoraria,
     CalendarioAcademico, Proyecto, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo,
     SaldoVacacionesGestion, FacultadCatalogo, DatosLaborales, DocenteCarrera, EvidenciaCargaHoraria,
     AsignacionCarrera,
@@ -1402,7 +1402,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
     """
     queryset = FondoTiempo.objects.select_related(
         'docente', 'carrera', 'aprobado_por', 'validado_por'
-    ).prefetch_related('categorias', 'proyectos', 'observaciones_detalladas')
+    ).prefetch_related('proyectos', 'observaciones_detalladas')
     serializer_class = FondoTiempoSerializer
     permission_classes = [IsAuthenticated]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
@@ -1505,25 +1505,13 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         # Verificar permisos de objeto
         self.check_object_permissions(self.request, obj)
 
-        # CORRECCIÓN DE RAÍZ: Asegurar que existan las categorías para que se vea la carga de Jefatura
-        self._asegurar_categorias(obj)
-        
-        # AHORA hacemos el prefetch manual para incluir las categorías recién creadas
-        prefetch_related_objects([obj], 
-            'categorias',
+        # Prefetch manual de las relaciones del detalle
+        prefetch_related_objects([obj],
             'proyectos', 'informes', 'observaciones_detalladas'
         )
         
         return obj
     
-    def _asegurar_categorias(self, fondo):
-        """Garantiza que el fondo tenga las 7 categorías creadas para recibir carga horaria."""
-        tipos_requeridos = [tipo for tipo, _label in CategoriaFuncion.TIPO_CHOICES]
-        existentes = set(fondo.categorias.values_list('tipo', flat=True))
-        for tipo in tipos_requeridos:
-            if tipo not in existentes:
-                CategoriaFuncion.objects.create(fondo_tiempo=fondo, tipo=tipo)
-
     def get_serializer_class(self):
         if self.action == 'list':
             return FondoTiempoListSerializer
@@ -1631,12 +1619,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
                 'gestion': f'La carrera no tiene calendario académico de la gestión {gestion}.'
             })
 
-        fondo = serializer.save()
-
-        # CORRECCIÓN DE RAÍZ: Crear inmediatamente las categorías vacías
-        tipos = [tipo for tipo, _label in CategoriaFuncion.TIPO_CHOICES]
-        for tipo in tipos:
-            CategoriaFuncion.objects.create(fondo_tiempo=fondo, tipo=tipo)
+        serializer.save()
 
     @action(detail=False, methods=['post'], url_path='generar-masivo')
     def generar_masivo(self, request):
@@ -1667,7 +1650,6 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         creados = 0
         omitidos_exclusiva = 0
         omitidos_ya_existentes = 0
-        tipos_categoria = [tipo for tipo, _label in CategoriaFuncion.TIPO_CHOICES]
 
         with transaction.atomic():
             for vinculo in vinculos:
@@ -1693,17 +1675,13 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
                     omitidos_ya_existentes += 1
                     continue
 
-                fondo = FondoTiempo.objects.create(
+                FondoTiempo.objects.create(
                     docente=vinculo.docente,
                     carrera=vinculo.carrera,
                     gestion=calendario_activo.gestion,
                     estado='borrador',
                 )
 
-                CategoriaFuncion.objects.bulk_create([
-                    CategoriaFuncion(fondo_tiempo=fondo, tipo=tipo)
-                    for tipo in tipos_categoria
-                ])
                 creados += 1
 
         return Response({
@@ -1815,7 +1793,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             docente_id=docente_id,
             gestion__in=[gestion1, gestion2],
             archivado=False
-        ).select_related('docente', 'carrera').prefetch_related('categorias')
+        ).select_related('docente', 'carrera')
         
         serializer = self.get_serializer(fondos, many=True)
         return Response(serializer.data)

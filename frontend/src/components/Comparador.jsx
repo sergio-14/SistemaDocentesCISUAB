@@ -216,7 +216,7 @@ function Comparador() {
                     {/* Lista de Categorías */}
                     <div className="space-y-2 mb-4">
                       {fondo.categorias.filter(cat => cat.total_horas > 0).map((cat, idx) => (
-                        <div key={cat.id} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border-2 border-slate-300 dark:border-slate-600">
+                        <div key={cat.tipo} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border-2 border-slate-300 dark:border-slate-600">
                           <span className="text-sm font-semibold" style={{ color: COLORS[idx % COLORS.length] }}>
                             {cat.tipo_display}
                           </span>

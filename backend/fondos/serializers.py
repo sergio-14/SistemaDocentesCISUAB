@@ -6,8 +6,8 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import actualizar_con_historial, fondo_de_la_carga, mensaje_sin_fondo
-from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, CategoriaFuncion, Actividad, PerfilUsuario, AsignacionCarrera, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, EvidenciaCargaHoraria
+from .models import UNIDADES_FONDO, actualizar_con_historial, fondo_de_la_carga, mensaje_sin_fondo
+from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, PerfilUsuario, AsignacionCarrera, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, EvidenciaCargaHoraria
 from .role_context import get_active_assignment, get_active_careers_for_user, get_effective_profile, serialize_assignment
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from .utils.informe_imagenes import CAMPOS_HTML_INFORME, firmar_imagenes_html
@@ -274,13 +274,9 @@ def _filtrar_categorias_investigacion_para_iisyp(data, context):
     if not _usuario_es_iisyp_solo_lectura(context):
         return data
 
-    for field_name in ('categorias', 'requerimientos'):
-        categorias = data.get(field_name)
-        if isinstance(categorias, list):
-            data[field_name] = [
-                categoria for categoria in categorias
-                if categoria.get('tipo') == 'investigacion'
-            ]
+    categorias = data.get('categorias')
+    if isinstance(categorias, list):
+        data['categorias'] = [categoria for categoria in categorias if categoria.get('tipo') == 'investigacion']
     return data
 
 
@@ -2349,122 +2345,55 @@ class MateriaSerializer(serializers.ModelSerializer):
         return instance
 
 
-# OBSOLETO desde 2026-09-12: serializa el modelo `Actividad`, deprecado (ver
-# fondos/models.py). Se mantiene solo para no romper la forma de la respuesta
-# de CategoriaFuncionSerializer.actividades, que hoy siempre devuelve una
-# lista vacia (0 filas de Actividad en toda la base). El catalogo vivo de
-# sub-actividades es CargaHoraria.tipo_actividad; no construir features
-# nuevas sobre este serializer.
-class ActividadSerializer(serializers.ModelSerializer):
-    categoria_nombre = serializers.CharField(source='categoria.get_tipo_display', read_only=True)
-    subactividad_academica_display = serializers.CharField(source='get_subactividad_academica_display', read_only=True)
-    
-    class Meta:
-        model = Actividad
-        fields = ['id', 'categoria', 'categoria_nombre', 'subactividad_academica',
-                  'subactividad_academica_display', 'detalle', 'horas_semana',
-                  'horas_a\u00f1o', 'evidencias', 'orden', 'archivo_evidencia']
-        extra_kwargs = {
-            'evidencias': {'required': False, 'allow_null': True, 'allow_blank': True}
+def _detalle_de_carga(carga, fondo):
+    return {
+        "id": carga.id,
+        "materia_id": carga.materia_id,
+        "categoria": carga.categoria,
+        "tipo_actividad": carga.tipo_actividad,
+        "tipo_actividad_display": CARGA_HORARIA_TIPOS_LABELS.get(carga.tipo_actividad, carga.tipo_actividad.replace('_', ' ').title() if carga.tipo_actividad else ''),
+        "es_subactividad_academica": carga.categoria == 'academica' and carga.tipo_actividad != 'clases_aula',
+        "materia_titulo": (
+            f"{carga.materia.sigla} - {carga.materia.nombre} ({carga.paralelo})"
+            if carga.materia else ''
+        ),
+        "titulo_actividad": (
+            f"{carga.materia.sigla} - {carga.materia.nombre} ({carga.paralelo})"
+            if carga.materia and carga.tipo_actividad == 'clases_aula' else carga.titulo_actividad
+        ),
+        "horas": carga.horas,
+        "evidencias": carga.evidencias,
+        "respaldo": carga.documento_respaldo,
+        "carrera_calendario": carga.calendario.carrera.nombre if carga.calendario_id else None,
+        "es_de_otra_carrera": bool(carga.calendario_id) and carga.calendario.carrera_id != fondo.carrera_id,
+    }
+
+
+def unidades_del_fondo(fondo):
+    """Las 7 unidades del fondo: su total es la suma de sus ítems (horas por año), su
+    porcentaje es ese total sobre las horas efectivas, y detalles_carga son sus ítems."""
+    detalles = {tipo: [] for tipo, _nombre in UNIDADES_FONDO}
+    totales = dict.fromkeys(detalles, 0)
+    for carga in fondo.cargas.select_related('materia', 'calendario__carrera'):
+        detalles[carga.categoria].append(_detalle_de_carga(carga, fondo))
+        totales[carga.categoria] += carga.horas
+    horas_efectivas = Decimal(str(fondo.horas_efectivas or 0))
+    return [
+        {
+            'tipo': tipo,
+            'tipo_display': nombre,
+            'total_horas': totales[tipo],
+            'porcentaje': round(Decimal(totales[tipo]) / horas_efectivas * 100, 2) if horas_efectivas else 0,
+            'detalles_carga': detalles[tipo],
         }
-
-    def validate_evidencias(self, value):
-        """Asegura que evidencias sea una cadena vacia si es None."""
-        return value or ""
-
-    def validate_horas_semana(self, value):
-        """Valida que las horas semanales no sean negativas."""
-        if value < 0:
-            raise serializers.ValidationError("Las horas semanales no pueden ser negativas.")
-        return value
-
-    def validate_horas_anio(self, value):
-        """Valida que las horas anuales no sean negativas."""
-        if value < 0:
-            raise serializers.ValidationError("Las horas anuales no pueden ser negativas.")
-        return value
-
-    def validate(self, attrs):
-        return super().validate(attrs)
-
-
-class CategoriaFuncionSerializer(serializers.ModelSerializer):
-    """Unidad del fondo: su total es la suma de sus ítems (horas por año) y su
-    porcentaje, ese total sobre las horas efectivas."""
-    actividades = ActividadSerializer(many=True, read_only=True)
-    tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
-    total_horas = serializers.SerializerMethodField()
-    porcentaje = serializers.SerializerMethodField()
-    detalles_carga = serializers.SerializerMethodField()
-
-    class Meta:
-        model = CategoriaFuncion
-        fields = ['id', 'fondo_tiempo', 'tipo', 'tipo_display', 'total_horas',
-                  'porcentaje', 'actividades', 'detalles_carga']
-
-    def get_total_horas(self, obj):
-        # Una sola consulta por fondo para sus 7 unidades.
-        fondo = obj.fondo_tiempo
-        cache_key = f'horas_por_unidad_{fondo.id}'
-        if cache_key not in self.context:
-            self.context[cache_key] = fondo.horas_por_unidad()
-        return self.context[cache_key].get(obj.tipo, 0)
-
-    def get_porcentaje(self, obj):
-        horas_efectivas = Decimal(str(obj.fondo_tiempo.horas_efectivas or 0))
-        if not horas_efectivas:
-            return 0
-        return round(Decimal(self.get_total_horas(obj)) / horas_efectivas * 100, 2)
-
-    def get_detalles_carga(self, obj):
-        fondo = obj.fondo_tiempo
-
-        # Usar el contexto para evitar recalcular para cada categoría del mismo fondo.
-        context = self.context
-        cache_key = f"carga_horaria_detalles_{fondo.id}"
-
-        if cache_key not in context:
-            # Obtener todas las cargas de este fondo en una sola consulta
-            cargas = fondo.cargas.select_related('materia', 'calendario__carrera')
-            
-            # Agrupar por categoría en memoria
-            detalles_map = {}
-            for carga in cargas:
-                if carga.categoria not in detalles_map:
-                    detalles_map[carga.categoria] = []
-                
-                detalles_map[carga.categoria].append({
-                    "id": carga.id,
-                    "materia_id": carga.materia_id,
-                    "categoria": carga.categoria,
-                    "tipo_actividad": carga.tipo_actividad,
-                    "tipo_actividad_display": CARGA_HORARIA_TIPOS_LABELS.get(carga.tipo_actividad, carga.tipo_actividad.replace('_', ' ').title() if carga.tipo_actividad else ''),
-                    "es_subactividad_academica": carga.categoria == 'academica' and carga.tipo_actividad != 'clases_aula',
-                    "materia_titulo": (
-                        f"{carga.materia.sigla} - {carga.materia.nombre} ({carga.paralelo})"
-                        if carga.materia else ''
-                    ),
-                    "titulo_actividad": (
-                        f"{carga.materia.sigla} - {carga.materia.nombre} ({carga.paralelo})"
-                        if carga.materia and carga.tipo_actividad == 'clases_aula' else carga.titulo_actividad
-                    ),
-                    "horas": carga.horas,
-                    "evidencias": carga.evidencias,
-                    "respaldo": carga.documento_respaldo,
-                    "carrera_calendario": carga.calendario.carrera.nombre if carga.calendario_id else None,
-                    "es_de_otra_carrera": bool(carga.calendario_id) and carga.calendario.carrera_id != fondo.carrera_id,
-                })
-            
-            context[cache_key] = detalles_map
-
-        return context[cache_key].get(obj.tipo, [])
+        for tipo, nombre in UNIDADES_FONDO
+    ]
 
 
 class FondoTiempoSerializer(serializers.ModelSerializer):
     docente_nombre = serializers.CharField(source='docente.nombre_completo', read_only=True)
     carrera_nombre = serializers.CharField(source='carrera.nombre', read_only=True)
-    categorias = CategoriaFuncionSerializer(many=True, read_only=True) # Nested serializer explícito
-    requerimientos = CategoriaFuncionSerializer(many=True, read_only=True, source='categorias') # Alias para frontend
+    categorias = serializers.SerializerMethodField()
     porcentaje_completado = serializers.SerializerMethodField()
     proyectos = serializers.SerializerMethodField()
     horas_disponibles = serializers.SerializerMethodField()
@@ -2543,6 +2472,9 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
                 })
 
         return data
+
+    def get_categorias(self, obj):
+        return unidades_del_fondo(obj)
 
     def get_horas_disponibles(self, obj):
         total_asignado = self.get_total_asignado(obj)
@@ -3781,7 +3713,7 @@ class ProyectoSerializer(serializers.ModelSerializer):
     estado_display = serializers.CharField(source='get_estado_display', read_only=True)
     modalidad_display = serializers.CharField(source='get_modalidad_display', read_only=True)
     fondo_descripcion = serializers.CharField(source='fondo_tiempo.descripcion', read_only=True)
-    categoria_nombre = serializers.CharField(source='categoria.get_tipo_display', read_only=True)
+    categoria_nombre = serializers.CharField(source='get_categoria_display', read_only=True)
     
     class Meta:
         model = Proyecto
@@ -4127,8 +4059,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     antiguedad = serializers.SerializerMethodField()
     
     # Relaciones
-    categorias = CategoriaFuncionSerializer(many=True, read_only=True) # Nested serializer explícito
-    requerimientos = CategoriaFuncionSerializer(many=True, read_only=True, source='categorias') # Alias para frontend
+    categorias = serializers.SerializerMethodField()
     proyectos = ProyectoListSerializer(many=True, read_only=True)
     informes = InformeFondoListSerializer(many=True, read_only=True)
     asignaturas_ejecutadas = InformeAsignaturaEjecutadaSerializer(many=True, read_only=True)
@@ -4159,7 +4090,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             # Calculados
             'porcentaje_completado', 'horas_disponibles',
             'antiguedad', # Relaciones
-            'categorias', 'requerimientos', 'proyectos', 'informes', 'asignaturas_ejecutadas', 'observaciones_detalladas',
+            'categorias', 'proyectos', 'informes', 'asignaturas_ejecutadas', 'observaciones_detalladas',
             'informe_actual',
             # Permisos
             'puede_editar',
@@ -4181,6 +4112,9 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
         if not obj.horas_efectivas or obj.horas_efectivas == 0:
             return 0
         return float((total_asignado / obj.horas_efectivas) * 100)
+
+    def get_categorias(self, obj):
+        return unidades_del_fondo(obj)
 
     def get_horas_disponibles(self, obj):
         total_asignado = self.get_total_asignado(obj)

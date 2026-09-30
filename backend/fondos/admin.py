@@ -4,7 +4,7 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from .models import (
     Docente, DocenteCarrera, Carrera, CalendarioAcademico, FondoTiempo,
-    CategoriaFuncion, Actividad, Proyecto, InformeFondo,
+    Proyecto, InformeFondo,
     ObservacionFondo, HistorialFondo, PerfilUsuario,
     MensajeObservacion, DatosLaborales,
 )
@@ -256,45 +256,6 @@ class FondoTiempoAdmin(admin.ModelAdmin):
             return mark_safe('<span style="color: green; font-weight: bold;">✓ Sí</span>')
         return mark_safe('<span style="color: red;">✗ No</span>')
     programa_badge.short_description = 'Programa'
-
-
-# =====================================================
-# CATEGORÍA FUNCIÓN ADMIN
-# =====================================================
-
-@admin.register(CategoriaFuncion)
-class CategoriaFuncionAdmin(admin.ModelAdmin):
-    list_display = ['fondo_tiempo', 'tipo_display']
-    list_filter = ['tipo']
-    search_fields = ['fondo_tiempo__carrera__nombre', 'fondo_tiempo__docente__apellido_paterno']
-    
-    def tipo_display(self, obj):
-        return obj.get_tipo_display()
-    tipo_display.short_description = 'Función'
-
-
-# =====================================================
-# ACTIVIDAD ADMIN -- OBSOLETO desde 2026-09-12, ver docstring de Actividad en models.py.
-# Solo lectura: el catalogo vivo de sub-actividades es CargaHoraria.tipo_actividad.
-# No se permite crear/editar/borrar filas nuevas desde /admin/ para evitar que
-# se reintroduzcan datos huerfanos fuera del flujo real (CargaHorariaViewSet).
-# =====================================================
-
-@admin.register(Actividad)
-class ActividadAdmin(admin.ModelAdmin):
-    list_display = ['detalle', 'categoria', 'horas_semana', 'horas_año', 'proyecto']
-    list_filter = ['categoria__tipo']
-    search_fields = ['detalle', 'categoria__fondo_tiempo__carrera__nombre']
-    ordering = ['categoria', 'orden']
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
 
 
 # =====================================================

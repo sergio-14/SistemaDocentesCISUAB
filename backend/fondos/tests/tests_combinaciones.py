@@ -18,10 +18,9 @@ from django.test import override_settings
 from rest_framework import status
 
 from fondos.models import (
-    AsignacionCarrera, CargaHoraria, CategoriaFuncion, DatosLaborales, DocenteCarrera, FondoTiempo, InformeFondo,
-    PerfilUsuario,
+    AsignacionCarrera, CargaHoraria, DatosLaborales, DocenteCarrera, FondoTiempo, InformeFondo, PerfilUsuario,
 )
-from fondos.serializers import CategoriaFuncionSerializer
+from fondos.serializers import unidades_del_fondo
 from .tests_usuarios_ajustes import calendario_con_feriados
 from .tests_usuarios_auditoria import UsuariosBaseTestCase
 
@@ -82,12 +81,12 @@ class DocenteUnVinculoTests(UsuariosBaseTestCase):
                 fondo=fondo, docente=self.docente, categoria='investigacion',
                 tipo_actividad=tipo_actividad, titulo_actividad='Ítem', horas=horas,
             )
-        unidad = CategoriaFuncion.objects.create(fondo_tiempo=fondo, tipo='investigacion')
-
         self.assertEqual(fondo.total_asignado, 69)
-        datos = CategoriaFuncionSerializer(unidad).data
-        self.assertEqual(datos['total_horas'], 69)
-        self.assertEqual(datos['porcentaje'], Decimal('25.00'))
+        unidades = {unidad['tipo']: unidad for unidad in unidades_del_fondo(fondo)}
+        self.assertEqual(len(unidades), 7)
+        self.assertEqual(unidades['investigacion']['total_horas'], 69)
+        self.assertEqual(unidades['investigacion']['porcentaje'], Decimal('25.00'))
+        self.assertEqual(unidades['gestion']['total_horas'], 0)
 
     def test_editar_parcialmente_un_fondo_no_da_error_500(self):
         # Antes: KeyError en el validador de unicidad de DRF.

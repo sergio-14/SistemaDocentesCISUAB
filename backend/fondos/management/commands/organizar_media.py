@@ -40,7 +40,6 @@ from cryptography.fernet import InvalidToken
 from fondos.utils.informe_imagenes import CAMPOS_HTML_INFORME, carpeta_imagenes, extraer_imagenes_informe
 
 from fondos.models import (
-    Actividad,
     Carrera,
     EvidenciaCargaHoraria,
     InformeFondo,
@@ -55,7 +54,6 @@ from poa_document.models import EvidenciaArchivo
 CAMPOS_REUBICABLES = [
     (Carrera, 'logo_carrera', 'carreras/carrera_'),
     (PerfilUsuario, 'foto_perfil', 'usuarios/usuario_'),
-    (Actividad, 'archivo_evidencia', 'fondos/evidencias_actividades/'),
     (EvidenciaCargaHoraria, 'archivo', 'fondos/evidencias_carga/'),
     (InformeFondo, 'archivo_adjunto', 'fondos/informes/'),
     (InformeFondo, 'evidencia', 'fondos/informes/'),

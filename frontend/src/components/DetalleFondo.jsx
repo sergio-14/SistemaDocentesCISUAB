@@ -360,7 +360,7 @@ function DetalleFondo() {
     if (!fondo?.categorias) return;
     const snapshot = {};
     fondo.categorias.forEach((categoria) => {
-      snapshot[categoria.id] = Number(categoria.total_horas || 0);
+      snapshot[categoria.tipo] = Number(categoria.total_horas || 0);
     });
     prevTotalesCategoriasRef.current = snapshot;
   }, [fondo?.categorias]);
@@ -1188,7 +1188,7 @@ function DetalleFondo() {
                               </thead>
                               <tbody>
                                 {(fondo.categorias || []).map((categoria) => (
-                                  <tr key={categoria.id} className="border-t border-slate-200 dark:border-slate-700">
+                                  <tr key={categoria.tipo} className="border-t border-slate-200 dark:border-slate-700">
                                     <td className="px-3 py-2 text-slate-700 dark:text-slate-200">{categoria.tipo_display}</td>
                                     <td className="px-3 py-2 text-right font-semibold text-slate-800 dark:text-white">{Math.round(Number(categoria.total_horas || 0))}</td>
                                     <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{Number(categoria.porcentaje || 0).toFixed(1)}%</td>
@@ -1429,11 +1429,11 @@ function DetalleFondo() {
                       const Icon = CATEGORY_ICONS[categoria.tipo] || DocumentTextIcon;
                       const color = COLORS[idx % COLORS.length];
                       const totalActual = Number(categoria.total_horas || 0);
-                      const totalPrevio = Number(prevTotalesCategoriasRef.current[categoria.id] || 0);
+                      const totalPrevio = Number(prevTotalesCategoriasRef.current[categoria.tipo] || 0);
                       const aparecioRecien = totalPrevio <= 0 && totalActual > 0;
 
                       return (
-                        <div key={categoria.id} className={`group bg-white dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col ${aparecioRecien ? 'animate-fade-in' : ''}`}>
+                        <div key={categoria.tipo} className={`group bg-white dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col ${aparecioRecien ? 'animate-fade-in' : ''}`}>
 
                           {/* Header de categoría con diseño moderno */}
                           <div className="px-6 py-5 flex justify-between items-center bg-white dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 relative overflow-hidden">

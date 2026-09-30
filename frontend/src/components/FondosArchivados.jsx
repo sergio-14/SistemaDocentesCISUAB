@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getFondosArchivados, restaurarFondo as restaurarFondoAPI } from '../apis/api';
 
-function FondosArchivados({ isDark }) {
+function FondosArchivados() {
   const [archivados, setArchivados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -195,7 +195,7 @@ function FondosArchivados({ isDark }) {
                           <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                           </svg>
-                          <span className="font-medium text-slate-700 dark:text-slate-300">{fondo.asignatura}</span>
+                          <span className="font-medium text-slate-700 dark:text-slate-300">{fondo.descripcion}</span>
                         </div>
                         <div className="flex items-center gap-2 text-sm bg-slate-50 dark:bg-slate-700/50 rounded-lg p-2 border border-slate-300 dark:border-slate-600">
                           <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -226,8 +226,8 @@ function FondosArchivados({ isDark }) {
 
                     {/* Botones de acción */}
                     <div className="flex lg:flex-col gap-2">
-                      {user?.is_staff && (
-                        <button
+                      {(user?.is_superuser || ['director', 'jefe_estudios'].includes(user?.perfil?.rol)) && (
+                        <button data-escritura
                           onClick={() => restaurarFondo(fondo.id, fondo.docente_nombre)}
                           className="flex-1 lg:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
                         >
@@ -269,7 +269,7 @@ function FondosArchivados({ isDark }) {
                   <li>Los fondos archivados no se eliminan permanentemente</li>
                   <li>Puedes restaurarlos en cualquier momento</li>
                   <li>Al restaurar, vuelven al estado en que fueron archivados</li>
-                  <li>Solo los administradores pueden archivar y restaurar fondos</li>
+                  <li>Solo el superusuario, el Director y el Jefe de Estudios de la carrera pueden archivar y restaurar fondos</li>
                 </ul>
               </div>
             </div>

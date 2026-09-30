@@ -16,7 +16,6 @@ router.register(r'cargas-horarias', views.CargaHorariaViewSet, basename='cargaho
 router.register(r'evidencias-carga-horaria', views.EvidenciaCargaHorariaViewSet, basename='evidenciacargahoraria')
 router.register(r'calendarios', views.CalendarioAcademicoViewSet)
 router.register(r'fondos-tiempo', views.FondoTiempoViewSet)
-router.register(r'categorias', views.CategoriaFuncionViewSet)
 router.register(r'proyectos', views.ProyectoViewSet)
 router.register(r'informes', views.InformeFondoViewSet)
 router.register(r'observaciones', views.ObservacionFondoViewSet)

@@ -5,7 +5,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recha
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
 
-function Comparador({ isDark }) {
+function Comparador() {
   const [docentes, setDocentes] = useState([]);
   const [docenteSeleccionado, setDocenteSeleccionado] = useState('1');
   const [gestion1, setGestion1] = useState('2023');
@@ -164,7 +164,7 @@ function Comparador({ isDark }) {
                     <h2 className="text-2xl font-bold text-blue-600 dark:text-white">
                       Gestión {fondo.gestion}
                     </h2>
-                    <p className="text-slate-700 dark:text-slate-300 mt-1">{fondo.asignatura}</p>
+                    <p className="text-slate-700 dark:text-slate-300 mt-1">{fondo.descripcion}</p>
                     <span className={`inline-block mt-2 px-3 py-1.5 rounded-lg text-xs font-semibold border-2 shadow-sm ${
                       fondo.estado === 'validado' 
                         ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700' 
@@ -216,7 +216,7 @@ function Comparador({ isDark }) {
                     {/* Lista de Categorías */}
                     <div className="space-y-2 mb-4">
                       {fondo.categorias.filter(cat => cat.total_horas > 0).map((cat, idx) => (
-                        <div key={cat.id} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border-2 border-slate-300 dark:border-slate-600">
+                        <div key={cat.tipo} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border-2 border-slate-300 dark:border-slate-600">
                           <span className="text-sm font-semibold" style={{ color: COLORS[idx % COLORS.length] }}>
                             {cat.tipo_display}
                           </span>

@@ -1,5 +1,5 @@
 from rest_framework import viewsets, filters, status, generics, serializers as drf_serializers
-from rest_framework.decorators import action, api_view, permission_classes, renderer_classes
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, BasePermission
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -8,13 +8,13 @@ from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
-from django.http import HttpResponse, JsonResponse, FileResponse
+from django.http import HttpResponse, FileResponse
 from django.db import transaction, IntegrityError
-from django.db.models import Prefetch, ProtectedError, prefetch_related_objects, Q, Sum
+from django.db.models import ProtectedError, prefetch_related_objects, Q
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.cache import cache
 from datetime import datetime, date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 import json
 import io
 from .utils.carrera_pdf_generator import CarreraPDFGenerator
@@ -23,28 +23,42 @@ from .utils.informe_texto import CAMPOS_TEXTO_INFORME
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import (
-    Docente, Carrera, Materia, FondoTiempo, CategoriaFuncion, PerfilUsuario, CargaHoraria,
+    Docente, Carrera, Materia, FondoTiempo, PerfilUsuario, CargaHoraria,
     CalendarioAcademico, Proyecto, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo,
-    SaldoVacacionesGestion, FacultadCatalogo, DatosLaborales, DocenteCarrera, EvidenciaCargaHoraria
+    SaldoVacacionesGestion, FacultadCatalogo, DatosLaborales, DocenteCarrera, EvidenciaCargaHoraria,
+    AsignacionCarrera,
 )
 from .serializers import (
     DocenteSerializer, CarreraSerializer, MateriaSerializer, FondoTiempoSerializer,
-    FondoTiempoListSerializer, CategoriaFuncionSerializer, CargaHorariaSerializer,
+    FondoTiempoListSerializer, CargaHorariaSerializer,
     UsuarioSerializer, CrearUsuarioSerializer, ActualizarUsuarioSerializer,
     FotoPerfilSerializer, PerfilUsuarioSerializer,
     CalendarioAcademicoSerializer, ProyectoSerializer, ProyectoListSerializer,
     InformeFondoSerializer, InformeFondoListSerializer,
-    ObservacionFondoSerializer, MensajeObservacionSerializer,
-    HistorialFondoSerializer, DocenteDetalleSerializer,
-    FondoTiempoDetalleSerializer, PresentarFondoSerializer,
+    ObservacionFondoSerializer,
+    HistorialFondoSerializer,
+    FondoTiempoDetalleSerializer,
     AprobarFondoSerializer, ObservarFondoSerializer,
     SaldoVacacionesGestionSerializer, DatosLaboralesSerializer,
     CustomTokenObtainPairSerializer, EvidenciaCargaHorariaSerializer,
     # Validadores estructurales de asignación (blindaje de reactivación, normativa UABJB)
     validar_unicidad_cargo_por_carrera,
+    ROLES_UNICOS_POR_CARRERA,
     _validar_fondo_tiempo_contractual_doble_rol,
+    datos_registrados_usuario,
+    docente_del_usuario,
+    texto_datos_registrados,
+    desactivar_si_solo_docente_sin_ficha,
+    carreras_docencia_usuario,
+    MENSAJE_FICHA_EN_CARRERA_DEL_USUARIO,
 )
 from .role_context import get_effective_profile, get_active_careers_for_user
+from .solo_lectura import CarreraInactivaSoloLecturaMixin as CarreraInactivaSoloLecturaBase
+from .models import actualizar_con_historial
+from .utils.archivos import es_pdf
+
+
+_es_pdf = es_pdf
 
 
 def _obtener_perfil_usuario(user):
@@ -71,43 +85,57 @@ def _usuario_tiene_acceso_a_carrera(user, carrera, request=None):
 
 
 def _docentes_por_carreras(carreras):
+    """Docentes de esas carreras: con su vínculo (ficha) o una asignación activa en ellas."""
     if not carreras:
         return Docente.objects.none()
-    return Docente.objects.filter(asignaciones_carrera__carrera__in=carreras, asignaciones_carrera__activo=True).distinct()
+    return Docente.objects.filter(
+        Q(vinculos_carrera__carrera__in=carreras, vinculos_carrera__activo=True)
+        | Q(asignaciones_carrera__carrera__in=carreras, asignaciones_carrera__activo=True)
+    ).distinct()
 
 
-def _usuario_docente_sin_vinculo(user):
-    if not user or user.is_superuser:
-        return False
-    perfil = getattr(user, 'perfil', None)
-    if not (perfil and perfil.rol == 'docente' and not perfil.docente_id):
-        return False
+class CarreraInactivaSoloLecturaMixin(CarreraInactivaSoloLecturaBase):
+    """Solo lectura para carreras inactivas en el módulo de fondos (ver fondos/solo_lectura.py)."""
 
-    tiene_rol_autoridad = user.asignaciones_carrera.filter(rol__in=['director', 'jefe_estudios', 'iiisyp']).exists()
-    return not tiene_rol_autoridad
+    campos_con_carrera = {
+        'carrera': Carrera,
+        'fondo_tiempo': FondoTiempo,
+        'fondo': FondoTiempo,
+        'calendario': CalendarioAcademico,
+        'materia': Materia,
+        'carga_horaria': CargaHoraria,
+    }
+
+    def es_rol_solo_lectura(self, request):
+        perfil = _obtener_perfil_efectivo(request.user, request)
+        return bool(perfil and perfil.rol == 'iiisyp')
+
+    def carreras_de_contexto(self, request):
+        # Carrera de X-Active-Assignment o del perfil: si todas sus carreras están
+        # inactivas, el usuario no puede escribir nada.
+        carreras = _obtener_carreras_activas_usuario(request.user, request)
+        if carreras.exists() and not carreras.filter(activo=True).exists():
+            return [carreras.first()]
+        return []
 
 
-def _sincronizar_estado_usuario_huerfano(user):
-    if not _usuario_docente_sin_vinculo(user):
-        return user
+def _validar_revisor_del_fondo(request, fondo, accion):
+    """Quién puede aprobar, observar, iniciar ejecución o evaluar un fondo.
 
-    updates_user = []
-    if user.is_active:
-        user.is_active = False
-        updates_user.append('is_active')
-    if user.is_staff:
-        user.is_staff = False
-        updates_user.append('is_staff')
-    if updates_user:
-        user.save(update_fields=updates_user)
+    - Nadie actúa sobre su propio fondo.
+    - El fondo del Director de la carrera lo revisa el superusuario.
+    - El resto, el Director de la carrera (y, donde ya se permitía, el superusuario).
+    Devuelve True si la revisión la hace el superusuario por ser fondo de un Director.
+    """
+    user = request.user
+    if fondo.pertenece_a(user):
+        raise PermissionDenied(f'No puedes {accion} tu propio fondo.')
+    if fondo.es_de_director_de_su_carrera():
+        if not user.is_superuser:
+            raise PermissionDenied(f'El fondo del Director de la carrera solo lo puede {accion} el superusuario.')
+        return True
+    return False
 
-    perfil = getattr(user, 'perfil', None)
-    if perfil and perfil.activo:
-        perfil.activo = False
-        perfil.save(update_fields=['activo'])
-
-    user.asignaciones_carrera.filter(rol='docente', activo=True).update(activo=False)
-    return user
 
 class IsFullAdmin(BasePermission):
     """
@@ -139,7 +167,7 @@ class IsFullAdminOrDirectorCarrera(BasePermission):
             or (hasattr(request.user, 'perfil') and request.user.perfil.rol == 'director')
         ))
 
-class DocenteViewSet(viewsets.ModelViewSet):
+class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     queryset = Docente.objects.select_related('user', 'datos_laborales').prefetch_related('vinculos_carrera__carrera').all()
     serializer_class = DocenteSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -152,9 +180,11 @@ class DocenteViewSet(viewsets.ModelViewSet):
         Restringir listado y creación a administradores.
         Docentes solo pueden ver/editar su propio perfil.
         """
-        # Acciones de modificación: ESTRICTAMENTE para Admin Real (bloquea a Jefe de Estudios)
-        # Incluimos update y partial_update para evitar que editen.
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+        # Crear la ficha: superusuario o Director (en su carrera, ver perform_create).
+        if self.action == 'create':
+            return [IsFullAdminOrDirectorCarrera()]
+        # Editar y eliminar: ESTRICTAMENTE para Admin Real (bloquea a Jefe de Estudios).
+        if self.action in ['update', 'partial_update', 'destroy']:
             return [IsFullAdmin()]
             
         # List y Retrieve permitidos para autenticados (el filtro se hace en get_queryset)
@@ -163,10 +193,46 @@ class DocenteViewSet(viewsets.ModelViewSet):
             
         return [IsAuthenticated()]
 
+    @action(detail=False, methods=['get'], url_path='buscar')
+    def buscar(self, request):
+        """Búsqueda por nombre de docentes de OTRAS carreras, para el Jefe de Estudios que les
+        asigna una materia de la suya (doble carrera). Solo nombre completo y los últimos 4
+        dígitos del C.I.: no expone la ficha de otra carrera."""
+        perfil = _obtener_perfil_efectivo(request.user, request)
+        if not request.user.is_superuser and (not perfil or perfil.rol != 'jefe_estudios'):
+            raise PermissionDenied('Solo Jefatura de Estudios busca docentes de otras carreras.')
+        palabras = str(request.query_params.get('q') or '').split()
+        if sum(len(palabra) for palabra in palabras) < 3:
+            return Response([])
+        docentes = Docente.objects.filter(activo=True, vinculos_carrera__activo=True).select_related(
+            'user', 'datos_laborales',
+        )
+        if not request.user.is_superuser:
+            # Los docentes de su propia carrera se gestionan desde su fondo.
+            docentes = docentes.exclude(
+                vinculos_carrera__carrera__in=_obtener_carreras_activas_usuario(request.user, request),
+                vinculos_carrera__activo=True,
+            )
+        for palabra in palabras:
+            docentes = docentes.filter(
+                Q(nombres__icontains=palabra) | Q(apellido_paterno__icontains=palabra)
+                | Q(apellido_materno__icontains=palabra) | Q(user__first_name__icontains=palabra)
+                | Q(user__last_name__icontains=palabra)
+            )
+        resultados = []
+        for docente in docentes.distinct().order_by('apellido_paterno', 'nombres')[:20]:
+            ci = (docente.ci or '').strip()
+            resultados.append({
+                'id': docente.pk,
+                'nombre_completo': docente.nombre_completo,
+                'ci_ultimos': ci[-4:] if ci else '',
+            })
+        return Response(resultados)
+
     def get_queryset(self):
         user = self.request.user
         carrera_id = self.request.query_params.get('carrera')
-        calendario_id = self.request.query_params.get('calendario')
+        gestion_sin_fondo = self.request.query_params.get('sin_fondo_gestion')
 
         def aplicar_filtros_selector(qs):
             if carrera_id:
@@ -175,10 +241,9 @@ class DocenteViewSet(viewsets.ModelViewSet):
                     vinculos_carrera__activo=True,
                 )
 
-            if calendario_id:
+            if gestion_sin_fondo:
                 docentes_con_fondo = FondoTiempo.objects.filter(
-                    calendario_academico_id=calendario_id,
-                    tipo_fondo='semestral',
+                    gestion=gestion_sin_fondo,
                     archivado=False,
                 ).values_list('docente_id', flat=True)
                 qs = qs.exclude(id__in=docentes_con_fondo)
@@ -206,6 +271,49 @@ class DocenteViewSet(viewsets.ModelViewSet):
             return aplicar_filtros_selector(Docente.objects.filter(id=user.perfil.docente.id))
 
         return Docente.objects.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        # Toda ficha de docente pertenece a un usuario (existente o creado con user_data).
+        # Aquí y no en DocenteSerializer: el alta y la edición de usuarios lo usan para
+        # crear la ficha antes de vincularla.
+        if not serializer.validated_data.get('user') and not serializer.validated_data.get('user_data'):
+            raise drf_serializers.ValidationError({'user': 'La ficha de docente debe estar vinculada a un usuario.'})
+        if not user.is_superuser:
+            # El Director solo crea fichas en su carrera y para usuarios que ya
+            # están asignados a ella (no crea usuarios desde aquí).
+            carrera = serializer.validated_data.get('carrera')
+            usuario = serializer.validated_data.get('user')
+            if not _usuario_tiene_acceso_a_carrera(user, carrera, self.request):
+                raise PermissionDenied('Solo puedes crear fichas de docente en tu carrera.')
+            if serializer.validated_data.get('user_data') or not usuario:
+                raise PermissionDenied('Selecciona un usuario de tu carrera para crear su ficha de docente.')
+            asignaciones_en_carrera = AsignacionCarrera.objects.filter(user=usuario, carrera=carrera)
+            perfil_usuario = getattr(usuario, 'perfil', None)
+            if perfil_usuario and perfil_usuario.inactivo_por_ficha_pendiente:
+                # Inactivo por falta de ficha: su asignación docente está en pausa.
+                asignaciones_en_carrera = asignaciones_en_carrera.filter(rol='docente')
+            else:
+                asignaciones_en_carrera = asignaciones_en_carrera.filter(activo=True)
+            if not asignaciones_en_carrera.exists():
+                raise PermissionDenied('El usuario seleccionado no pertenece a tu carrera.')
+        # Un solo vínculo, en la carrera del usuario (la de su contrato).
+        carreras_usuario = carreras_docencia_usuario(serializer.validated_data.get('user'))
+        carrera_ficha = serializer.validated_data.get('carrera')
+        if carreras_usuario and carrera_ficha and carrera_ficha.pk not in carreras_usuario:
+            raise drf_serializers.ValidationError({'carrera': MENSAJE_FICHA_EN_CARRERA_DEL_USUARIO})
+        # Dedicación y condición (titular o invitado) elegidas: no se asumen.
+        vinculo = serializer.validated_data.get('_vinculo') or {}
+        if not vinculo.get('dedicacion'):
+            raise drf_serializers.ValidationError({'dedicacion': 'Seleccione la dedicación.'})
+        if not vinculo.get('condicion'):
+            raise drf_serializers.ValidationError({'condicion': 'Seleccione la condición (titular o invitado).'})
+        # La fecha de ingreso es la real de planilla de RR.HH.: no se completa con la de hoy.
+        if not serializer.validated_data.get('fecha_ingreso'):
+            raise drf_serializers.ValidationError({
+                'fecha_ingreso': 'La fecha de ingreso es obligatoria: use la fecha de la planilla de RR.HH.',
+            })
+        serializer.save()
 
     def destroy(self, request, *args, **kwargs):
         """
@@ -242,7 +350,7 @@ class DocenteViewSet(viewsets.ModelViewSet):
         cargas_count = cargas_qs.count()
         if cargas_count > 0:
             gestiones = list(
-                cargas_qs.order_by().values_list('calendario__gestion', flat=True).distinct()
+                cargas_qs.order_by().values_list('fondo__gestion', flat=True).distinct()
             )
             detalle_gestiones = f" en la(s) gestión(es) {', '.join(map(str, gestiones))}" if gestiones else ''
             mensaje = (
@@ -420,6 +528,9 @@ class DatosLaboralesViewSet(viewsets.ModelViewSet):
     queryset = DatosLaborales.objects.all().select_related('docente').prefetch_related('perfiles')
     serializer_class = DatosLaboralesSerializer
     permission_classes = [IsFullAdmin]
+    # Sin DELETE: borrar DatosLaborales borraría en cascada la ficha de docente
+    # saltándose las validaciones de DocenteViewSet.destroy (única vía de borrado).
+    http_method_names = ['get', 'post', 'put', 'patch', 'head', 'options']
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['ci', 'docente__nombres', 'docente__apellido_paterno']
     ordering_fields = ['fecha_ingreso', 'ci']
@@ -429,16 +540,21 @@ class DatosLaboralesViewSet(viewsets.ModelViewSet):
         return DatosLaborales.objects.all().select_related('docente').prefetch_related('perfiles')
 
 
-class CarreraViewSet(viewsets.ModelViewSet):
+class CarreraViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     queryset = Carrera.objects.all()
     serializer_class = CarreraSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [filters.SearchFilter]
-    search_fields = ['nombre', 'codigo', 'facultad']
+    search_fields = ['nombre', 'codigo', 'facultad__nombre']
 
     def get_queryset(self):
         queryset = Carrera.objects.all()
         user = self.request.user
+
+        # ?activo=false: el aviso de solo lectura del superusuario lista las inactivas.
+        activo = self.request.query_params.get('activo')
+        if activo is not None:
+            queryset = queryset.filter(activo=activo.strip().lower() in ('true', '1', 'si', 'yes'))
 
         # Usuarios con permisos de gestión deben ver activas e inactivas.
         if self._is_superuser(user):
@@ -468,6 +584,16 @@ class CarreraViewSet(viewsets.ModelViewSet):
     def _is_superuser(self, user):
         return bool(user and user.is_authenticated and user.is_superuser)
 
+    def permite_escritura_en_carrera_inactiva(self, request):
+        # Única excepción al solo lectura: el superusuario reactiva la carrera
+        # (update() rechaza que esa petición cambie algo más que `activo`).
+        activo = str(request.data.get('activo', '')).strip().lower() if hasattr(request.data, 'get') else ''
+        return (
+            self._is_superuser(request.user)
+            and self.action in ('update', 'partial_update')
+            and activo in ('true', '1', 'yes', 'si', 'on')
+        )
+
     def _rol_usuario(self, user):
         if not user or not user.is_authenticated or not hasattr(user, 'perfil'):
             return None
@@ -493,6 +619,25 @@ class CarreraViewSet(viewsets.ModelViewSet):
         if not self._is_superuser(request.user):
             raise PermissionDenied('Solo el superusuario puede gestionar facultades.')
 
+    @staticmethod
+    def _buscar_facultad(nombre):
+        """Facultad del catálogo con nombre equivalente (sin distinguir mayúsculas ni tildes)."""
+        nombre_norm = FacultadCatalogo._normalizar(nombre)
+        for facultad in FacultadCatalogo.objects.all():
+            if FacultadCatalogo._normalizar(facultad.nombre) == nombre_norm:
+                return facultad
+        return None
+
+    @staticmethod
+    def _mensaje_validacion(error):
+        """Primer mensaje legible de un ValidationError de Django."""
+        if hasattr(error, 'message_dict'):
+            mensajes = [m for msgs in error.message_dict.values() for m in msgs]
+            return mensajes[0] if mensajes else 'Dato inválido.'
+        if hasattr(error, 'message'):
+            return error.message
+        return str(error)
+
     def _serialize_facultades(self):
         # Solo devolver facultades que están en el catálogo editable
         # No incluir las por defecto para evitar confusión al eliminar
@@ -506,30 +651,81 @@ class CarreraViewSet(viewsets.ModelViewSet):
         return super().create(request, *args, **kwargs)
 
     def _build_dependency_counts(self, carrera):
-        materias_qs = Materia.objects.filter(carrera=carrera)
-        materias_count = materias_qs.count()
-        semestres_count = materias_qs.values('semestre').distinct().count()
+        # Todo lo que apunta a Carrera. Una carrera solo se puede eliminar si todo es 0.
+        from poa_document.models import UsuarioPOA, ProgramaPOA, OrdenCompraPOA
+
         fondos_qs = FondoTiempo.objects.filter(carrera=carrera)
-        fondos_count = fondos_qs.count()
-        informes_count = InformeFondo.objects.filter(fondo_tiempo__in=fondos_qs).count()
-        perfiles_qs = PerfilUsuario.objects.filter(carrera=carrera)
-        usuarios_count = perfiles_qs.filter(user__isnull=False).count()
-        docentes_count = perfiles_qs.filter(docente__isnull=False).count()
-        return {
-            'materias': materias_count,
-            'semestres': semestres_count,
-            'fondos': fondos_count,
-            'informes': informes_count,
-            'usuarios': usuarios_count,
-            'docentes': docentes_count,
-            'can_delete': (
-                materias_count == 0
-                and informes_count == 0
-                and fondos_count == 0
-                and usuarios_count == 0
-                and docentes_count == 0
-            ),
-        }
+        dependencias = [
+            ('materias', 'Materias', Materia.objects.filter(carrera=carrera).count()),
+            ('fondos', 'Fondos de tiempo', fondos_qs.count()),
+            ('informes', 'Informes', InformeFondo.objects.filter(fondo_tiempo__in=fondos_qs).count()),
+            ('docentes_vinculados', 'Docentes vinculados', DocenteCarrera.objects.filter(carrera=carrera).count()),
+            ('asignaciones', 'Asignaciones de usuarios', AsignacionCarrera.objects.filter(carrera=carrera).count()),
+            ('perfiles', 'Perfiles de usuario', PerfilUsuario.objects.filter(carrera=carrera).count()),
+            ('calendarios', 'Calendarios académicos', CalendarioAcademico.objects.filter(carrera=carrera).count()),
+            ('usuarios_poa', 'Usuarios POA', UsuarioPOA.objects.filter(carrera=carrera).count()),
+            ('programas_poa', 'Programas POA', ProgramaPOA.objects.filter(carrera=carrera).count()),
+            ('ordenes_compra_poa', 'Órdenes de compra POA', OrdenCompraPOA.objects.filter(carrera=carrera).count()),
+        ]
+        counts = {clave: cantidad for clave, _etiqueta, cantidad in dependencias}
+        counts['detalle'] = [
+            {'clave': clave, 'etiqueta': etiqueta, 'cantidad': cantidad, 'academico': clave in self.DEPENDENCIAS_ACADEMICAS}
+            for clave, etiqueta, cantidad in dependencias
+            if cantidad > 0
+        ]
+        counts['tiene_datos'] = bool(counts['detalle'])
+        counts['tiene_datos_academicos'] = any(item['academico'] for item in counts['detalle'])
+        counts['can_delete'] = not counts['tiene_datos']
+        return counts
+
+    # Datos académicos: si existen, la identidad de la carrera queda fija porque ya
+    # aparece en documentos. Usuarios, perfiles y POA no la bloquean (sí impiden borrar).
+    DEPENDENCIAS_ACADEMICAS = {'materias', 'fondos', 'informes', 'docentes_vinculados', 'calendarios'}
+
+    @staticmethod
+    def _texto_dependencias(counts, solo_academicas=False):
+        return ', '.join(
+            f"{item['etiqueta']}: {item['cantidad']}"
+            for item in counts['detalle']
+            if item['academico'] or not solo_academicas
+        )
+
+    # Datos que identifican a la carrera en documentos oficiales. Si la carrera ya
+    # tiene datos académicos no se pueden cambiar; el resto (misión, visión,
+    # perfil, objetivo, logo) sigue editable.
+    CAMPOS_IDENTIDAD = {
+        'nombre': 'el nombre',
+        'codigo': 'el código',
+        'facultad': 'la facultad',
+        'resolucion_ministerial': 'la Resolución de Creación (HCU)',
+        'fecha_resolucion': 'la fecha de resolución de creación (HCU)',
+    }
+
+    @staticmethod
+    def _valor_identidad(valor):
+        if isinstance(valor, str):
+            return valor.strip()
+        return getattr(valor, 'pk', valor)
+
+    def _validar_campos_identidad(self, carrera, validated_data):
+        cambiados = [
+            campo for campo in self.CAMPOS_IDENTIDAD
+            if campo in validated_data
+            and self._valor_identidad(validated_data[campo]) != self._valor_identidad(getattr(carrera, campo))
+        ]
+        if not cambiados:
+            return
+        counts = self._build_dependency_counts(carrera)
+        if not counts['tiene_datos_academicos']:
+            return
+        texto = self._texto_dependencias(counts, solo_academicas=True)
+        raise drf_serializers.ValidationError({
+            campo: (
+                f'No se puede cambiar {self.CAMPOS_IDENTIDAD[campo]} de la carrera porque ya tiene '
+                f'datos académicos ({texto}).'
+            )
+            for campo in cambiados
+        })
 
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
     def dependencias(self, request, pk=None):
@@ -571,20 +767,45 @@ class CarreraViewSet(viewsets.ModelViewSet):
         try:
             FacultadCatalogo.objects.create(nombre=nombre)
         except ValidationError as e:
-            # Extraer primer mensaje legible del ValidationError
-            if hasattr(e, 'message_dict'):
-                mensajes = [m for msgs in e.message_dict.values() for m in msgs]
-                detalle = mensajes[0] if mensajes else 'Dato inválido.'
-            elif hasattr(e, 'message'):
-                detalle = e.message
-            else:
-                detalle = str(e)
             return Response(
-                {'detail': detalle},
+                {'detail': self._mensaje_validacion(e)},
                 status=status.HTTP_409_CONFLICT,
             )
 
         return Response(self._serialize_facultades(), status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['patch'], permission_classes=[IsAuthenticated], url_path='facultades/renombrar')
+    def renombrar_facultad(self, request):
+        """Cambia el nombre de la MISMA facultad: sus carreras siguen vinculadas a ella."""
+        self._enforce_manage_facultad_permission(request)
+
+        actual = str(request.data.get('value') or '').strip()
+        nuevo = str(request.data.get('nuevo') or '').strip()
+        if not actual or not nuevo:
+            return Response(
+                {'detail': 'Debe enviar la facultad y su nombre nuevo.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        facultad = self._buscar_facultad(actual)
+        if not facultad:
+            return Response(
+                {'detail': 'La facultad no existe en el catálogo.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        from django.core.exceptions import ValidationError
+        facultad.nombre = nuevo
+        try:
+            # save() valida que no exista otra con nombre equivalente (sin mayúsculas ni tildes).
+            facultad.save()
+        except ValidationError as e:
+            return Response(
+                {'detail': self._mensaje_validacion(e)},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        return Response(self._serialize_facultades(), status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated], url_path='facultades/eliminar')
     def eliminar_facultad(self, request):
@@ -597,13 +818,7 @@ class CarreraViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Buscar usando comparación normalizada (acentos + case insensitive)
-        nombre_norm = FacultadCatalogo._normalizar(nombre)
-        facultad = None
-        for fac in FacultadCatalogo.objects.all():
-            if FacultadCatalogo._normalizar(fac.nombre) == nombre_norm:
-                facultad = fac
-                break
+        facultad = self._buscar_facultad(nombre)
 
         if not facultad:
             return Response(
@@ -611,9 +826,15 @@ class CarreraViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        if Carrera.objects.filter(facultad__iexact=facultad.nombre).exists():
+        carreras_vinculadas = Carrera.objects.filter(facultad=facultad).count()
+        if carreras_vinculadas:
             return Response(
-                {'detail': 'No se puede eliminar una facultad que ya está asignada a una carrera.'},
+                {
+                    'detail': (
+                        f'No se puede eliminar "{facultad.nombre}": tiene {carreras_vinculadas} '
+                        f'carrera(s) vinculada(s). Cámbieles la facultad antes de eliminarla.'
+                    ),
+                },
                 status=status.HTTP_409_CONFLICT,
             )
 
@@ -630,10 +851,8 @@ class CarreraViewSet(viewsets.ModelViewSet):
                 {
                     'code': 'dependency_exists',
                     'detail': (
-                        f"No se puede eliminar la carrera {carrera.nombre}. "
-                        f"Debe estar totalmente vacía "
-                        f"(materias: {counts['materias']}, fondos: {counts['fondos']}, informes: {counts['informes']}, "
-                        f"usuarios: {counts['usuarios']}, docentes: {counts['docentes']})."
+                        f"No se puede eliminar la carrera {carrera.nombre} porque tiene datos asociados "
+                        f"({self._texto_dependencias(counts)})."
                     ),
                     'dependencias': counts,
                 },
@@ -644,15 +863,11 @@ class CarreraViewSet(viewsets.ModelViewSet):
             carrera.delete()
             return Response({'detail': 'Carrera eliminada correctamente.'}, status=status.HTTP_200_OK)
         except ProtectedError:
+            # Relación nueva que el conteo todavía no conoce: la base de datos la protege igual.
             return Response(
                 {
                     'code': 'protected_error',
-                    'detail': (
-                        f"ERROR DE INTEGRIDAD: No se puede eliminar la carrera {carrera.nombre} "
-                        f"porque tiene dependencias activas "
-                        f"(materias: {counts['materias']}, fondos: {counts['fondos']}, informes: {counts['informes']}, "
-                        f"usuarios: {counts['usuarios']}, docentes: {counts['docentes']})."
-                    ),
+                    'detail': f"No se puede eliminar la carrera {carrera.nombre} porque tiene datos asociados.",
                     'dependencias': counts,
                 },
                 status=status.HTTP_409_CONFLICT,
@@ -665,25 +880,21 @@ class CarreraViewSet(viewsets.ModelViewSet):
 
         # Superusuario: edición total de carrera.
         if self._is_superuser(user):
-            # 1) Bloquear cambio de codigo si ya tiene datos asociados
-            codigo = request.data.get('codigo', None)
-            if codigo is not None and codigo != instance.codigo:
-                counts_codigo = self._build_dependency_counts(instance)
-                if (
-                    counts_codigo['materias'] > 0
-                    or counts_codigo['fondos'] > 0
-                    or counts_codigo['docentes'] > 0
-                ):
-                    raise drf_serializers.ValidationError({
-                        'codigo': (
-                            f'No se puede cambiar el codigo de la carrera "{instance.nombre}" '
-                            f'porque ya tiene datos asociados '
-                            f'({counts_codigo["materias"]} materias, {counts_codigo["fondos"]} fondos, '
-                            f'{counts_codigo["docentes"]} docentes vinculados).'
-                        )
-                    })
+            # Carrera inactiva: la única escritura permitida es reactivarla, sola.
+            # Editar el resto se hace después, con la carrera ya activa.
+            if not instance.activo:
+                otros_campos = sorted(set(request.data.keys()) - {'activo'})
+                if otros_campos:
+                    return Response(
+                        {
+                            'code': 'reactivar_primero',
+                            'detail': 'Primero reactive la carrera y luego edítela.',
+                            'campos': otros_campos,
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
-            # 2) Desactivar carrera: advertir con conteo pero permitir
+            # Desactivar carrera: advertir con conteo pero permitir
             raw_activo = request.data.get('activo', None)
             if raw_activo is not None:
                 normalized = str(raw_activo).strip().lower()
@@ -691,24 +902,16 @@ class CarreraViewSet(viewsets.ModelViewSet):
 
                 if instance.activo and not next_activo:
                     counts = self._build_dependency_counts(instance)
-                    if (
-                        counts['materias'] > 0
-                        or counts['informes'] > 0
-                        or counts['fondos'] > 0
-                        or counts['usuarios'] > 0
-                        or counts['docentes'] > 0
-                    ):
+                    if counts['tiene_datos']:
                         # Se permite desactivar pero con advertencia en la respuesta
                         request._desactivar_warning = (
                             f'Advertencia: se está desactivando la carrera "{instance.nombre}" '
-                            f'que tiene datos activos: '
-                            f'{counts["materias"]} materias, {counts["fondos"]} fondos, '
-                            f'{counts["informes"]} informes, {counts["usuarios"]} usuarios, '
-                            f'{counts["docentes"]} docentes.'
+                            f'que tiene datos asociados: {self._texto_dependencias(counts)}.'
                         )
 
             serializer = self.get_serializer(instance, data=request.data, partial=partial)
             serializer.is_valid(raise_exception=True)
+            self._validar_campos_identidad(instance, serializer.validated_data)
             self.perform_update(serializer)
 
             response_data = serializer.data.copy()
@@ -730,7 +933,6 @@ class CarreraViewSet(viewsets.ModelViewSet):
                 'vision',
                 'perfil_profesional',
                 'objetivo_carrera',
-                'responsable',
                 'logo_carrera_file',
                 'remove_logo_carrera',
             }
@@ -746,6 +948,7 @@ class CarreraViewSet(viewsets.ModelViewSet):
 
             serializer = self.get_serializer(instance, data=data, partial=True)
             serializer.is_valid(raise_exception=True)
+            self._validar_campos_identidad(instance, serializer.validated_data)
             self.perform_update(serializer)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -779,23 +982,14 @@ class CarreraViewSet(viewsets.ModelViewSet):
         return self.update(request, *args, **kwargs)
 
 
-class MateriaViewSet(viewsets.ModelViewSet):
+class MateriaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     queryset = Materia.objects.select_related('carrera').all()
     serializer_class = MateriaSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['semestre', 'carrera']
+    filterset_fields = ['semestre', 'carrera', 'activo']
     search_fields = ['nombre', 'sigla', 'carrera__nombre']
     ordering_fields = ['semestre', 'nombre', 'carrera']
     ordering = ['carrera', 'semestre', 'nombre']
-
-    def _usuario_carrera_inactiva(self):
-        user = self.request.user
-        if user.is_superuser:
-            return False
-        if hasattr(user, 'perfil') and user.perfil:
-            carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
-            return carreras_activas.exists() and not carreras_activas.filter(activo=True).exists()
-        return False
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -805,33 +999,48 @@ class MateriaViewSet(viewsets.ModelViewSet):
         if user.is_superuser:
             return queryset
 
-        if self._usuario_carrera_inactiva():
+        # Todos los demás (Jefe, Director, Instituto y Docente) ven solo las
+        # materias de sus carreras.
+        carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
+        if not carreras_activas.exists():
             return queryset.none()
-        
-        # Jefe de Estudios y Director ven materias de su carrera
-        if hasattr(user, 'perfil') and user.perfil.rol in ['jefe_estudios', 'director']:
-            carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
-            if carreras_activas.exists():
-                queryset = queryset.filter(carrera__in=carreras_activas)
-            else:
-                return queryset.none()
-        
-        return queryset
+        return queryset.filter(carrera__in=carreras_activas)
 
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy'] and self._usuario_carrera_inactiva():
-            raise PermissionDenied('Acceso bloqueado: tu carrera está inactiva.')
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsAdminOrDirector()]
         return [IsAuthenticated()]
 
+    def _validar_carrera_propia(self, carrera):
+        """Director y Jefe de Estudios solo gestionan materias de su carrera; el superusuario, de todas."""
+        if not carrera or self.request.user.is_superuser:
+            return
+        if not _usuario_tiene_acceso_a_carrera(self.request.user, carrera, self.request):
+            raise PermissionDenied('Solo puedes gestionar materias de tu carrera.')
+
     def perform_create(self, serializer):
-        if self._usuario_carrera_inactiva():
-            raise PermissionDenied('Acceso bloqueado: tu carrera está inactiva.')
         carrera = serializer.validated_data.get('carrera')
         if carrera and not carrera.activo:
             raise PermissionDenied('No se puede crear una materia en una carrera inactiva.')
+        self._validar_carrera_propia(carrera)
         serializer.save()
+
+    def perform_update(self, serializer):
+        self._validar_carrera_propia(serializer.validated_data.get('carrera'))
+        serializer.save()
+
+    def destroy(self, request, *args, **kwargs):
+        """Una materia con cargas horarias no se elimina (se conserva el historial): se desactiva."""
+        materia = self.get_object()
+        cargas = CargaHoraria.objects.filter(materia=materia).count()
+        if cargas:
+            mensaje = (
+                f'No se puede eliminar la materia {materia.nombre}: tiene {cargas} carga(s) horaria(s). '
+                'Desactívela en su lugar.'
+            )
+            return Response({'error': mensaje, 'detail': mensaje, 'cargas_horarias': cargas},
+                            status=status.HTTP_409_CONFLICT)
+        return super().destroy(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
@@ -849,38 +1058,26 @@ class MateriaViewSet(viewsets.ModelViewSet):
         return self.update(request, *args, **kwargs)
 
 
-class CargaHorariaViewSet(viewsets.ModelViewSet):
+class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     """
     ViewSet para la asignación de horas por parte de Jefes de Estudio y Admins.
     - Jefes/Admins: CRUD completo.
     - Directores: Lectura de su carrera.
     - Docentes: Lectura de sus propias asignaciones.
     """
-    queryset = CargaHoraria.objects.select_related('docente', 'materia', 'calendario', 'creado_por').all()
+    queryset = CargaHoraria.objects.select_related('docente', 'fondo', 'materia', 'calendario', 'creado_por').all()
     serializer_class = CargaHorariaSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['docente', 'calendario', 'categoria', 'materia', 'paralelo', 'dia_semana', 'aula']
+    filterset_fields = ['fondo', 'docente', 'calendario', 'categoria', 'materia', 'paralelo', 'dia_semana', 'aula']
     search_fields = ['materia__nombre', 'materia__sigla', 'docente__nombres', 'docente__apellido_paterno', 'aula']
-    ordering_fields = ['calendario__gestion', 'docente', 'horas', 'dia_semana', 'hora_inicio']
-    ordering = ['-calendario__gestion']
-
-    def _usuario_carrera_inactiva(self):
-        user = self.request.user
-        if user.is_superuser:
-            return False
-        if hasattr(user, 'perfil') and user.perfil:
-            carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
-            return carreras_activas.exists() and not carreras_activas.filter(activo=True).exists()
-        return False
+    ordering_fields = ['fondo__gestion', 'docente', 'horas', 'dia_semana', 'hora_inicio']
+    ordering = ['-fondo__gestion']
 
     def get_permissions(self):
         """
         Super Admin y Jefes de Estudio pueden crear, editar o borrar.
         """
-        if self._usuario_carrera_inactiva():
-            raise PermissionDenied('Acceso bloqueado: tu carrera está inactiva.')
-
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             user = self.request.user
             if not user.is_superuser:
@@ -894,23 +1091,26 @@ class CargaHorariaViewSet(viewsets.ModelViewSet):
         Filtra la carga horaria según el rol del usuario.
         """
         user = self.request.user
+        queryset = super().get_queryset()
+        # El superusuario ve, edita y elimina todas (su perfil no tiene rol de carrera).
+        if user.is_superuser:
+            return queryset
         try:
             perfil = _obtener_perfil_efectivo(user, self.request)
         except Exception:
             perfil = None
-        queryset = super().get_queryset()
 
-        if self._usuario_carrera_inactiva():
+        # Sin perfil no hay carrera ni ficha: no ve ninguna (antes veía todas).
+        if not perfil:
             return queryset.none()
 
-        if not perfil:
-            return queryset
-
-        if perfil.rol in ['director', 'jefe_estudios']:
+        if perfil.rol in ['director', 'jefe_estudios', 'iiisyp']:
             carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
             if carreras_activas.exists():
-                docentes_carrera = _docentes_por_carreras(carreras_activas)
-                return queryset.filter(docente__in=docentes_carrera)
+                # Las cargas de los fondos de su carrera y las materias de sus calendarios.
+                return queryset.filter(
+                    Q(fondo__carrera__in=carreras_activas) | Q(calendario__carrera__in=carreras_activas)
+                )
             return queryset.none()
 
         if perfil.rol == 'docente' and perfil.docente:
@@ -918,16 +1118,10 @@ class CargaHorariaViewSet(viewsets.ModelViewSet):
 
         return queryset.none()
     
-    def _validar_estado_fondo(self, docente, calendario):
-        """Valida que el fondo esté en estado editable (borrador/observado) y que exista"""
-        fondo = FondoTiempo.objects.filter(
-            docente=docente,
-            calendario_academico=calendario,
-            archivado=False
-        ).first()
-
-        if not fondo:
-            raise PermissionDenied("No se puede crear carga horaria. El docente no tiene un Fondo de Tiempo registrado para este calendario.")
+    def _validar_estado_fondo(self, fondo):
+        """Valida que el fondo de la carga esté en estado editable (borrador/observado)."""
+        if fondo.archivado:
+            raise PermissionDenied("No se puede modificar la carga horaria porque el Fondo de Tiempo está archivado.")
 
         if fondo.carrera and not fondo.carrera.activo:
             raise PermissionDenied("No se puede modificar la carga horaria porque la carrera está inactiva.")
@@ -935,26 +1129,43 @@ class CargaHorariaViewSet(viewsets.ModelViewSet):
         if fondo.estado not in ['borrador', 'observado']:
             raise PermissionDenied(f"No se puede modificar la carga horaria. El fondo está en estado '{fondo.get_estado_display()}'.")
 
+    def _validar_carrera_responsable(self, fondo, calendario):
+        """Las materias las gestiona el Jefe de la carrera del calendario (en doble carrera,
+        el de otra carrera asigna al fondo del docente en la suya); los demás ítems, el
+        Jefe de la carrera del fondo."""
+        carrera = calendario.carrera if calendario else fondo.carrera
+        if not _usuario_tiene_acceso_a_carrera(self.request.user, carrera, self.request):
+            raise PermissionDenied(
+                f'Solo el Jefe de Estudios de {carrera.nombre} puede gestionar esta carga horaria.'
+            )
+
     def perform_create(self, serializer):
-        self._validar_estado_fondo(serializer.validated_data['docente'], serializer.validated_data['calendario'])
+        # El serializer asigna el fondo (o rechaza la carga si el docente no tiene).
+        datos = serializer.validated_data
+        self._validar_carrera_responsable(datos['fondo'], datos.get('calendario'))
+        self._validar_estado_fondo(datos['fondo'])
         serializer.save()
 
     def perform_update(self, serializer):
-        instance = self.get_object()
-        docente = serializer.validated_data.get('docente', instance.docente)
-        calendario = serializer.validated_data.get('calendario', instance.calendario)
-        self._validar_estado_fondo(docente, calendario)
+        # Si cambian el docente o el calendario, la carga pasa a otro fondo: ambos deben ser editables.
+        instance = serializer.instance
+        datos = serializer.validated_data
+        self._validar_carrera_responsable(instance.fondo, instance.calendario)
+        self._validar_carrera_responsable(datos['fondo'], datos.get('calendario'))
+        self._validar_estado_fondo(instance.fondo)
+        self._validar_estado_fondo(datos['fondo'])
         serializer.save()
 
     def perform_destroy(self, instance):
-        self._validar_estado_fondo(instance.docente, instance.calendario)
+        self._validar_carrera_responsable(instance.fondo, instance.calendario)
+        self._validar_estado_fondo(instance.fondo)
         instance.delete()
 
 # =====================================================
 # EVIDENCIA DE CARGA HORARIA VIEWSET
 # =====================================================
 
-class EvidenciaCargaHorariaViewSet(viewsets.ModelViewSet):
+class EvidenciaCargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     """
     Archivos de evidencia que el docente adjunta a cada actividad de su
     carga horaria mientras el fondo esta 'en_ejecucion'.
@@ -1014,12 +1225,8 @@ class EvidenciaCargaHorariaViewSet(viewsets.ModelViewSet):
         if not user.is_superuser and instance.subido_por_id != user.id:
             raise PermissionDenied('Solo quien subió el archivo puede eliminarlo.')
 
-        fondo = FondoTiempo.objects.filter(
-            docente=instance.carga_horaria.docente,
-            calendario_academico=instance.carga_horaria.calendario,
-            archivado=False,
-        ).first()
-        if fondo and fondo.estado != 'en_ejecucion' and not user.is_superuser:
+        fondo = instance.carga_horaria.fondo
+        if fondo.estado != 'en_ejecucion' and not user.is_superuser:
             raise PermissionDenied(
                 'Solo se pueden eliminar evidencias mientras el fondo esta en estado "En Ejecución".'
             )
@@ -1030,7 +1237,7 @@ class EvidenciaCargaHorariaViewSet(viewsets.ModelViewSet):
 # CALENDARIO ACADÉMICO VIEWSET
 # =====================================================
 
-class CalendarioAcademicoViewSet(viewsets.ModelViewSet):
+class CalendarioAcademicoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     """ViewSet para gestionar calendarios académicos"""
     queryset = CalendarioAcademico.objects.select_related('carrera').all()
     serializer_class = CalendarioAcademicoSerializer
@@ -1059,20 +1266,66 @@ class CalendarioAcademicoViewSet(viewsets.ModelViewSet):
             return [IsAdminOrDirector()]
         return [IsAuthenticated()]
 
+    def _validar_carrera_propia(self, carrera):
+        """Director y Jefe de Estudios solo gestionan calendarios de su carrera; el superusuario, de todas."""
+        if not carrera or self.request.user.is_superuser:
+            return
+        if not _usuario_tiene_acceso_a_carrera(self.request.user, carrera, self.request):
+            raise PermissionDenied('Solo puedes gestionar calendarios de tu carrera.')
+
+    @staticmethod
+    def _recalcular_fondos(*gestiones):
+        """Los fondos no presentados de esas (carrera, gestión) toman feriados e inicio de gestión nuevos."""
+        for carrera_id, gestion in set(gestiones):
+            FondoTiempo.recalcular_encabezados_de_gestion(carrera_id, gestion)
+
+    def perform_create(self, serializer):
+        self._validar_carrera_propia(serializer.validated_data.get('carrera'))
+        with transaction.atomic():
+            calendario = serializer.save()
+            self._recalcular_fondos((calendario.carrera_id, calendario.gestion))
+
+    def perform_update(self, serializer):
+        carrera = serializer.validated_data.get('carrera')
+        # Solo el superusuario mueve un calendario a otra carrera.
+        if carrera and carrera.pk != serializer.instance.carrera_id and not self.request.user.is_superuser:
+            raise PermissionDenied('No puedes mover el calendario a otra carrera.')
+        self._validar_carrera_propia(carrera)
+        anterior = (serializer.instance.carrera_id, serializer.instance.gestion)
+        with transaction.atomic():
+            calendario = serializer.save()
+            # Feriados de la gestión: el mismo valor en todos sus calendarios de la carrera.
+            CalendarioAcademico.objects.filter(
+                carrera_id=calendario.carrera_id, gestion=calendario.gestion,
+            ).exclude(pk=calendario.pk).update(dias_feriados_gestion=calendario.dias_feriados_gestion)
+            self._recalcular_fondos(anterior, (calendario.carrera_id, calendario.gestion))
+
     def _build_dependency_counts(self, calendario):
-        fondos_ids = list(
-            FondoTiempo.objects.filter(calendario_academico=calendario)
-            .values_list('id', flat=True)
-        )
-        fondos_count = len(fondos_ids)
-        informes_count = InformeFondo.objects.filter(fondo_tiempo_id__in=fondos_ids).count() if fondos_ids else 0
         cargas_horarias_count = CargaHoraria.objects.filter(calendario=calendario).count()
-        can_delete = fondos_count == 0 and informes_count == 0 and cargas_horarias_count == 0
+        # El último calendario de la gestión en la carrera da a sus fondos los feriados y
+        # el inicio de la gestión (antigüedad): no se borra mientras haya fondos.
+        es_el_unico = not CalendarioAcademico.objects.filter(
+            carrera_id=calendario.carrera_id, gestion=calendario.gestion,
+        ).exclude(pk=calendario.pk).exists()
+        fondos_gestion_count = FondoTiempo.objects.filter(
+            carrera_id=calendario.carrera_id, gestion=calendario.gestion,
+        ).count() if es_el_unico else 0
+        can_delete = cargas_horarias_count == 0 and fondos_gestion_count == 0
+
+        if fondos_gestion_count:
+            detalle = (
+                f'No se puede eliminar: es el único calendario de la gestión {calendario.gestion} '
+                f'y hay {fondos_gestion_count} fondos de esa gestión.'
+            )
+        elif cargas_horarias_count:
+            detalle = f'No se puede eliminar porque tiene {cargas_horarias_count} cargas horarias asociadas.'
+        else:
+            detalle = ''
 
         return {
-            'planificaciones': fondos_count,
-            'informes': informes_count,
             'cargas_horarias': cargas_horarias_count,
+            'fondos_gestion': fondos_gestion_count,
+            'detalle': detalle,
             'can_delete': can_delete,
             'has_dependencies': not can_delete,
         }
@@ -1088,36 +1341,27 @@ class CalendarioAcademicoViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         counts = self._build_dependency_counts(instance)
         if not counts['can_delete']:
-            dependencias = []
-            if counts['planificaciones'] > 0:
-                dependencias.append(f"{counts['planificaciones']} Fondos de Tiempo asociados")
-            if counts['informes'] > 0:
-                dependencias.append(f"{counts['informes']} informes asociados")
-            if counts['cargas_horarias'] > 0:
-                dependencias.append(f"{counts['cargas_horarias']} cargas horarias asociadas")
-
             return Response(
                 {
                     'code': 'protected_error',
-                    'detail': f"No se puede eliminar porque tiene {', '.join(dependencias)}.",
+                    'detail': counts['detalle'],
                     'dependencias': counts,
                 },
                 status=status.HTTP_409_CONFLICT
             )
 
         try:
-            instance.delete()
+            grupo = (instance.carrera_id, instance.gestion)
+            with transaction.atomic():
+                instance.delete()
+                self._recalcular_fondos(grupo)
             return Response({'detail': 'Calendario eliminado correctamente.'}, status=status.HTTP_200_OK)
         except ProtectedError:
             counts = self._build_dependency_counts(instance)
-            dependencias = []
-            if counts['planificaciones'] > 0:
-                dependencias.append(f"{counts['planificaciones']} Fondos de Tiempo asociados")
-            if counts['informes'] > 0:
-                dependencias.append(f"{counts['informes']} informes asociados")
-            if counts['cargas_horarias'] > 0:
-                dependencias.append(f"{counts['cargas_horarias']} cargas horarias asociadas")
-            detalle_dependencias = ', '.join(dependencias) if dependencias else 'dependencias protegidas'
+            detalle_dependencias = (
+                f"{counts['cargas_horarias']} cargas horarias asociadas"
+                if counts['cargas_horarias'] else 'dependencias protegidas'
+            )
             return Response(
                 {
                     'code': 'protected_error',
@@ -1154,27 +1398,19 @@ class CalendarioAcademicoViewSet(viewsets.ModelViewSet):
         )
 
 
-class FondoTiempoViewSet(viewsets.ModelViewSet):
+class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     """
     ViewSet con sistema híbrido de permisos:
     - Admin: puede editar solo borradores, cambiar estados, archivar
     - Docente: puede editar solo sus borradores
     """
     queryset = FondoTiempo.objects.select_related(
-        'docente', 'carrera', 'calendario_academico', 'aprobado_por', 'validado_por'
-    ).prefetch_related('categorias', 'proyectos', 'observaciones_detalladas')
+        'docente', 'carrera', 'aprobado_por', 'validado_por'
+    ).prefetch_related('proyectos', 'observaciones_detalladas')
     serializer_class = FondoTiempoSerializer
     permission_classes = [IsAuthenticated]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
-    def _usuario_carrera_inactiva(self, user):
-        if user.is_superuser:
-            return False
-        if hasattr(user, 'perfil') and user.perfil:
-            carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
-            return carreras_activas.exists() and not carreras_activas.filter(activo=True).exists()
-        return False
-    
     def get_queryset(self):
         """
         Filtrar fondos según el usuario:
@@ -1189,19 +1425,13 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         except Exception:
             perfil = None
 
-        if self._usuario_carrera_inactiva(user):
-            return queryset.none()
-
         def aplicar_filtros_query_params(qs):
             docente_id = self.request.query_params.get('docente')
-            calendario_id = (
-                self.request.query_params.get('calendario')
-                or self.request.query_params.get('calendario_academico')
-            )
+            gestion = self.request.query_params.get('gestion')
             if docente_id:
                 qs = qs.filter(docente_id=docente_id)
-            if calendario_id:
-                qs = qs.filter(calendario_academico_id=calendario_id)
+            if gestion:
+                qs = qs.filter(gestion=gestion)
             return qs
 
         # Permitir que superusuarios vean todo siempre (evita problemas si su rol es 'docente' por defecto)
@@ -1233,12 +1463,9 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         """
         # 1. Definir Queryset Base SIN Prefetch inicial (para evitar caché obsoleto)
         queryset = FondoTiempo.objects.select_related(
-            'docente', 'carrera', 'calendario_academico', 'aprobado_por', 'validado_por'
+            'docente', 'carrera', 'aprobado_por', 'validado_por'
         )
 
-        if self._usuario_carrera_inactiva(self.request.user):
-            queryset = queryset.none()
-        
         # 2. Aplicar filtros según la acción
         if self.action in ['retrieve', 'restaurar', 'destroy', 'generar_pdf_oficial', 'generar_pdf_informe']:
             # Acciones que permiten ver archivados (con validación de dueño)
@@ -1282,25 +1509,13 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         # Verificar permisos de objeto
         self.check_object_permissions(self.request, obj)
 
-        # CORRECCIÓN DE RAÍZ: Asegurar que existan las categorías para que se vea la carga de Jefatura
-        self._asegurar_categorias(obj)
-        
-        # AHORA hacemos el prefetch manual para incluir las categorías recién creadas
-        prefetch_related_objects([obj], 
-            'categorias',
+        # Prefetch manual de las relaciones del detalle
+        prefetch_related_objects([obj],
             'proyectos', 'informes', 'observaciones_detalladas'
         )
         
         return obj
     
-    def _asegurar_categorias(self, fondo):
-        """Garantiza que el fondo tenga las 7 categorías creadas para recibir carga horaria."""
-        tipos_requeridos = [tipo for tipo, _label in CategoriaFuncion.TIPO_CHOICES]
-        existentes = set(fondo.categorias.values_list('tipo', flat=True))
-        for tipo in tipos_requeridos:
-            if tipo not in existentes:
-                CategoriaFuncion.objects.create(fondo_tiempo=fondo, tipo=tipo)
-
     def get_serializer_class(self):
         if self.action == 'list':
             return FondoTiempoListSerializer
@@ -1336,22 +1551,6 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
                 {'docente': 'Docente exento de distribución de tiempo según Art. 25°'}
             )
 
-    def _validar_permiso_distribucion(self, fondo):
-        user = self.request.user
-        perfil = _obtener_perfil_efectivo(user, self.request)
-
-        if not user.is_superuser:
-            if not perfil or perfil.rol != 'jefe_estudios':
-                raise PermissionDenied("Solo Jefes de Estudio pueden modificar la distribucion de horas.")
-            if not _usuario_tiene_acceso_a_carrera(user, fondo.carrera, self.request):
-                raise PermissionDenied("No tienes acceso a la carrera de este Fondo de Tiempo.")
-
-        if fondo.carrera and not fondo.carrera.activo:
-            raise PermissionDenied("No se puede modificar la distribucion porque la carrera esta inactiva.")
-
-        if fondo.estado not in ['borrador', 'observado']:
-            raise PermissionDenied(f"No se puede modificar la distribucion. El fondo esta en estado '{fondo.get_estado_display()}'.")
-
     def _puede_editar_fondo(self, fondo):
         user = self.request.user
         if user.is_superuser:
@@ -1369,60 +1568,11 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
 
         return False
 
-    def _normalizar_horas_distribucion(self, raw_categorias):
-        if not isinstance(raw_categorias, dict):
-            raise drf_serializers.ValidationError({
-                'categorias': 'Debe enviar un objeto con las 7 categorias y sus horas.'
-            })
-
-        tipos_requeridos = [tipo for tipo, _label in CategoriaFuncion.TIPO_CHOICES]
-        faltantes = [tipo for tipo in tipos_requeridos if tipo not in raw_categorias]
-        extras = [tipo for tipo in raw_categorias.keys() if tipo not in tipos_requeridos]
-
-        errores = {}
-        if faltantes:
-            errores['faltantes'] = faltantes
-        if extras:
-            errores['no_permitidas'] = extras
-        if errores:
-            raise drf_serializers.ValidationError({'categorias': errores})
-
-        horas_por_tipo = {}
-        for tipo in tipos_requeridos:
-            try:
-                horas = Decimal(str(raw_categorias.get(tipo, 0)))
-            except (InvalidOperation, TypeError, ValueError):
-                raise drf_serializers.ValidationError({
-                    'categorias': {tipo: 'Las horas deben ser numericas.'}
-                })
-            if horas < 0:
-                raise drf_serializers.ValidationError({
-                    'categorias': {tipo: 'Las horas no pueden ser negativas.'}
-                })
-            horas_por_tipo[tipo] = horas.quantize(Decimal('0.01'))
-
-        return horas_por_tipo
-
-    def _validar_suma_exacta_semanal(self, fondo, horas_por_tipo):
-        total = sum(horas_por_tipo.values(), Decimal('0.00'))
-        horas_semana = Decimal(str(fondo.horas_semana or 0)).quantize(Decimal('0.01'))
-
-        if total != horas_semana:
-            raise drf_serializers.ValidationError({
-                'categorias': (
-                    f'La suma de las 7 categorias debe ser exactamente igual a '
-                    f'{horas_semana} horas semanales. Total enviado: {total}.'
-                )
-            })
-    
     def create(self, request, *args, **kwargs):
         """
         Aplica reglas de negocio para la creación de Fondos de Tiempo.
         Según Reglamento (Art. 9, 14), la creación es responsabilidad de Jefatura, no del Docente.
         """
-        if self._usuario_carrera_inactiva(request.user):
-            raise PermissionDenied('Acceso bloqueado: tu carrera está inactiva.')
-
         user = self.request.user
         try:
             perfil = _obtener_perfil_efectivo(user, request)
@@ -1447,13 +1597,6 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         elif not perfil:
              raise PermissionDenied("El usuario no tiene un perfil asignado.")
 
-        # Validación de Calendario
-        if not CalendarioAcademico.objects.filter(activo=True).exists():
-            return Response(
-                {'error': 'No existe un periodo académico activo para iniciar la planificación.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         serializer = self.get_serializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
@@ -1470,63 +1613,17 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def perform_create(self, serializer):
-        """Al crear un fondo, se asocia al calendario activo. El docente viene en el payload."""
+        """Un fondo por docente y gestión: la gestión debe tener calendario académico en la carrera."""
         docente = serializer.validated_data.get('docente')
         carrera = serializer.validated_data.get('carrera')
+        gestion = serializer.validated_data.get('gestion')
         self._validar_docente_no_exclusivo(docente, carrera)
-        calendario_activo = serializer.validated_data.get('calendario_academico')
-        if not calendario_activo:
-            calendario_activo = CalendarioAcademico.objects.filter(activo=True, carrera=carrera).first()
-        if not calendario_activo:
+        if not CalendarioAcademico.objects.filter(carrera=carrera, gestion=gestion).exists():
             raise drf_serializers.ValidationError({
-                'calendario_academico': 'No existe un periodo academico activo para esta carrera.'
+                'gestion': f'La carrera no tiene calendario académico de la gestión {gestion}.'
             })
-        tipo_fondo = serializer.validated_data.get('tipo_fondo', 'semestral')
-        if tipo_fondo == 'semestral' and FondoTiempo.objects.filter(
-            docente=docente,
-            calendario_academico=calendario_activo,
-            tipo_fondo='semestral',
-        ).exists():
-            raise drf_serializers.ValidationError({
-                'docente': 'Este docente ya tiene un fondo de tiempo registrado para el periodo seleccionado'
-            })
-        
-        # Ya no forzamos el docente del usuario logueado.
-        # El serializer valida que 'docente' venga en el request.
-        fondo = serializer.save(calendario_academico=calendario_activo)
-        
-        # CORRECCIÓN DE RAÍZ: Crear inmediatamente las categorías vacías
-        tipos = [tipo for tipo, _label in CategoriaFuncion.TIPO_CHOICES]
-        for tipo in tipos:
-            CategoriaFuncion.objects.create(fondo_tiempo=fondo, tipo=tipo)
 
-    @action(detail=True, methods=['post', 'patch'], url_path='distribuir-horas')
-    def distribuir_horas(self, request, pk=None):
-        fondo = self.get_object()
-        self._validar_permiso_distribucion(fondo)
-
-        try:
-            horas_por_tipo = self._normalizar_horas_distribucion(request.data.get('categorias'))
-            self._validar_suma_exacta_semanal(fondo, horas_por_tipo)
-        except drf_serializers.ValidationError as exc:
-            return self._validation_error_response(exc.detail)
-
-        with transaction.atomic():
-            self._asegurar_categorias(fondo)
-            categorias = {
-                categoria.tipo: categoria
-                for categoria in CategoriaFuncion.objects.select_for_update().filter(fondo_tiempo=fondo)
-            }
-            for tipo, horas in horas_por_tipo.items():
-                categoria = categorias[tipo]
-                categoria.total_horas = horas
-                categoria.save(update_fields=['total_horas'])
-
-        serializer = FondoTiempoDetalleSerializer(
-            self.get_object(),
-            context=self.get_serializer_context()
-        )
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        serializer.save()
 
     @action(detail=False, methods=['post'], url_path='generar-masivo')
     def generar_masivo(self, request):
@@ -1557,7 +1654,6 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         creados = 0
         omitidos_exclusiva = 0
         omitidos_ya_existentes = 0
-        tipos_categoria = [tipo for tipo, _label in CategoriaFuncion.TIPO_CHOICES]
 
         with transaction.atomic():
             for vinculo in vinculos:
@@ -1576,28 +1672,20 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
 
                 ya_existe = FondoTiempo.objects.filter(
                     docente=vinculo.docente,
-                    carrera=vinculo.carrera,
-                    calendario_academico=calendario_activo,
+                    gestion=calendario_activo.gestion,
+                    archivado=False,
                 ).exists()
                 if ya_existe:
                     omitidos_ya_existentes += 1
                     continue
 
-                etiqueta_carrera = vinculo.carrera.codigo or vinculo.carrera.nombre
-                fondo = FondoTiempo.objects.create(
+                FondoTiempo.objects.create(
                     docente=vinculo.docente,
                     carrera=vinculo.carrera,
-                    calendario_academico=calendario_activo,
                     gestion=calendario_activo.gestion,
-                    periodo=calendario_activo.periodo,
-                    asignatura=f"Fondo de Tiempo - {etiqueta_carrera}",
                     estado='borrador',
                 )
 
-                CategoriaFuncion.objects.bulk_create([
-                    CategoriaFuncion(fondo_tiempo=fondo, tipo=tipo)
-                    for tipo in tipos_categoria
-                ])
                 creados += 1
 
         return Response({
@@ -1642,16 +1730,26 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         kwargs['partial'] = True
         return self.update(request, *args, **kwargs)
     
+    def _validar_archivo(self, fondo, accion):
+        """Archivar y restaurar: superusuario, o Director y Jefe de Estudios de la carrera del fondo."""
+        user = self.request.user
+        if user.is_superuser:
+            return
+        perfil = _obtener_perfil_efectivo(user, self.request)
+        if not (
+            perfil
+            and perfil.rol in ['director', 'jefe_estudios']
+            and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, self.request)
+        ):
+            raise PermissionDenied(
+                f"Solo el superusuario o el Director y el Jefe de Estudios de la carrera pueden {accion} fondos."
+            )
+
     def destroy(self, request, *args, **kwargs):
-        """
-        No se elimina realmente, se archiva
-        Solo admin puede archivar
-        """
+        """No se elimina: se archiva (superusuario, o Director y Jefe de Estudios de la carrera)."""
         instance = self.get_object()
-        
-        if not instance.puede_archivar(request.user):
-            raise PermissionDenied("Solo administradores pueden archivar fondos")
-        
+        self._validar_archivo(instance, 'archivar')
+
         # Archivar en lugar de eliminar
         instance.archivado = True
         instance.save()
@@ -1660,53 +1758,6 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
             {'message': 'Fondo archivado correctamente'},
             status=status.HTTP_200_OK
         )
-    
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
-    def cambiar_estado(self, request, pk=None):
-        """
-        Cambiar estado del fondo (solo admin/director/jefe_estudios según permisos)
-        Estados: borrador → revision → aprobado → validado
-        
-        Permisos especiales:
-        - 'observado': Solo jefe_estudios o admin
-        """
-        fondo = self.get_object()
-        nuevo_estado = request.data.get('estado')
-        comentarios = request.data.get('comentarios', '')
-        
-        # Validar permisos (incluyendo validación para 'observado')
-        if not fondo.puede_cambiar_estado(request.user, nuevo_estado):
-            raise PermissionDenied(
-                f"No tiene permisos para cambiar el estado a '{nuevo_estado}'. "
-                f"Solo jefe_estudios o admin pueden cambiar a 'observado'."
-            )
-        
-        estados_validos = [choice[0] for choice in FondoTiempo.ESTADO_CHOICES]
-        if nuevo_estado not in estados_validos:
-            return Response(
-                {'error': f'Estado inválido. Válidos: {estados_validos}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Actualizar estado y registrar quién lo hizo
-        fondo.estado = nuevo_estado
-        
-        if comentarios:
-            if fondo.comentarios_admin:
-                fondo.comentarios_admin += f"\n\n[{request.user.username}]: {comentarios}"
-            else:
-                fondo.comentarios_admin = f"[{request.user.username}]: {comentarios}"
-        
-        # Registrar quién aprobó/validó
-        if nuevo_estado == 'aprobado_director' and not fondo.aprobado_por:
-            fondo.aprobado_por = request.user
-        elif nuevo_estado == 'validado' and not fondo.validado_por:
-            fondo.validado_por = request.user
-        
-        fondo.save()
-        
-        serializer = self.get_serializer(fondo)
-        return Response(serializer.data)
     
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
     def agregar_comentario(self, request, pk=None):
@@ -1746,7 +1797,7 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
             docente_id=docente_id,
             gestion__in=[gestion1, gestion2],
             archivado=False
-        ).select_related('docente', 'carrera').prefetch_related('categorias')
+        ).select_related('docente', 'carrera')
         
         serializer = self.get_serializer(fondos, many=True)
         return Response(serializer.data)
@@ -1773,14 +1824,22 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         serializer = FondoTiempoListSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
     
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def restaurar(self, request, pk=None):
-        """Restaurar un fondo archivado (solo admin)"""
-        fondo = self.get_object()
+        """Restaurar un fondo archivado (superusuario, o Director y Jefe de Estudios de la carrera)."""
+        # get_object() excluye los archivados: se busca directo y se valida la carrera.
+        fondo = get_object_or_404(FondoTiempo, pk=pk)
+        self._validar_archivo(fondo, 'restaurar')
         
         if not fondo.archivado:
             return Response(
                 {'error': 'Este fondo no está archivado'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if FondoTiempo.objects.filter(docente=fondo.docente, gestion=fondo.gestion, archivado=False).exists():
+            return Response(
+                {'error': f'El docente ya tiene otro Fondo de Tiempo vigente de la gestión {fondo.gestion}.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -1790,22 +1849,6 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(fondo)
         return Response(serializer.data)
 
-    @action(detail=False, methods=['get'], url_path='largo-plazo')
-    def largo_plazo(self, request):
-        """
-        Obtener fondos de tiempo a largo plazo.
-        """
-        queryset = self.get_queryset().filter(tipo_fondo='largo_plazo')
-        
-        # Aplicar paginación
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = FondoTiempoListSerializer(page, many=True, context={'request': request})
-            return self.get_paginated_response(serializer.data)
-
-        serializer = FondoTiempoListSerializer(queryset, many=True, context={'request': request})
-        return Response(serializer.data)
-    
     # NUEVAS ACCIONES SEGÚN REGLAMENTO UAB
 
     def _extraer_secciones_informe(self, request):
@@ -1874,8 +1917,9 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         user = request.user
 
         perfil = _obtener_perfil_efectivo(user, request)
-        if not (perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, request)):
-            raise PermissionDenied("Solo el Director de la carrera correspondiente puede solicitar correcciones al informe.")
+        if not _validar_revisor_del_fondo(request, fondo, 'observar'):
+            if not (perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, request)):
+                raise PermissionDenied("Solo el Director de la carrera correspondiente puede solicitar correcciones al informe.")
 
         if fondo.estado != 'informe_presentado':
             return Response(
@@ -1897,7 +1941,7 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         informe.estado = 'observado'
         informe.evaluacion_director = comentario
         informe.evaluado_por = user
-        informe.fecha_evaluacion = timezone.now().date()
+        informe.fecha_evaluacion = timezone.localdate()
         informe.save()
 
         estado_anterior = fondo.estado
@@ -1927,7 +1971,8 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     @transaction.atomic
     def presentar(self, request, pk=None):
-        """Presentar fondo a Director de Carrera (Art. 18)"""
+        """Presentar el informe final (fondo en ejecución). El fondo lo presenta Jefatura al
+        Director con presentar-a-director."""
         fondo = self.get_object()
         
         # Verificar que sea el docente dueño del fondo
@@ -1936,74 +1981,57 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
             if not perfil.docente or fondo.docente != perfil.docente:
                 raise PermissionDenied("No puede presentar fondos de otros docentes")
         
-        # LÓGICA FLEXIBLE: Manejo de estados
-        if fondo.estado == 'en_ejecucion':
-            secciones = self._extraer_secciones_informe(request)
-
-            # Minimos exigibles: Academica (todo docente dicta materias) y
-            # Conclusiones (cierre del informe). Las demas secciones quedan
-            # opcionales porque no todos los docentes tienen actividad en
-            # investigacion, gestion, tutorias, etc. en una gestion dada.
-            errores_secciones = {}
-            if not secciones['seccion_academica']:
-                errores_secciones['seccion_academica'] = 'Debe describir el cumplimiento de la sección Académica.'
-            if not secciones['conclusiones_generales']:
-                errores_secciones['conclusiones_generales'] = 'Debe redactar las conclusiones generales del informe.'
-            if errores_secciones:
-                return Response(errores_secciones, status=status.HTTP_400_BAD_REQUEST)
-
-            # Transición directa para informe (Modo Flexible)
-            estado_anterior = fondo.estado
-            fondo.estado = 'informe_presentado'
-            fondo.fecha_informe = timezone.now()
-            fondo.save()
-
-            # Crear o actualizar el informe con datos reales; queda marcado
-            # 'enviado' (formal, ya no editable por el docente) hasta que el
-            # Director lo apruebe o lo observe.
-            InformeFondo.objects.update_or_create(
-                fondo_tiempo=fondo,
-                tipo='parcial',
-                defaults={
-                    'elaborado_por': request.user,
-                    'estado': 'enviado',
-                    **secciones,
-                }
+        if fondo.estado != 'en_ejecucion':
+            return Response(
+                {'error': 'Solo se presenta el informe con el fondo en ejecución. El fondo lo presenta Jefatura al Director.'},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-            # Registrar en historial
-            HistorialFondo.objects.create(
-                fondo_tiempo=fondo,
-                usuario=request.user,
-                tipo_cambio='informe_presentado',
-                descripcion='Docente presentó Informe Final de cumplimiento.',
-                estado_anterior=estado_anterior,
-                estado_nuevo='informe_presentado'
-            )
-            
-            return Response({'message': 'Informe presentado exitosamente'})
+        secciones = self._extraer_secciones_informe(request)
 
-        serializer = PresentarFondoSerializer(data=request.data, context={'fondo': fondo})
-        serializer.is_valid(raise_exception=True)
-        
-        # Cambiar estado
-        fondo.estado = 'presentado_jefe'
-        fondo.fecha_presentacion = timezone.now()
+        # Minimos exigibles: Academica (todo docente dicta materias) y
+        # Conclusiones (cierre del informe). Las demas secciones quedan
+        # opcionales porque no todos los docentes tienen actividad en
+        # investigacion, gestion, tutorias, etc. en una gestion dada.
+        errores_secciones = {}
+        if not secciones['seccion_academica']:
+            errores_secciones['seccion_academica'] = 'Debe describir el cumplimiento de la sección Académica.'
+        if not secciones['conclusiones_generales']:
+            errores_secciones['conclusiones_generales'] = 'Debe redactar las conclusiones generales del informe.'
+        if errores_secciones:
+            return Response(errores_secciones, status=status.HTTP_400_BAD_REQUEST)
+
+        # Transición directa para informe (Modo Flexible)
+        estado_anterior = fondo.estado
+        fondo.estado = 'informe_presentado'
+        fondo.fecha_informe = timezone.now()
         fondo.save()
-        
+
+        # Crear o actualizar el informe con datos reales; queda marcado
+        # 'enviado' (formal, ya no editable por el docente) hasta que el
+        # Director lo apruebe o lo observe.
+        InformeFondo.objects.update_or_create(
+            fondo_tiempo=fondo,
+            tipo='parcial',
+            defaults={
+                'elaborado_por': request.user,
+                'estado': 'enviado',
+                **secciones,
+            }
+        )
+
         # Registrar en historial
         HistorialFondo.objects.create(
             fondo_tiempo=fondo,
             usuario=request.user,
-            tipo_cambio='presentacion',
-            descripcion='Fondo presentado a Jefe de Estudios para revisión técnica.',
-            estado_anterior='borrador',
-            estado_nuevo='presentado_jefe'
+            tipo_cambio='informe_presentado',
+            descripcion='Docente presentó Informe Final de cumplimiento.',
+            estado_anterior=estado_anterior,
+            estado_nuevo='informe_presentado'
         )
         
-        output_serializer = FondoTiempoDetalleSerializer(fondo, context={'request': request})
-        return Response(output_serializer.data)
-    
+        return Response({'message': 'Informe presentado exitosamente'})
+
     @action(detail=True, methods=['patch'], url_path='presentar-a-director')
     def presentar_a_director(self, request, pk=None):
         """
@@ -2029,30 +2057,15 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        total_macro = Decimal(str(fondo.total_asignado or 0)).quantize(Decimal('0.01'))
-        horas_objetivo = Decimal(str(fondo.horas_semana or 0)).quantize(Decimal('0.01'))
-        tiene_micro = CargaHoraria.objects.filter(
-            docente=fondo.docente,
-            calendario=fondo.calendario_academico,
-        ).exists()
-
-        total_micro_anual = Decimal(str(
-            CargaHoraria.objects.filter(
-                docente=fondo.docente,
-                calendario=fondo.calendario_academico,
-            ).aggregate(total=Sum('horas'))['total'] or 0
-        )).quantize(Decimal('0.01'))
-        objetivo_micro_anual = Decimal(str(fondo.horas_efectivas or 1712)).quantize(Decimal('0.01'))
-
-        if horas_objetivo <= 0 or total_macro != horas_objetivo or not tiene_micro:
+        # La suma de todas las unidades debe ser exactamente las horas efectivas.
+        total_unidades = Decimal(fondo.total_asignado)
+        horas_efectivas = Decimal(str(fondo.horas_efectivas or 0))
+        if horas_efectivas <= 0 or total_unidades != horas_efectivas:
             return Response(
-                {'error': 'Complete la distribución de horas y asigne al menos una materia antes de presentar'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if total_micro_anual != objetivo_micro_anual:
-            return Response(
-                {'error': f'El Micro debe sumar exactamente {objetivo_micro_anual:g} horas anuales. Total actual: {total_micro_anual:g}.'},
+                {'error': (
+                    f'La suma de las unidades debe ser exactamente {horas_efectivas.normalize():f} horas '
+                    f'(horas efectivas). Total actual: {total_unidades.normalize():f}.'
+                )},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -2080,15 +2093,59 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
 
         return Response({'status': 'Fondo presentado correctamente'}, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['post'], url_path='volver-a-borrador')
+    @transaction.atomic
+    def volver_a_borrador(self, request, pk=None):
+        """Un fondo rechazado vuelve a borrador para corregirlo: Jefe de su carrera o superusuario."""
+        fondo = self.get_object()
+        user = request.user
+        if not user.is_superuser:
+            perfil = _obtener_perfil_efectivo(user, request)
+            if not (perfil and perfil.rol == 'jefe_estudios' and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, request)):
+                raise PermissionDenied("Solo el Jefe de Estudios de la carrera puede devolver a borrador un fondo rechazado.")
+
+        if fondo.estado != 'rechazado':
+            return Response(
+                {'error': 'Solo un fondo rechazado puede volver a borrador.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        fondo.estado = 'borrador'
+        fondo.save()
+        HistorialFondo.objects.create(
+            fondo_tiempo=fondo,
+            usuario=user,
+            tipo_cambio='edicion',
+            descripcion='Fondo rechazado devuelto a borrador para corregirlo.',
+            estado_anterior='rechazado',
+            estado_nuevo='borrador',
+        )
+        return Response({'status': 'Fondo devuelto a borrador'}, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
     @transaction.atomic
     def aprobar(self, request, pk=None):
         """Aprobar fondo (Director)"""
         fondo = self.get_object()
-        # MEJORA: Solo un Director debería poder aprobar, no un Admin genérico.
-        perfil = _obtener_perfil_efectivo(request.user, request)
-        if not (perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(request.user, fondo.carrera, request)):
-            raise PermissionDenied("Solo los Directores de Carrera pueden aprobar fondos.")
+        aprueba_superusuario = _validar_revisor_del_fondo(request, fondo, 'aprobar')
+        documento_decanatura = None
+        if aprueba_superusuario:
+            documento_decanatura = request.FILES.get('documento_decanatura')
+            if not documento_decanatura:
+                return Response(
+                    {'documento_decanatura': 'Adjunte el documento de la Decanatura (PDF) para aprobar el fondo del Director.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if not _es_pdf(documento_decanatura):
+                return Response(
+                    {'documento_decanatura': 'El documento de la Decanatura debe ser un archivo PDF.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            # MEJORA: Solo un Director debería poder aprobar, no un Admin genérico.
+            perfil = _obtener_perfil_efectivo(request.user, request)
+            if not (perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(request.user, fondo.carrera, request)):
+                raise PermissionDenied("Solo los Directores de Carrera pueden aprobar fondos.")
         
         # Un director puede aprobar fondos presentados o que él mismo haya observado y el docente corrigió.
         if fondo.estado != 'presentado_director':
@@ -2105,6 +2162,8 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         fondo.estado = 'aprobado_director'
         fondo.fecha_aprobacion = timezone.now()
         fondo.aprobado_por = request.user
+        if documento_decanatura:
+            fondo.documento_decanatura = documento_decanatura
         
         observacion = serializer.validated_data.get('observacion', '')
         if observacion:
@@ -2134,10 +2193,11 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         """Observar o rechazar fondo (Director)"""
         try:
             fondo = self.get_object()
-            # MEJORA: Solo un Director debería poder observar, no un Admin genérico.
-            perfil = _obtener_perfil_efectivo(request.user, request)
-            if not (perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(request.user, fondo.carrera, request)):
-                raise PermissionDenied("Solo los Directores de Carrera pueden observar fondos.")
+            if not _validar_revisor_del_fondo(request, fondo, 'observar'):
+                # MEJORA: Solo un Director debería poder observar, no un Admin genérico.
+                perfil = _obtener_perfil_efectivo(request.user, request)
+                if not (perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(request.user, fondo.carrera, request)):
+                    raise PermissionDenied("Solo los Directores de Carrera pueden observar fondos.")
 
             if fondo.estado != 'presentado_director':
                 return Response(
@@ -2201,105 +2261,6 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @action(detail=True, methods=['post'], url_path='validar-jefe')
-    @transaction.atomic
-    def validar_jefe(self, request, pk=None):
-        """Jefe de Estudios valida el fondo y lo pasa al Director."""
-        fondo = self.get_object()
-        user = request.user
-        try:
-            perfil = _obtener_perfil_efectivo(user, request)
-        except Exception:
-            perfil = None
-
-        # Permission check
-        if not (perfil and perfil.rol == 'jefe_estudios' and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, request)):
-            raise PermissionDenied("Solo el Jefe de Estudios de la carrera puede validar este fondo.")
-
-        if fondo.estado != 'presentado_jefe':
-            return Response(
-                {'error': f'Solo se pueden validar fondos en estado "Presentado a Jefe de Estudios". Estado actual: {fondo.get_estado_display()}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Change state
-        estado_anterior = fondo.estado
-        fondo.estado = 'presentado_director'
-        fondo.validado_por = user
-        fondo.fecha_validacion = timezone.now()
-        fondo.save()
-
-        # Add to history
-        HistorialFondo.objects.create(
-            fondo_tiempo=fondo,
-            usuario=user,
-            tipo_cambio='validacion',
-            descripcion='Fondo validado por Jefe de Estudios y enviado a Director.',
-            estado_anterior=estado_anterior,
-            estado_nuevo=fondo.estado
-        )
-
-        serializer = FondoTiempoDetalleSerializer(fondo, context={'request': request})
-        return Response(serializer.data)
-
-    @action(detail=True, methods=['post'], url_path='observar-jefe')
-    @transaction.atomic
-    def observar_jefe(self, request, pk=None):
-        """Jefe de Estudios observa el fondo y lo devuelve al docente."""
-        fondo = self.get_object()
-        user = request.user
-        try:
-            perfil = _obtener_perfil_efectivo(user, request)
-        except Exception:
-            perfil = None
-
-        # Permission check
-        if not (perfil and perfil.rol == 'jefe_estudios' and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, request)):
-            raise PermissionDenied("Solo el Jefe de Estudios de la carrera puede observar este fondo.")
-
-        if fondo.estado != 'presentado_jefe':
-            return Response(
-                {'error': f'Solo se pueden observar fondos en estado "Presentado a Jefe de Estudios". Estado actual: {fondo.get_estado_display()}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Usamos el mismo serializer que el director, pero ignoramos la acción 'rechazar'
-        serializer = ObservarFondoSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        observacion_texto = serializer.validated_data['observacion']
-
-        # Create observation thread
-        observacion = ObservacionFondo.objects.create(fondo_tiempo=fondo)
-        MensajeObservacion.objects.create(
-            observacion=observacion,
-            autor=user,
-            texto=observacion_texto,
-            es_admin=True # Lo marcamos como autoridad para diferenciarlo del docente en el chat
-        )
-
-        # Change state
-        estado_anterior = fondo.estado
-        fondo.estado = 'observado'
-        fondo.save()
-
-        # Add to history
-        HistorialFondo.objects.create(
-            fondo_tiempo=fondo,
-            usuario=user,
-            tipo_cambio='observacion',
-            descripcion=f'Fondo observado por Jefe de Estudios: {observacion_texto}',
-            estado_anterior=estado_anterior,
-            estado_nuevo=fondo.estado
-        )
-
-        serializer = FondoTiempoDetalleSerializer(fondo, context={'request': request})
-        return Response(serializer.data)
-
-    # =====================================================
-    # NUEVAS ACCIONES PARA COMPLETAR FLUJO DE ESTADOS
-    # =====================================================
-
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     @transaction.atomic
     def iniciar_ejecucion(self, request, pk=None):
@@ -2310,6 +2271,7 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         """
         fondo = self.get_object()
         perfil = _obtener_perfil_efectivo(request.user, request)
+        _validar_revisor_del_fondo(request, fondo, 'iniciar la ejecución de')
 
         if not request.user.is_superuser:
             if not perfil or perfil.rol != 'director':
@@ -2396,7 +2358,7 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
             logros=logros,
             dificultades=dificultades,
             elaborado_por=request.user,
-            fecha_elaboracion=timezone.now().date(),
+            fecha_elaboracion=timezone.localdate(),
             evidencia=evidencia,
             archivo_adjunto=evidencia
         )
@@ -2471,9 +2433,27 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         except Exception:
             perfil = None
 
-        # REGLA: Solo el Director de la carrera correspondiente puede evaluar.
-        if not (perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, request)):
-            raise PermissionDenied("Solo el Director de la carrera correspondiente puede evaluar y finalizar el fondo.")
+        # REGLA: Solo el Director de la carrera correspondiente puede evaluar
+        # (el fondo del Director lo evalúa el superusuario).
+        evalua_superusuario = _validar_revisor_del_fondo(request, fondo, 'evaluar')
+        if not evalua_superusuario:
+            if not (perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, request)):
+                raise PermissionDenied("Solo el Director de la carrera correspondiente puede evaluar y finalizar el fondo.")
+
+        # Art. 28: el informe final del Director se eleva a Decanatura.
+        documento_decanatura = None
+        if evalua_superusuario:
+            documento_decanatura = request.FILES.get('documento_decanatura')
+            if not documento_decanatura:
+                return Response(
+                    {'documento_decanatura': 'Adjunte el documento de la Decanatura (PDF) para evaluar y finalizar el fondo del Director.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if not _es_pdf(documento_decanatura):
+                return Response(
+                    {'documento_decanatura': 'El documento de la Decanatura debe ser un archivo PDF.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
         
         # Validar estado actual
         if fondo.estado != 'informe_presentado':
@@ -2512,13 +2492,15 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         informe.cumplimiento = cumplimiento
         informe.evaluacion_director = evaluacion_director
         informe.evaluado_por = request.user
-        informe.fecha_evaluacion = timezone.now().date()
+        informe.fecha_evaluacion = timezone.localdate()
         informe.save()
 
         # Cambiar estado del fondo a finalizado
         estado_anterior = fondo.estado
         fondo.estado = 'finalizado'
         fondo.fecha_finalizacion = timezone.now()
+        if documento_decanatura:
+            fondo.documento_decanatura_informe = documento_decanatura
         fondo.save()
 
         # Registrar en historial
@@ -2576,7 +2558,6 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
             gestion = fondo.gestion
             
             # Construimos el nombre final: Ej. Fondo_Victor_Cruz_2026.pdf
-            # (Si tienes un campo 'periodo', puedes agregarlo al f-string también)
             nombre_archivo = f"Fondo_{nombre_docente}_{gestion}.pdf"
 
             # 3. RETORNAR ARCHIVO
@@ -2663,9 +2644,9 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
             errores.append('La planificación no tiene carrera asociada.')
         else:
             if not (carrera.resolucion_ministerial or '').strip():
-                errores.append('Falta la Resolución Ministerial de la carrera.')
+                errores.append('Falta la Resolución de Creación (HCU) de la carrera.')
             if not carrera.fecha_resolucion:
-                errores.append('Falta la Fecha de Resolución de la carrera.')
+                errores.append('Falta la Fecha de Resolución de Creación (HCU) de la carrera.')
             if not (carrera.logo_carrera_cifrada or carrera.logo_carrera):
                 errores.append('Falta el logo oficial de la carrera.')
 
@@ -2679,11 +2660,7 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
             errores.append('No se encontró un Director activo en la carrera para la firma oficial.')
 
         # 3) Totales de carga horaria vs dedicación
-        cargas = CargaHoraria.objects.filter(
-            docente=fondo.docente,
-            calendario=fondo.calendario_academico,
-            categoria='academica',
-        ).select_related('materia')
+        cargas = fondo.cargas.filter(categoria='academica').select_related('materia')
 
         if not cargas.exists():
             errores.append('No existen registros de Carga Horaria académica para este fondo/calendario.')
@@ -2756,113 +2733,11 @@ class FondoTiempoViewSet(viewsets.ModelViewSet):
         checklist = self._build_checklist_salud_pdf(fondo)
         return Response(checklist, status=status.HTTP_200_OK)
         
-class FondoTiempoDistribucionAccessMixin:
-    permission_classes = [IsAuthenticated]
-
-    def _usuario_carrera_inactiva(self):
-        user = self.request.user
-        if user.is_superuser:
-            return False
-        if hasattr(user, 'perfil') and user.perfil:
-            carreras_activas = _obtener_carreras_activas_usuario(user)
-            return carreras_activas.exists() and not carreras_activas.filter(activo=True).exists()
-        return False
-
-    def get_permissions(self):
-        if self._usuario_carrera_inactiva():
-            raise PermissionDenied('Acceso bloqueado: tu carrera está inactiva.')
-
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            user = self.request.user
-            perfil = _obtener_perfil_efectivo(user, self.request)
-            if not user.is_superuser and (not perfil or perfil.rol != 'jefe_estudios'):
-                raise PermissionDenied("Solo Jefes de Estudio pueden modificar la distribución de horas.")
-
-        return super().get_permissions()
-
-    def _validar_fondo_modificable(self, fondo):
-        user = self.request.user
-        perfil = _obtener_perfil_efectivo(user, self.request)
-
-        if not fondo:
-            raise PermissionDenied("No se pudo identificar el Fondo de Tiempo asociado.")
-
-        if not user.is_superuser:
-            if not perfil or perfil.rol != 'jefe_estudios':
-                raise PermissionDenied("Solo Jefes de Estudio pueden modificar la distribución de horas.")
-            if not _usuario_tiene_acceso_a_carrera(user, fondo.carrera, self.request):
-                raise PermissionDenied("No tienes acceso a la carrera de este Fondo de Tiempo.")
-
-        if fondo.carrera and not fondo.carrera.activo:
-            raise PermissionDenied("No se puede modificar la distribución porque la carrera está inactiva.")
-
-        if fondo.estado not in ['borrador', 'observado']:
-            raise PermissionDenied(f"No se puede modificar la distribución. El fondo está en estado '{fondo.get_estado_display()}'.")
-
-    def _filtrar_por_rol(self, queryset, fondo_path):
-        user = self.request.user
-        perfil = _obtener_perfil_efectivo(user, self.request)
-
-        if self._usuario_carrera_inactiva():
-            return queryset.none()
-
-        if user.is_superuser:
-            return queryset
-
-        if not perfil:
-            return queryset.none()
-
-        if perfil.rol in ['director', 'jefe_estudios']:
-            carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
-            if carreras_activas.exists():
-                return queryset.filter(**{f'{fondo_path}__carrera__in': carreras_activas})
-            return queryset.none()
-
-        if perfil.rol == 'docente' and perfil.docente:
-            return queryset.filter(**{f'{fondo_path}__docente': perfil.docente})
-
-        return queryset.none()
-
-
-class CategoriaFuncionViewSet(FondoTiempoDistribucionAccessMixin, viewsets.ModelViewSet):
-    queryset = CategoriaFuncion.objects.select_related('fondo_tiempo', 'fondo_tiempo__docente', 'fondo_tiempo__carrera').all()
-    serializer_class = CategoriaFuncionSerializer
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['fondo_tiempo', 'tipo']
-
-    def get_queryset(self):
-        return self._filtrar_por_rol(super().get_queryset(), 'fondo_tiempo')
-
-    def perform_create(self, serializer):
-        fondo = serializer.validated_data.get('fondo_tiempo')
-        self._validar_fondo_modificable(fondo)
-        total_horas = serializer.validated_data.get('total_horas', Decimal('0'))
-        if 'total_horas' in self.request.data and Decimal(str(total_horas or 0)) != Decimal('0'):
-            raise drf_serializers.ValidationError({
-                'total_horas': 'Use el endpoint de distribucion del fondo para asignar horas.'
-            })
-        serializer.save()
-
-    def perform_update(self, serializer):
-        instance = self.get_object()
-        fondo = serializer.validated_data.get('fondo_tiempo', instance.fondo_tiempo)
-        self._validar_fondo_modificable(fondo)
-        if 'total_horas' in self.request.data:
-            raise drf_serializers.ValidationError({
-                'total_horas': 'Use el endpoint de distribucion del fondo para asignar horas.'
-            })
-        serializer.save()
-
-    def perform_destroy(self, instance):
-        self._validar_fondo_modificable(instance.fondo_tiempo)
-        instance.delete()
-
-
 # =====================================================
 # PROYECTO VIEWSET
 # =====================================================
 
-class ProyectoViewSet(viewsets.ModelViewSet):
+class ProyectoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     """ViewSet para gestionar proyectos (Art. 14-17)"""
     queryset = Proyecto.objects.select_related(
         'fondo_tiempo', 'categoria', 'fondo_tiempo__docente'
@@ -2923,9 +2798,9 @@ class ProyectoViewSet(viewsets.ModelViewSet):
         
         # Registrar fechas automáticamente
         if nuevo_estado == 'presentado' and not proyecto.fecha_presentacion:
-            proyecto.fecha_presentacion = timezone.now().date()
+            proyecto.fecha_presentacion = timezone.localdate()
         elif nuevo_estado == 'aprobado' and not proyecto.fecha_aprobacion:
-            proyecto.fecha_aprobacion = timezone.now().date()
+            proyecto.fecha_aprobacion = timezone.localdate()
         
         proyecto.save()
         
@@ -2937,7 +2812,7 @@ class ProyectoViewSet(viewsets.ModelViewSet):
 # INFORME FONDO VIEWSET
 # =====================================================
 
-class InformeFondoViewSet(viewsets.ModelViewSet):
+class InformeFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     """ViewSet para gestionar informes (Art. 28)"""
     queryset = InformeFondo.objects.select_related(
         'fondo_tiempo', 'elaborado_por', 'evaluado_por',
@@ -2988,7 +2863,7 @@ class InformeFondoViewSet(viewsets.ModelViewSet):
         
         informe.cumplimiento = cumplimiento
         informe.evaluacion_director = evaluacion
-        informe.fecha_evaluacion = timezone.now().date()
+        informe.fecha_evaluacion = timezone.localdate()
         informe.evaluado_por = request.user
         informe.save()
         
@@ -3000,7 +2875,7 @@ class InformeFondoViewSet(viewsets.ModelViewSet):
 # OBSERVACIÓN FONDO VIEWSET
 # =====================================================
 
-class ObservacionFondoViewSet(viewsets.ModelViewSet):
+class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     """ViewSet para gestionar hilos de observaciones"""
     queryset = ObservacionFondo.objects.select_related(
         'fondo_tiempo', 'resuelta_por',
@@ -3133,7 +3008,7 @@ class ObservacionFondoViewSet(viewsets.ModelViewSet):
         es_interno = puede_marcar_interno and str(request.data.get('es_interno', '')).lower() in ('1', 'true', 'yes')
 
         # Crear mensaje
-        mensaje = MensajeObservacion.objects.create(
+        MensajeObservacion.objects.create(
             observacion=observacion,
             autor=request.user,
             responde_a=responde_a,
@@ -3144,31 +3019,7 @@ class ObservacionFondoViewSet(viewsets.ModelViewSet):
 
         output_serializer = self.get_serializer(observacion)
         return Response(output_serializer.data)
-    
-        # NUEVO: Si estaba resuelta y el admin envía mensaje, reabrir Y cambiar fondo a observado
-        if observacion.resuelta and es_admin:
-            observacion.reabrir()
-        
-            # Cambiar el estado del fondo a "observado"
-            fondo = observacion.fondo_tiempo
-            estado_anterior = fondo.estado
-            fondo.estado = 'observado'
-            fondo.save()
-        
-            # Registrar en historial
-            HistorialFondo.objects.create(
-                fondo_tiempo=fondo,
-                usuario=request.user,
-                tipo_cambio='observacion',
-                descripcion='Director reabrió observación - Fondo requiere correcciones',
-                estado_anterior=estado_anterior,
-                estado_nuevo=fondo.estado
-          )
-    
-        # Devolver observación actualizada
-        output_serializer = self.get_serializer(observacion)
-        return Response(output_serializer.data)
-    
+
     @action(detail=True, methods=['post'], url_path='marcar-resuelta')
     def marcar_resuelta(self, request, pk=None):
         """Marcar hilo como resuelto."""
@@ -3205,39 +3056,8 @@ class ObservacionFondoViewSet(viewsets.ModelViewSet):
 
         output_serializer = self.get_serializer(observacion)
         return Response(output_serializer.data)
-    
-        # NUEVO: Cambiar el estado del fondo a "presentado_director"
-        fondo = observacion.fondo_tiempo
-        estado_anterior = fondo.estado
 
-        # Determinar a quién devolver el fondo (Jefe o Director)
-        primer_mensaje = observacion.mensajes.order_by('fecha').first()
-        siguiente_estado = 'presentado_jefe' # Por defecto, vuelve al Jefe de Estudios
-        descripcion_historial = 'Docente marcó observación como resuelta y presentó a Jefe de Estudios.'
 
-        if request.user.is_superuser or es_jefatura:
-            siguiente_estado = 'presentado_director'
-            descripcion_historial = 'Jefatura marcó observación como resuelta y presentó a Director.'
-        elif primer_mensaje and hasattr(primer_mensaje.autor, 'perfil'):
-            if primer_mensaje.autor.perfil.rol == 'director':
-                siguiente_estado = 'presentado_director'
-                descripcion_historial = 'Docente marcó observación como resuelta y presentó a Director.'
-
-        fondo.estado = siguiente_estado
-        fondo.save()
-    
-        # Registrar en historial
-        HistorialFondo.objects.create(
-            fondo_tiempo=fondo,
-            usuario=request.user,
-            tipo_cambio='presentacion',
-            descripcion=descripcion_historial,
-            estado_anterior=estado_anterior,
-            estado_nuevo=siguiente_estado
-        )
-    
-        output_serializer = self.get_serializer(observacion)
-        return Response(output_serializer.data)
 # =====================================================
 # HISTORIAL FONDO VIEWSET
 # =====================================================
@@ -3273,7 +3093,7 @@ class HistorialFondoViewSet(viewsets.ReadOnlyModelViewSet):
 # VIEWSET PARA GESTIÓN DE USUARIOS
 # ============================================
 
-class UsuarioViewSet(viewsets.ModelViewSet):
+class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     """
     ViewSet para gestión completa de usuarios.
     Solo usuarios administradores pueden crear, editar y eliminar usuarios.
@@ -3315,8 +3135,9 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated()]
         if self.action in ['create', 'update', 'partial_update', 'toggle_activo', 'cambiar_password', 'resetear_password']:
             return [IsFullAdminOrDirectorCarrera()]
+        # Eliminar: superusuario, o el Director dentro de su carrera (ver destroy).
         if self.action in ['destroy']:
-            return [IsFullAdmin()]
+            return [IsFullAdminOrDirectorCarrera()]
         return [IsAuthenticated()]
     
     def get_queryset(self):
@@ -3341,17 +3162,31 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         # Usuario normal solo ve su propio perfil
         return queryset.filter(id=user.id)
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
-        """Crear nuevo usuario con perfil"""
+        """Crear nuevo usuario con perfil.
+
+        Todo en una transacción: si algo falla a mitad (asignaciones, ficha de
+        docente o la sincronización final) no queda un usuario a medias con el
+        perfil 'docente' que crea la señal.
+        """
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
+        # Releer de la base: el objeto guardado conserva en caché el perfil que la
+        # señal crea con rol 'docente', y la respuesta mostraba un rol que no se marcó.
+        # Docente con cargo y sin ficha: activo, con su cargo funcionando.
+        # Solo docente y sin ficha: inactivo hasta que se le cree la ficha.
         user = serializer.save()
-        user = _sincronizar_estado_usuario_huerfano(user)
+        desactivar_si_solo_docente_sin_ficha(user)
+        user = self._releer_usuario(user)
 
         # Retornar con el serializer de lectura
-        output_serializer = UsuarioSerializer(user)
         output_serializer = UsuarioSerializer(user, context={'request': request})
         return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+
+    @staticmethod
+    def _releer_usuario(user):
+        return User.objects.select_related('perfil').get(pk=user.pk)
 
     def update(self, request, *args, **kwargs):
         """Actualizar usuario y perfil"""
@@ -3360,7 +3195,8 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial, context={'request': request})
         serializer.is_valid(raise_exception=True)
         try:
-            user = serializer.save()
+            # Releer de la base: get_object() trajo el perfil anterior (select_related).
+            user = self._releer_usuario(serializer.save())
         except IntegrityError:
             return Response(
                 {
@@ -3370,10 +3206,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
-        user = _sincronizar_estado_usuario_huerfano(user)
-
         # Retornar con el serializer de lectura
-        output_serializer = UsuarioSerializer(user)
         output_serializer = UsuarioSerializer(user, context={'request': request})
         return Response(output_serializer.data)
 
@@ -3382,120 +3215,116 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         page = self.paginate_queryset(queryset)
 
         if page is not None:
-            for user in page:
-                _sincronizar_estado_usuario_huerfano(user)
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
 
-        for user in queryset:
-            _sincronizar_estado_usuario_huerfano(user)
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
     
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
+    def dependencias(self, request, pk=None):
+        """Datos registrados del usuario: si hay alguno no se puede eliminar y su identidad queda fija."""
+        return Response(datos_registrados_usuario(self.get_object()), status=status.HTTP_200_OK)
+
     def destroy(self, request, *args, **kwargs):
         """
-        BORRADO CONTROLADO DE USUARIO
-        Bloquea eliminación si existe huella operativa para proteger no repudio.
-        Si no hay actividad ni fondos, permite borrado físico total.
+        BORRADO CONTROLADO DE USUARIO (misma regla que Carrera)
+        - Con datos registrados (fondos, informes, cargas, saldos, POA...): no se
+          elimina, solo se desactiva.
+        - Sin datos: se borra el usuario junto con sus asignaciones, su perfil y su
+          ficha de docente, sin dejar registros huérfanos.
         """
-        from .models import PerfilUsuario, InformeFondo, MensajeObservacion, SaldoVacacionesGestion, CargaHoraria
-        from poa_document.models import HistorialDocumentoPOA
-        
         user = self.get_object()
-        
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"Intentando eliminar usuario: {user.username} (ID: {user.id})")
-        
-        # 0. Validación de Seguridad: Impedir eliminar superusuarios
+
         if user.is_superuser:
             return Response(
                 {'error': 'No se puede eliminar a un superusuario por seguridad. Debe hacerlo desde la consola.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # ============================================
-        # CHEQUEO DE HUELLA OPERATIVA (NO REPUDIO)
-        # ============================================
-        mensajes_count = MensajeObservacion.objects.filter(autor=user).count()
-        informes_count = InformeFondo.objects.filter(elaborado_por=user).count()
-        cargas_autoria_count = CargaHoraria.objects.filter(creado_por=user).count()
-        poa_count = HistorialDocumentoPOA.objects.filter(usuario=user).count()
+        if not request.user.is_superuser:
+            error_director = self._validar_eliminacion_por_director(request.user, user)
+            if error_director:
+                return Response({'error': error_director}, status=status.HTTP_403_FORBIDDEN)
 
-        if any([mensajes_count > 0, informes_count > 0, cargas_autoria_count > 0, poa_count > 0]):
+        datos = datos_registrados_usuario(user)
+        if datos['tiene_datos']:
             return Response(
-                {'error': 'Este usuario tiene actividad registrada en el sistema. No puede eliminarse, solo desactivarse.'},
-                status=status.HTTP_400_BAD_REQUEST
+                {
+                    'code': 'dependency_exists',
+                    'error': (
+                        f'No se puede eliminar al usuario {user.username} porque tiene datos registrados '
+                        f'({texto_datos_registrados(datos)}). Desactívelo en su lugar.'
+                    ),
+                    'dependencias': datos,
+                },
+                status=status.HTTP_409_CONFLICT,
             )
-        
-        # ============================================
-        # CHEQUEO DE ACTIVIDAD - Tablas Hijas del Docente
-        # ============================================
-        
-        # Obtener el docente vinculado al usuario (si existe)
-        docente = None
-        if hasattr(user, 'perfil') and user.perfil:
-            docente = user.perfil.docente
-            logger.info(f"Usuario {user.username} tiene docente: {docente.id if docente else None}")
 
-        if docente:
-            # 1. Verificar Fondos de Tiempo (cualquier estado)
-            fondos_count = FondoTiempo.objects.filter(docente=docente).count()
-            logger.info(f"Fondos de Tiempo: {fondos_count}")
-            if fondos_count > 0:
-                return Response(
-                    {'error': f'No se puede eliminar: El docente vinculado tiene {fondos_count} Fondo(s) de Tiempo. Desactívelo en su lugar.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # 2. Verificar Saldos de Vacaciones
-            saldos_count = SaldoVacacionesGestion.objects.filter(docente=docente).count()
-            logger.info(f"Saldos de Vacaciones: {saldos_count}")
-            if saldos_count > 0:
-                return Response(
-                    {'error': f'No se puede eliminar: El docente tiene {saldos_count} registro(s) de saldo de vacaciones. Desactívelo en su lugar.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # 3. Verificar Cargas Horarias
-            cargas_count = CargaHoraria.objects.filter(docente=docente).count()
-            logger.info(f"Cargas Horarias: {cargas_count}")
-            if cargas_count > 0:
-                return Response(
-                    {'error': f'No se puede eliminar: El docente tiene {cargas_count} Carga(s) Horaria(s). Desactívelo en su lugar.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-        else:
-            logger.info("Usuario no tiene docente vinculado")
-
-        # ============================================
-        # CASO A: USUARIO LIMPIO - BORRADO SEGURO
-        # ============================================
         try:
             with transaction.atomic():
-                logger.info(f"Iniciando borrado de usuario {user.username}")
-
-                user_id = user.id
-                perfil = PerfilUsuario.objects.filter(user=user).select_related('docente').first()
-
-                user.delete()
-                if perfil:
-                    perfil.refresh_from_db()
-                    if perfil.user_id is None:
-                        perfil.delete()
-                logger.info(f"Usuario {user.username} (ID: {user_id}) eliminado exitosamente")
-
-                return Response(
-                    {'success': 'Usuario eliminado correctamente.'},
-                    status=status.HTTP_204_NO_CONTENT
-                )
-
-        except Exception as e:
-            logger.error(f"Error al eliminar usuario {user.username}: {str(e)}", exc_info=True)
+                self._eliminar_usuario_sin_datos(user)
+        except ProtectedError:
+            # Algún registro nuevo que datos_registrados_usuario todavía no cuenta.
             return Response(
-                {'error': f'Error interno al eliminar usuario: {str(e)}'},
-                status=status.HTTP_400_BAD_REQUEST
+                {
+                    'code': 'protected_error',
+                    'error': f'No se puede eliminar al usuario {user.username} porque tiene datos registrados. Desactívelo en su lugar.',
+                },
+                status=status.HTTP_409_CONFLICT,
             )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def _validar_eliminacion_por_director(self, director, user):
+        """El Director elimina solo usuarios de su carrera; nunca a sí mismo ni a otro Director.
+
+        Que no tenga datos registrados lo exige destroy igual que al superusuario.
+        """
+        if user.pk == director.pk:
+            return 'No puedes eliminar tu propia cuenta.'
+        perfil = PerfilUsuario.objects.filter(user=user).first()
+        es_director = (perfil is not None and perfil.rol == 'director') or AsignacionCarrera.objects.filter(
+            user=user, rol='director', activo=True,
+        ).exists()
+        if es_director:
+            return 'No puedes eliminar a un Director de Carrera.'
+        propias = set(_obtener_carreras_activas_usuario(director, self.request).values_list('id', flat=True))
+        carreras_usuario = set(AsignacionCarrera.objects.filter(user=user).values_list('carrera_id', flat=True))
+        if perfil and perfil.carrera_id:
+            carreras_usuario.add(perfil.carrera_id)
+        carreras_usuario.discard(None)
+        if not carreras_usuario or not carreras_usuario <= propias:
+            return 'Solo puedes eliminar usuarios de tu carrera.'
+        return None
+
+    @staticmethod
+    def _eliminar_usuario_sin_datos(user):
+        perfil = PerfilUsuario.objects.filter(user=user).select_related('docente').first()
+        docente = docente_del_usuario(user)
+        datos_laborales_ids = {
+            perfil.datos_laborales_id if perfil else None,
+            docente.datos_laborales_id if docente else None,
+        } - {None}
+
+        # La ficha de docente es de esta persona salvo que otro usuario la use.
+        if docente and (
+            (docente.user_id and docente.user_id != user.id)
+            or PerfilUsuario.objects.filter(docente=docente, user__isnull=False).exclude(user=user).exists()
+        ):
+            docente = None
+
+        AsignacionCarrera.objects.filter(user=user).delete()
+        PerfilUsuario.objects.filter(user=user).delete()
+        if docente:
+            AsignacionCarrera.objects.filter(docente=docente, user__isnull=True).delete()
+            PerfilUsuario.objects.filter(docente=docente, user__isnull=True).delete()
+            docente.delete()  # sus vínculos DocenteCarrera caen en cascada
+        user.delete()
+
+        # Datos laborales que ya no usa nadie (la ficha de docente borrada o el perfil).
+        DatosLaborales.objects.filter(
+            pk__in=datos_laborales_ids, docente__isnull=True, perfiles__isnull=True,
+        ).delete()
 
     @action(detail=True, methods=['post'], permission_classes=[IsFullAdminOrDirectorCarrera])
     def cambiar_password(self, request, pk=None):
@@ -3563,12 +3392,9 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         es_reactivacion = not user.is_active
 
         if es_reactivacion:
-            # Validación mínima previa: debe tener vínculo docente
-            if _usuario_docente_sin_vinculo(user):
-                return Response(
-                    {'error': 'No se puede reactivar este usuario hasta que se le asigne un docente vinculado.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            error_ficha = self._validar_reactivacion_sin_ficha(user)
+            if error_ficha:
+                return Response(error_ficha, status=status.HTTP_400_BAD_REQUEST)
 
             # Blindaje estructural de reactivación (normativa UABJB)
             error_reactivacion = self._validar_reactivacion_asignaciones(user)
@@ -3583,24 +3409,45 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         perfil = PerfilUsuario.objects.filter(user=user).select_related('docente').first()
 
         if user.is_active is False:
-            # Desactivar usuario: también desactivar docente y asignaciones docentes
+            # Desactivar usuario: también su docente. Sus asignaciones (todas, incluidos
+            # los cargos de gestión) las libera la señal guardar_perfil_usuario.
             if perfil and perfil.docente and perfil.docente.activo:
                 perfil.docente.activo = False
                 perfil.docente.save(update_fields=['activo'])
-
-            user.asignaciones_carrera.filter(rol='docente', activo=True).update(activo=False)
         else:
-            # Reactivar usuario: también activar docente y asignaciones docentes
+            # Reactivar usuario: también activar docente y asignaciones docentes.
+            # Los cargos de gestión no vuelven solos: pudieron asignarse a otra persona.
+            PerfilUsuario.objects.filter(user=user, inactivo_por_ficha_pendiente=True).update(
+                inactivo_por_ficha_pendiente=False,
+            )
             if perfil and perfil.docente and not perfil.docente.activo:
                 perfil.docente.activo = True
                 perfil.docente.save(update_fields=['activo'])
 
-            user.asignaciones_carrera.filter(rol='docente', activo=False).update(activo=True)
+            actualizar_con_historial(user.asignaciones_carrera.filter(rol='docente', activo=False), activo=True)
 
-        user = _sincronizar_estado_usuario_huerfano(user)
+        user = self._releer_usuario(user)
 
         output_serializer = UsuarioSerializer(user, context={'request': request})
         return Response(output_serializer.data)
+
+    @staticmethod
+    def _validar_reactivacion_sin_ficha(user):
+        """Un usuario que al reactivarse quedaría solo docente necesita su ficha.
+
+        Al reactivar vuelven sus asignaciones docentes, pero no sus cargos.
+        """
+        perfil = PerfilUsuario.objects.filter(user=user).first()
+        roles = {perfil.rol} if perfil and perfil.rol else set()
+        if user.asignaciones_carrera.filter(rol='docente').exists():
+            roles.add('docente')
+        if roles == {'docente'} and docente_del_usuario(user) is None:
+            mensaje = (
+                'No se puede activar: el usuario solo es docente y aún no tiene ficha de docente. '
+                'Se activará automáticamente al crearle la ficha.'
+            )
+            return {'error': mensaje, 'detail': mensaje}
+        return None
 
     def _validar_reactivacion_asignaciones(self, user):
         """
@@ -3664,7 +3511,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         for bloque in bloques:
             rol = bloque.get('rol')
             carrera = bloque.get('carrera')
-            if rol in ('director', 'jefe_estudios') and carrera:
+            if rol in ROLES_UNICOS_POR_CARRERA and carrera:
                 try:
                     validar_unicidad_cargo_por_carrera(
                         carrera=carrera,

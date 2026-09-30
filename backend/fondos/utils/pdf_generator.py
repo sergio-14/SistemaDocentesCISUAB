@@ -2,12 +2,11 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import LETTER, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
-from reportlab.lib.units import inch, cm
+from reportlab.lib.units import cm
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas as pdfgen_canvas
 from reportlab.pdfbase.pdfmetrics import stringWidth, registerFont, registerFontFamily
 from reportlab.pdfbase.ttfonts import TTFont
-from django.conf import settings
 import os
 from datetime import datetime, date
 import io
@@ -15,8 +14,7 @@ import re
 import base64
 from html import escape
 from html.parser import HTMLParser
-from django.db.models import Sum
-from fondos.models import CargaHoraria
+from fondos.models import UNIDADES_FONDO
 from fondos.utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from fondos.utils.informe_imagenes import leer_imagen as leer_imagen_informe
 
@@ -46,13 +44,17 @@ try:
 except Exception:
     pass
 
-SEMANAS_CLASES_AULA = 40.0
-# Semanas usadas para estimar Hrs/Sem de actividades que NO son clases en aula
-# (reuniones, proyectos de investigacion, gestion, etc.), igual que en el
-# formulario del frontend (frontend/src/components/CargaHorariaManager.jsx,
-# SEMANAS_GESTION) para que el dato mostrado en el PDF sea consistente con lo
-# que ve el docente al cargar sus horas.
-SEMANAS_GESTION_NO_ACADEMICA = 45.8
+# Los ítems que no son clases en aula se registran en horas por año: su columna Hrs/Sem va vacía.
+SIN_HORAS_SEMANALES = '—'
+
+
+def _nombre_calendario(calendario, fondo):
+    """'Primer Semestre 2026' (y la carrera si no es la del fondo, en doble carrera)."""
+    nombre = f'{calendario.get_periodo_display()} {calendario.gestion}'
+    if calendario.carrera_id != fondo.carrera_id:
+        nombre += f' · {calendario.carrera.nombre}'
+    return nombre
+
 
 _DATA_IMG_RE = re.compile(r'^data:image/(png|jpe?g|gif);base64,(?P<data>.+)$', re.IGNORECASE | re.DOTALL)
 
@@ -689,7 +691,7 @@ class FondoPDFGenerator:
         que una posicion fija por canvas se superponga con el contenido de
         la tabla cuando esta ocupa toda la ultima pagina.
         """
-        ancho_pagina, alto_pagina = self.width, self.height
+        ancho_pagina = self.width
         margen_lateral = 1.5 * cm
 
         class _CanvasPie(pdfgen_canvas.Canvas):
@@ -758,8 +760,6 @@ class FondoPDFGenerator:
         # horas de la Columna 3), tomando como referencia "Docente: ...".
         estilo_header_bold = ParagraphStyle('HeaderBold', parent=estilo_normal, fontName='Helvetica-Bold', fontSize=8, alignment=1, leading=9)
         estilo_docente_label = ParagraphStyle('DocenteLabel', parent=estilo_normal, fontName='Helvetica-Bold', fontSize=8, alignment=0, leading=9)
-        estilo_docente_val_right = ParagraphStyle('DocenteValRight', parent=estilo_normal, fontName='Helvetica-Bold', fontSize=8, alignment=2, leading=9)
-        estilo_docente_actividad = ParagraphStyle('DocenteActividad', parent=estilo_docente_label, leftIndent=1.5*cm)
         estilo_tabla_col3 = ParagraphStyle('TablaCol3', parent=estilo_normal, fontSize=8, alignment=1, leading=9)
         # Relleno casi sin alto para la 2da columna de las filas de
         # espaciador de la Columna 2 (ver espacio_fila0_col2/espacio_col2 mas
@@ -773,20 +773,18 @@ class FondoPDFGenerator:
         # "Carrera de ..." y "Tiempo de dedicación: ..." con la fila de
         # "Feriados Nacionales y Locales", ver mas abajo).
         # Sincronización de Clases Aula (Total de horas anuales asignadas por Jefatura)
-        total_clases_aula = CargaHoraria.objects.filter(
-            docente=fondo.docente, 
-            calendario=fondo.calendario_academico, 
-            categoria='academica'
-        ).aggregate(total=Sum('horas'))['total'] or 0
-        total_clases_aula = float(total_clases_aula)
+        # Clases en aula: materia x 20 semanas (semestre) o x 40 (calendario anual).
+        clases_aula = fondo.cargas.filter(categoria='academica', tipo_actividad='clases_aula').select_related('calendario')
+        total_clases_aula = float(sum(carga.horas for carga in clases_aula))
+        semanas_de_clase = sorted({carga.calendario.semanas_de_clase for carga in clases_aula if carga.calendario_id})
 
         horas_contrato = fondo.contrato_horas
         horas_vacacion = fondo.horas_vacacion
         horas_feriados = fondo.horas_feriados
         horas_efectivas = float(fondo.horas_efectivas)
         
-        dias_vacacion = fondo.docente.calcular_dias_vacacion(fondo.gestion) if fondo.docente else 0
-        semanas_clase = SEMANAS_CLASES_AULA
+        dias_vacacion = fondo.dias_vacacion
+        semanas_clase = ' y '.join(str(semanas) for semanas in semanas_de_clase) or '-'
         funciones_sustantivas = horas_efectivas - total_clases_aula
 
         def p_c3(txt, align=1, bold=False):
@@ -796,7 +794,7 @@ class FondoPDFGenerator:
         col3_data = [
             ['', p_c3('Semanas/Año'), p_c3('Hrs/Año')],
             [p_c3('Contrato:', 2, True), p_c3('52'), p_c3(_formato_es(horas_contrato))],
-            [p_c3('Clases Aula:', 2, True), p_c3(_formato_es(semanas_clase)), p_c3(_formato_es(total_clases_aula))],
+            [p_c3('Clases Aula:', 2, True), p_c3(semanas_clase), p_c3(_formato_es(total_clases_aula))],
             [p_c3('Funciones Sustantivas:', 2, True), '', p_c3(_formato_es(funciones_sustantivas))],
             [p_c3('Vacación(días):', 2, True), p_c3(_formato_es(dias_vacacion)), p_c3(_formato_es(horas_vacacion))],
             [p_c3('Feriados Nacionales y Locales:', 2, True), '', p_c3(_formato_es(horas_feriados))],
@@ -822,7 +820,7 @@ class FondoPDFGenerator:
         altura_hasta_feriados = sum(col3_table._rowHeights[:5])
 
         # Columna 1
-        facultad_texto = fondo.carrera.facultad.title() if fondo.carrera else "Facultad de Ingeniería y Tecnología"
+        facultad_texto = fondo.carrera.facultad.nombre.title() if fondo.carrera else "Facultad de Ingeniería y Tecnología"
         carrera_texto = fondo.carrera.nombre.title() if fondo.carrera else "Carrera"
         nombre_docente = fondo.docente.nombre_completo.title() if fondo.docente else "Docente"
 
@@ -909,11 +907,7 @@ class FondoPDFGenerator:
         # semana), por eso se deduplica por (materia, paralelo) en vez de
         # listar cada registro. El paralelo solo se muestra cuando no es el
         # unico/por defecto ('A'), igual que en el documento de referencia.
-        cargas_docencia = CargaHoraria.objects.filter(
-            docente=fondo.docente,
-            calendario=fondo.calendario_academico,
-            categoria='academica',
-        ).select_related('materia')
+        cargas_docencia = fondo.cargas.filter(categoria='academica').select_related('materia')
 
         materias_vistas = set()
         asignaturas_list = []
@@ -947,7 +941,7 @@ class FondoPDFGenerator:
         if lineas_asignaturas:
             asignatura_texto = "<br/>".join(lineas_asignaturas)
         else:
-            asignatura_texto = escape(str(fondo.asignatura or "Sin asignaturas")).replace('\n', '<br/>')
+            asignatura_texto = "Sin asignaturas"
 
         # Tabla anidada para alineación (Label | Contenido)
         lbl_asig = Paragraph("Asignatura:", estilo_docente_label)
@@ -1050,10 +1044,14 @@ class FondoPDFGenerator:
         # aparece en esta tabla (sus horas anuales igual se cuentan en el
         # resto del documento).
         cargas_horario = [
-            c for c in cargas_docencia.select_related('materia')
+            c for c in cargas_docencia.select_related('materia', 'calendario', 'calendario__carrera')
             if c.hora_inicio and c.hora_fin
         ]
-        bloques_horario = self._agrupar_horarios_contiguos(cargas_horario)
+        # Un horario por calendario (semestres, anual, otra carrera), en orden de inicio.
+        calendarios_horario = sorted(
+            {c.calendario for c in cargas_horario if c.calendario_id},
+            key=lambda cal: (cal.fecha_inicio, cal.pk),
+        )
 
         estilo_horario_header = ParagraphStyle(
             'HorarioHeader',
@@ -1068,11 +1066,11 @@ class FondoPDFGenerator:
             leading=8,
         )
 
-        # Si el docente no tiene ningun bloque con horario detallado (caso
-        # frecuente: la mayoria de CargaHoraria solo trae horas anuales, sin
-        # hora_inicio/hora_fin), esta tabla no aporta nada y solo estorba con
-        # una fila "Sin asignaciones horarias" — se omite por completo.
-        if bloques_horario:
+        # Sin ningun bloque con horario detallado la tabla no aporta nada: se omite.
+        for calendario in calendarios_horario:
+            bloques_horario = self._agrupar_horarios_contiguos(
+                [c for c in cargas_horario if c.calendario_id == calendario.pk]
+            )
             datos_horario = [[
                 Paragraph('Día', estilo_horario_header),
                 Paragraph('Horario', estilo_horario_header),
@@ -1109,7 +1107,10 @@ class FondoPDFGenerator:
             ]))
             tabla_horario.hAlign = 'CENTER'
 
-            elementos.append(Paragraph('<b>HORARIO SEMANAL (LUNES A SÁBADO)</b>', estilo_celda_center))
+            titulo_horario = escape(_nombre_calendario(calendario, fondo).upper())
+            elementos.append(Paragraph(
+                f'<b>HORARIO SEMANAL (LUNES A SÁBADO) · {titulo_horario}</b>', estilo_celda_center,
+            ))
             elementos.append(Spacer(1, 0.15*cm))
             elementos.append(tabla_horario)
             elementos.append(Spacer(1, 0.35*cm))
@@ -1133,7 +1134,6 @@ class FondoPDFGenerator:
 
         datos_tabla = [headers_1, headers_2]
 
-        categorias = fondo.categorias.all().order_by('id')
         # El % de cada categoria se calcula sobre las horas efectivas totales
         # del fondo (su cupo anual, p. ej. 1712), no sobre la suma de lo
         # asignado: asi el reporte muestra cuanto del cupo cubre cada una.
@@ -1164,22 +1164,33 @@ class FondoPDFGenerator:
         cat_index = 1
         row_cursor = 2
 
-        for cat in categorias:
-            cargas_cat = CargaHoraria.objects.filter(
-                docente=fondo.docente, calendario=fondo.calendario_academico, categoria=cat.tipo,
-            ).select_related('materia').order_by('id')
+        for tipo_unidad, nombre_unidad in UNIDADES_FONDO:
+            cargas_cat = fondo.cargas.filter(categoria=tipo_unidad).select_related(
+                'materia', 'calendario', 'calendario__carrera',
+            ).order_by('calendario__fecha_inicio', 'id')
 
             # Agrupar por tipo_actividad: una fila por tipo, con la suma de
             # horas de todos los registros de ese tipo.
             grupos = {}
             orden_claves = []
             for carga in cargas_cat:
+                es_clase = carga.tipo_actividad == 'clases_aula' and carga.calendario_id
                 clave = (carga.tipo_actividad or '').strip() or f'sin_tipo_{carga.id}'
+                etiqueta = _etiqueta_tipo_actividad(tipo_unidad, carga)
+                if es_clase:
+                    # Una fila por calendario: sus horas semanales no se suman con las de otro semestre.
+                    clave = f'clases_aula_{carga.calendario_id}'
+                    etiqueta = f'{etiqueta} · {_nombre_calendario(carga.calendario, fondo)}'
                 if clave not in grupos:
-                    grupos[clave] = {'etiqueta': _etiqueta_tipo_actividad(cat.tipo, carga), 'horas': 0.0, 'evidencia': ''}
+                    grupos[clave] = {
+                        'etiqueta': etiqueta, 'horas': 0.0,
+                        'horas_semana': 0.0 if es_clase else None, 'evidencia': '',
+                    }
                     orden_claves.append(clave)
                 grupo = grupos[clave]
                 grupo['horas'] += float(carga.horas)
+                if es_clase and carga.materia:
+                    grupo['horas_semana'] += float(carga.materia.horas_totales)
                 if not grupo['evidencia']:
                     grupo['evidencia'] = (carga.documento_respaldo or '').strip() or (carga.evidencias or '').strip()
 
@@ -1188,8 +1199,7 @@ class FondoPDFGenerator:
             total_cat = sum(fila['horas'] for fila in filas_categoria)
             suma_asignada_global += total_cat
             porc_cat = (total_cat / total_horas_efectivas) * 100
-            nombre_cat = cat.get_tipo_display().upper()
-            semanas_divisor = SEMANAS_CLASES_AULA if cat.tipo == 'academica' else SEMANAS_GESTION_NO_ACADEMICA
+            nombre_cat = nombre_unidad.upper()
 
             if n_filas > 0:
                 start_row = row_cursor
@@ -1200,7 +1210,8 @@ class FondoPDFGenerator:
                     es_ultima = (idx == n_filas - 1)
 
                     anual = fila['horas']
-                    hs = anual / semanas_divisor if semanas_divisor else 0
+                    # Clases en aula: las horas semanales reales de sus materias; el resto es por año.
+                    hs = _formato_es(fila['horas_semana']) if fila['horas_semana'] is not None else SIN_HORAS_SEMANALES
                     detalle = self._limpiar_texto(fila['etiqueta'])
                     evidencia_texto = self._limpiar_texto(fila['evidencia']) if fila['evidencia'] else "-"
 
@@ -1212,7 +1223,7 @@ class FondoPDFGenerator:
                             f"{cat_index}",
                             Paragraph(f"<b>{nombre_cat}</b>", self._get_estilo_celda_center()),
                             Paragraph(detalle, self._get_estilo_celda()),
-                            _formato_es(hs),
+                            hs,
                             _formato_es(anual),
                             _formato_es(total_cat), # DATO
                             _formato_es(porc_cat), # DATO
@@ -1220,7 +1231,7 @@ class FondoPDFGenerator:
                         ]
                     else:
                         # Dejamos vacías las celdas de Total y %
-                        row = ['', '', Paragraph(detalle, self._get_estilo_celda()), _formato_es(hs), _formato_es(anual), '', '', Paragraph(evidencia_texto, self._get_estilo_celda())]
+                        row = ['', '', Paragraph(detalle, self._get_estilo_celda()), hs, _formato_es(anual), '', '', Paragraph(evidencia_texto, self._get_estilo_celda())]
 
                     datos_tabla.append(row)
 
@@ -1250,7 +1261,7 @@ class FondoPDFGenerator:
                 row_cursor += n_filas
             else:
                 # Caso vacío
-                row = [f"{cat_index}", Paragraph(f"<b>{nombre_cat}</b>", self._get_estilo_celda_center()), Paragraph("Sin actividades", self._get_estilo_celda()), "-", "-", "0", "0%", "-"]
+                row = [f"{cat_index}", Paragraph(f"<b>{nombre_cat}</b>", self._get_estilo_celda_center()), Paragraph("Sin actividades", self._get_estilo_celda()), "-", "-", "0", "0", "-"]
                 datos_tabla.append(row)
                 estilos_tabla.append(('LINEBELOW', (0, row_cursor), (-1, row_cursor), 0.5, colors.black))
                 row_cursor += 1
@@ -1258,7 +1269,9 @@ class FondoPDFGenerator:
             cat_index += 1
 
         # Total General
-        row_total = ['TOTAL HORAS', '', '', '', '', f"{int(suma_asignada_global)}", '100', '']
+        # El % total es la suma de las unidades sobre las horas efectivas (100 solo si coinciden).
+        porcentaje_total = (suma_asignada_global / total_horas_efectivas) * 100
+        row_total = ['TOTAL HORAS', '', '', '', '', f"{int(suma_asignada_global)}", _formato_es(porcentaje_total), '']
         datos_tabla.append(row_total)
         estilos_tabla.append(('FONTNAME', (0, row_cursor), (-1, row_cursor), 'Helvetica-Bold'))
         estilos_tabla.append(('BACKGROUND', (0, row_cursor), (-1, row_cursor), colors.Color(0.95, 0.95, 0.95)))

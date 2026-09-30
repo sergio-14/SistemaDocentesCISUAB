@@ -12,10 +12,10 @@ firma. Estos defaults se usan en dos lugares que deben quedar sincronizados:
 
 Por eso viven en un solo modulo compartido en vez de duplicarse.
 """
-from datetime import date
 from html import escape
 
 from django.apps import apps
+from django.utils import timezone
 
 _MESES_ES = {
     1: 'enero', 2: 'febrero', 3: 'marzo', 4: 'abril', 5: 'mayo', 6: 'junio',
@@ -110,7 +110,7 @@ def cargo_gestion_docente(fondo):
     etiqueta = _etiqueta_gestion_docente(fondo)
     if not etiqueta:
         return None
-    siglas_facultad = _siglas_facultad(fondo.carrera.facultad)
+    siglas_facultad = _siglas_facultad(fondo.carrera.facultad.nombre)
     return f'{etiqueta} - {fondo.carrera.codigo} – {siglas_facultad} - U.A.B.J.B.'
 
 
@@ -135,10 +135,7 @@ def cargo_firma_docente(fondo, cargo_dedicacion):
 def asignatura_principal_html(fondo):
     """Nombres de materias del docente, en negrita y unidos en prosa ('A y
     B' / 'A, B y C'), como HTML ya escapado listo para un Paragraph/editor."""
-    CargaHoraria = apps.get_model('fondos', 'CargaHoraria')
-    cargas = CargaHoraria.objects.filter(
-        docente=fondo.docente, calendario=fondo.calendario_academico, categoria='academica',
-    ).select_related('materia')
+    cargas = fondo.cargas.filter(categoria='academica').select_related('materia')
     materias = []
     vistos = set()
     for carga in cargas:
@@ -147,7 +144,7 @@ def asignatura_principal_html(fondo):
         vistos.add(carga.materia_id)
         materias.append(carga.materia.nombre)
     if not materias:
-        return escape(fondo.asignatura or 'las asignaturas asignadas')
+        return 'las asignaturas asignadas'
     nombres = [f'<b>{escape(nombre)}</b>' for nombre in materias]
     if len(nombres) == 1:
         return nombres[0]
@@ -199,7 +196,7 @@ def construir_defaults_informe(fondo):
 
     return {
         'encabezado_texto': encabezado_texto,
-        'fecha_texto': f'Trinidad, {fecha_larga_es(date.today())}',
+        'fecha_texto': f'Trinidad, {fecha_larga_es(timezone.localdate())}',
         'destinatario_nombre': nombre_direct,
         'destinatario_cargo': f'DIRECTOR(A) DE LA CARRERA DE {carrera_nombre} – U.A.B.J.B.',
         'remitente_nombre': nombre_docente,

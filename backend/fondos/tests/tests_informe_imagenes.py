@@ -10,7 +10,7 @@ from django.core.management import call_command
 from django.test import RequestFactory, TestCase, override_settings
 from PIL import Image
 
-from fondos.models import Carrera, DatosLaborales, Docente, FondoTiempo, InformeFondo
+from fondos.models import Carrera, FacultadCatalogo, DatosLaborales, Docente, FondoTiempo, InformeFondo
 from fondos.serializers import InformeFondoSerializer
 from fondos.utils.informe_imagenes import leer_imagen
 
@@ -26,7 +26,7 @@ class InformeImagenesTests(TestCase):
         self.media_root = tempfile.mkdtemp()
         self.override = override_settings(MEDIA_ROOT=self.media_root)
         self.override.enable()
-        carrera = Carrera.objects.create(nombre='Carrera Informe', codigo='CINF', facultad='Prueba')
+        carrera = Carrera.objects.create(nombre='Carrera Informe', codigo='CINF', facultad=FacultadCatalogo.objects.get_or_create(nombre='Prueba')[0])
         docente = Docente.objects.create(nombres='Ana', apellido_paterno='Rojas', datos_laborales=DatosLaborales.objects.create(ci='999'))
         self.fondo = FondoTiempo.objects.create(docente=docente, carrera=carrera, gestion=2026)
         self.user = User.objects.create_user('docente_informe', password='x')

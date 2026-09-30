@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_URL } from './apiConfig';
+import { bloquearEscrituraSiSoloLectura } from '../utils/soloLectura';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -30,7 +31,7 @@ api.interceptors.request.use(
     if (activeCareerId) {
       config.headers['X-Active-Carrera'] = activeCareerId;
     }
-    return config;
+    return bloquearEscrituraSiSoloLectura(config);
   },
   (error) => {
     return Promise.reject(error);
@@ -84,18 +85,21 @@ export const getFondosTiempo = () => api.get('/fondos-tiempo/');
 export const getFondoTiempoDetalle = (id) => api.get(`/fondos-tiempo/${id}/`);
 export const crearFondoTiempo = (data) => api.post('/fondos-tiempo/', data);
 export const generarFondosTiempoMasivo = () => api.post('/fondos-tiempo/generar-masivo/');
-export const distribuirHorasFondoTiempo = (id, data) => api.patch(`/fondos-tiempo/${id}/distribuir-horas/`, data);
 export const actualizarFondoTiempo = (id, data) => api.put(`/fondos-tiempo/${id}/`, data);
 export const eliminarFondoTiempo = (id) => api.delete(`/fondos-tiempo/${id}/`);
-export const getFondosLargoPlazo = () => api.get('/fondos-tiempo/largo-plazo/');
 
 // Acciones de estado
 export const presentarFondoADirector = (fondoId) => {
   return api.patch(`/fondos-tiempo/${fondoId}/presentar-a-director/`);
 };
-export const presentarFondo = (id, observacion = '') => 
-  api.post(`/fondos-tiempo/${id}/presentar/`, { observacion });
-export const aprobarFondo = (fondoId) => {
+export const aprobarFondo = (fondoId, documentoDecanatura = null) => {
+  if (documentoDecanatura) {
+    const payload = new FormData();
+    payload.append('documento_decanatura', documentoDecanatura);
+    return api.post(`/fondos-tiempo/${fondoId}/aprobar/`, payload, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  }
   return api.post(`/fondos-tiempo/${fondoId}/aprobar/`);
 };
 export const observarFondo = (fondoId, data) => api.post(`/fondos-tiempo/${fondoId}/observar/`, data);
@@ -106,8 +110,6 @@ export const guardarInformeBorrador = (fondoId, secciones) =>
 export const observarInforme = (fondoId, comentario) =>
   api.post(`/fondos-tiempo/${fondoId}/observar-informe/`, { comentario });
 
-export const cambiarEstadoFondo = (id, estado, comentarios = '') => 
-  api.post(`/fondos-tiempo/${id}/cambiar_estado/`, { estado, comentarios });
 export const agregarComentarioFondo = (id, comentario) => 
   api.post(`/fondos-tiempo/${id}/agregar_comentario/`, { comentario });
 
@@ -129,6 +131,7 @@ export const getMaterias = (params) => api.get('/materias/', { params });
 export const getFacultadesCarrera = () => api.get('/carreras/facultades/');
 export const addFacultadCarrera = (value) => api.post('/carreras/facultades/agregar/', { value });
 export const deleteFacultadCarrera = (value) => api.post('/carreras/facultades/eliminar/', { value });
+export const renameFacultadCarrera = (value, nuevo) => api.patch('/carreras/facultades/renombrar/', { value, nuevo });
 
 // ===================================
 // ENDPOINTS - USUARIOS
@@ -156,23 +159,6 @@ export const getCalendarioDetalle = (id) => api.get(`/calendarios/${id}/`);
 export const crearCalendario = (data) => api.post('/calendarios/', data);
 export const actualizarCalendario = (id, data) => api.put(`/calendarios/${id}/`, data);
 export const eliminarCalendario = (id) => api.delete(`/calendarios/${id}/`);
-
-// ===================================
-// ENDPOINTS - CATEGORÍAS Y ACTIVIDADES
-// ===================================
-export const getCategorias = () => api.get('/categorias/');
-export const getCategoriasPorFondo = (fondoId) => 
-  api.get('/categorias/', { params: { fondo_tiempo: fondoId } });
-export const crearCategoria = (data) => api.post('/categorias/', data);
-export const actualizarCategoria = (id, data) => api.put(`/categorias/${id}/`, data);
-export const eliminarCategoria = (id) => api.delete(`/categorias/${id}/`);
-
-export const getActividades = () => api.get('/actividades/');
-export const getActividadesPorCategoria = (categoriaId) => 
-  api.get('/actividades/', { params: { categoria: categoriaId } });
-export const crearActividad = (data) => api.post('/actividades/', data);
-export const actualizarActividad = (id, data) => api.put(`/actividades/${id}/`, data);
-export const eliminarActividad = (id) => api.delete(`/actividades/${id}/`);
 
 // ===================================
 // ENDPOINTS - PROYECTOS
@@ -247,7 +233,6 @@ export const responderObservacion = (id, respuesta) =>
 // ===================================
 // ENDPOINTS - HISTORIAL (Solo lectura)
 // ===================================
-export const getHistorial = () => api.get('/historial/');
 export const getHistorialDetalle = (id) => api.get(`/historial/${id}/`);
 export const getHistorialPorFondo = (fondoId) => 
   api.get('/historial/', { params: { fondo_tiempo: fondoId } });

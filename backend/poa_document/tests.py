@@ -9,7 +9,7 @@ from django.test import RequestFactory, SimpleTestCase, TestCase
 from openpyxl import load_workbook
 from rest_framework.test import APIRequestFactory
 
-from fondos.models import Carrera
+from fondos.models import Carrera, FacultadCatalogo
 from poa_document.api.serializers import ActividadSerializer, DetallePresupuestoSerializer
 from poa_document.api.views import (
     TableroPOAView,
@@ -33,10 +33,10 @@ from poa_document.reportes.pdf import (
 class ProgramaPOAModelTests(TestCase):
     def setUp(self):
         self.carrera_a = Carrera.objects.create(
-            nombre='Carrera POA A', codigo='PAA', facultad='Facultad de prueba A'
+            nombre='Carrera POA A', codigo='PAA', facultad=FacultadCatalogo.objects.get_or_create(nombre='Facultad de prueba A')[0]
         )
         self.carrera_b = Carrera.objects.create(
-            nombre='Carrera POA B', codigo='PAB', facultad='Facultad de prueba B'
+            nombre='Carrera POA B', codigo='PAB', facultad=FacultadCatalogo.objects.get_or_create(nombre='Facultad de prueba B')[0]
         )
 
     def test_el_nombre_de_programa_es_unico_dentro_de_una_carrera(self):
@@ -55,7 +55,7 @@ class ProgramaPOAModelTests(TestCase):
 
 class FormulacionPOATests(TestCase):
     def setUp(self):
-        self.carrera = Carrera.objects.create(nombre='Carrera Calidad', codigo='PQC', facultad='Prueba')
+        self.carrera = Carrera.objects.create(nombre='Carrera Calidad', codigo='PQC', facultad=FacultadCatalogo.objects.get_or_create(nombre='Prueba')[0])
         self.documento = DocumentoPOA.objects.create(
             gestion=2030, unidad_solicitante=self.carrera, programa='Programa de prueba',
             objetivo_gestion_institucional='Mejorar la gestión', fecha_elaboracion=date(2030, 1, 1),

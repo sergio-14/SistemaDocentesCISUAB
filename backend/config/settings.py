@@ -38,6 +38,10 @@ SECRET_KEY = env('DJANGO_SECRET_KEY', 'SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DJANGO_DEBUG', 'DEBUG', default=False, cast=bool)
 
+# Admin de Django (/django-admin/): activo en desarrollo; en producción apagado
+# salvo DJANGO_ADMIN_ENABLED=True (y entonces hay que exponer la ruta en nginx).
+DJANGO_ADMIN_ENABLED = config('DJANGO_ADMIN_ENABLED', default=DEBUG, cast=bool)
+
 ALLOWED_HOSTS = env('DJANGO_ALLOWED_HOSTS', 'ALLOWED_HOSTS', cast=Csv())
 
 
@@ -234,7 +238,7 @@ SIMPLE_JWT = {
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 # Vigencia (segundos) de las URLs firmadas de archivos subidos.
-MEDIA_URL_MAX_AGE = config('MEDIA_URL_MAX_AGE', default=12 * 60 * 60, cast=int)
+MEDIA_URL_MAX_AGE = config('MEDIA_URL_MAX_AGE', default=60 * 60, cast=int)
 
 # Clave Fernet para cifrar fotos de perfil y logos de carrera. Si se deja vacía
 # se deriva de SECRET_KEY (comportamiento histórico). Si se define, los datos

@@ -7,3 +7,6 @@ venv
 .git
 media/
 staticfiles/
+
+# Tests: no se instalan en el servidor (en desarrollo llegan por el volumen ./backend).
+fondos/tests/

@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTheme } from './useTheme';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
@@ -38,9 +38,6 @@ import ListaCalendarios from './components/ListaCalendarios';
 import MateriaList from './components/materias/MateriaList';
 import MateriaForm from './components/materias/MateriaForm';
 import VistaCalendarioActivo from './VistaCalendarioActivo';
-import Proximamente from './components/Proximamente';
-import FondosLargoPlazo from './components/FondosLargoPlazo';
-import SeguimientoGlobal from './components/SeguimientoGlobal';
 import AdminPanel from './components/AdminPanel';
 import SimpleLayout from './components/layouts/SimpleLayout';
 import AdminDashboard from './components/AdminDashboard';
@@ -59,15 +56,15 @@ const AnimatedRoute = ({ children }) => {
   );
 };
 
+// Constante de inactividad: 2 horas en milisegundos
+const INACTIVITY_TIMEOUT = 2 * 60 * 60 * 1000;
+
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   
   const { theme, setTheme, isDark } = useTheme();
-
-  // Constante de inactividad: 2 horas en milisegundos
-  const INACTIVITY_TIMEOUT = 2 * 60 * 60 * 1000;
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');
@@ -180,6 +177,19 @@ function App() {
       console.error("Error updating profile:", error);
     }
   };
+
+  // Los enlaces firmados de archivos (p. ej. la foto de perfil) vencen en
+  // MEDIA_URL_MAX_AGE: el usuario guardado en localStorage los trae del login.
+  // Al abrir o recargar la app se vuelve a pedir para tenerlos vigentes.
+  const refrescarUsuarioRef = useRef(handleProfileUpdate);
+  useEffect(() => {
+    refrescarUsuarioRef.current = handleProfileUpdate;
+  });
+  useEffect(() => {
+    if (localStorage.getItem('access_token') && localStorage.getItem('user')) {
+      refrescarUsuarioRef.current();
+    }
+  }, []);
 
   const handleCarreraActivaChange = (carreraId) => {
     setUser((prev) => {
@@ -317,12 +327,12 @@ function App() {
               
               {/* Las rutas hijas son relativas al padre */}
               <Route path="fondo/:id" element={<AnimatedRoute><DetalleFondo isDark={isDark} /></AnimatedRoute>} />
-              <Route path="comparar" element={<AnimatedRoute><Comparador isDark={isDark} /></AnimatedRoute>} />
+              <Route path="comparar" element={<AnimatedRoute><Comparador /></AnimatedRoute>} />
               <Route path="nuevo-fondo" element={<AnimatedRoute><FormularioFondo isDark={isDark} /></AnimatedRoute>} />
               <Route path="editar-fondo/:id" element={<AnimatedRoute><FormularioFondo isDark={isDark} editar={true} /></AnimatedRoute>} />
 
-              <Route path="cargas-horarias" element={<AnimatedRoute><CargaHorariaGeneral isDark={isDark} /></AnimatedRoute>} />
-              <Route path="docentes/:id" element={<AnimatedRoute><FondoTiempoDocente isDark={isDark} /></AnimatedRoute>} />
+              <Route path="cargas-horarias" element={<AnimatedRoute><CargaHorariaGeneral /></AnimatedRoute>} />
+              <Route path="docentes/:id" element={<AnimatedRoute><FondoTiempoDocente /></AnimatedRoute>} />
               {/* Ruta para los fondos archivados dentro del módulo de Fondo de Tiempo */}
               <Route path="archivados" element={<AnimatedRoute><FondosArchivados isDark={isDark} /></AnimatedRoute>} />
 
@@ -337,11 +347,6 @@ function App() {
               <Route path="*" element={<Navigate to="/fondo-tiempo" replace />} />
             </Route>
 
-            {/* Módulo: Fondos a Largo Plazo */}
-            <Route path="/largo-plazo" element={<SimpleLayout theme={theme} setTheme={setTheme} />}>
-              <Route index element={<Proximamente isDark={isDark} />} />
-            </Route>
-
             {/* Módulo Principal: Gestión Global de Usuarios/Carreras */}
             <Route path="/usuarios" element={<SimpleLayout theme={theme} setTheme={setTheme} />}>
               <Route index element={<AnimatedRoute><GestionUsuarios isDark={isDark} user={user} hasSidebar={false} /></AnimatedRoute>} />
@@ -349,11 +354,6 @@ function App() {
 
             <Route path="/carreras" element={<SimpleLayout theme={theme} setTheme={setTheme} />}>
               <Route index element={<AnimatedRoute><ListaCarreras isDark={isDark} hasSidebar={false} /></AnimatedRoute>} />
-            </Route>
-
-            {/* Módulo: Seguimiento Global */}
-            <Route path="/seguimiento" element={<SimpleLayout theme={theme} setTheme={setTheme} />}>
-              <Route index element={<Proximamente isDark={isDark} />} />
             </Route>
 
             {/* Módulo: POA - Usando el layout con sidebar y header propios */}

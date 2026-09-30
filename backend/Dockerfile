@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
 # Usuario sin privilegios (regla 8 de la guía IIISyP). UID/GID fijos (10001): el
-# servicio "media-permisos" de docker-compose.prod.yml los usa para dar al
+# servicio "media-permisos" de docker-compose.yml los usa para dar al
 # volumen de archivos subidos el dueño correcto.
 RUN groupadd --system --gid 10001 app \
     && useradd --system --uid 10001 --gid app --create-home --home-dir /home/app app \

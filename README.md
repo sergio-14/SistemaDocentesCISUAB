@@ -19,8 +19,11 @@ Hay dos configuraciones de Docker Compose:
 
 | Archivo | Uso |
 |---|---|
-| `docker-compose.yml` | Desarrollo local: recarga en caliente de Django y Vite |
-| `docker-compose.prod.yml` | Servidor (Dokploy): gunicorn, nginx, un solo dominio, sin puertos publicados |
+| `docker-compose.dev.yml` | Desarrollo local: recarga en caliente de Django y Vite |
+| `docker-compose.yml` | Servidor (Dokploy): gunicorn, nginx, un solo dominio, sin puertos publicados |
+
+En desarrollo, todos los comandos llevan `-f docker-compose.dev.yml`: sin esa opcion
+Docker Compose usa `docker-compose.yml`, que es el de produccion.
 
 ## Instalacion con Docker (desarrollo)
 
@@ -48,14 +51,14 @@ cp .env.example .env
 Construir e iniciar los servicios:
 
 ```bash
-docker compose up -d --build
+docker compose -f docker-compose.dev.yml up -d --build
 ```
 
 Comprobar el estado:
 
 ```bash
-docker compose ps
-docker compose logs --tail 100 backend
+docker compose -f docker-compose.dev.yml ps
+docker compose -f docker-compose.dev.yml logs --tail 100 backend
 ```
 
 La primera ejecucion crea la base de datos y aplica las migraciones de Django.
@@ -64,43 +67,45 @@ La primera ejecucion crea la base de datos y aplica las migraciones de Django.
 
 - Aplicacion: <http://localhost:5173>
 - API: <http://localhost:8000/api/>
-- Administracion Django: <http://localhost:8000/django-admin/>
+- Administracion Django: <http://localhost:8000/django-admin/> (solo en desarrollo)
 - PostgreSQL: `localhost:5432` (solo desde este equipo)
 
 > El admin de Django esta en `/django-admin/` porque `/admin` es el panel de
-> administracion de la app React.
+> administracion de la app React. En produccion esta **apagado**: solo existe si
+> se define `DJANGO_ADMIN_ENABLED=True` y ademas se agrega la ruta en
+> `frontend/nginx.conf`.
 
 ## Crear el primer administrador
 
 ```bash
-docker compose exec backend python manage.py createsuperuser
+docker compose -f docker-compose.dev.yml exec backend python manage.py createsuperuser
 ```
 
 ## Comandos frecuentes
 
 ```bash
 # Ver registros en tiempo real
-docker compose logs -f
+docker compose -f docker-compose.dev.yml logs -f
 
 # Detener los servicios sin eliminarlos
-docker compose stop
+docker compose -f docker-compose.dev.yml stop
 
 # Volver a iniciarlos
-docker compose start
+docker compose -f docker-compose.dev.yml start
 
 # Retirar contenedores conservando la base de datos
-docker compose down
+docker compose -f docker-compose.dev.yml down
 ```
 
-No uses `docker compose down -v` salvo que quieras eliminar definitivamente la
+No uses `docker compose -f docker-compose.dev.yml down -v` salvo que quieras eliminar definitivamente la
 base de datos local.
 
 ## Actualizar una instalacion existente
 
 ```bash
 git pull --ff-only
-docker compose up -d --build
-docker compose exec backend python manage.py migrate --noinput
+docker compose -f docker-compose.dev.yml up -d --build
+docker compose -f docker-compose.dev.yml exec backend python manage.py migrate --noinput
 ```
 
 Los archivos cargados por los usuarios se conservan en `media/` y los datos de
@@ -117,10 +122,10 @@ PostgreSQL en el volumen Docker `postgres16_data`.
 
   ```bash
   # antes de actualizar (con la version anterior en marcha)
-  docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > dev.dump
+  docker compose -f docker-compose.dev.yml exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > dev.dump
   # despues de actualizar
-  docker compose up -d db
-  docker compose exec -T db sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner' < dev.dump
+  docker compose -f docker-compose.dev.yml up -d db
+  docker compose -f docker-compose.dev.yml exec -T db sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner' < dev.dump
   ```
 
   El volumen antiguo (`<proyecto>_postgres_data`) se puede borrar despues con
@@ -131,7 +136,7 @@ PostgreSQL en el volumen Docker `postgres16_data`.
 
 ## Despliegue en produccion (Dokploy)
 
-`docker-compose.prod.yml` cumple la guia IIISyP:
+`docker-compose.yml` cumple la guia IIISyP:
 
 | Regla de la guia | Como se cumple |
 |---|---|
@@ -148,7 +153,7 @@ Arquitectura (un solo dominio):
 
 ```
 Usuario ──HTTPS──▶ Traefik ──▶ frontend (nginx :80) ──┬─▶ SPA React
-                                                      └─▶ /api, /django-admin, /media, /static
+                                                      └─▶ /api, /media, /static
                                                            ──▶ backend (gunicorn :8000) ──▶ db
 ```
 
@@ -174,6 +179,7 @@ POSTGRES_USER=sistema_docentes
 POSTGRES_PASSWORD=<contrasena larga y aleatoria>
 VITE_API_URL=https://midominio.com
 PROFILE_IMAGE_ENCRYPTION_KEY=<clave Fernet>
+BACKUP_PASSPHRASE=<contrasena larga y aleatoria para cifrar los backups>
 ```
 
 Generar las claves (usa solo `A-Z a-z 0-9 - _`: un `$` o `#` en un valor
@@ -200,7 +206,7 @@ Dokploy → *Projects* → *Create Service* → **Compose**:
 | Campo | Valor |
 |---|---|
 | Repository / Branch | este repositorio y la rama a desplegar |
-| Compose Path | `./docker-compose.prod.yml` |
+| Compose Path | `./docker-compose.yml` |
 | Trigger Type | *On Push* |
 
 ### 3. Dominio (uno solo)
@@ -225,7 +231,8 @@ El registro DNS tipo A del dominio debe apuntar a la IP del VPS.
 
 - `https://midominio.com` carga con candado.
 - El login funciona.
-- `https://midominio.com/django-admin/` carga con estilos.
+- `https://midominio.com/django-admin/` **no** existe (el admin de Django esta
+  apagado en produccion).
 - Los datos siguen tras un redeploy.
 
 ### 6. Crear el administrador (a mano)
@@ -239,11 +246,37 @@ python manage.py createsuperuser
 Se hace a mano a proposito: la contrasena de administrador no queda guardada
 en variables de entorno y la cuenta la crea una persona identificable.
 
+### 7. Antes de cargar datos reales: backups fuera del servidor
+
+**Requisito obligatorio antes de cargar datos reales.** El servicio `backup`
+guarda las copias en el mismo VPS: si el servidor se pierde, se pierden tambien
+las copias. Sin otro servidor ni nube, la version simple es:
+
+1. **Cifrado:** definir `BACKUP_PASSPHRASE` en Dokploy (los backups ya se
+   generan cifrados) y guardar esa contrasena en un gestor de contrasenas,
+   **fuera** del servidor. Sin ella los backups no se pueden abrir.
+2. **Descargarlos a otra maquina:** con `scripts/descargar-backup.ps1` desde la
+   PC (ver [Backups](#backups)). Se descargan base de datos **y** `media`.
+3. **Dos copias:** una en la PC y otra en un disco externo.
+4. **Prueba de restauracion:** restaurar una copia en local (ver
+   [Backups](#backups)) y comprobar que el sistema funciona con esos datos.
+   Repetirla periodicamente.
+
+### 8. HTTPS y HSTS
+
+1. Comprobar que `https://midominio.com` carga con certificado valido.
+2. Comprobar que `http://midominio.com` redirige a `https://` (opcion del
+   dominio en Dokploy: la redireccion la hace el proxy, no Django).
+3. Recien entonces activar HSTS en Dokploy (*Environment*):
+   `SECURE_HSTS_SECONDS=3600` para probar y luego `31536000` (1 ano), y
+   redesplegar. Una vez activo, los navegadores exigen HTTPS durante ese
+   tiempo: no se deshace al instante.
+
 ### Probar la configuracion de produccion en local
 
 ```bash
 docker network create dokploy-network   # solo la primera vez
-docker compose -f docker-compose.prod.yml --env-file .env.production.local up -d --build
+docker compose -f docker-compose.yml --env-file .env.production.local up -d --build
 ```
 
 ## Archivos subidos (carpeta media)
@@ -288,46 +321,134 @@ python manage.py organizar_media             # lo aplica (se puede repetir)
 
 ## Backups
 
-El servicio `backup` de `docker-compose.prod.yml` guarda en el volumen
+### Que se guarda
+
+El servicio `backup` de `docker-compose.yml` genera en el volumen
 `backups`, cada `BACKUP_INTERVAL_HOURS` (24 h por defecto; el primero 10 min
-despues de arrancar):
+despues de arrancar), dos archivos **cifrados**:
 
-- `db_AAAAMMDD_HHMMSS.dump`: base de datos (`pg_dump`, formato custom).
-- `media_AAAAMMDD_HHMMSS.tar.gz`: archivos subidos.
+- `db_AAAAMMDD_HHMMSS.dump.gpg`: base de datos (`pg_dump`, formato custom).
+- `media_AAAAMMDD_HHMMSS.tar.gz.gpg`: archivos subidos (evidencias, actas,
+  resoluciones, fotos).
 
-Se conservan `BACKUP_KEEP_DAYS` dias (14 por defecto).
+Se cifran con GPG (AES-256) usando `BACKUP_PASSPHRASE`, al vuelo: la copia sin
+cifrar nunca se escribe en el disco del servidor. Se conservan
+`BACKUP_KEEP_DAYS` dias (14 por defecto).
 
-> Los backups quedan **en el mismo servidor**: "un backup que solo existe en
-> el mismo VPS no es un backup" (guia IIISyP). Copialos periodicamente fuera
-> (otra maquina, S3, Backblaze...).
+> **Sin `BACKUP_PASSPHRASE` los backups no se pueden abrir.** Guardala en un
+> gestor de contrasenas, fuera del servidor. Si se cambia, los backups
+> anteriores se siguen abriendo solo con la contrasena anterior.
 
-Backup inmediato:
+Los backups quedan **en el mismo servidor**: "un backup que solo existe en el
+mismo VPS no es un backup" (guia IIISyP). Hay que descargarlos a otra maquina
+(requisito antes de cargar datos reales: paso 7 del despliegue).
+
+Backup inmediato (en el servidor):
 
 ```bash
-docker compose -f docker-compose.prod.yml exec backup /backup.sh once
+docker compose -f docker-compose.yml exec backup /backup.sh once
 ```
 
-Restaurar la base de datos (reemplazar la fecha por la del backup elegido):
+### Descargar a la PC (Windows)
 
-```bash
-docker compose -f docker-compose.prod.yml stop backend
-docker compose -f docker-compose.prod.yml exec backup sh -c \
-  'pg_restore --clean --if-exists --no-owner --dbname="$PGDATABASE" /backups/db_AAAAMMDD_HHMMSS.dump'
-docker compose -f docker-compose.prod.yml start backend
+Requisitos: Cliente OpenSSH de Windows (`ssh` y `scp`; viene con Windows 10/11,
+si no: *Configuracion > Aplicaciones > Caracteristicas opcionales*) y un
+usuario SSH del servidor que pueda usar Docker (root o del grupo `docker`).
+
+Desde la carpeta del repositorio, en PowerShell:
+
+```powershell
+.\scripts\descargar-backup.ps1 -Servidor usuario@IP_DEL_SERVIDOR
 ```
 
-Restaurar los archivos subidos (el nombre real de los volumenes lleva el
-prefijo del proyecto; se ve con `docker volume ls`):
+Descarga el backup mas reciente (base de datos y media, **cifrados**) a
+`Documentos\Backups-SistemaDocentes`. Opciones: `-Puerto` (SSH, 22 por
+defecto), `-Destino` (otra carpeta) y `-Volumen` (si hay mas de un volumen
+`..._backups`; se ven con `docker volume ls`). El script no acepta un destino
+dentro del repositorio.
+
+**Guarda 2 copias:** la de la PC y otra en un **disco externo** (copia los
+`.gpg` tal cual, cifrados). Asi sobreviven a la perdida del servidor y a la de
+la PC.
+
+### Descifrar
+
+Con Docker (no hace falta instalar GPG). En PowerShell, dentro de la carpeta de
+los backups; pide la contrasena (`BACKUP_PASSPHRASE`):
+
+```powershell
+cd $HOME\Documents\Backups-SistemaDocentes
+docker run --rm -it -v "${PWD}:/b" -w /b alpine sh -c "apk add -q gnupg && gpg --pinentry-mode loopback -o db.dump -d db_AAAAMMDD_HHMMSS.dump.gpg && gpg --pinentry-mode loopback -o media.tar.gz -d media_AAAAMMDD_HHMMSS.tar.gz.gpg"
+```
+
+Quedan `db.dump` y `media.tar.gz` **sin cifrar**: tienen datos personales.
+Borralos cuando termines de restaurar y guarda solo los `.gpg`.
+
+(Alternativa sin Docker: instalar Gpg4win y usar `gpg -o db.dump -d archivo.gpg`.)
+
+### Restaurar en local (prueba de restauracion)
+
+Reemplaza los datos de **desarrollo** por los del backup. Desde la carpeta del
+repositorio, con el entorno de desarrollo (`docker-compose.dev.yml`):
+
+1. Levantar solo la base y detener el backend:
+
+   ```powershell
+   docker compose -f docker-compose.dev.yml up -d db
+   docker compose -f docker-compose.dev.yml stop backend
+   ```
+
+2. Restaurar la base de datos (ajusta la ruta de `db.dump`):
+
+   ```powershell
+   docker compose -f docker-compose.dev.yml cp $HOME\Documents\Backups-SistemaDocentes\db.dump db:/tmp/restore.dump
+   docker compose -f docker-compose.dev.yml exec db sh -c 'pg_restore --clean --if-exists --no-owner -U "$POSTGRES_USER" -d "$POSTGRES_DB" /tmp/restore.dump; rm /tmp/restore.dump'
+   ```
+
+3. Restaurar los archivos subidos en la carpeta `media` del repositorio (esta
+   en `.gitignore`; conviene vaciarla antes):
+
+   ```powershell
+   tar -xzf $HOME\Documents\Backups-SistemaDocentes\media.tar.gz -C media
+   ```
+
+4. Arrancar todo y comprobar en <http://localhost:5173> que se puede entrar
+   (los usuarios y contrasenas son los de produccion) y que se ven los datos
+   y los archivos:
+
+   ```powershell
+   docker compose -f docker-compose.dev.yml up -d
+   ```
+
+5. Borrar `db.dump` y `media.tar.gz` (sin cifrar). Para volver a los datos de
+   desarrollo, restaurar un backup de desarrollo o recrear la base.
+
+### Restaurar en el servidor
+
+Reemplazar la fecha por la del backup elegido. Base de datos (el backup se
+descifra dentro del contenedor `backup`, que ya tiene la contrasena):
 
 ```bash
+docker compose -f docker-compose.yml stop backend
+docker compose -f docker-compose.yml exec backup sh -c \
+  'export GNUPGHOME=/tmp/gnupg; mkdir -p -m 700 $GNUPGHOME; gpg --batch --quiet --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" -d /backups/db_AAAAMMDD_HHMMSS.dump.gpg | pg_restore --clean --if-exists --no-owner --dbname="$PGDATABASE"'
+docker compose -f docker-compose.yml start backend
+```
+
+Archivos subidos (el volumen `media` esta montado de solo lectura en `backup`;
+se restaura con un contenedor aparte. El nombre real de los volumenes lleva el
+prefijo del proyecto: `docker volume ls`):
+
+```bash
+docker compose -f docker-compose.yml exec backup sh -c \
+  'export GNUPGHOME=/tmp/gnupg; mkdir -p -m 700 $GNUPGHOME; gpg --batch --quiet --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" -o /backups/media_restaurar.tar.gz -d /backups/media_AAAAMMDD_HHMMSS.tar.gz.gpg'
 docker run --rm -v <proyecto>_media_data:/media -v <proyecto>_backups:/backups \
-  alpine tar -xzf /backups/media_AAAAMMDD_HHMMSS.tar.gz -C /media
+  alpine sh -c 'tar -xzf /backups/media_restaurar.tar.gz -C /media && chown -R 10001:10001 /media && rm /backups/media_restaurar.tar.gz'
 ```
 
 ## Despues del despliegue
 
-- Cuando HTTPS funcione de forma estable, se puede activar HSTS con
-  `SECURE_HSTS_SECONDS=31536000`.
+- HSTS: ver el paso 8 del despliegue (primero verificar HTTPS y la redireccion).
 - Opcional: los informes PDF usan Verdana si se copian `verdana.ttf`,
   `verdanab.ttf` y `trebucit.ttf` en `backend/fondos/fonts/` (son fuentes con
   licencia de Microsoft y no se versionan). Sin ellas se usa Helvetica.

@@ -4,9 +4,9 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from .models import (
     Docente, DocenteCarrera, Carrera, CalendarioAcademico, FondoTiempo,
-    CategoriaFuncion, Actividad, Proyecto, InformeFondo,
+    Proyecto, InformeFondo,
     ObservacionFondo, HistorialFondo, PerfilUsuario,
-    MensajeObservacion, HistorialFondo, DatosLaborales, SaldoVacacionesGestion
+    MensajeObservacion, DatosLaborales,
 )
 
 
@@ -16,7 +16,7 @@ from .models import (
 
 @admin.register(DatosLaborales)
 class DatosLaboralesAdmin(admin.ModelAdmin):
-    list_display = ['id', 'ci', 'fecha_ingreso', 'dias_vacacion', 'horas_feriados_gestion', 'tiene_docente', 'tiene_perfil']
+    list_display = ['id', 'ci', 'fecha_ingreso', 'dias_vacacion', 'tiene_docente', 'tiene_perfil']
     list_filter = []
     search_fields = ['ci']
     ordering = ['-fecha_creacion']
@@ -26,7 +26,7 @@ class DatosLaboralesAdmin(admin.ModelAdmin):
             'fields': ('ci', 'fecha_ingreso')
         }),
         ('Beneficios', {
-            'fields': ('dias_vacacion', 'horas_feriados_gestion')
+            'fields': ('dias_vacacion',)
         }),
     )
     readonly_fields = ('fecha_creacion', 'fecha_modificacion')
@@ -117,8 +117,15 @@ DocenteAdmin.inlines = [DocenteCarreraInline]
 class CarreraAdmin(admin.ModelAdmin):
     list_display = ['nombre', 'codigo', 'facultad', 'activo']
     list_filter = ['facultad', 'activo']
-    search_fields = ['nombre', 'codigo', 'facultad']
-    ordering = ['facultad', 'nombre']
+    search_fields = ['nombre', 'codigo', 'facultad__nombre']
+    ordering = ['facultad__nombre', 'nombre']
+
+    # Crear y eliminar carreras es solo del superusuario, igual que en la API.
+    def has_add_permission(self, request):
+        return request.user.is_superuser
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser
 
 
 # =====================================================
@@ -128,8 +135,7 @@ class CarreraAdmin(admin.ModelAdmin):
 @admin.register(CalendarioAcademico)
 class CalendarioAcademicoAdmin(admin.ModelAdmin):
     list_display = [
-        '__str__', 'fecha_inicio', 'fecha_fin',
-        'semanas_efectivas', 'activo_badge'
+        '__str__', 'fecha_inicio', 'fecha_fin', 'activo_badge'
     ]
     list_filter = ['gestion', 'periodo', 'activo']
     search_fields = ['gestion']
@@ -137,7 +143,7 @@ class CalendarioAcademicoAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Periodo Académico', {
-            'fields': ('gestion', 'periodo', 'semanas_efectivas')
+            'fields': ('gestion', 'periodo')
         }),
         ('Fechas del Periodo', {
             'fields': ('fecha_inicio', 'fecha_fin')
@@ -170,26 +176,23 @@ class CalendarioAcademicoAdmin(admin.ModelAdmin):
 @admin.register(FondoTiempo)
 class FondoTiempoAdmin(admin.ModelAdmin):
     list_display = [
-        'docente', 'asignatura', 'gestion', 'periodo',
+        'docente', 'carrera', 'gestion',
         'estado_badge', 'porcentaje_badge', 'programa_badge'
     ]
-    list_filter = ['estado', 'gestion', 'periodo', 'carrera', 'archivado']
+    list_filter = ['estado', 'gestion', 'carrera', 'archivado']
     search_fields = [
         'docente__nombres', 'docente__apellido_paterno',
-        'docente__apellido_materno', 'asignatura'
+        'docente__apellido_materno', 'carrera__nombre'
     ]
-    ordering = ['-gestion', '-periodo', 'docente__apellido_paterno']
+    ordering = ['-gestion', 'docente__apellido_paterno']
     
     fieldsets = (
         ('Información Básica', {
-            'fields': ('docente', 'carrera', 'calendario_academico')
-        }),
-        ('Periodo Académico', {
-            'fields': ('gestion', 'periodo', 'asignatura')
+            'fields': ('docente', 'carrera', 'gestion')
         }),
         ('Configuración de Horas', {
             'fields': (
-                'semanas_año', 'horas_semana', 'horas_vacacion',
+                'horas_semana', 'horas_vacacion',
                 'horas_feriados', 'horas_efectivas'
             ),
             'classes': ('collapse',)
@@ -256,45 +259,6 @@ class FondoTiempoAdmin(admin.ModelAdmin):
 
 
 # =====================================================
-# CATEGORÍA FUNCIÓN ADMIN
-# =====================================================
-
-@admin.register(CategoriaFuncion)
-class CategoriaFuncionAdmin(admin.ModelAdmin):
-    list_display = ['fondo_tiempo', 'tipo_display', 'total_horas', 'porcentaje']
-    list_filter = ['tipo']
-    search_fields = ['fondo_tiempo__asignatura', 'fondo_tiempo__docente__apellido_paterno']
-    
-    def tipo_display(self, obj):
-        return obj.get_tipo_display()
-    tipo_display.short_description = 'Función'
-
-
-# =====================================================
-# ACTIVIDAD ADMIN -- OBSOLETO desde 2026-09-12, ver docstring de Actividad en models.py.
-# Solo lectura: el catalogo vivo de sub-actividades es CargaHoraria.tipo_actividad.
-# No se permite crear/editar/borrar filas nuevas desde /admin/ para evitar que
-# se reintroduzcan datos huerfanos fuera del flujo real (CargaHorariaViewSet).
-# =====================================================
-
-@admin.register(Actividad)
-class ActividadAdmin(admin.ModelAdmin):
-    list_display = ['detalle', 'categoria', 'horas_semana', 'horas_año', 'proyecto']
-    list_filter = ['categoria__tipo']
-    search_fields = ['detalle', 'categoria__fondo_tiempo__asignatura']
-    ordering = ['categoria', 'orden']
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-
-# =====================================================
 # PROYECTO ADMIN (NUEVO)
 # =====================================================
 
@@ -306,7 +270,7 @@ class ProyectoAdmin(admin.ModelAdmin):
     ]
     list_filter = ['tipo', 'estado', 'es_curso_seminario', 'modalidad']
     search_fields = [
-        'titulo', 'fondo_tiempo__asignatura',
+        'titulo', 'fondo_tiempo__carrera__nombre',
         'fondo_tiempo__docente__apellido_paterno'
     ]
     ordering = ['-fecha_creacion']
@@ -373,7 +337,7 @@ class InformeFondoAdmin(admin.ModelAdmin):
     ]
     list_filter = ['tipo', 'cumplimiento', 'fecha_elaboracion']
     search_fields = [
-        'fondo_tiempo__asignatura',
+        'fondo_tiempo__carrera__nombre',
         'fondo_tiempo__docente__apellido_paterno',
         'elaborado_por__username'
     ]
@@ -459,7 +423,7 @@ class HistorialFondoAdmin(admin.ModelAdmin):
     ]
     list_filter = ['tipo_cambio', 'fecha']
     search_fields = [
-        'fondo_tiempo__asignatura',
+        'fondo_tiempo__carrera__nombre',
         'fondo_tiempo__docente__apellido_paterno',
         'usuario__username', 'descripcion'
     ]
@@ -515,7 +479,7 @@ class PerfilUsuarioAdmin(admin.ModelAdmin):
             'fields': ('docente', 'carrera', 'datos_laborales')
         }),
         ('Datos Laborales (solo lectura)', {
-            'fields': ('dl_fecha_ingreso', 'dl_dias_vacacion', 'dl_horas_feriados', 'dl_antiguedad'),
+            'fields': ('dl_fecha_ingreso', 'dl_dias_vacacion', 'dl_antiguedad'),
             'classes': ('collapse',),
             'description': 'Estos campos se muestran desde DatosLaborales asociados. Para editarlos, vaya al registro de Datos Laborales.'
         }),
@@ -523,7 +487,7 @@ class PerfilUsuarioAdmin(admin.ModelAdmin):
             'fields': ('telefono',)
         }),
     )
-    readonly_fields = ('dl_fecha_ingreso', 'dl_dias_vacacion', 'dl_horas_feriados', 'dl_antiguedad')
+    readonly_fields = ('dl_fecha_ingreso', 'dl_dias_vacacion', 'dl_antiguedad')
 
     def rol_display(self, obj):
         return obj.get_rol_display()
@@ -546,10 +510,6 @@ class PerfilUsuarioAdmin(admin.ModelAdmin):
     def dl_dias_vacacion(self, obj):
         return obj.dias_vacacion
     dl_dias_vacacion.short_description = 'Días Vacación'
-
-    def dl_horas_feriados(self, obj):
-        return obj.horas_feriados_gestion
-    dl_horas_feriados.short_description = 'Horas Feriados'
 
     def dl_antiguedad(self, obj):
         return f"{obj.calcular_antiguedad()} años"

@@ -78,3 +78,17 @@ frontend/.git_disabled/
 # Claude temp files
 tmpclaude-*-cwd/
 frontend/tmpclaude-*-cwd/
+
+# Notas locales de limpieza (no se suben)
+pendientes-limpieza.md
+
+# Documentos de trabajo locales (no se suben)
+analisis-problemas-despliegue.md
+
+# Backups (datos personales): nunca en el repositorio.
+# (La carpeta backup/ del servicio sí se sube: estas reglas no la tocan.)
+backups/
+Backups-SistemaDocentes/
+*.gpg
+*.dump
+*.dump.tmp

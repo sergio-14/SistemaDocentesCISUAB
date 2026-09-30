@@ -69,7 +69,7 @@ const BookOpenIcon = (props) => (
     </svg>
 );
 
-function Sidebar({ user, onLogout, collapsed, setCollapsed, theme, setTheme, onProfileUpdate, onCarreraActivaChange }) {
+function Sidebar({ user, collapsed, setCollapsed, onProfileUpdate }) {
   const location = useLocation();
   const navigate = useNavigate();
   const {
@@ -101,17 +101,18 @@ function Sidebar({ user, onLogout, collapsed, setCollapsed, theme, setTheme, onP
   };
 
   // Define los roles que pueden ver cada item.
-  // iiisyp es solo lectura: no ve items de administracion
+  // iiisyp es solo lectura: no ve items de administracion.
+  // El superusuario no tiene rol de carrera: sus items se habilitan con superuser: true.
   const menuItems = {
     principal: [
-      { path: '/fondo-tiempo', icon: DashboardIcon, label: 'Dashboard', roles: ['iiisyp', 'director', 'jefe_estudios', 'docente'] },
-      { path: '/fondo-tiempo/comparar', icon: CompararIcon, label: 'Comparar Fondos', roles: ['iiisyp', 'director', 'jefe_estudios', 'docente'] },
-      { path: '/fondo-tiempo/archivados', icon: ArchiveIcon, label: 'Fondos Archivados', roles: ['iiisyp', 'director', 'jefe_estudios', 'docente'] },
+      { path: '/fondo-tiempo', icon: DashboardIcon, label: 'Dashboard', roles: ['iiisyp', 'director', 'jefe_estudios', 'docente'], superuser: true },
+      { path: '/fondo-tiempo/comparar', icon: CompararIcon, label: 'Comparar Fondos', roles: ['iiisyp', 'director', 'jefe_estudios', 'docente'], superuser: true },
+      { path: '/fondo-tiempo/archivados', icon: ArchiveIcon, label: 'Fondos Archivados', roles: ['iiisyp', 'director', 'jefe_estudios', 'docente'], superuser: true },
     ],
     administracion: [
-      { path: '/fondo-tiempo/docentes', icon: AcademicCapIcon, label: 'Docentes', roles: ['iiisyp', 'director', 'jefe_estudios'] },
+      { path: '/fondo-tiempo/docentes', icon: AcademicCapIcon, label: 'Docentes', roles: ['iiisyp', 'director', 'jefe_estudios'], superuser: true },
       { path: '/fondo-tiempo/cargas-horarias', icon: ClockIcon, label: 'Carga Horaria', roles: ['jefe_estudios'] },
-      { path: '/fondo-tiempo/calendarios', icon: CalendarioIcon, label: 'Calendario Académico', superuser: true },
+      { path: '/fondo-tiempo/calendarios', icon: CalendarioIcon, label: 'Calendario Académico', roles: ['director', 'jefe_estudios'], superuser: true },
       { path: '/fondo-tiempo/materias', icon: BookOpenIcon, label: 'Materias', roles: ['director', 'jefe_estudios'], superuser: true },
     ]
   };

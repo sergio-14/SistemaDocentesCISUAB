@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
 import { puedeCrearFondoTiempo } from '../utils/fondoTiempoPermissions';
+import { ETIQUETAS_DEDICACION } from '../utils/dedicaciones';
 
 // debug: ayuda a asegurar que esta versión se está usando
 console.log('FondoTiempoDocente component loaded (redesign v2).');
@@ -19,7 +20,7 @@ const ArrowLeftIcon = (props) => (
     </svg>
 );
 
-const FondoTiempoDocente = ({ isDark }) => {
+const FondoTiempoDocente = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const [docente, setDocente] = useState(null);
@@ -62,8 +63,8 @@ const FondoTiempoDocente = ({ isDark }) => {
 
                 if (cancelado) return;
 
-                const fondosParams = calendarioData?.id
-                    ? { docente: id, calendario: calendarioData.id }
+                const fondosParams = calendarioData?.gestion
+                    ? { docente: id, gestion: calendarioData.gestion }
                     : { docente: id };
                 const fondosRes = await api.get('/fondos-tiempo/', { params: fondosParams });
 
@@ -77,8 +78,7 @@ const FondoTiempoDocente = ({ isDark }) => {
                 console.error("Error al cargar datos:", error);
                 toast.error("Error al cargar la información del docente.");
             } finally {
-                if (cancelado) return;
-                setLoading(false);
+                if (!cancelado) setLoading(false);
             }
         };
 
@@ -128,19 +128,11 @@ const FondoTiempoDocente = ({ isDark }) => {
     // categoria y dedicacion ahora vienen del primer vínculo
     const primerVinculo = docente?.vinculos?.[0] || null;
     const categoria = primerVinculo?.categoria || 'N/A';
-    const dedicacionLabels = {
-        tiempo_completo: 'Tiempo Completo',
-        medio_tiempo: 'Medio Tiempo',
-        horario_16: 'Horario 16hrs/sem',
-        horario_24: 'Horario 24hrs/sem',
-        horario_40: 'Horario 40hrs/sem',
-        horario_48: 'Horario 48hrs/sem',
-    };
     const dedicacion = primerVinculo?.dedicacion || 'N/A';
-    const dedicacionLabel = dedicacionLabels[dedicacion] || dedicacion;
+    const dedicacionLabel = ETIQUETAS_DEDICACION[dedicacion] || dedicacion;
     const puedeCrear = puedeCrearFondoTiempo(user);
-    const tieneFondoPeriodoActivo = Boolean(calendarioActivo?.id && fondos.length > 0);
-    const puedeCrearNuevoFondo = puedeCrear && !tieneFondoPeriodoActivo;
+    const tieneFondoGestionActiva = Boolean(calendarioActivo?.id && fondos.length > 0);
+    const puedeCrearNuevoFondo = puedeCrear && !tieneFondoGestionActiva;
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -179,7 +171,7 @@ const FondoTiempoDocente = ({ isDark }) => {
 
                         {/* Botón Acción */}
                         {puedeCrearNuevoFondo && (
-                            <button
+                            <button data-escritura
                                 onClick={() => navigate('/fondo-tiempo/nuevo-fondo', { state: { docenteId: docente?.id, docenteNombre: nombreCompleto || 'Sin nombre' } })}
                                 className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
                             >
@@ -217,7 +209,7 @@ const FondoTiempoDocente = ({ isDark }) => {
                                         >
                                             <div className="flex justify-between items-start mb-3">
                                                 <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800">
-                                                    {fondo.gestion} - {fondo.periodo}
+                                                    Gestión {fondo.gestion}
                                                 </span>
                                                 <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
                                                     fondo.estado === 'validado' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800' :
@@ -229,7 +221,7 @@ const FondoTiempoDocente = ({ isDark }) => {
                                             </div>
 
                                             <h3 className="text-base font-bold text-slate-800 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
-                                                {fondo.asignatura || 'Sin asignatura definida'}
+                                                {fondo.descripcion}
                                             </h3>
 
                                             <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">

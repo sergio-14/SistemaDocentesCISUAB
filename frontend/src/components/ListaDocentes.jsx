@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { FaChevronLeft, FaChevronRight, FaEdit, FaTrash, FaExclamationTriangle } from 'react-icons/fa';
+import { FaChevronLeft, FaChevronRight, FaEdit, FaEye, FaTrash } from 'react-icons/fa';
 import { getDocentes } from '../apis/api';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
@@ -10,6 +10,11 @@ import {
   sanitizeApiErrors,
   ERROR_SHAKE_DURATION_MS,
 } from '../utils/formErrors';
+import { DEDICACIONES_HORARIO, ETIQUETAS_DEDICACION, describirDedicacion, horasSemanalesDedicacion } from '../utils/dedicaciones';
+import { hoyBolivia } from '../utils/fechas';
+import {
+  TOPE_HORAS_SEMANALES_FONDO, calcularAntiguedad, calcularHorasFondo, diasVacacionPorAntiguedad, inicioDeGestion,
+} from '../utils/horasFondo';
 
 // Normaliza mensajes de error confusos del backend (ej: """" no es una elección válida.")
 // a un texto claro y humano para selects como Dedicación/Categoría.
@@ -58,6 +63,19 @@ function parseDisplayDate(display) {
   return d;
 }
 
+// Fecha de ingreso obligatoria (la real de planilla de RR.HH.), no futura según la
+// hora de Bolivia y no anterior a la fundación de la UABJB. Las fechas 'YYYY-MM-DD'
+// se comparan como texto.
+const FECHA_FUNDACION_UABJB = '1967-11-18';
+function validarFechaIngreso(fecha) {
+  if (!fecha) return 'La fecha de ingreso es obligatoria: use la fecha de la planilla de RR.HH.';
+  if (fecha > hoyBolivia()) return 'La fecha de ingreso no puede ser una fecha futura.';
+  if (fecha < FECHA_FUNDACION_UABJB) {
+    return 'La fecha de ingreso no puede ser anterior a la fundación de la UABJB (18 de noviembre de 1967).';
+  }
+  return null;
+}
+
 function FechaIngresoPicker({ value, onChange, error }) {
   const [open, setOpen] = useState(false);
   const [openQuickPicker, setOpenQuickPicker] = useState(null);
@@ -65,7 +83,7 @@ function FechaIngresoPicker({ value, onChange, error }) {
   const [isPulsing, setIsPulsing] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const selectedDate = parseIsoDate(value);
-    const today = new Date();
+    const today = parseIsoDate(hoyBolivia());
     return selectedDate ? new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1) : new Date(today.getFullYear(), today.getMonth(), 1);
   });
   const [draftDay, setDraftDay] = useState(null);
@@ -105,7 +123,7 @@ function FechaIngresoPicker({ value, onChange, error }) {
 
   const year = visibleMonth.getFullYear();
   const month = visibleMonth.getMonth();
-  const today = new Date();
+  const today = parseIsoDate(hoyBolivia());
   const currentYearRef = today.getFullYear();
   const minYear = 1967; // Año de fundación de la UABJB
   const startYear = minYear;
@@ -260,7 +278,7 @@ function FechaIngresoPicker({ value, onChange, error }) {
                   setOpenQuickPicker((prev) => (prev === 'year' ? null : 'year'));
                 }}
                 className={`w-full h-8 text-left pl-2.5 pr-8 rounded-xl border bg-white dark:bg-slate-800 text-xs shadow-sm ${openQuickPicker === 'year' ? 'border-cyan-500/80 dark:border-cyan-500 ring-2 ring-cyan-400/40 dark:ring-cyan-500/35 text-slate-900 dark:text-slate-100' : 'border-cyan-300/70 dark:border-cyan-700/80 hover:border-cyan-500/70 dark:hover:border-cyan-500/80 text-slate-800 dark:text-slate-100'}`}
-                aria-label="Seleccionar a+�o"
+                aria-label="Seleccionar año"
               >
                 <span className="block truncate font-semibold">{hasSelectedYear && draftYear !== null ? draftYear : year}</span>
                 <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
@@ -342,7 +360,7 @@ function FechaIngresoPicker({ value, onChange, error }) {
   );
 }
 
-// Componente Select con dise+�o personalizado (mismo estilo que FechaIngresoPicker)
+// Componente Select con diseño personalizado (mismo estilo que FechaIngresoPicker)
 const SelectConDropdown = ({
   label,
   value,
@@ -427,7 +445,7 @@ const SelectConDropdown = ({
         </span>
       </label>
       
-      {/* Bot+�n principal */}
+      {/* Botón principal */}
       <div className={`relative w-full rounded-xl border-2 bg-slate-50 dark:bg-slate-700 shadow-sm ${disabled ? 'opacity-70' : ''} ${error ? '!border-red-600 dark:!border-red-500 ring-1 ring-inset ring-red-500/50' : open ? 'border-[#3A56AF] dark:border-[#3A56AF]' : 'border-slate-300 dark:border-slate-600'} ${containerClassName} ${isPulsing ? 'animate-field-error-shake' : ''}`}>
         <button
           type="button"
@@ -456,7 +474,7 @@ const SelectConDropdown = ({
         </button>
       </div>
 
-      {/* Men+� desplegable */}
+      {/* Menú desplegable */}
       {open && menuStyle && createPortal(
         <div ref={menuRef} className="rounded-xl border-2 border-[#3A56AF] bg-white dark:bg-slate-900 shadow-xl" style={menuStyle}>
           <div className={`p-2 ${menuClassName}`}>
@@ -690,6 +708,15 @@ const SearchInput = ({ value, onChange, placeholder = 'Buscar por nombre o C.I..
   );
 };
 
+const OPCIONES_CONDICION = [
+  { value: 'titular', label: 'Titular' },
+  { value: 'invitado', label: 'Invitado' },
+];
+
+// Cargos de gestión: con docencia solo admiten dedicación a Tiempo Horario.
+const ROLES_CARGO = ['director', 'jefe_estudios', 'iiisyp'];
+const DEDICACIONES_FICHA = ['tiempo_completo', 'medio_tiempo', ...DEDICACIONES_HORARIO];
+
 const dedicacionStyles = {
   tiempo_completo: {
     bg: 'bg-blue-50 dark:bg-blue-900/10',
@@ -774,42 +801,21 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     [nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(' ').trim();
 
   /**
-   * Calcula horas efectivas anuales reales según dedicación y fecha de ingreso.
-   * Replica la lógica del backend (FondoTiempo._recalcular_horas_automaticas).
+   * Horas efectivas anuales según dedicación y fecha de ingreso, con el mismo
+   * cálculo que el backend (calcular_horas_fondo): utils/horasFondo.js.
+   * Con un cargo de gestión la jornada contractual es la del cargo (40 h/sem).
    */
-  const calcularHorasEfectivas = (dedicacion, fechaIngreso, gestion = null) => {
-    const mapaHorasSemanales = {
-      tiempo_completo: 40,
-      medio_tiempo: 20,
-      horario_16: 16,
-      horario_24: 24,
-      horario_40: 40,
-      horario_48: 48,
-    };
-    const horasSemanales = mapaHorasSemanales[dedicacion];
-    if (!horasSemanales) return null;
+  const calcularHorasEfectivas = (dedicacion, fechaIngreso, { tieneRolGestion = false, diasFeriados = 0, fechaReferencia = null } = {}) => {
+    const horasDedicacion = horasSemanalesDedicacion(dedicacion);
+    if (!horasDedicacion) return null;
+    const antiguedad = calcularAntiguedad(fechaIngreso, fechaReferencia);
+    if (antiguedad === null) return null;
 
-    // Calcular antigüedad
-    const fechaIng = fechaIngreso ? new Date(fechaIngreso + 'T00:00:00') : null;
-    if (!fechaIng || isNaN(fechaIng)) return null;
-
-    const gestionActual = gestion || new Date().getFullYear();
-    const antiguedad = Math.max(0, gestionActual - fechaIng.getFullYear());
-
-    // Días de vacaciones según antigüedad
-    let diasVacacion;
-    if (antiguedad >= 10) diasVacacion = 30;
-    else if (antiguedad >= 5) diasVacacion = 20;
-    else diasVacacion = 15;
-
-    // Cálculo de horas
-    const contratoHoras = horasSemanales * 52;
-    const horasDiarias = horasSemanales / 5;
-    const horasVacacion = diasVacacion * horasDiarias;
-    const horasFeriados = 16 * horasDiarias; // 16 días feriados estándar
-    const horasEfectivas = contratoHoras - horasVacacion - horasFeriados;
-
-    return Math.max(Math.floor(horasEfectivas), 0);
+    const horasSemana = Math.min(
+      tieneRolGestion ? Math.max(horasDedicacion, TOPE_HORAS_SEMANALES_FONDO) : horasDedicacion,
+      TOPE_HORAS_SEMANALES_FONDO,
+    );
+    return calcularHorasFondo(horasSemana, diasVacacionPorAntiguedad(antiguedad), diasFeriados).horas_efectivas;
   };
 
   // Obtener roles combinados del docente (solo roles extra, sin docente)
@@ -846,6 +852,8 @@ function ListaDocentes({ sidebarCollapsed = false }) {
 
   // Modal de crear/editar
   const [showModal, setShowModal] = useState(false);
+  // El Director ve la ficha de los docentes de su carrera sin poder editarla.
+  const [fichaSoloLectura, setFichaSoloLectura] = useState(false);
   const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
 
   // Formulario
@@ -864,12 +872,47 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     categoria: 'catedratico',
     condicion: '',
     dedicacion: 'tiempo_completo',
-    fecha_ingreso: new Date().toISOString().split('T')[0],
+    fecha_ingreso: '',
     email: '',
     telefono: '',
     horas_contrato_semanales: null,
     activo: true,
   });
+
+  // La antigüedad del fondo se mide al inicio de la gestión: el calendario más temprano
+  // de la carrera en la gestión del calendario activo (inicioDeGestion, igual que el
+  // backend). Los días de feriado son los de esa gestión (iguales en sus calendarios).
+  const [fechaInicioGestion, setFechaInicioGestion] = useState(null);
+  const [diasFeriadosGestion, setDiasFeriadosGestion] = useState(0);
+  const [sinCalendarioActivo, setSinCalendarioActivo] = useState(false);
+  useEffect(() => {
+    setFechaInicioGestion(null);
+    setDiasFeriadosGestion(0);
+    setSinCalendarioActivo(false);
+    if (!formData.carrera) return undefined;
+    let vigente = true;
+    api.get('/calendarios/', { params: { carrera: formData.carrera } })
+      .then((response) => {
+        if (!vigente) return;
+        const calendarios = response.data?.results || response.data || [];
+        const gestion = calendarios.find((calendario) => calendario.activo)?.gestion;
+        if (!gestion) {
+          // Sin calendario activo: se usa el 1 de enero, igual que un fondo sin calendarios.
+          setSinCalendarioActivo(true);
+          return;
+        }
+        const deLaGestion = calendarios.filter((calendario) => calendario.gestion === gestion);
+        setFechaInicioGestion(inicioDeGestion(deLaGestion.map((calendario) => calendario.fecha_inicio), gestion));
+        setDiasFeriadosGestion(Number(deLaGestion[0]?.dias_feriados_gestion) || 0);
+      })
+      .catch(() => {
+        if (vigente) setSinCalendarioActivo(true);
+      });
+    return () => { vigente = false; };
+  }, [formData.carrera]);
+  const avisoFeriados = sinCalendarioActivo
+    ? 'No hay calendario activo en la carrera: las horas efectivas no descuentan feriados.'
+    : '';
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -881,7 +924,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
   const [isCreating, setIsCreating] = useState(false);
   const [buscarUsuario, setBuscarUsuario] = useState('');
   const [abrirDesdeUsuarios, setAbrirDesdeUsuarios] = useState(false);
-  const [flujoDesdeUsuarios, setFlujoDesdeUsuarios] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCarrera, setSelectedCarrera] = useState('');
   const [showUserInfo, setShowUserInfo] = useState(false);
@@ -971,10 +1013,9 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     const userData = JSON.parse(localStorage.getItem('user') || 'null');
     setUser(userData);
     
-    // ���� Detectar si venimos desde "Crear Usuario" para abrir modal
+    // Detectar si venimos desde "Crear Usuario" para abrir modal
     const abrirModal = sessionStorage.getItem('abrirModalDesdeUsuarios');
     if (abrirModal === 'true') {
-      const flujo = sessionStorage.getItem('flujoDocenteDesdeUsuarios') || null;
       const datosDocenteGuardados = sessionStorage.getItem('datosCrearDocente');
       if (datosDocenteGuardados) {
         try {
@@ -993,7 +1034,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
           console.error('Error al recuperar datos de docente:', e);
         }
       }
-      setFlujoDesdeUsuarios(flujo);
       setAbrirDesdeUsuarios(true);
       setIsCreating(true);
       sessionStorage.removeItem('abrirModalDesdeUsuarios');
@@ -1163,7 +1203,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       categoria: '',
       condicion: '',
       dedicacion: '',
-      fecha_ingreso: new Date().toISOString().split('T')[0],
+      fecha_ingreso: '',
       email: '',
       telefono: '',
       horas_contrato_semanales: null,
@@ -1192,7 +1232,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     setIsCreating(!isCreating);
     if (isCreating) {
       setAbrirDesdeUsuarios(false);
-      setFlujoDesdeUsuarios(null);
     }
   };
 
@@ -1218,7 +1257,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       rol: 'docente',
       carrera: formData.carrera || '',
       docente: '',
-      docente_data: null,
       password: '',
       password_confirm: '',
     }));
@@ -1305,7 +1343,8 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     });
   };
 
-  const abrirModalEditar = (docente) => {
+  const abrirModalEditar = (docente, { soloLectura = false } = {}) => {
+    setFichaSoloLectura(soloLectura);
     setDocenteSeleccionado(docente);
     setFormData({
       user: docente.user_id || docente.usuario_id || '',
@@ -1324,9 +1363,9 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       carrera: docente.vinculos?.[0]?.carrera || '',
       ci: docente.ci,
       categoria: docente.vinculos?.[0]?.categoria || '',
-      condicion: '',
+      condicion: docente.vinculos?.[0]?.condicion || '',
       dedicacion: docente.vinculos?.[0]?.dedicacion || '',
-      fecha_ingreso: docente.fecha_ingreso || new Date().toISOString().split('T')[0],
+      fecha_ingreso: docente.fecha_ingreso || '',
       email: docente.email || '',
       telefono: docente.telefono || '',
       horas_contrato_semanales: null,
@@ -1408,27 +1447,17 @@ function ListaDocentes({ sidebarCollapsed = false }) {
   const usuarioTieneRol = (usuarioItem, rolBuscado) =>
     getRolesActivosUsuario(usuarioItem).includes(String(rolBuscado || '').trim().toLowerCase());
 
-  const getDedicacionPermitidaParaUsuario = (usuarioItem, dedicacionActual = '') => {
-    const tieneRolDirector = usuarioTieneRol(usuarioItem, 'director');
-    const tieneRolJefeEstudios = usuarioTieneRol(usuarioItem, 'jefe_estudios');
-    const tieneRolIisyp = usuarioTieneRol(usuarioItem, 'iiisyp');
-    const tieneRolDocente = usuarioTieneRol(usuarioItem, 'docente');
-    const dedicacion = String(dedicacionActual || '');
-
-    if (tieneRolDirector && !tieneRolDocente && !tieneRolJefeEstudios && !tieneRolIisyp) {
-      return 'dedicacion_exclusiva';
-    }
-
-    if ((tieneRolJefeEstudios || tieneRolIisyp) && !tieneRolDocente && !tieneRolDirector) {
-      return 'tiempo_completo';
-    }
-
-    if (tieneRolDocente && !['horario_16', 'horario_24', 'horario_40', 'horario_48'].includes(dedicacion)) {
-      return 'horario_40';
-    }
-
-    return dedicacionActual;
+  // Solo docente: Tiempo Completo, Medio Tiempo u Horario. Con un cargo: solo Horario.
+  // La dedicación exclusiva no va en la ficha (es del Director sin docencia, que no la tiene).
+  const getDedicacionesPermitidas = (usuarioItem) => {
+    if (!usuarioItem) return [];
+    const tieneCargo = ROLES_CARGO.some((rol) => usuarioTieneRol(usuarioItem, rol));
+    return tieneCargo ? DEDICACIONES_HORARIO : DEDICACIONES_FICHA;
   };
+
+  const getDedicacionPermitidaParaUsuario = (usuarioItem, dedicacionActual = '') => (
+    getDedicacionesPermitidas(usuarioItem).includes(String(dedicacionActual || '')) ? dedicacionActual : ''
+  );
 
   const usuarioTienePerfilDocente = (usuarioItem) => Boolean(
     usuarioItem?.perfil?.docente_id || usuarioItem?.perfil?.docente
@@ -1579,7 +1608,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     : usuariosFiltradosAutocomplete.slice(0, 5);
 
   const usuarioSeleccionado = usuarios.find((usuarioItem) => String(usuarioItem.id) === String(formData.user || ''));
-  const usuarioFormularioTieneRolGestion = ['director', 'jefe_estudios', 'iiisyp'].some((rol) =>
+  const usuarioFormularioTieneRolGestion = ROLES_CARGO.some((rol) =>
     usuarioTieneRol(usuarioSeleccionado, rol)
   );
   const usuarioFormularioTieneRolDirector = usuarioTieneRol(usuarioSeleccionado, 'director');
@@ -1590,22 +1619,15 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     && !usuarioFormularioTieneRolDocente
     && !usuarioFormularioTieneRolJefeEstudios
     && !usuarioFormularioTieneRolIisyp;
-  const dedicacionEsTiempoHorario = ['horario_16', 'horario_24', 'horario_40', 'horario_48'].includes(String(formData.dedicacion || ''));
+  const dedicacionEsTiempoHorario = DEDICACIONES_HORARIO.includes(String(formData.dedicacion || ''));
   const esDedicacionExclusiva = formData.dedicacion === 'dedicacion_exclusiva';
   const mostrarAdvertenciaGestion = usuarioFormularioTieneRolGestion && showGestionWarningVisible && !dedicacionEsTiempoHorario && !esDedicacionExclusiva;
-  const opcionesDedicacion = [
-    { value: 'tiempo_completo', label: 'Tiempo Completo' },
-    { value: 'medio_tiempo', label: 'Medio Tiempo' },
-    { value: 'horario_16', label: 'Horario 16hrs/sem' },
-    { value: 'horario_24', label: 'Horario 24hrs/sem' },
-    { value: 'horario_40', label: 'Horario 40hrs/sem' },
-    { value: 'horario_48', label: 'Horario 48hrs/sem' },
-    { value: 'dedicacion_exclusiva', label: 'Dedicacion Exclusiva' },
-  ].filter((opcion) => (
-    usuarioFormularioTieneRolDocente
-      ? ['horario_16', 'horario_24', 'horario_40', 'horario_48'].includes(opcion.value)
-      : (!usuarioFormularioTieneRolGestion || opcion.value !== 'dedicacion_exclusiva')
-  ));
+  // Nuevo docente sin usuario seleccionado: sin opciones (el campo queda deshabilitado).
+  // Al editar una ficha sin usuario cargado se ofrecen todas las de la ficha.
+  const opcionesDedicacion = (usuarioSeleccionado || isCreating
+    ? getDedicacionesPermitidas(usuarioSeleccionado)
+    : DEDICACIONES_FICHA
+  ).map((value) => ({ value, label: ETIQUETAS_DEDICACION[value] }));
   const carrerasUsuarioSeleccionado = getCarrerasUsuario(usuarioSeleccionado);
   const carreraSeleccionadaNombre = carrerasUsuarioSeleccionado.length > 0
     ? carrerasUsuarioSeleccionado.join('\n')
@@ -1633,13 +1655,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       return (prev + 1) % mensajesInfoEdicion.length;
     });
   };
-  const horasSemanalesDerivadas = formData.dedicacion === 'tiempo_completo' ? 40
-    : formData.dedicacion === 'medio_tiempo' ? 20
-    : formData.dedicacion === 'horario_16' ? 16
-    : formData.dedicacion === 'horario_24' ? 24
-    : formData.dedicacion === 'horario_40' ? 40
-    : formData.dedicacion === 'horario_48' ? 48
-    : '';
+  const horasSemanalesDerivadas = horasSemanalesDedicacion(formData.dedicacion) || '';
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
@@ -1691,24 +1707,12 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       return;
     }
 
-    // Validación de fecha_ingreso
-    if (formData.fecha_ingreso) {
-      const fechaIngreso = new Date(formData.fecha_ingreso + 'T00:00:00');
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      const fundacionUABJB = new Date(1967, 10, 18); // 18 de noviembre de 1967
-      if (fechaIngreso > hoy) {
-        setErrors((prev) => ({ ...prev, fecha_ingreso: ['La fecha de ingreso no puede ser una fecha futura.'] }));
-        toast.error('La fecha de ingreso no puede ser una fecha futura.');
-        setIsSubmitting(false);
-        return;
-      }
-      if (fechaIngreso < fundacionUABJB) {
-        setErrors((prev) => ({ ...prev, fecha_ingreso: ['La fecha de ingreso no puede ser anterior a la fundación de la UABJB (18 de noviembre de 1967).'] }));
-        toast.error('La fecha de ingreso no puede ser anterior a la fundación de la UABJB (18 de noviembre de 1967).');
-        setIsSubmitting(false);
-        return;
-      }
+    const errorFechaIngreso = validarFechaIngreso(formData.fecha_ingreso);
+    if (errorFechaIngreso) {
+      setErrors((prev) => ({ ...prev, fecha_ingreso: [errorFechaIngreso] }));
+      toast.error(errorFechaIngreso);
+      setIsSubmitting(false);
+      return;
     }
 
     try {
@@ -1718,11 +1722,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       payload.apellido_paterno = nombresSplit.apellido_paterno;
       payload.apellido_materno = nombresSplit.apellido_materno;
       payload.ci = ciNormalizado;
-      delete payload.condicion;
       delete payload.nombre_completo;
-      if (usuarioFormularioSoloDirector) {
-        payload.dedicacion = 'dedicacion_exclusiva';
-      }
       if (payload.email === '') payload.email = null;
       if (payload.telefono === '') payload.telefono = null;
       payload.user = Number(formData.user);
@@ -1803,23 +1803,19 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       return;
     }
 
-    if (formData.fecha_ingreso) {
-      const fechaIngreso = new Date(formData.fecha_ingreso + 'T00:00:00');
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      const fundacionUABJB = new Date(1967, 10, 18);
-      if (fechaIngreso > hoy) {
-        setErrors((prev) => ({ ...prev, fecha_ingreso: ['La fecha de ingreso no puede ser una fecha futura.'] }));
-        toast.error('La fecha de ingreso no puede ser una fecha futura.');
-        setIsSubmitting(false);
-        return;
-      }
-      if (fechaIngreso < fundacionUABJB) {
-        setErrors((prev) => ({ ...prev, fecha_ingreso: ['La fecha de ingreso no puede ser anterior a la fundación de la UABJB (18 de noviembre de 1967).'] }));
-        toast.error('La fecha de ingreso no puede ser anterior a la fundación de la UABJB (18 de noviembre de 1967).');
-        setIsSubmitting(false);
-        return;
-      }
+    if (!formData.condicion) {
+      setErrors((prev) => ({ ...prev, condicion: ['Seleccione la condición (titular o invitado).'] }));
+      toast.error('Seleccione la condición (titular o invitado).');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const errorFechaIngreso = validarFechaIngreso(formData.fecha_ingreso);
+    if (errorFechaIngreso) {
+      setErrors((prev) => ({ ...prev, fecha_ingreso: [errorFechaIngreso] }));
+      toast.error(errorFechaIngreso);
+      setIsSubmitting(false);
+      return;
     }
 
     try {
@@ -1835,7 +1831,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       payload.apellido_paterno = nombresSplit.apellido_paterno;
       payload.apellido_materno = nombresSplit.apellido_materno;
       delete payload.cargo_profesional;
-      delete payload.condicion;
       delete payload.nombre_completo;
       if (usuarioFormularioSoloDirector) {
         payload.dedicacion = 'dedicacion_exclusiva';
@@ -1892,11 +1887,11 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     } catch (err) {
       console.error('Error al eliminar docente:', err);
       
-      // Capturar mensaje de error espec+�fico del backend
+      // Capturar mensaje de error específico del backend
       let errorMessage = 'Error al eliminar el docente';
       
       if (err.response && err.response.data && err.response.data.error) {
-        // Backend devolvi+� un error espec+�fico
+        // Backend devolvió un error específico
         errorMessage = err.response.data.error;
       } else if (err.response && err.response.data && err.response.data.detail) {
         errorMessage = err.response.data.detail;
@@ -1910,11 +1905,15 @@ function ListaDocentes({ sidebarCollapsed = false }) {
 
   // iiisyp es solo lectura: solo superuser y director pueden crear/editar/eliminar
   const esAdmin = () => user?.is_superuser || (user?.perfil?.rol === 'director');
+  // Editar y eliminar fichas: solo el superusuario (igual que el backend).
+  const esSuperusuario = Boolean(user?.is_superuser);
   const docenteVinculadoAUsuario = Boolean(docenteSeleccionado?.usuario_id);
-  const horasDeclaradasDocente = Number(docenteSeleccionado?.horas_declaradas || 0);
-  const fondosValidadosDocente = Number(docenteSeleccionado?.fondos_validados || 0);
-  const docenteTieneHistorial = horasDeclaradasDocente > 0 || fondosValidadosDocente > 0;
-  const tooltipBloqueoHistorial = 'No editable: existe historial de horas declaradas';
+  // Misma regla que el backend: con historial (fondo presentado, evidencias o informes) la
+  // ficha queda fija; con fondos, cargas o saldos la carrera no cambia.
+  const docenteTieneHistorial = Boolean(docenteSeleccionado?.tiene_historial);
+  const docenteTieneRegistros = Boolean(docenteSeleccionado?.tiene_registros);
+  const tooltipBloqueoHistorial = 'No editable: el docente tiene un Fondo de Tiempo presentado, evidencias o informes';
+  const tooltipBloqueoCarrera = 'No editable: el docente tiene fondos, cargas o saldos en su carrera';
   const tooltipDatosUsuarios = 'Estos datos se gestionan desde Usuarios';
   const estiloBloqueado = 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-100 border-slate-500 dark:border-slate-600';
   const estiloAdvertenciaEditable = 'border-amber-300 dark:border-amber-700';
@@ -2063,9 +2062,11 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                             if (!searchMode) {
                               setSearchMode(true);
                               e.preventDefault();
+                              // Guardar el input antes: dentro del setTimeout, e.currentTarget ya es null.
+                              const el = e.currentTarget;
                               setTimeout(() => {
-                                const el = e.currentTarget;
-                                try { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } catch (_) {}
+                                el.focus();
+                                el.setSelectionRange(el.value.length, el.value.length);
                               }, 0);
                               return;
                             }
@@ -2184,6 +2185,8 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                         value={formData.dedicacion}
                         onChange={handleChange}
                         options={opcionesDedicacion}
+                        disabled={!usuarioSeleccionado}
+                        lockTooltip="Seleccione primero un usuario"
                         menuClassName="overflow-visible"
                         error={errors.dedicacion}
                       />
@@ -2225,10 +2228,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                             inputClassName="max-w-[267px]"
                           />
                           <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
-                            {formData.dedicacion === 'horario_16' && 'Este docente trabaja 16 horas por semana.'}
-                            {formData.dedicacion === 'horario_24' && 'Este docente trabaja 24 horas por semana.'}
-                            {formData.dedicacion === 'horario_40' && 'Este docente trabaja 40 horas por semana.'}
-                            {formData.dedicacion === 'horario_48' && 'Este docente trabaja 48 horas por semana.'}
+                            {describirDedicacion(formData.dedicacion)}
                             {(formData.dedicacion === 'tiempo_completo' || formData.dedicacion === 'medio_tiempo')
                               && 'Horas semanales fijas por reglamento.'}
                           </p>
@@ -2258,7 +2258,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                                 Cargos de gestión solo compatibles con docencia a Tiempo Horario.
                               </p>
                               <p className="text-xs leading-5 text-blue-800 dark:text-blue-400">
-                                Usuarios con rol de Director, Jefe de Estudios o Instituto solo pueden usar: 16, 24, 40 o 48 hrs/sem. TC y MT no aplican.
+                                Usuarios con rol de Director, Jefe de Estudios o Instituto solo pueden usar Tiempo Horario: 16, 24, 40 o 48 hrs/mes. TC y MT no aplican.
                               </p>
                             </div>
                           </div>
@@ -2269,7 +2269,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                     <div
                       className={`overflow-hidden transition-all duration-500 ease-out ${
                         showDedicacionInfo && formData.dedicacion
-                          ? 'max-h-[220px] opacity-100 translate-y-0'
+                          ? 'max-h-[280px] opacity-100 translate-y-0'
                           : 'max-h-0 opacity-0 -translate-y-1 pointer-events-none'
                       }`}
                     >
@@ -2285,20 +2285,13 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                             <h5 className={`text-sm font-semibold ${dedicacionStyles[formData.dedicacion]?.title}`}>Informacion sobre Dedicacion</h5>
                             <p className={`text-xs leading-5 mt-1 ${dedicacionStyles[formData.dedicacion]?.text}`}>
                               {(() => {
-                                const horas = calcularHorasEfectivas(formData.dedicacion, formData.fecha_ingreso);
-                                const antiguedad = formData.fecha_ingreso
-                                  ? Math.max(0, new Date().getFullYear() - new Date(formData.fecha_ingreso + 'T00:00:00').getFullYear())
-                                  : 0;
-                                const dedicacionLabels = {
-                                  tiempo_completo: 'Tiempo Completo',
-                                  medio_tiempo: 'Medio Tiempo',
-                                  horario_16: 'Horario 16hrs/sem',
-                                  horario_24: 'Horario 24hrs/sem',
-                                  horario_40: 'Horario 40hrs/sem',
-                                  horario_48: 'Horario 48hrs/sem',
-                                  dedicacion_exclusiva: 'Dedicacion Exclusiva',
-                                };
-                                const label = dedicacionLabels[formData.dedicacion] || formData.dedicacion;
+                                const horas = calcularHorasEfectivas(formData.dedicacion, formData.fecha_ingreso, {
+                                  tieneRolGestion: usuarioFormularioTieneRolGestion,
+                                  diasFeriados: diasFeriadosGestion,
+                                  fechaReferencia: fechaInicioGestion,
+                                });
+                                const antiguedad = calcularAntiguedad(formData.fecha_ingreso, fechaInicioGestion) ?? 0;
+                                const label = ETIQUETAS_DEDICACION[formData.dedicacion] || formData.dedicacion;
                                 if (formData.dedicacion === 'dedicacion_exclusiva') {
                                   return 'Docente con dedicacion exclusiva - exento de distribucion de tiempo';
                                 }
@@ -2308,6 +2301,11 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                                 return `${label}: complete la fecha de ingreso para calcular las horas efectivas.`;
                               })()}
                             </p>
+                            {avisoFeriados && formData.dedicacion !== 'dedicacion_exclusiva' && (
+                              <p className="text-xs leading-5 mt-1.5 font-semibold text-amber-700 dark:text-amber-300">
+                                {avisoFeriados}
+                              </p>
+                            )}
                           </div>
                         </div>
                         </div>
@@ -2328,7 +2326,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                       navigate('/usuarios');
                     } else {
                       setIsCreating(false);
-                      setFlujoDesdeUsuarios(null);
                     }
                   }}
                   className="px-6 py-2.5 rounded-xl font-bold text-slate-700 dark:text-slate-300 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
@@ -2385,39 +2382,39 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                           <h3 className={`text-lg font-bold truncate ${docente.activo ? 'text-blue-600 dark:text-white' : 'text-red-700 dark:text-red-300'}`}>
                             {docente.usuario_nombre || docente.nombre_completo}
                           </h3>
-                          {!docente.usuario_id && (
-                            <button
-                              type="button"
-                              onClick={() => handleCrearCuentaParaDocente(docente)}
-                              className="mt-1 text-sm font-semibold text-red-600 transition-colors hover:text-red-700 hover:underline dark:text-red-400 dark:hover:text-red-300"
-                            >
-                              <span className="inline-flex items-center gap-1">
-                                <FaExclamationTriangle className="text-amber-500" size={12} />
-                                Sin Cuenta
-                              </span>
-                            </button>
-                          )}
                         </div>
                       </div>
-                      {/* Botones de acción - Solo admin */}
-                      {esAdmin() && (() => {
-                        const blockedBtn = (docente?.horas_declaradas || 0) > 0 || (docente?.fondos_validados || 0) > 0;
-                        const titleMsg = blockedBtn ? 'Acción deshabilitada: existe historial operativo' : '';
+                      {/* Director: ver la ficha (solo lectura) */}
+                      {!esSuperusuario && esAdmin() && (
+                        <div className="flex gap-3 flex-shrink-0">
+                          <button
+                            onClick={() => abrirModalEditar(docente, { soloLectura: true })}
+                            className="text-blue-500 hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300 transition-all duration-200 hover:scale-110"
+                            title="Ver ficha"
+                          >
+                            <FaEye size={18} />
+                          </button>
+                        </div>
+                      )}
+                      {/* Superusuario: editar (sin historial) y eliminar (sin fondos, cargas ni saldos) */}
+                      {esSuperusuario && (() => {
+                        const bloqueoEditar = Boolean(docente?.tiene_historial);
+                        const bloqueoEliminar = Boolean(docente?.tiene_registros);
                         return (
                           <div className="flex gap-3 flex-shrink-0">
                             <button
-                              onClick={() => !blockedBtn && abrirModalEditar(docente)}
-                              disabled={blockedBtn}
-                              className={`text-blue-500 ${blockedBtn ? 'opacity-50 cursor-not-allowed' : 'hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300'} transition-all duration-200 ${blockedBtn ? '' : 'hover:scale-110'}`}
-                              title={titleMsg || 'Editar'}
+                              onClick={() => !bloqueoEditar && abrirModalEditar(docente)}
+                              disabled={bloqueoEditar}
+                              className={`text-blue-500 ${bloqueoEditar ? 'opacity-50 cursor-not-allowed' : 'hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300 hover:scale-110'} transition-all duration-200`}
+                              title={bloqueoEditar ? 'Ficha fija: el docente tiene un Fondo de Tiempo presentado, evidencias o informes' : 'Editar'}
                             >
                               <FaEdit size={18} />
                             </button>
                             <button
-                              onClick={() => !blockedBtn && eliminarDocente(docente)}
-                              disabled={blockedBtn}
-                              className={`text-red-500 ${blockedBtn ? 'opacity-50 cursor-not-allowed' : 'hover:text-red-400 dark:text-red-400 dark:hover:text-red-300'} transition-all duration-200 ${blockedBtn ? '' : 'hover:scale-110'}`}
-                              title={titleMsg || 'Eliminar'}
+                              onClick={() => !bloqueoEliminar && eliminarDocente(docente)}
+                              disabled={bloqueoEliminar}
+                              className={`text-red-500 ${bloqueoEliminar ? 'opacity-50 cursor-not-allowed' : 'hover:text-red-400 dark:text-red-400 dark:hover:text-red-300 hover:scale-110'} transition-all duration-200`}
+                              title={bloqueoEliminar ? 'No se puede eliminar: el docente tiene fondos, cargas o saldos' : 'Eliminar'}
                             >
                               <FaTrash size={18} />
                             </button>
@@ -2447,19 +2444,17 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                     <div className="flex flex-wrap items-center gap-2">
                       {docente.activo ? (
                         <>
+                          {docente.vinculos?.[0] && (
+                          <>
                           <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-2 border-blue-300 dark:border-blue-700 shadow-sm">
                             {docente.vinculos?.[0]?.categoria === 'catedratico' ? 'Catedrático' :
                               docente.vinculos?.[0]?.categoria === 'adjunto' ? 'Adjunto' : 'Asistente'}
                           </span>
                           <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-2 border-green-300 dark:border-green-700 shadow-sm">
-                            {docente.vinculos?.[0]?.dedicacion === 'tiempo_completo' ? 'Tiempo Completo'
-                              : docente.vinculos?.[0]?.dedicacion === 'medio_tiempo' ? 'Medio Tiempo'
-                              : docente.vinculos?.[0]?.dedicacion === 'horario_16' ? 'Horario 16hrs/sem'
-                              : docente.vinculos?.[0]?.dedicacion === 'horario_24' ? 'Horario 24hrs/sem'
-                              : docente.vinculos?.[0]?.dedicacion === 'horario_40' ? 'Horario 40hrs/sem'
-                              : docente.vinculos?.[0]?.dedicacion === 'horario_48' ? 'Horario 48hrs/sem'
-                              : docente.vinculos?.[0]?.dedicacion}
+                            {ETIQUETAS_DEDICACION[docente.vinculos?.[0]?.dedicacion] || docente.vinculos?.[0]?.dedicacion}
                           </span>
+                          </>
+                          )}
                           {obtenerRolesDocente(docente) && (
                             <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-2 border-orange-300 dark:border-orange-700 shadow-sm">
                               {obtenerRolesDocente(docente)}
@@ -2512,10 +2507,11 @@ function ListaDocentes({ sidebarCollapsed = false }) {
             <div className="bg-[#2C4AAE] px-6 py-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  Editar Docente
+                  {fichaSoloLectura ? 'Ficha del Docente' : 'Editar Docente'}
                 </h2>
                 <button
                   type="button"
+                  disabled={fichaSoloLectura}
                   role="switch"
                   aria-checked={formData.activo}
                   aria-label={formData.activo ? 'Marcar docente como inactivo' : 'Marcar docente como activo'}
@@ -2546,7 +2542,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
 
             {/* Body */}
             <form id="editar-docente-form" onSubmit={handleUpdateSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50 dark:bg-slate-900 transition-all duration-300 ease-out">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <fieldset disabled={fichaSoloLectura} className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <InputField
                   label="Nombre completo"
                   name="nombre_completo"
@@ -2558,17 +2554,18 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                   lockTooltip={tooltipDatosUsuarios}
                   inputClassName={estiloBloqueado}
                 />
+                {/* El C.I. se puede corregir mientras el docente no tenga historial (fondo presentado, evidencias o informes). */}
                 <InputField
                   label="Cedula de Identidad (CI)"
                   name="ci"
                   value={formData.ci}
                   onChange={handleChange}
                   error={errors.ci}
-                  maxLength={15}
-                  readOnly
-                  showLock
-                  lockTooltip={tooltipDatosUsuarios}
-                  inputClassName={estiloBloqueado}
+                  maxLength={20}
+                  readOnly={docenteTieneHistorial}
+                  showLock={docenteTieneHistorial}
+                  lockTooltip={tooltipBloqueoHistorial}
+                  inputClassName={docenteTieneHistorial ? estiloBloqueado : ''}
                 />
                 <InputField
                   label="Email"
@@ -2589,10 +2586,10 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                   onChange={handleChange}
                   options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
                   error={errors.carrera}
-                  disabled={docenteTieneHistorial}
-                  showLock={docenteTieneHistorial}
-                  lockTooltip={tooltipBloqueoHistorial}
-                  containerClassName={docenteTieneHistorial ? estiloBloqueado : ''}
+                  disabled={docenteTieneRegistros}
+                  showLock={docenteTieneRegistros}
+                  lockTooltip={tooltipBloqueoCarrera}
+                  containerClassName={docenteTieneRegistros ? estiloBloqueado : ''}
                 />
                 {docenteTieneHistorial ? (
                   <div>
@@ -2661,6 +2658,15 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                     containerClassName={estiloAdvertenciaEditable}
                   />
                 )}
+                <SelectConDropdown
+                  label="Condicion"
+                  name="condicion"
+                  value={formData.condicion}
+                  onChange={handleChange}
+                  options={OPCIONES_CONDICION}
+                  error={errors.condicion}
+                  containerClassName={estiloAdvertenciaEditable}
+                />
                 <div className="md:col-span-2 grid grid-cols-1 gap-4 md:grid-cols-2 md:items-center">
                   <div className="min-w-0">
                     {!usuarioFormularioSoloDirector && (
@@ -2673,15 +2679,13 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                       />
                     )}
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
-                      {formData.dedicacion === 'horario_16' && 'Este docente trabaja 16 horas por semana.'}
-                      {formData.dedicacion === 'horario_24' && 'Este docente trabaja 24 horas por semana.'}
-                      {formData.dedicacion === 'horario_40' && 'Este docente trabaja 40 horas por semana.'}
-                      {formData.dedicacion === 'horario_48' && 'Este docente trabaja 48 horas por semana.'}
+                      {describirDedicacion(formData.dedicacion)}
                       {(formData.dedicacion === 'tiempo_completo' || formData.dedicacion === 'medio_tiempo')
                         && 'Horas semanales fijas por reglamento.'}
                     </p>
                   </div>
                 </div>
+                {!fichaSoloLectura && (
                 <div className="gestion-warning-accent md:col-span-2 slide-down min-h-[180px] rounded-xl border border-blue-200 border-l-[12px] border-l-[#1E3A8A] bg-gradient-to-r from-blue-50 to-indigo-50 p-4 shadow-sm ring-1 ring-inset ring-blue-600/30 transition-all duration-300 dark:border-blue-900/40 dark:border-l-blue-400 dark:from-blue-600/20 dark:to-indigo-600/20 dark:ring-blue-400/50">
                   <div className="flex items-start gap-3">
                     <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-800 dark:text-blue-300" />
@@ -2727,12 +2731,13 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                     </div>
                   </div>
                 </div>
-              </div>
+                )}
+              </fieldset>
             </form>
 
             {/* Footer */}
             <div className="px-6 py-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-                {docenteVinculadoAUsuario && infoEdicionIndex === 0 && (
+                {!fichaSoloLectura && docenteVinculadoAUsuario && infoEdicionIndex === 0 && (
                   <button
                     type="button"
                     onClick={handleEditarEnUsuarios}
@@ -2746,8 +2751,9 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                 onClick={() => setShowModal(false)}
                 className="px-6 py-2.5 rounded-xl font-bold text-slate-700 dark:text-slate-300 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
               >
-                Cancelar
+                {fichaSoloLectura ? 'Cerrar' : 'Cancelar'}
               </button>
+              {!fichaSoloLectura && (
               <button
                 type="submit"
                 form="editar-docente-form"
@@ -2765,6 +2771,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                   </>
                 )}
               </button>
+              )}
             </div>
           </div>
         </div>

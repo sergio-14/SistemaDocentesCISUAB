@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { setCarreraSoloLectura } from '../utils/soloLectura';
 
 const ActiveRoleContext = createContext(null);
 
@@ -122,11 +123,25 @@ export const ActiveRoleProvider = ({ user, setUser, children }) => {
     [activeAssignment, user]
   );
 
+  // Carrera desactivada: el usuario (salvo superusuario) solo puede consultar.
+  const carreraSoloLectura = Boolean(
+    user && !user.is_superuser && activeAssignment && activeAssignment.carrera_activa === false
+  );
+
+  useEffect(() => {
+    setCarreraSoloLectura(carreraSoloLectura);
+    // index.css oculta los botones marcados con data-escritura.
+    if (carreraSoloLectura) document.documentElement.dataset.soloLectura = 'true';
+    else delete document.documentElement.dataset.soloLectura;
+  }, [carreraSoloLectura]);
+
   const value = {
     assignments,
     activeAssignment,
     activeRole: activeAssignment?.rol || effectiveUser?.perfil?.rol,
     activeCareerId: activeAssignment?.carrera || effectiveUser?.perfil?.carrera,
+    activeCareerName: activeAssignment?.carrera_nombre || effectiveUser?.perfil?.carrera_nombre,
+    carreraSoloLectura,
     effectiveUser,
     hasMultipleAssignments: assignments.length > 1,
     roleSelectionRequired: Boolean(user && !user.is_superuser && assignments.length > 1 && (!activeAssignment || forceSelectorOpen)),

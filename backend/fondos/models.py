@@ -1,4 +1,5 @@
 from django.db import models
+from datetime import date
 from decimal import Decimal
 from django.core.validators import MinValueValidator, MaxValueValidator, MinLengthValidator, FileExtensionValidator
 from django.core.exceptions import ValidationError
@@ -106,6 +107,87 @@ CARGA_SEMANAL_ROL_GESTION = {
 
 TOPE_HORAS_SEMANALES_FONDO = Decimal('40')
 
+# Las dedicaciones "horario" figuran en RR.HH. en horas MENSUALES ("24 HRS MES").
+# El sistema trabaja en horas semanales: se dividen entre las semanas del mes.
+SEMANAS_POR_MES = Decimal('4')
+
+HORAS_MENSUALES_DEDICACION_HORARIO = {
+    'horario_16': Decimal('16'),
+    'horario_24': Decimal('24'),
+    'horario_40': Decimal('40'),
+    'horario_48': Decimal('48'),
+}
+
+SEMANAS_POR_ANIO = 52
+DIAS_LABORABLES_POR_SEMANA = Decimal('5')
+# Estados en los que el fondo ya fue presentado: su contenido queda congelado.
+ESTADOS_FONDO_BLOQUEADOS = [
+    'presentado_director',
+    'aprobado_director',
+    'en_ejecucion',
+    'informe_presentado',
+    'finalizado',
+    'archivado',
+]
+
+
+def calcular_horas_fondo(horas_semana, dias_vacacion, dias_feriados):
+    """Horas anuales del fondo de tiempo.
+
+    Vacaciones y feriados (CalendarioAcademico.dias_feriados_gestion) se
+    descuentan proporcionales a la jornada diaria (horas semanales / 5): un
+    tiempo completo (8 h/día) con 20 días de vacación descuenta 160 h. Cada
+    término se redondea hacia abajo.
+    La vista previa del frontend (utils/horasFondo.js) replica esta función.
+    """
+    horas_semana = Decimal(str(horas_semana))
+    horas_diarias = horas_semana / DIAS_LABORABLES_POR_SEMANA
+    contrato_horas = int(horas_semana * SEMANAS_POR_ANIO)
+    horas_vacacion = int(Decimal(dias_vacacion) * horas_diarias)
+    horas_feriados = int(Decimal(dias_feriados) * horas_diarias)
+    return {
+        'contrato_horas': contrato_horas,
+        'horas_vacacion': horas_vacacion,
+        'horas_feriados': horas_feriados,
+        'horas_efectivas': max(contrato_horas - horas_vacacion - horas_feriados, 0),
+    }
+
+
+HORAS_SEMANALES_DEDICACION = {
+    'tiempo_completo': Decimal('40'),
+    'medio_tiempo': Decimal('20'),
+    **{
+        dedicacion: horas_mes / SEMANAS_POR_MES
+        for dedicacion, horas_mes in HORAS_MENSUALES_DEDICACION_HORARIO.items()
+    },
+    # dedicacion_exclusiva: 0 (exenta de fondo de tiempo)
+}
+
+
+def actualizar_con_historial(queryset, **campos):
+    """Como queryset.update(**campos), pero guardando objeto por objeto para que
+    quede historial (HistoricalRecords) con el usuario que hizo el cambio."""
+    for obj in queryset:
+        for campo, valor in campos.items():
+            setattr(obj, campo, valor)
+        obj.save(update_fields=list(campos))
+
+
+def inicio_de_gestion(fechas_inicio, gestion):
+    """Inicio de la gestión: la fecha de inicio más temprana de sus calendarios o, sin
+    calendarios, el 1 de enero. La vista previa (utils/horasFondo.js) usa la misma regla."""
+    fechas = [fecha for fecha in fechas_inicio if fecha]
+    return min(fechas) if fechas else date(gestion, 1, 1)
+
+
+def fecha_referencia_antiguedad(valor=None):
+    """Fecha a la que se mide la antigüedad: una fecha, una gestión (1 de enero) o hoy."""
+    if valor is None:
+        return timezone.localdate()
+    if isinstance(valor, int):
+        return date(valor, 1, 1)
+    return valor.date() if hasattr(valor, 'date') and callable(valor.date) else valor
+
 
 class DatosLaborales(models.Model):
     """
@@ -131,17 +213,17 @@ class DatosLaborales(models.Model):
         default=timezone.now,
         help_text="Fecha de ingreso a la institución para cálculo de antigüedad"
     )
+    # Se recalcula en cada save() a partir de fecha_ingreso (ver calcular_dias_vacacion).
     dias_vacacion = models.IntegerField(
         default=15,
         help_text="Días de vacación correspondientes según antigüedad"
     )
-    horas_feriados_gestion = models.IntegerField(
-        default=128,
-        help_text="Total de horas de feriados en la gestión académica"
-    )
 
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_modificacion = models.DateTimeField(auto_now=True)
+
+    # Auditoría: quién cambió qué y cuándo (usuario vía HistoryRequestMiddleware).
+    history = HistoricalRecords()
 
     class Meta:
         verbose_name = "Datos Laborales"
@@ -151,30 +233,49 @@ class DatosLaborales(models.Model):
     def __str__(self):
         return f"{self.ci} - Ingreso: {self.fecha_ingreso}"
 
-    def calcular_antiguedad(self, gestion=None):
-        """Calcula la antigüedad en años para una gestión dada."""
-        if not gestion:
-            gestion = timezone.now().year
+    def calcular_antiguedad(self, fecha_referencia=None):
+        """Años COMPLETOS cumplidos a la fecha de referencia (mira día y mes).
+
+        fecha_referencia: una fecha, una gestión (año: se toma el 1 de enero) o
+        None (hoy). Para un fondo se usa el inicio de su gestión
+        (FondoTiempo.fecha_referencia_antiguedad).
+        """
+        referencia = fecha_referencia_antiguedad(fecha_referencia)
         if not self.fecha_ingreso:
             return 0
-        return max(0, gestion - self.fecha_ingreso.year)
+        ingreso = self.fecha_ingreso
+        anios = referencia.year - ingreso.year - ((referencia.month, referencia.day) < (ingreso.month, ingreso.day))
+        return max(0, anios)
 
-    def calcular_dias_vacacion(self, gestion=None):
-        """Calcula días de vacación según antigüedad (Art. 11 y 24)."""
-        antiguedad = self.calcular_antiguedad(gestion)
+    def calcular_dias_vacacion(self, fecha_referencia=None):
+        """Días hábiles de vacación según antigüedad (Art. 11 y 24).
+
+        Menos de 1 año: 0; de 1 a 5 años: 15; de 5 a 10 años: 20; desde 10 años: 30.
+        """
+        antiguedad = self.calcular_antiguedad(fecha_referencia)
         if antiguedad >= 10:
             return 30
-        elif antiguedad >= 5:
+        if antiguedad >= 5:
             return 20
-        return 15  # De 1 a 5 años (y por defecto)
+        if antiguedad >= 1:
+            return 15
+        return 0
+
+    def save(self, *args, **kwargs):
+        # Los días de vacación no se escriben a mano: salen de la fecha de ingreso.
+        self.dias_vacacion = self.calcular_dias_vacacion()
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            kwargs['update_fields'] = set(update_fields) | {'dias_vacacion'}
+        super().save(*args, **kwargs)
 
     def clean(self):
         """Validaciones personalizadas."""
         super().clean()
 
         if self.fecha_ingreso:
-            fecha_fundacion = timezone.now().date().replace(year=1967, month=11, day=18)
-            hoy = timezone.now().date()
+            fecha_fundacion = timezone.localdate().replace(year=1967, month=11, day=18)
+            hoy = timezone.localdate()
             if self.fecha_ingreso > hoy:
                 raise ValidationError({
                     'fecha_ingreso': 'La fecha de ingreso no puede ser una fecha futura.'
@@ -202,10 +303,10 @@ class Docente(models.Model):
     DEDICACION_CHOICES = [
         ('tiempo_completo', 'Tiempo Completo'),
         ('medio_tiempo', 'Medio Tiempo'),
-        ('horario_16', 'Horario 16hrs/sem'),
-        ('horario_24', 'Horario 24hrs/sem'),
-        ('horario_40', 'Horario 40hrs/sem'),
-        ('horario_48', 'Horario 48hrs/sem'),
+        ('horario_16', 'Horario 16 hrs/mes'),
+        ('horario_24', 'Horario 24 hrs/mes'),
+        ('horario_40', 'Horario 40 hrs/mes'),
+        ('horario_48', 'Horario 48 hrs/mes'),
         ('dedicacion_exclusiva', 'Dedicacion Exclusiva'),
     ]
 
@@ -243,6 +344,9 @@ class Docente(models.Model):
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_modificacion = models.DateTimeField(auto_now=True)
 
+    # Auditoría: quién cambió qué y cuándo (usuario vía HistoryRequestMiddleware).
+    history = HistoricalRecords()
+
     class Meta:
         verbose_name = "Docente"
         verbose_name_plural = "Docentes"
@@ -278,8 +382,8 @@ class Docente(models.Model):
 
     @property
     def dias_vacacion(self):
-        """Propiedad de compatibilidad: accede a dias_vacacion desde DatosLaborales."""
-        return self.datos_laborales.dias_vacacion if self.datos_laborales else 0
+        """Días de vacación según la antigüedad (DatosLaborales.fecha_ingreso)."""
+        return self.datos_laborales.calcular_dias_vacacion() if self.datos_laborales else 0
 
     @dias_vacacion.setter
     def dias_vacacion(self, value):
@@ -288,29 +392,18 @@ class Docente(models.Model):
             self.datos_laborales.dias_vacacion = value
             self.datos_laborales.save()
 
-    @property
-    def horas_feriados_gestion(self):
-        """Propiedad de compatibilidad: accede a horas_feriados_gestion desde DatosLaborales."""
-        return self.datos_laborales.horas_feriados_gestion if self.datos_laborales else 0
 
-    @horas_feriados_gestion.setter
-    def horas_feriados_gestion(self, value):
-        """Setter de compatibilidad para tests y código legacy."""
+    def calcular_antiguedad(self, fecha_referencia=None):
+        """Años completos de antigüedad (ver DatosLaborales.calcular_antiguedad)."""
         if self.datos_laborales:
-            self.datos_laborales.horas_feriados_gestion = value
-            self.datos_laborales.save()
-
-    def calcular_antiguedad(self, gestion=None):
-        """Calcula la antigüedad en años para una gestión dada."""
-        if self.datos_laborales:
-            return self.datos_laborales.calcular_antiguedad(gestion)
+            return self.datos_laborales.calcular_antiguedad(fecha_referencia)
         return 0
 
-    def calcular_dias_vacacion(self, gestion=None):
-        """Calcula días de vacación según antigüedad (Art. 11 y 24)."""
+    def calcular_dias_vacacion(self, fecha_referencia=None):
+        """Días de vacación según antigüedad (Art. 11 y 24)."""
         if self.datos_laborales:
-            return self.datos_laborales.calcular_dias_vacacion(gestion)
-        return 15
+            return self.datos_laborales.calcular_dias_vacacion(fecha_referencia)
+        return 0
 
 
 class DocenteCarrera(models.Model):
@@ -346,6 +439,9 @@ class DocenteCarrera(models.Model):
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_modificacion = models.DateTimeField(auto_now=True)
 
+    # Auditoría: quién cambió qué y cuándo (usuario vía HistoryRequestMiddleware).
+    history = HistoricalRecords()
+
     class Meta:
         verbose_name = "Vínculo Docente-Carrera"
         verbose_name_plural = "Vínculos Docente-Carrera"
@@ -357,16 +453,8 @@ class DocenteCarrera(models.Model):
 
     @property
     def horas_semanales_maximas(self):
-        """Retorna las horas semanales fijas según tipo de dedicación."""
-        mapa_horas = {
-            'tiempo_completo': 40,
-            'medio_tiempo': 20,
-            'horario_16': 16,
-            'horario_24': 24,
-            'horario_40': 40,
-            'horario_48': 48,
-        }
-        return mapa_horas.get(self.dedicacion, 0)
+        """Horas semanales según la dedicación (las de horario vienen en horas/mes)."""
+        return HORAS_SEMANALES_DEDICACION.get(self.dedicacion, Decimal('0'))
 
     def clean(self):
         from django.core.exceptions import ValidationError
@@ -413,26 +501,23 @@ class DocenteCarrera(models.Model):
                     'dedicacion': MENSAJE_INCOMPATIBILIDAD_DEDICACION_GESTION
                 })
 
-        # Validación de capacidad: no superar 40h/sem entre todos los vínculos activos.
+        # Un docente tiene UN solo vínculo activo (una dedicación), en la carrera de su usuario.
+        otros = DocenteCarrera.objects.filter(docente=self.docente, activo=True)
         if self.pk:
-            otros = DocenteCarrera.objects.filter(
-                docente=self.docente, activo=True
-            ).exclude(pk=self.pk)
-        else:
-            otros = DocenteCarrera.objects.filter(
-                docente=self.docente, activo=True
-            )
-
-        horas_totales = sum(v.horas_semanales_maximas for v in otros)
-        horas_totales += self.horas_semanales_maximas
-
-        if horas_totales > 40:
+            otros = otros.exclude(pk=self.pk)
+        otro = otros.select_related('carrera').first() if self.activo else None
+        if otro:
             raise ValidationError({
-                'dedicacion': (
-                    f'No se puede asignar esta dedicación: el docente ya tiene '
-                    f'{horas_totales - self.horas_semanales_maximas}h/sem asignadas en otras carreras. '
-                    f'Con esta dedicación llegaría a {horas_totales}h/sem, superando el límite de 40h/sem.'
+                'carrera': (
+                    f'El docente ya tiene su vínculo en {otro.carrera.nombre}: '
+                    'un docente tiene un solo vínculo, en la carrera de su usuario.'
                 )
+            })
+
+        # Tope de horas semanales de su único vínculo.
+        if self.horas_semanales_maximas > TOPE_HORAS_SEMANALES_FONDO:
+            raise ValidationError({
+                'dedicacion': f'La dedicación supera el límite de {TOPE_HORAS_SEMANALES_FONDO:g} h/semana.'
             })
 
     def save(self, *args, **kwargs):
@@ -565,7 +650,7 @@ class Carrera(models.Model):
     
     nombre = models.CharField(max_length=200, unique=True)
     codigo = models.CharField(max_length=20, unique=True, validators=[MinLengthValidator(2)])
-    facultad = models.CharField(max_length=200)
+    facultad = models.ForeignKey(FacultadCatalogo, on_delete=models.PROTECT, related_name='carreras')
     mision = models.TextField(blank=True, default='')
     vision = models.TextField(blank=True, default='')
     perfil_profesional = models.TextField(blank=True, default='', help_text='Descripción del perfil profesional del egresado')
@@ -593,36 +678,24 @@ class Carrera(models.Model):
     class Meta:
         verbose_name = "Carrera"
         verbose_name_plural = "Carreras"
-        ordering = ['facultad', 'nombre']
+        ordering = ['facultad__nombre', 'nombre']
     
     def __str__(self):
         return f"{self.nombre} - {self.facultad}"
 
-    @classmethod
-    def get_facultad_values(cls):
-        # Solo devolver facultades del catálogo editable
-        # Sin valores por defecto - el usuario las gestiona manualmente
-        return list(
-            FacultadCatalogo.objects.order_by('nombre').values_list('nombre', flat=True)
-        )
-
     def clean(self):
         super().clean()
         self.codigo = (self.codigo or '').strip().upper()
-        self.facultad = (self.facultad or '').strip()
 
         if not self.codigo:
             raise ValidationError({'codigo': 'El codigo de carrera es obligatorio.'})
-        if not (self.facultad or '').strip():
-            raise ValidationError({'facultad': 'La facultad es obligatoria y no puede estar vacía.'})
-        
-        # Validar facultad solo si hay facultades en el catálogo
-        facultades_validas = set(self.get_facultad_values())
-        if facultades_validas and self.facultad not in facultades_validas:
-            raise ValidationError({'facultad': 'La facultad seleccionada no es valida.'})
-        
-        if self.fecha_resolucion and self.fecha_resolucion > timezone.now().date():
-            raise ValidationError({'fecha_resolucion': 'La fecha de resolución no puede ser futura.'})
+
+        if self.fecha_resolucion and self.fecha_resolucion > timezone.localdate():
+            raise ValidationError({'fecha_resolucion': 'La fecha de resolución de creación (HCU) no puede ser futura.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def set_logo_carrera(self, uploaded_file):
         """Guarda el logo en media/carreras/carrera_<id>/ (reemplaza el anterior)."""
@@ -651,6 +724,8 @@ class Materia(models.Model):
     semestre = models.IntegerField()
     horas_teoricas = models.IntegerField(default=0)
     horas_practicas = models.IntegerField(default=0)
+    # Inactiva: no se asigna en cargas nuevas, pero se conserva en las que ya tiene.
+    activo = models.BooleanField(default=True)
 
     class Meta:
         constraints = [
@@ -706,9 +781,11 @@ class CalendarioAcademico(models.Model):
     fecha_limite_presentacion_proyectos = models.DateField(
         help_text="Fecha límite para presentar proyectos"
     )
-    semanas_efectivas = models.IntegerField(
-        default=16,
-        help_text="Número de semanas efectivas del periodo"
+    # El fondo descuenta días de feriado x jornada diaria del docente (calcular_horas_fondo).
+    dias_feriados_gestion = models.PositiveIntegerField(
+        validators=[MaxValueValidator(30)],
+        verbose_name='Días de feriado de la gestión',
+        help_text='Feriados de la gestión que caen de lunes a viernes.',
     )
     fecha_limite_programas_analiticos = models.DateField(
         null=True,
@@ -739,6 +816,11 @@ class CalendarioAcademico(models.Model):
     def __str__(self):
         carrera = self.carrera.nombre if self.carrera else 'Sin carrera'
         return f"{carrera} - Gestión {self.gestion} - {self.get_periodo_display()}"
+
+    @property
+    def semanas_de_clase(self):
+        """Semanas de clases en aula: 20 en un semestre, 40 en un calendario anual."""
+        return 40 if self.periodo == 'anual' else 20
     
     def save(self, *args, **kwargs):
         """Al guardar, si este calendario está activo, desactiva cualquier otro."""
@@ -750,12 +832,89 @@ class CalendarioAcademico(models.Model):
         super().save(*args, **kwargs)
 
 
+def resolucion_consejo_upload_path(instance, filename):
+    """Ruta: usuarios/usuario_<id>/resolucion_jefe_estudios_carrera_<id>.pdf"""
+    return (
+        f'usuarios/usuario_{instance.user_id or "sin_usuario"}/'
+        f'resolucion_jefe_estudios_carrera_{instance.carrera_id or "sin_carrera"}.pdf'
+    )
+
+
+def documento_decanatura_upload_path(instance, filename):
+    """Ruta: fondos/aprobaciones/docente_<id>/gestion_<año>/decanatura_fondo_<id>.pdf"""
+    return (
+        f'fondos/aprobaciones/docente_{instance.docente_id}/gestion_{instance.gestion}/'
+        f'decanatura_fondo_{instance.pk}.pdf'
+    )
+
+
+def documento_decanatura_informe_upload_path(instance, filename):
+    """Ruta: fondos/aprobaciones/docente_<id>/gestion_<año>/decanatura_informe_fondo_<id>.pdf"""
+    return (
+        f'fondos/aprobaciones/docente_{instance.docente_id}/gestion_{instance.gestion}/'
+        f'decanatura_informe_fondo_{instance.pk}.pdf'
+    )
+
+
+def usuarios_del_docente(docente):
+    """Usuarios vinculados a la ficha de docente (directo o por su perfil)."""
+    user_ids = {docente.user_id} if docente.user_id else set()
+    user_ids.update(
+        PerfilUsuario.objects.filter(docente=docente, user__isnull=False, activo=True)
+        .values_list('user_id', flat=True)
+    )
+    return user_ids
+
+
+def roles_del_docente_en_carrera(docente, carrera):
+    """Roles activos de los usuarios del docente en UNA carrera."""
+    user_ids = usuarios_del_docente(docente)
+    if not user_ids or not carrera:
+        return set()
+    roles = set(AsignacionCarrera.objects.filter(
+        user_id__in=user_ids, activo=True, carrera=carrera,
+    ).values_list('rol', flat=True))
+    roles.update(PerfilUsuario.objects.filter(
+        user_id__in=user_ids, activo=True, carrera=carrera,
+    ).exclude(rol='').values_list('rol', flat=True))
+    return roles
+
+
+def horas_semanales_contractuales(docente, carrera):
+    """Horas semanales de un docente en UNA carrera (base del fondo de esa carrera).
+
+    El docente tiene un solo vínculo (el de la carrera de su usuario): contrato,
+    vacaciones y feriados salen de esas horas. Si en esa carrera además tiene un
+    cargo (Director, Jefe o Instituto), el cargo y la docencia van juntos dentro
+    de las 40 h/sem.
+    """
+    vinculo = DocenteCarrera.objects.filter(docente=docente, carrera=carrera, activo=True).first()
+    horas_docencia = Decimal(vinculo.horas_semanales_maximas or 0) if vinculo else Decimal('0')
+    horas_gestion = max(
+        (CARGA_SEMANAL_ROL_GESTION[rol] for rol in roles_del_docente_en_carrera(docente, carrera)
+         if rol in CARGA_SEMANAL_ROL_GESTION),
+        default=Decimal('0'),
+    )
+    return min(max(horas_docencia, horas_gestion), TOPE_HORAS_SEMANALES_FONDO)
+
+
+# Las 7 unidades (funciones) del Fondo de Tiempo. Cada una suma sus ítems (CargaHoraria).
+UNIDADES_FONDO = [
+    ('academica', 'Académica'),
+    ('investigacion', 'Investigación'),
+    ('extension_universitaria', 'Extensión universitaria'),
+    ('interaccion_social', 'Interacción social'),
+    ('gestion', 'Gestión'),
+    ('academica_administrativa', 'Académica-administrativa'),
+    ('social_cultural_deportiva', 'Social, cultural, deportiva y Otros'),
+]
+
+
 class FondoTiempo(models.Model):
     """Modelo principal para el fondo de tiempo anual de un docente"""
     
     ESTADO_CHOICES = [
         ('borrador', 'Borrador'),
-        ('presentado_jefe', 'Presentado a Jefe de Estudios'),
         ('observado', 'Con Observaciones'),
         ('presentado_director', 'Presentado a Director de Carrera'),
         ('aprobado_director', 'Aprobado por Director de Carrera'),
@@ -766,57 +925,18 @@ class FondoTiempo(models.Model):
         ('archivado', 'Archivado'),
     ]
     
-    PERIODO_CHOICES = [
-        ('1', 'Primer Semestre'),
-        ('2', 'Segundo Semestre'),
-        ('anual', 'Anual'),
-    ]
-    
-    TIPO_FONDO_CHOICES = [
-        ('semestral', 'Semestral/Anual'),
-        ('largo_plazo', 'Largo Plazo'),
-    ]
-    
+    # Un fondo por docente y gestión, en la carrera de su vínculo: reúne las cargas
+    # de todos los calendarios de esa gestión.
     docente = models.ForeignKey(Docente, on_delete=models.PROTECT, related_name='fondos_tiempo')
     carrera = models.ForeignKey(Carrera, on_delete=models.PROTECT, related_name='fondos_tiempo')
-    calendario_academico = models.ForeignKey(
-        CalendarioAcademico,
-        on_delete=models.PROTECT,
-        related_name='fondos',
-        null=True,
-        blank=True,
-        help_text="Calendario académico al que pertenece este fondo (si aplica)"
-    )
-    
     gestion = models.IntegerField(validators=[MinValueValidator(2020), MaxValueValidator(2100)])
-    periodo = models.CharField(
-        max_length=10, 
-        choices=PERIODO_CHOICES,
-        blank=True,
-        help_text="Periodo académico según calendario (si aplica)"
-    )
-    asignatura = models.CharField(max_length=200, blank=True, help_text="Asignatura o descripción general del fondo")
-    
-    tipo_fondo = models.CharField(
-        max_length=20,
-        choices=TIPO_FONDO_CHOICES,
-        default='semestral',
-        help_text="Define si el fondo es para un periodo académico específico o a largo plazo."
-    )
-    
-    # Configuración temporal
-    semanas_año = models.DecimalField(
-        max_digits=4,
-        decimal_places=1,
-        default=Decimal('45.8'),
-        help_text="Número de semanas efectivas del año para cálculo de horas anuales"
-    )
+
     horas_semana = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text="Horas semanales del docente según su dedicación")
+    # Días de vacación por antigüedad con los que se calcularon horas_vacacion (el PDF los muestra).
+    dias_vacacion = models.IntegerField(default=0)
     horas_vacacion = models.IntegerField(default=120)
     horas_feriados = models.IntegerField(default=0) # Often not subtracted from total effective hours
     contrato_horas = models.IntegerField(default=2080)
-    clases_aula_horas = models.IntegerField(default=240)
-    funciones_sustantivas_horas = models.IntegerField(default=1124)
     horas_efectivas = models.DecimalField(max_digits=6, decimal_places=2, default=1832.0)
     
     estado = models.CharField(max_length=30, choices=ESTADO_CHOICES, default='borrador')
@@ -851,6 +971,24 @@ class FondoTiempo(models.Model):
         related_name='fondos_aprobados',
         help_text="Usuario que aprobó el fondo"
     )
+    # El fondo de un Director lo aprueba el superusuario con el documento de la
+    # Decanatura (PDF obligatorio): nadie aprueba su propio fondo.
+    documento_decanatura = models.FileField(
+        upload_to=documento_decanatura_upload_path,
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(['pdf'])],
+        help_text="Documento de la Decanatura que respalda la aprobación del fondo de un Director",
+    )
+    # Art. 28: el informe final del Director se eleva a Decanatura; al evaluarlo y
+    # finalizar su fondo el superusuario adjunta ese documento (PDF obligatorio).
+    documento_decanatura_informe = models.FileField(
+        upload_to=documento_decanatura_informe_upload_path,
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(['pdf'])],
+        help_text="Documento de la Decanatura sobre el informe final del fondo de un Director",
+    )
     validado_por = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -871,20 +1009,23 @@ class FondoTiempo(models.Model):
         verbose_name = "Fondo de Tiempo"
         verbose_name_plural = "Fondos de Tiempo"
         ordering = ['-gestion', 'docente']
-        # Se elimina unique_together para permitir fondos a largo plazo sin periodo/asignatura definidos.
-        # Se recomienda implementar una `UniqueConstraint` condicional en la base de datos
-        # o una validación personalizada en el método `clean` o `save` del modelo.
-        # unique_together = ['docente', 'gestion', 'periodo', 'asignatura']
         constraints = [
+            # Un solo fondo vigente por docente y gestión (los archivados no cuentan).
             models.UniqueConstraint(
-                fields=['docente', 'gestion', 'periodo', 'asignatura'],
-                condition=models.Q(tipo_fondo='semestral'),
-                name='unique_semestral_fondo'
+                fields=['docente', 'gestion'],
+                condition=models.Q(archivado=False),
+                name='unique_fondo_por_docente_y_gestion',
             )
         ]
 
     def __str__(self):
-        return f"{self.docente.nombre_completo} - {self.gestion} - {self.asignatura}"
+        return f"{self.docente.nombre_completo} - {self.descripcion}"
+
+    @property
+    def descripcion(self):
+        """Cómo se nombra el fondo en pantallas y documentos: "Gestión 2026 · Carrera"."""
+        carrera = self.carrera.nombre if self.carrera_id else 'Sin carrera'
+        return f"Gestión {self.gestion} · {carrera}"
     
     @property
     def porcentaje_completado(self):
@@ -900,14 +1041,6 @@ class FondoTiempo(models.Model):
     @property
     def horas_disponibles(self):
         return self.horas_efectivas - self.total_asignado
-    
-    def puede_presentar(self):
-        """Verifica si el fondo puede ser presentado a Director"""
-        return (
-            self.estado == 'borrador' and
-            self.tiene_programa_analitico and
-            self.total_asignado > 0
-        )
     
     def puede_editar(self, usuario):
         """Determina si un usuario puede editar este fondo"""
@@ -929,37 +1062,6 @@ class FondoTiempo(models.Model):
         
         return False
     
-    def puede_cambiar_estado(self, usuario, nuevo_estado=None):
-        """
-        Valida permisos para cambiar el estado del Fondo de Tiempo.
-        
-        - 'observado': Solo jefe_estudios (del mismo programa)
-        - Otros cambios: Solo staff con rol de gestión real
-        """
-        # Necesario ser staff
-        if not usuario.is_staff:
-            return False
-        
-        # Si se especifica nuevo estado, hacer validaciones adicionales
-        if nuevo_estado == 'observado':
-            # Solo admin o jefe_estudios pueden cambiar a 'observado'
-            if hasattr(usuario, 'perfil') and usuario.perfil:
-                rol = usuario.perfil.rol
-                if rol == 'jefe_estudios':
-                    return True
-            return False
-        
-        # Para otros estados, basta con ser staff
-        return True
-    
-    def puede_archivar(self, usuario):
-        """Solo el staff con rol de gestión real puede archivar"""
-        return bool(
-            usuario.is_staff
-            and hasattr(usuario, 'perfil')
-            and usuario.perfil.rol in ['director', 'jefe_estudios']
-        )
-
     def _obtener_vinculo(self):
         """Obtiene el vínculo DocenteCarrera activo para este fondo."""
         if not self.docente_id or not self.carrera_id:
@@ -970,117 +1072,80 @@ class FondoTiempo(models.Model):
             activo=True
         ).first()
 
-    def _obtener_horas_vacacion_docente(self):
-        """
-        Obtiene las horas de vacación para el docente en la gestión actual.
+    def pertenece_a(self, user):
+        """True si el fondo es del propio usuario (su ficha de docente)."""
+        return bool(self.docente_id and user and user.id in usuarios_del_docente(self.docente))
 
-        Vacaciones son de la PERSONA (Docente.dias_vacacion).
-        Horas diarias se calculan según la dedicación del VÍNCULO (DocenteCarrera).
+    def es_de_director_de_su_carrera(self):
+        """True si el docente del fondo es el Director de la carrera del fondo."""
+        if not self.docente_id:
+            return False
+        return AsignacionCarrera.objects.filter(
+            user_id__in=usuarios_del_docente(self.docente),
+            carrera=self.carrera,
+            rol='director',
+            activo=True,
+        ).exists()
+
+    def calendarios_de_la_gestion(self):
+        """Calendarios académicos de la carrera del fondo en su gestión."""
+        return CalendarioAcademico.objects.filter(carrera_id=self.carrera_id, gestion=self.gestion)
+
+    def fecha_referencia_antiguedad(self):
+        """Inicio de la gestión (ver inicio_de_gestion): ahí se mide la antigüedad."""
+        return inicio_de_gestion(self.calendarios_de_la_gestion().values_list('fecha_inicio', flat=True), self.gestion)
+
+    def _encabezado_congelado(self):
+        """Fondo ya presentado o aprobado: contrato, vacaciones, feriados y horas efectivas
+        quedan con los valores presentados."""
+        return bool(self.pk) and FondoTiempo.objects.filter(
+            pk=self.pk, estado__in=ESTADOS_FONDO_BLOQUEADOS,
+        ).exists()
+
+    def _dias_feriados_gestion(self):
+        """Días de feriado de la gestión: todos los calendarios de la carrera en la gestión
+        tienen el mismo valor, así que se descuentan una sola vez."""
+        calendario = self.calendarios_de_la_gestion().first()
+        return calendario.dias_feriados_gestion if calendario else 0
+
+    def _calcular_horas_fondo(self):
+        """Contrato, vacaciones, feriados y horas efectivas del docente en esta gestión.
+
+        Horas semanales: del vínculo (DocenteCarrera) y los roles de gestión.
+        Vacaciones: días por antigüedad (15/20/30) proporcionales a la jornada.
         """
         horas_semana = self._obtener_horas_semanales_contractuales()
         if not self.docente or horas_semana <= 0:
-            return 0
+            return None
+        return calcular_horas_fondo(
+            horas_semana,
+            self.docente.calcular_dias_vacacion(self.fecha_referencia_antiguedad()),
+            self._dias_feriados_gestion(),
+        )
 
-        # Intenta obtener del saldo específico de la gestión
-        dedicaciones = set(DocenteCarrera.objects.filter(
-            docente=self.docente,
-            activo=True,
-        ).values_list('dedicacion', flat=True))
-
-        if 'tiempo_completo' in dedicaciones or horas_semana >= Decimal('40'):
-            return 240
-
-        if 'medio_tiempo' in dedicaciones or horas_semana == Decimal('20'):
-            return 120
-
-        return int((Decimal(horas_semana) / Decimal('40')) * Decimal('240'))
+    def _obtener_horas_vacacion_docente(self):
+        resultado = self._calcular_horas_fondo()
+        return resultado['horas_vacacion'] if resultado else 0
 
     def _obtener_horas_feriados_docente(self):
-        """
-        Calcula horas de feriados PROPORCIONALES a la dedicación del vínculo.
-
-        Feriados son de la PERSONA (Docente.horas_feriados_gestion).
-        Horas diarias se calculan según la dedicación del VÍNCULO (DocenteCarrera).
-        """
-        horas_semana = self._obtener_horas_semanales_contractuales()
-        if not self.docente or horas_semana <= 0:
-            return 0
-
-        dias_feriados = self.docente.horas_feriados_gestion or 128
-
-        if dias_feriados == 128:
-            horas_diarias = Decimal(horas_semana) / 5
-            return int(Decimal(16) * horas_diarias)
-        else:
-            return int(dias_feriados)
+        resultado = self._calcular_horas_fondo()
+        return resultado['horas_feriados'] if resultado else 0
 
     def _obtener_user_ids_docente(self):
-        if not self.docente_id:
-            return set()
-
-        user_ids = set()
-        if self.docente.user_id:
-            user_ids.add(self.docente.user_id)
-
-        perfiles_relacionados = PerfilUsuario.objects.filter(
-            docente=self.docente,
-            user__isnull=False,
-            activo=True,
-        ).values_list('user_id', flat=True)
-        user_ids.update(user_id for user_id in perfiles_relacionados if user_id)
-        return user_ids
+        return usuarios_del_docente(self.docente) if self.docente_id else set()
 
     def _obtener_roles_activos_docente(self):
-        user_ids = self._obtener_user_ids_docente()
-        if not user_ids:
-            return set()
-
-        roles = set(AsignacionCarrera.objects.filter(
-            user_id__in=user_ids,
-            activo=True,
-        ).values_list('rol', flat=True))
-
-        roles.update(PerfilUsuario.objects.filter(
-            user_id__in=user_ids,
-            activo=True,
-        ).values_list('rol', flat=True))
-
-        return roles
+        """Roles del docente en la carrera de ESTE fondo."""
+        return roles_del_docente_en_carrera(self.docente, self.carrera) if self.docente_id else set()
 
     def _tiene_rol_gestion_activo(self):
         return bool(self._obtener_roles_activos_docente() & set(CARGA_SEMANAL_ROL_GESTION.keys()))
 
     def _obtener_horas_semanales_contractuales(self):
-        """
-        Calcula la carga semanal del fondo considerando dobles roles.
-
-        Suma los vinculos docentes activos y reconoce los roles de gestion como
-        dedicacion contractual base cuando superan la docencia horaria.
-        """
+        """Horas semanales del fondo: solo las de su carrera (ver horas_semanales_contractuales)."""
         if not self.docente_id:
             return Decimal('0')
-
-        vinculos = DocenteCarrera.objects.filter(
-            docente=self.docente,
-            activo=True,
-        )
-        horas_docencia = sum(
-            (Decimal(vinculo.horas_semanales_maximas or 0) for vinculo in vinculos),
-            Decimal('0'),
-        )
-
-        roles_activos = self._obtener_roles_activos_docente()
-        horas_gestion = max(
-            (
-                CARGA_SEMANAL_ROL_GESTION[rol]
-                for rol in roles_activos
-                if rol in CARGA_SEMANAL_ROL_GESTION
-            ),
-            default=Decimal('0'),
-        )
-
-        horas_semana = max(horas_docencia, horas_gestion)
-        return min(horas_semana, TOPE_HORAS_SEMANALES_FONDO)
+        return horas_semanales_contractuales(self.docente, self.carrera)
 
     def _recalcular_horas_automaticas(self):
         """
@@ -1089,7 +1154,7 @@ class FondoTiempo(models.Model):
         HORAS SEMANALES: se obtienen del vínculo DocenteCarrera(docente, carrera).
         VACACIONES Y FERIADOS: se obtienen del Docente (son de la persona).
         """
-        if not self.docente:
+        if not self.docente or self._encabezado_congelado():
             return
 
         # Buscar el vínculo DocenteCarrera para esta carrera
@@ -1099,26 +1164,38 @@ class FondoTiempo(models.Model):
             # Si no hay vínculo, no se puede calcular
             return
 
-        # 1. Horas semanales del vínculo
+        # Horas semanales del vínculo; contrato, vacaciones (por antigüedad) y
+        # feriados salen de calcular_horas_fondo.
         self.horas_semana = Decimal(horas_semana)
+        self.dias_vacacion = self.docente.calcular_dias_vacacion(self.fecha_referencia_antiguedad())
+        resultado = self._calcular_horas_fondo()
+        self.contrato_horas = resultado['contrato_horas']
+        self.horas_vacacion = resultado['horas_vacacion']
+        self.horas_feriados = resultado['horas_feriados']
+        self.horas_efectivas = Decimal(resultado['horas_efectivas'])
 
-        # 2. CONTRATO HORAS DINÁMICO: horas_semanales × 52 semanas
-        self.contrato_horas = int(self.horas_semana * 52)
+    CAMPOS_ENCABEZADO = [
+        'horas_semana', 'dias_vacacion', 'contrato_horas', 'horas_vacacion', 'horas_feriados', 'horas_efectivas',
+    ]
 
-        # 3. Horas de vacación PROPORCIONALES a la dedicación
-        self.horas_vacacion = self._obtener_horas_vacacion_docente()
+    @classmethod
+    def recalcular_encabezados(cls, fondos):
+        """Los fondos que aún no se presentaron toman los datos actuales (antigüedad,
+        dedicación, feriados, inicio de gestión). Sin validaciones de contenido: solo se
+        actualiza el encabezado."""
+        fondos = fondos.filter(archivado=False).exclude(
+            estado__in=ESTADOS_FONDO_BLOQUEADOS,
+        ).select_related('docente', 'carrera')
+        for fondo in fondos:
+            fondo._recalcular_horas_automaticas()
+            cls.objects.filter(pk=fondo.pk).update(
+                **{campo: getattr(fondo, campo) for campo in cls.CAMPOS_ENCABEZADO}
+            )
 
-        # 4. Horas de feriados PROPORCIONALES a la dedicación
-        self.horas_feriados = self._obtener_horas_feriados_docente()
-
-        # 5. Cálculo final: contrato - vacacion - feriados (redondeo hacia abajo)
-        horas_disponibles_reglamentarias = (
-            int(self.contrato_horas)
-            - int(self.horas_vacacion)
-            - int(self.horas_feriados)
-        )
-
-        self.horas_efectivas = Decimal(max(horas_disponibles_reglamentarias, 0))
+    @classmethod
+    def recalcular_encabezados_de_gestion(cls, carrera_id, gestion):
+        """Tras cambiar los calendarios de una gestión (feriados o fechas)."""
+        cls.recalcular_encabezados(cls.objects.filter(carrera_id=carrera_id, gestion=gestion))
 
     def clean(self):
         super().clean()
@@ -1133,33 +1210,22 @@ class FondoTiempo(models.Model):
         # Si el fondo está en un estado bloqueado (presentado, aprobado, etc.),
         # NO permitir cambios. Solo 'borrador' y 'observado' son editables.
         
-        ESTADOS_BLOQUEADOS = [
-            'presentado_jefe',
-            'presentado_director',
-            'aprobado_director',
-            'en_ejecucion',
-            'informe_presentado',
-            'finalizado',
-            'archivado'
-        ]
+        ESTADOS_BLOQUEADOS = ESTADOS_FONDO_BLOQUEADOS
         
-        ESTADOS_EDITABLES = ['borrador', 'observado', 'rechazado']
         TRANSICIONES_ESTADO_PERMITIDAS = {
             ('borrador', 'presentado_director'),
             ('observado', 'presentado_director'),
             ('presentado_director', 'aprobado_director'),
             ('presentado_director', 'observado'),
             ('presentado_director', 'rechazado'),
+            # Un fondo rechazado vuelve a borrador para corregirlo (Jefe o superusuario).
+            ('rechazado', 'borrador'),
             ('aprobado_director', 'en_ejecucion'),
             ('en_ejecucion', 'informe_presentado'),
             ('informe_presentado', 'finalizado'),
             # El Director solicita correcciones al informe: vuelve a ejecucion
             # para que el docente pueda editarlo y reenviarlo.
             ('informe_presentado', 'en_ejecucion'),
-            # Flujo legado soportado para datos/endpoints antiguos.
-            ('borrador', 'presentado_jefe'),
-            ('presentado_jefe', 'presentado_director'),
-            ('presentado_jefe', 'observado'),
         }
         
         # Si el fondo ya existe en DB, verificar si está en estado bloqueado
@@ -1173,9 +1239,7 @@ class FondoTiempo(models.Model):
                 # Auditoria 2026-09-12: la lista original solo cubria 7 campos
                 # (docente, carrera, gestion, periodo, horas_vacacion,
                 # horas_feriados, horas_efectivas) y dejaba editables campos
-                # como asignatura, tipo_fondo, semanas_año, horas_semana,
-                # contrato_horas, clases_aula_horas,
-                # funciones_sustantivas_horas, calendario_academico,
+                # como horas_semana, contrato_horas,
                 # tiene_programa_analitico, programa_analitico_url y
                 # observaciones aunque el fondo ya estuviera presentado.
                 #
@@ -1197,10 +1261,9 @@ class FondoTiempo(models.Model):
                 # `comentarios_admin`, `archivado`, y los automaticos
                 # `fecha_creacion`/`fecha_modificacion`.
                 campos_criticos = [
-                    'docente', 'carrera', 'calendario_academico', 'gestion', 'periodo',
-                    'asignatura', 'tipo_fondo', 'semanas_año', 'horas_semana',
-                    'horas_vacacion', 'horas_feriados', 'contrato_horas',
-                    'clases_aula_horas', 'funciones_sustantivas_horas', 'horas_efectivas',
+                    'docente', 'carrera', 'gestion',
+                    'horas_semana',
+                    'horas_vacacion', 'horas_feriados', 'contrato_horas', 'horas_efectivas',
                     'observaciones', 'tiene_programa_analitico', 'programa_analitico_url',
                 ]
 
@@ -1219,16 +1282,14 @@ class FondoTiempo(models.Model):
                         )
                     })
             
-            # Si pasó, al menos el estado actual es editable
+            # Solo las transiciones del flujo: no se vuelve a borrador, observado o
+            # rechazado desde cualquier estado.
             transicion_estado = (fondo_actual.estado, self.estado)
-            if (
-                self.estado not in ESTADOS_EDITABLES + [fondo_actual.estado]
-                and transicion_estado not in TRANSICIONES_ESTADO_PERMITIDAS
-            ):
+            if self.estado != fondo_actual.estado and transicion_estado not in TRANSICIONES_ESTADO_PERMITIDAS:
                 raise ValidationError({
                     'estado': (
-                        f'Transición de estado no permitida. '
-                        f'Estados editables: {", ".join([dict(self.ESTADO_CHOICES)[s] for s in ESTADOS_EDITABLES])}.'
+                        f'Transición de estado no permitida: de "{fondo_actual.get_estado_display()}" '
+                        f'a "{dict(self.ESTADO_CHOICES).get(self.estado, self.estado)}".'
                     )
                 })
 
@@ -1238,85 +1299,39 @@ class FondoTiempo(models.Model):
         # Recalcula aquí también para que la validación use valores actualizados.
         self._recalcular_horas_automaticas()
 
-        # Validación reglamentaria: suma de las 7 dimensiones no debe exceder las horas efectivas.
-        total_dimensiones = Decimal('0.00')
-        if self.pk:
-            total_dimensiones = self.categorias.aggregate(total=models.Sum('total_horas'))['total'] or Decimal('0.00')
-
-        if Decimal(total_dimensiones) > Decimal(self.horas_efectivas):
-            raise ValidationError({
-                'horas_efectivas': (
-                    'La suma de las 7 dimensiones no puede superar las horas disponibles '
-                    f'({self.horas_efectivas}). Total actual: {total_dimensiones}.'
-                )
-            })
-        
-        # ============================================================
-        # VALIDACIÓN 3: Consistencia con SaldoVacacionesGestion
-        # ============================================================
-        # Si el estado es aprobado y hay cambios en saldo de vacaciones, alertar
-        if self.pk:
-            fondo_actual = FondoTiempo.objects.get(pk=self.pk)
-            
-            if fondo_actual.estado == 'aprobado_director':
-                # Verificar si el saldo de vacaciones ha cambiado
-                horas_vacacion_anterior = fondo_actual.horas_vacacion
-                horas_vacacion_nueva = self._obtener_horas_vacacion_docente()
-                
-                if horas_vacacion_nueva != horas_vacacion_anterior:
-                    raise ValidationError({
-                        'horas_vacacion': (
-                            f'⚠️ ALERTA DE CONSISTENCIA: El saldo de vacaciones del docente ha sido '
-                            f'modificado después de la aprobación. Horas anteriores: {horas_vacacion_anterior}, '
-                            f'Horas actuales: {horas_vacacion_nueva}. '
-                            f'Si continúa, el Fondo de Tiempo quedará desalineado con lo aprobado legalmente. '
-                            f'Contacte al administrador para resolver.'
-                        )
-                    })
-    
     def save(self, *args, **kwargs):
         self._recalcular_horas_automaticas()
         self.full_clean()
 
         super(FondoTiempo, self).save(*args, **kwargs)
         
+    def horas_por_unidad(self):
+        """Horas por año de cada unidad (categoría): la suma de sus ítems."""
+        return {
+            fila['categoria']: fila['total']
+            for fila in self.cargas.values('categoria').annotate(total=models.Sum('horas'))
+        }
+
     @property
     def total_asignado(self):
-      return self.categorias.aggregate(
-        total=models.Sum('total_horas')
-    )['total'] or 0
+        """Suma de todas las unidades (horas por año). Para presentar debe ser igual a horas_efectivas."""
+        return self.cargas.aggregate(total=models.Sum('horas'))['total'] or 0
 
 
-class CategoriaFuncion(models.Model):
-    """Categorías de funciones sustantivas"""
-    
-    TIPO_CHOICES = [
-        ('academica', 'Académica'),
-        ('investigacion', 'Investigación'),
-        ('extension_universitaria', 'Extensión universitaria'),
-        ('interaccion_social', 'Interacción social'),
-        ('gestion', 'Gestión'),
-        ('academica_administrativa', 'Académica-administrativa'),
-        ('social_cultural_deportiva', 'Social, cultural, deportiva y Otros'),
-    ]
-    
-    fondo_tiempo = models.ForeignKey(FondoTiempo, on_delete=models.CASCADE, related_name='categorias')
-    tipo = models.CharField(max_length=30, choices=TIPO_CHOICES)
-    total_horas = models.DecimalField(max_digits=6, decimal_places=2, default=0)
-    porcentaje = models.DecimalField(max_digits=5, decimal_places=2, default=0)
-    
-    class Meta:
-        verbose_name = "Categoría de Función"
-        verbose_name_plural = "Categorías de Funciones"
-        ordering = ['fondo_tiempo', 'tipo']
-        unique_together = ['fondo_tiempo', 'tipo']
-    
-    def __str__(self):
-        return f"{self.get_tipo_display()} - {self.total_horas}h ({self.porcentaje}%)"
+def fondo_de_la_carga(docente, gestion):
+    """Fondo de Tiempo vigente (no archivado) del docente en esa gestión."""
+    if not docente or not gestion:
+        return None
+    return FondoTiempo.objects.filter(docente=docente, gestion=gestion, archivado=False).first()
+
+
+def mensaje_sin_fondo(gestion):
+    return f'El docente aún no tiene Fondo de Tiempo de la gestión {gestion} en su carrera.'
 
 
 def evidencia_upload_path(instance, filename):
-    """Ruta: fondos/evidencias_actividades/docente_<id>/gestion_<año>/<categoria>/<archivo>"""
+    """Ruta de archivos del modelo Actividad, ya eliminado. Se conserva porque la importan
+    migraciones antiguas (0001, 0090)."""
     try:
         fondo = instance.categoria.fondo_tiempo
         docente_id = fondo.docente.id
@@ -1326,101 +1341,10 @@ def evidencia_upload_path(instance, filename):
     except Exception:
         return f'fondos/evidencias_actividades/sin_clasificar/{filename}'
 
-class Actividad(models.Model):
-    """
-    OBSOLETO desde 2026-09-12 — no usar en código nuevo.
-
-    Este modelo era el catálogo original de sub-actividades por CategoriaFuncion,
-    de la primera versión del Fondo de Tiempo. Quedó reemplazado por
-    `CargaHoraria.tipo_actividad` (texto libre validado contra
-    `CARGA_HORARIA_TIPOS_POR_CATEGORIA` en `fondos/serializers.py`), que es el
-    único catálogo que alimenta hoy la carga horaria real de un docente.
-
-    Motivo de la deprecación (auditoría técnica de Fondo de Tiempo, 2026-09-12):
-    - 0 filas en toda la base de datos: ningún fondo real usa este modelo.
-    - Sus 15 `SUBACTIVIDAD_ACADEMICA_CHOICES` ya divergieron de los tipos
-      vigentes en `CARGA_HORARIA_TIPOS_POR_CATEGORIA['academica']` (p. ej.
-      `practica_laboratorios` aquí vs. `practica_laboratorios_centro_computo`
-      en el catálogo vivo), por lo que ya no son intercambiables.
-    - El único formulario que lo usaba (`FormularioActividad.jsx`) fue
-      eliminado del frontend; en `DetalleFondo.jsx` la sección que leía
-      `categoria.actividades` quedó deshabilitada de forma permanente
-      (`{false && ...}`).
-    - El único código que aún podía escribir filas aquí,
-      `fondos/management/commands/cargar_excel.py`, ya está roto por
-      cambios previos e independientes en `Docente` (usa campos
-      `categoria`/`dedicacion` que ya no existen en ese modelo), así que en
-      la práctica no hay ninguna ruta de escritura activa.
-
-    No se elimina la tabla ni el modelo para no romper el historial de
-    migraciones ni la serialización existente (`ActividadSerializer`,
-    expuesta como `CategoriaFuncion.actividades`), que sigue devolviendo una
-    lista vacía sin efectos secundarios. `ActividadAdmin` quedó en solo
-    lectura para impedir que se creen filas nuevas manualmente desde
-    /admin/. No agregar funcionalidad nueva sobre este modelo: cualquier
-    necesidad de sub-actividades académicas debe implementarse sobre
-    `CargaHoraria`.
-    """
-
-    SUBACTIVIDAD_ACADEMICA_CHOICES = [
-        ('preparacion_temas', 'Preparación de temas'),
-        ('clases_aula', 'Clases en aula'),
-        ('elaboracion_trabajos_practicos', 'Elaboración de Trabajos Prácticos'),
-        ('revision_calificacion_trabajos_practicos', 'Revisión y Calificación de Trabajos Prácticos'),
-        ('elaboracion_examenes', 'Elaboración de Exámenes'),
-        ('revision_calificacion_examenes', 'Revisión y Calificación de Exámenes'),
-        ('practica_laboratorios', 'Práctica de Laboratorios'),
-        ('practicas_campo', 'Prácticas de Campo'),
-        ('produccion_docente_textos_guias', 'Producción docente (textos guías)'),
-        ('consultas_reclamos_calificaciones', 'Consultas y Reclamos de Calificaciones'),
-        ('elaboracion_planillas_introduccion_notas', 'Elaboración de planillas e Introducción de notas'),
-        ('planificacion_gestion_practica_extra_aula', 'Planificación y gestión de práctica extra aula'),
-        ('ejecucion_practica_extra_aula', 'Ejecución de práctica extra aula'),
-        ('informe_descargo_viaje_practicas_extra_aula', 'Informe de descargo de viaje en prácticas extra aula'),
-        ('cursos_verano', 'Cursos de verano'),
-    ]
-    
-    categoria = models.ForeignKey(CategoriaFuncion, on_delete=models.CASCADE, related_name='actividades')
-    subactividad_academica = models.CharField(
-        max_length=60,
-        choices=SUBACTIVIDAD_ACADEMICA_CHOICES,
-        blank=True,
-        help_text="Sub-actividad pedagógica reglamentaria para la categoría Académica"
-    )
-    detalle = models.CharField(max_length=300)
-    horas_semana = models.DecimalField(max_digits=5, decimal_places=2, default=0, validators=[MinValueValidator(0)])
-    horas_año = models.DecimalField(max_digits=6, decimal_places=2, default=0, validators=[MinValueValidator(0)])
-    evidencias = models.TextField(blank=True, default='')
-    archivo_evidencia = models.FileField(
-        upload_to=evidencia_upload_path, 
-        null=True, 
-        blank=True,
-        help_text="Prueba visual (Imagen/PDF)"
-    )
-    orden = models.IntegerField(default=0)
-    proyecto = models.ForeignKey(
-        'Proyecto',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='actividades',
-        help_text="Proyecto al que pertenece esta actividad"
-    )
-    
-    class Meta:
-        # Nombres visibles en /admin/ marcados a proposito: ver docstring de la clase (OBSOLETO desde 2026-09-12).
-        verbose_name = "Actividad (OBSOLETO - usar CargaHoraria)"
-        verbose_name_plural = "Actividades (OBSOLETO - usar CargaHoraria)"
-        ordering = ['categoria', 'orden', 'id']
-    
-    def __str__(self):
-        return f"{self.detalle} - {self.horas_año}h/año"
-
-
 class CargaHoraria(models.Model):
     """Asignación de horas a un docente por parte de una autoridad (Jefe de Estudios)."""
     
-    CATEGORIA_CHOICES = CategoriaFuncion.TIPO_CHOICES
+    CATEGORIA_CHOICES = UNIDADES_FONDO
     PARALELO_CHOICES = [
         ('A', 'A'),
         ('B', 'B'),
@@ -1439,7 +1363,13 @@ class CargaHoraria(models.Model):
     ]
 
     docente = models.ForeignKey(Docente, on_delete=models.PROTECT, related_name='cargas_horarias')
-    calendario = models.ForeignKey(CalendarioAcademico, on_delete=models.PROTECT, related_name='cargas_horarias')
+    # Se asigna solo al guardar desde la API (fondo_de_la_carga): no se elige a mano.
+    fondo = models.ForeignKey(FondoTiempo, on_delete=models.PROTECT, related_name='cargas')
+    # Solo Académica (materias): semestre o año de la materia y horario. El resto son
+    # horas por año del fondo, sin calendario.
+    calendario = models.ForeignKey(
+        CalendarioAcademico, on_delete=models.PROTECT, related_name='cargas_horarias', null=True, blank=True,
+    )
     categoria = models.CharField(max_length=30, choices=CATEGORIA_CHOICES)
     materia = models.ForeignKey(
         Materia,
@@ -1482,7 +1412,7 @@ class CargaHoraria(models.Model):
     class Meta:
         verbose_name = "Carga Horaria"
         verbose_name_plural = "Cargas Horarias"
-        ordering = ['-calendario__gestion', 'docente', 'categoria']
+        ordering = ['-fondo__gestion', 'docente', 'categoria']
         unique_together = ['docente', 'calendario', 'materia', 'paralelo', 'dia_semana', 'hora_inicio']
         constraints = [
             models.CheckConstraint(
@@ -1498,21 +1428,23 @@ class CargaHoraria(models.Model):
                 | ~models.Q(categoria='academica'),
                 name='cargahoraria_materia_obligatoria_si_academica',
             ),
-            # Blindaje a nivel de base de datos (auditoria 2026-09-12): la regla de
-            # "no repetir tipo_actividad en la misma categoria" antes solo vivia en
-            # CargaHorariaSerializer.validate(). Se separa en dos constraints porque
-            # en Academica dos materias distintas SI pueden compartir el mismo
-            # tipo_actividad (p. ej. 'clases_aula' de dos materias), mientras que en
-            # el resto de categorias el tipo_actividad debe ser unico sin mas.
-            models.UniqueConstraint(
-                fields=['docente', 'calendario', 'categoria', 'tipo_actividad', 'materia'],
-                condition=models.Q(categoria='academica'),
-                name='cargahoraria_unique_tipo_academica_por_materia',
+            models.CheckConstraint(
+                condition=models.Q(categoria='academica', calendario__isnull=False)
+                | (~models.Q(categoria='academica') & models.Q(calendario__isnull=True)),
+                name='cargahoraria_calendario_solo_en_academica',
             ),
+            # Clases en aula: una por calendario, materia y paralelo (la misma materia puede
+            # darse en los dos semestres o en varios paralelos).
             models.UniqueConstraint(
-                fields=['docente', 'calendario', 'categoria', 'tipo_actividad'],
-                condition=~models.Q(categoria='academica'),
-                name='cargahoraria_unique_tipo_no_academica',
+                fields=['fondo', 'calendario', 'materia', 'paralelo'],
+                condition=models.Q(tipo_actividad='clases_aula'),
+                name='cargahoraria_unique_clase_por_calendario_materia_paralelo',
+            ),
+            # El resto (sub-actividades académicas y demás ítems) se registra una vez por fondo.
+            models.UniqueConstraint(
+                fields=['fondo', 'categoria', 'tipo_actividad'],
+                condition=~models.Q(tipo_actividad='clases_aula'),
+                name='cargahoraria_unique_tipo_por_fondo',
             ),
         ]
 
@@ -1533,7 +1465,7 @@ def evidencia_carga_horaria_upload_path(instance, filename):
     try:
         carga = instance.carga_horaria
         docente_id = carga.docente_id
-        gestion = carga.calendario.gestion if carga.calendario_id else 'sin_gestion'
+        gestion = carga.fondo.gestion
         return f'fondos/evidencias_carga/docente_{docente_id}/gestion_{gestion}/{carga.categoria}/actividad_{carga.id}/{filename}'
     except Exception:
         return f'fondos/evidencias_carga/sin_clasificar/{filename}'
@@ -1636,7 +1568,7 @@ class Proyecto(models.Model):
     ]
     
     fondo_tiempo = models.ForeignKey(FondoTiempo, on_delete=models.CASCADE, related_name='proyectos')
-    categoria = models.ForeignKey(CategoriaFuncion, on_delete=models.CASCADE, related_name='proyectos')
+    categoria = models.CharField(max_length=30, choices=UNIDADES_FONDO)
     titulo = models.CharField(max_length=200)
     tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
     
@@ -1971,11 +1903,16 @@ class AsignacionCarrera(models.Model):
     ]
 
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='asignaciones_carrera')
-    carrera = models.ForeignKey(Carrera, on_delete=models.SET_NULL, null=True, blank=True, related_name='asignaciones_carrera')
+    carrera = models.ForeignKey(Carrera, on_delete=models.PROTECT, null=True, blank=True, related_name='asignaciones_carrera')
     rol = models.CharField(max_length=20, choices=ROLES)
     docente = models.ForeignKey(Docente, on_delete=models.SET_NULL, null=True, blank=True, related_name='asignaciones_carrera')
     activo = models.BooleanField(default=True)
+    # Jefe de Estudios: resolución del Consejo de Carrera (PDF) que lo designa.
+    resolucion_consejo = models.FileField(upload_to=resolucion_consejo_upload_path, null=True, blank=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
+
+    # Auditoría: quién cambió qué y cuándo (usuario vía HistoryRequestMiddleware).
+    history = HistoricalRecords()
 
     class Meta:
         verbose_name = "Asignación de Carrera"
@@ -2025,8 +1962,9 @@ class PerfilUsuario(models.Model):
     )
 
     ci = models.CharField(max_length=20, blank=True, null=True, unique=True, verbose_name='Cedula de Identidad')
-    rol = models.CharField(max_length=20, choices=ROLES, default='docente')
-    carrera = models.ForeignKey(Carrera, on_delete=models.SET_NULL, null=True, blank=True)
+    # Vacío solo para el superusuario: no tiene rol de carrera (ni es 'iiisyp').
+    rol = models.CharField(max_length=20, choices=ROLES, default='docente', blank=True)
+    carrera = models.ForeignKey(Carrera, on_delete=models.PROTECT, null=True, blank=True)
     telefono = models.CharField(max_length=20, blank=True)
     foto_perfil = models.ImageField(upload_to=foto_perfil_upload_path, null=True, blank=True)
     # Almacenamiento antiguo (cifrado en la BD). Solo lectura: ver organizar_media.
@@ -2034,28 +1972,19 @@ class PerfilUsuario(models.Model):
     foto_perfil_mime = models.CharField(max_length=64, blank=True, default='')
     debe_cambiar_password = models.BooleanField(default=True, help_text="Indica si el usuario debe cambiar su contraseña en el próximo inicio de sesión")
     activo = models.BooleanField(default=True)
+    # Desactivación automática (no manual): usuario solo docente sin ficha de
+    # docente. Se reactiva solo al crearle la ficha.
+    inactivo_por_ficha_pendiente = models.BooleanField(default=False)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
+
+    # Auditoría: quién cambió qué y cuándo (usuario vía HistoryRequestMiddleware).
+    history = HistoricalRecords(excluded_fields=['foto_perfil_cifrada'])
 
     class Meta:
         verbose_name = "Perfil de Usuario"
         verbose_name_plural = "Perfiles de Usuarios"
-        constraints = [
-            models.UniqueConstraint(
-                fields=['carrera', 'rol'],
-                name='unico_iiisyp_por_carrera',
-                condition=models.Q(rol='iiisyp', activo=True)
-            ),
-            models.UniqueConstraint(
-                fields=['carrera', 'rol'],
-                name='unico_director_por_carrera',
-                condition=models.Q(rol='director', activo=True)
-            ),
-            models.UniqueConstraint(
-                fields=['carrera', 'rol'],
-                name='unico_jefe_por_carrera',
-                condition=models.Q(rol='jefe_estudios', activo=True)
-            ),
-        ]
+        # Director, Jefe de Estudios e Instituto (IIISyP) únicos por carrera: se
+        # valida con las AsignacionCarrera activas (validar_unicidad_cargo_por_carrera).
 
     def __str__(self):
         username = self.user.username if self.user else 'Sin usuario'
@@ -2093,27 +2022,21 @@ class PerfilUsuario(models.Model):
     def dias_vacacion(self):
         """Accede a dias_vacacion desde DatosLaborales (propio o del docente)."""
         datos = self.obtener_datos_laborales()
-        return datos.dias_vacacion if datos else 0
+        return datos.calcular_dias_vacacion() if datos else 0
 
-    @property
-    def horas_feriados_gestion(self):
-        """Accede a horas_feriados_gestion desde DatosLaborales."""
-        datos = self.obtener_datos_laborales()
-        return datos.horas_feriados_gestion if datos else 0
-
-    def calcular_antiguedad(self, gestion=None):
-        """Calcula la antigüedad en años."""
+    def calcular_antiguedad(self, fecha_referencia=None):
+        """Años completos de antigüedad (ver DatosLaborales.calcular_antiguedad)."""
         datos = self.obtener_datos_laborales()
         if datos:
-            return datos.calcular_antiguedad(gestion)
+            return datos.calcular_antiguedad(fecha_referencia)
         return 0
 
-    def calcular_dias_vacacion(self, gestion=None):
-        """Calcula días de vacación según antigüedad (Art. 11 y 24)."""
+    def calcular_dias_vacacion(self, fecha_referencia=None):
+        """Días de vacación según antigüedad (Art. 11 y 24)."""
         datos = self.obtener_datos_laborales()
         if datos:
-            return datos.calcular_dias_vacacion(gestion)
-        return 15
+            return datos.calcular_dias_vacacion(fecha_referencia)
+        return 0
 
     # ================================================================
     # Métodos existentes
@@ -2172,13 +2095,19 @@ class PerfilUsuario(models.Model):
 @receiver(post_save, sender=User)
 def crear_perfil_usuario(sender, instance, created, **kwargs):
     if created:
-        rol_inicial = 'iiisyp' if instance.is_superuser else 'docente'
+        # El superusuario no tiene rol de carrera: sus permisos salen de is_superuser.
+        rol_inicial = '' if instance.is_superuser else 'docente'
         # Si es superusuario (creado por consola), no obligar cambio de contraseña
         debe_cambiar = not instance.is_superuser
         PerfilUsuario.objects.create(user=instance, rol=rol_inicial, debe_cambiar_password=debe_cambiar)
 
 @receiver(post_save, sender=User)
 def guardar_perfil_usuario(sender, instance, **kwargs):
+    # Usuario desactivado: se liberan TODAS sus asignaciones (también Director y
+    # Jefe de Estudios), para que el cargo se pueda asignar a otra persona.
+    if not instance.is_active:
+        actualizar_con_historial(AsignacionCarrera.objects.filter(user=instance, activo=True), activo=False)
+
     perfil = PerfilUsuario.objects.filter(user=instance).first()
 
     if not perfil:
@@ -2187,7 +2116,8 @@ def guardar_perfil_usuario(sender, instance, **kwargs):
     updates = {'activo': instance.is_active}
 
     if instance.is_superuser:
-        updates['rol'] = 'iiisyp'
+        updates['rol'] = ''
+        updates['carrera'] = None
         updates['debe_cambiar_password'] = False
 
     for field, value in updates.items():
@@ -2206,44 +2136,28 @@ def crear_datos_laborales_si_no_existen(sender, instance, created, **kwargs):
         datos, created_dl = DatosLaborales.objects.get_or_create(
             ci=instance.ci if hasattr(instance, 'ci') and instance.ci else f"TEMP_{instance.pk}",
             defaults={
-                'fecha_ingreso': instance.fecha_ingreso if hasattr(instance, 'fecha_ingreso') else timezone.now().date(),
+                'fecha_ingreso': instance.fecha_ingreso if hasattr(instance, 'fecha_ingreso') else timezone.localdate(),
                 'dias_vacacion': instance.dias_vacacion if hasattr(instance, 'dias_vacacion') else 15,
-                'horas_feriados_gestion': instance.horas_feriados_gestion if hasattr(instance, 'horas_feriados_gestion') else 128,
             }
         )
         if created_dl:
-            Docente.objects.filter(pk=instance.pk).update(datos_laborales=datos)
-
-@receiver(post_save, sender=Actividad)
-@receiver(post_delete, sender=Actividad)
-def actualizar_horas_categoria(sender, instance, **kwargs):
-    """Actualiza el total de horas de la categoría al modificar actividades"""
-    categoria = instance.categoria
-    total = categoria.actividades.aggregate(models.Sum('horas_año'))['horas_año__sum'] or 0
-    categoria.total_horas = total
-    categoria.save()
+            actualizar_con_historial(Docente.objects.filter(pk=instance.pk), datos_laborales=datos)
 
 @receiver(post_save, sender=Docente)
 def actualizar_fondos_docente(sender, instance, **kwargs):
-    """
-    Sincroniza los fondos de tiempo cuando cambian datos críticos del docente
-    (antigüedad, vacaciones) para recalcular horas efectivas.
-    """
-    fondos = FondoTiempo.objects.filter(docente=instance)
-    for fondo in fondos:
-        fondo.save()
+    """Al editar la ficha (antigüedad, vacaciones), sus fondos no presentados se recalculan."""
+    FondoTiempo.recalcular_encabezados(FondoTiempo.objects.filter(docente=instance))
+
+@receiver(post_save, sender=DatosLaborales)
+def actualizar_fondos_al_cambiar_datos_laborales(sender, instance, **kwargs):
+    """La fecha de ingreso también se edita por /api/datos-laborales/: sus fondos no presentados se recalculan."""
+    FondoTiempo.recalcular_encabezados(FondoTiempo.objects.filter(docente__datos_laborales=instance))
+
 
 @receiver(post_save, sender=DocenteCarrera)
 def actualizar_fondos_al_cambiar_vinculo(sender, instance, **kwargs):
-    """
-    Sincroniza los fondos de tiempo cuando cambia la dedicación del vínculo.
-    """
-    fondos = FondoTiempo.objects.filter(
-        docente=instance.docente,
-        carrera=instance.carrera
-    )
-    for fondo in fondos:
-        fondo.save()
+    """Al cambiar la dedicación del vínculo, los fondos no presentados de esa carrera se recalculan."""
+    FondoTiempo.recalcular_encabezados(FondoTiempo.objects.filter(docente=instance.docente, carrera=instance.carrera))
 
 
 @receiver(post_save, sender=AsignacionCarrera)

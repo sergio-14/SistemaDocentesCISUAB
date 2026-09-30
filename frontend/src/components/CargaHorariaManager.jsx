@@ -20,8 +20,7 @@ const XMarkIcon = (props) => (
     </svg>
 );
 
-const SEMANAS_GESTION = 45.8;
-const SEMANAS_CLASES_AULA = 40;
+const PARALELOS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 const SUBACTIVIDADES_POR_CATEGORIA = {
     academica: {
@@ -181,8 +180,6 @@ const HORAS_ANUALES_OFICIALES = {
     },
 };
 
-const HORAS_ANUALES_TIEMPO_COMPLETO = 1712;
-
 const ChevronDown = ({ open = false }) => (
     <div className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
         <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-cyan-50 dark:bg-cyan-900/30 ring-1 ring-cyan-200/70 dark:ring-cyan-700/70">
@@ -284,9 +281,8 @@ const CustomSelect = ({
     );
 };
 
-const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdicion, onCancelarEdicion, readOnly = true }) => {
+const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], onCargaUpdate, cargaEdicion, onCancelarEdicion, readOnly = true }) => {
     const [cargas, setCargas] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [semestre, setSemestre] = useState('');
     const [materias, setMaterias] = useState([]);
     const [loadingMaterias, setLoadingMaterias] = useState(false);
@@ -336,9 +332,13 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
     const [allMaterias, setAllMaterias] = useState([]);
     const [semestresDisponibles, setSemestresDisponibles] = useState([]);
     const [fondoDetalle, setFondoDetalle] = useState(null);
+    // Las materias van en un calendario de la gestión; con uno solo, se elige solo.
+    const calendarioPorDefecto = calendarios.length === 1 ? String(calendarios[0].id) : '';
     const [formData, setFormData] = useState({
         categoria: 'academica',
+        calendario: calendarioPorDefecto,
         materia: '',
+        paralelo: 'A',
         titulo_actividad: '',
         tipo_actividad: '',
         horas: '',
@@ -358,18 +358,26 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
         { value: 'social_cultural_deportiva', label: 'Social, cultural, deportiva y Otros' },
     ];
 
+    // Las funciones de carga cambian en cada render: se usan desde una ref para recargar
+    // solo cuando cambia el fondo.
+    const cargasRef = useRef(null);
     useEffect(() => {
-        if (docenteId && calendarioId) {
-            cargarCargas();
-            cargarFondoDetalle();
+        cargasRef.current = { cargarCargas, cargarFondoDetalle };
+    });
+    useEffect(() => {
+        if (fondoId) {
+            cargasRef.current.cargarCargas();
+            cargasRef.current.cargarFondoDetalle();
         }
-    }, [docenteId, calendarioId]);
+    }, [fondoId]);
 
     useEffect(() => {
         if (cargaEdicion) {
             setFormData({
                 categoria: cargaEdicion.categoria || 'academica',
+                calendario: cargaEdicion.calendario ? String(cargaEdicion.calendario) : '',
                 materia: cargaEdicion.materia || cargaEdicion.materia_id || '',
+                paralelo: cargaEdicion.paralelo || 'A',
                 titulo_actividad: cargaEdicion.titulo_actividad || '',
                 tipo_actividad: cargaEdicion.tipo_actividad || '',
                 horas: cargaEdicion.horas,
@@ -377,9 +385,9 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
                 documento_respaldo: cargaEdicion.respaldo || ''
             });
         } else {
-            setFormData({ categoria: 'academica', materia: '', titulo_actividad: '', tipo_actividad: '', horas: '', evidencias: '', documento_respaldo: '' });
+            setFormData({ categoria: 'academica', calendario: calendarioPorDefecto, materia: '', paralelo: 'A', titulo_actividad: '', tipo_actividad: '', horas: '', evidencias: '', documento_respaldo: '' });
         }
-    }, [cargaEdicion]);
+    }, [cargaEdicion, calendarioPorDefecto]);
 
     useEffect(() => {
         const fetchAllMaterias = async () => {
@@ -421,34 +429,20 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
 
     const cargarCargas = async () => {
         try {
-            setLoading(true);
-            const response = await api.get('/cargas-horarias/', {
-                params: { docente: docenteId, calendario: calendarioId }
-            });
+            const response = await api.get('/cargas-horarias/', { params: { fondo: fondoId } });
             setCargas(response.data.results || response.data);
         } catch (error) {
             console.error("Error al cargar cargas horarias:", error);
             toast.error("Error al cargar asignaciones");
-        } finally {
-            setLoading(false);
         }
     };
 
     const cargarFondoDetalle = async () => {
         try {
-            const response = await api.get('/fondos-tiempo/', {
-                params: { docente: docenteId, calendario: calendarioId }
-            });
-            const fondos = response.data.results || response.data;
-            const fondo = Array.isArray(fondos) ? fondos[0] : null;
-            if (!fondo?.id) {
-                setFondoDetalle(null);
-                return;
-            }
-            const detalle = await api.get(`/fondos-tiempo/${fondo.id}/`);
+            const detalle = await api.get(`/fondos-tiempo/${fondoId}/`);
             setFondoDetalle(detalle.data);
         } catch (error) {
-            console.error("Error al cargar presupuesto macro:", error);
+            console.error("Error al cargar el detalle del fondo:", error);
             setFondoDetalle(null);
         }
     };
@@ -462,11 +456,19 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
             return;
         }
         if (excedeObjetivoAnual) {
-            toast.error(`No se puede guardar: el Micro excede ${objetivoAnual} horas anuales`);
+            toast.error(`No se puede guardar: la suma de las unidades superaría las ${objetivoAnual} horas efectivas`);
+            return;
+        }
+        if (esAcademica && !formData.calendario) {
+            toast.error("Seleccione el calendario académico de la materia");
             return;
         }
         if (esAcademica && !formData.materia) {
             toast.error("Seleccione una materia del plan de estudios");
+            return;
+        }
+        if (esAcademica && formData.tipo_actividad === 'clases_aula' && !formData.paralelo) {
+            toast.error("Seleccione el paralelo");
             return;
         }
         if (esAcademica && !formData.tipo_actividad) {
@@ -493,7 +495,9 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
             tipo_actividad: formData.tipo_actividad,
             evidencias: formData.evidencias?.trim(),
             docente: docenteId,
-            calendario: calendarioId
+            // Las materias van en su calendario; lo demás son horas por año de la gestión del fondo.
+            calendario: esAcademica ? formData.calendario : null,
+            gestion,
         };
         try {
             if (cargaEdicion) {
@@ -512,7 +516,7 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
                     setCargas((prev) => [response.data, ...prev]);
                 }
             }
-            setFormData({ categoria: 'academica', materia: '', titulo_actividad: '', tipo_actividad: '', horas: '', evidencias: '', documento_respaldo: '' });
+            setFormData({ categoria: 'academica', calendario: calendarioPorDefecto, materia: '', paralelo: 'A', titulo_actividad: '', tipo_actividad: '', horas: '', evidencias: '', documento_respaldo: '' });
             setSemestre('');
             cargarFondoDetalle();
             if (onCargaUpdate) onCargaUpdate();
@@ -531,26 +535,11 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!confirm("¿Eliminar esta asignación?")) return;
-        try {
-            await api.delete(`/cargas-horarias/${id}/`);
-            toast.success("Eliminado");
-            setCargas((prev) => prev.filter((carga) => carga.id !== id));
-            cargarFondoDetalle();
-            if (onCargaUpdate) onCargaUpdate();
-        } catch (error) {
-            console.error(error);
-            const statusCode = error.response?.status;
-            const data = error.response?.data;
-            if (statusCode === 400) {
-                const validationMessage = extractValidationMessage(data);
-                toast.error(`ERROR DE VALIDACIÓN: ${validationMessage}`);
-            } else {
-                toast.error("Error al eliminar");
-            }
-        }
-    };
+
+    // Semanas de clases del calendario (20 en un semestre, 40 en uno anual), dato del backend.
+    const semanasDeClase = (calendarioId) => (
+        calendarios.find(cal => String(cal.id) === String(calendarioId))?.semanas_de_clase || 0
+    );
 
     const handleMateriaChange = (materiaId) => {
         const materia = materias.find(m => m.id.toString() === materiaId);
@@ -559,17 +548,29 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
                 setFormData({ ...formData, materia: materiaId });
                 return;
             }
-            // 40 semanas de clases según Fondo de Tiempo oficial
-            const horasAnuales = Number(materia.horas_totales || 0) * SEMANAS_CLASES_AULA;
+            const horasAnuales = Number(materia.horas_totales || 0) * semanasDeClase(formData.calendario);
             setFormData({ ...formData, materia: materiaId, tipo_actividad: 'clases_aula', titulo_actividad: materia.nombre, horas: horasAnuales });
         }
+    };
+
+    const handleCalendarioChange = (calendarioId) => {
+        setFormData((prev) => {
+            const materia = materias.find(m => String(m.id) === String(prev.materia));
+            // Clases en aula: las horas dependen de las semanas del calendario.
+            const horas = prev.tipo_actividad === 'clases_aula' && materia
+                ? Number(materia.horas_totales || 0) * semanasDeClase(calendarioId)
+                : prev.horas;
+            return { ...prev, calendario: calendarioId, horas };
+        });
     };
 
     const handleCategoriaChange = (categoria) => {
         setSemestre('');
         setFormData({
             categoria,
+            calendario: formData.calendario || calendarioPorDefecto,
             materia: '',
+            paralelo: 'A',
             titulo_actividad: '',
             tipo_actividad: '',
             horas: '',
@@ -592,42 +593,50 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
     };
 
     const categoriaOptions = CATEGORIA_OPCIONES.map(opt => ({ value: opt.value, label: opt.label }));
+    const paraleloOptions = PARALELOS.map(p => ({ value: p, label: `Paralelo ${p}` }));
+    const calendarioOptions = calendarios.map(cal => ({ value: String(cal.id), label: `${cal.periodo_display} ${cal.gestion}` }));
     const semestreOptions = semestresDisponibles.map(s => ({ value: s.toString(), label: `${s}° Semestre` }));
-    const materiaOptions = materias.map(m => ({
-        value: m.id.toString(),
-        label: `${m.nombre} (${m.horas_teoricas} HT / ${m.horas_practicas} HP - Total: ${m.horas_totales} hrs/sem)`
-    }));
     const selectedMateriaId = formData.materia?.toString() || '';
+    // Una materia inactiva no se asigna en cargas nuevas (solo se conserva la ya asignada).
+    const materiaOptions = materias
+        .filter(m => m.activo !== false || m.id.toString() === selectedMateriaId)
+        .map(m => ({
+            value: m.id.toString(),
+            label: `${m.nombre} (${m.horas_teoricas} HT / ${m.horas_practicas} HP - Total: ${m.horas_totales} hrs/sem)`
+        }));
     const esAcademica = formData.categoria === 'academica';
     const requiereMateriaAcademica = esAcademica;
     const esSubactividadAcademica = esAcademica && formData.tipo_actividad && formData.tipo_actividad !== 'clases_aula';
     const configCategoria = SUBACTIVIDADES_POR_CATEGORIA[formData.categoria] || null;
     const tipoActividadOptions = configCategoria?.opciones || [];
-    const semanasPresupuesto = Number(fondoDetalle?.semanas_año || SEMANAS_GESTION);
-    const categoriaPresupuesto = fondoDetalle?.categorias?.find(cat => cat.tipo === formData.categoria);
-    const presupuestoSemana = Number(categoriaPresupuesto?.total_horas || 0);
-    const semanasCategoria = esAcademica ? SEMANAS_CLASES_AULA : semanasPresupuesto;
-    const asignadoSemana = cargas
+    // La unidad suma sus ítems; el fondo, todas sus unidades (horas por año) hasta las horas efectivas.
+    const totalUnidad = cargas
         .filter(carga => carga.categoria === formData.categoria && carga.id !== cargaEdicion?.id)
-        .reduce((total, carga) => total + (Number(carga.horas || 0) / semanasCategoria), 0);
-    const disponibleSemana = presupuestoSemana - asignadoSemana;
-    const objetivoAnual = Math.round(Number(fondoDetalle?.horas_efectivas || HORAS_ANUALES_TIEMPO_COMPLETO));
+        .reduce((total, carga) => total + Number(carga.horas || 0), 0);
+    const objetivoAnual = Math.round(Number(fondoDetalle?.horas_efectivas || 0));
     const horasFormulario = Number(formData.horas || 0);
     const totalAnualBase = cargas
         .filter((carga) => carga.id !== cargaEdicion?.id)
         .reduce((total, carga) => total + Number(carga.horas || 0), 0);
     const totalAnualProyectado = totalAnualBase + horasFormulario;
     const excedeObjetivoAnual = objetivoAnual > 0 && totalAnualProyectado > objetivoAnual;
-    const duplicadoTipoSeleccionado = Boolean(formData.tipo_actividad) && cargas.some((carga) => (
-        carga.id !== cargaEdicion?.id
-        && carga.categoria === formData.categoria
-        && carga.tipo_actividad === formData.tipo_actividad
-        && (!esAcademica || String(carga.materia || carga.materia_id || '') === String(formData.materia || ''))
-    ));
+    // Misma regla que el backend: clases en aula, una por calendario + materia + paralelo;
+    // el resto (sub-actividades académicas y demás ítems), una por fondo.
+    const esClaseAula = esAcademica && formData.tipo_actividad === 'clases_aula';
+    const duplicadoTipoSeleccionado = Boolean(formData.tipo_actividad) && cargas.some((carga) => {
+        if (carga.id === cargaEdicion?.id || carga.categoria !== formData.categoria
+            || carga.tipo_actividad !== formData.tipo_actividad) return false;
+        if (!esClaseAula) return true;
+        return String(carga.calendario || '') === String(formData.calendario || '')
+            && String(carga.materia || carga.materia_id || '') === String(formData.materia || '')
+            && carga.paralelo === formData.paralelo;
+    });
     const respaldoRequerido = false;
     const respaldoInvalido = respaldoRequerido && !formData.documento_respaldo?.trim();
     const submitDisabled = isSubmitting
+        || (requiereMateriaAcademica && !formData.calendario)
         || (requiereMateriaAcademica && !formData.materia)
+        || (esClaseAula && !formData.paralelo)
         || (esSubactividadAcademica && !formData.titulo_actividad?.trim())
         || (!esAcademica && !formData.titulo_actividad?.trim())
         || (esAcademica && !formData.tipo_actividad)
@@ -666,7 +675,9 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
             <div className="flex-1 flex flex-col p-4 sm:p-5 overflow-y-auto">
                 {duplicadoTipoSeleccionado && (
                     <div className="mb-4 shrink-0 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
-                        Ya existe una asignación con este mismo tipo dentro de la categoría seleccionada.
+                        {esClaseAula
+                            ? 'Esa materia ya está asignada en ese calendario y paralelo.'
+                            : 'Esa actividad ya está registrada en el Fondo de Tiempo.'}
                     </div>
                 )}
 
@@ -686,7 +697,7 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
                     {/* Campos superiores */}
                     <div className="space-y-4">
 
-                        {/* Fila 1: Categoría + Semestre */}
+                        {/* Fila 1: Categoría + Calendario + Semestre */}
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className={labelCls}>Categoría</label>
@@ -698,6 +709,19 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
                                     disabled={isReadOnly}
                                 />
                             </div>
+                            {esAcademica && (
+                                <div>
+                                    <label className={labelCls}>Calendario</label>
+                                    <CustomSelect
+                                        value={formData.calendario}
+                                        options={calendarioOptions}
+                                        onChange={handleCalendarioChange}
+                                        placeholder="-- Calendario --"
+                                        disabled={isReadOnly}
+                                        emptyText="La gestión no tiene calendarios académicos"
+                                    />
+                                </div>
+                            )}
                             {esAcademica && (
                                 <div>
                                     <label className={labelCls}>Semestre / Nivel</label>
@@ -717,7 +741,7 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
                         </div>
 
                         <div className="rounded-lg border border-cyan-200 bg-cyan-50/70 px-3 py-2 text-[11px] font-semibold text-cyan-800 dark:border-cyan-800/70 dark:bg-cyan-950/25 dark:text-cyan-200">
-                            Presupuesto: {presupuestoSemana.toFixed(2)} hrs/sem | Asignado: {asignadoSemana.toFixed(2)} hrs/sem | Disponible: {disponibleSemana.toFixed(2)} hrs/sem
+                            Unidad: {totalUnidad} h/año | Fondo: {totalAnualBase} de {objetivoAnual} h/año (horas efectivas) | Por asignar: {objetivoAnual - totalAnualBase} h/año
                         </div>
 
                         {/* Fila 2: Materia o actividad */}
@@ -746,6 +770,18 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
                                             disabled={!semestre || isReadOnly}
                                             emptyText={!semestre ? 'Selecciona primero un nivel' : 'No hay materias en este nivel'}
                                             menuMaxHeight="max-h-64"
+                                        />
+                                    </div>
+                                )}
+                                {formData.tipo_actividad === 'clases_aula' && (
+                                    <div className="mt-3">
+                                        <label className={labelCls}>Paralelo</label>
+                                        <CustomSelect
+                                            value={formData.paralelo}
+                                            options={paraleloOptions}
+                                            onChange={(paralelo) => setFormData(prev => ({ ...prev, paralelo }))}
+                                            placeholder="-- Paralelo --"
+                                            disabled={isReadOnly}
                                         />
                                     </div>
                                 )}
@@ -824,8 +860,8 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
                             </div>
                             <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1.5 leading-tight">
                                 {esAcademica && !esSubactividadAcademica
-                                    ? `Total horas anuales = (HT + HP) x ${SEMANAS_CLASES_AULA} semanas`
-                                    : `Equivalencia semanal aproximada = horas anuales / ${semanasPresupuesto}`}
+                                    ? `Total horas anuales = (HT + HP) x ${semanasDeClase(formData.calendario) || '20 (semestre) o 40 (anual)'} semanas`
+                                    : 'Horas por año del ítem: se suman al total de su unidad'}
                             </p>
                         </div>
 
@@ -846,7 +882,7 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
                     {/* Botón - pegado al fondo con mt-auto */}
                     <div className="mt-5">
                         {!isReadOnly && (
-                        <button type="submit"
+                        <button data-escritura type="submit"
                             disabled={submitDisabled}
                             className={`w-full py-3 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-2 transition-all ${
                                 submitDisabled

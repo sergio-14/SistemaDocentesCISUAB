@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../apis/api';
+import { ETIQUETAS_DEDICACION } from '../utils/dedicaciones';
+import AsignarMateriaOtraCarrera from './AsignarMateriaOtraCarrera';
 
 // --- ICONOS ---
 const SearchIcon = (props) => (
@@ -21,7 +23,7 @@ const BriefcaseIcon = (props) => (
   </svg>
 );
 
-const CargaHorariaGeneral = ({ isDark }) => {
+const CargaHorariaGeneral = () => {
   const [docentes, setDocentes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -122,6 +124,8 @@ const CargaHorariaGeneral = ({ isDark }) => {
           </div>
         </div>
 
+        <AsignarMateriaOtraCarrera />
+
         {/* Grid of Cards */}
         {filteredDocentes.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -165,15 +169,7 @@ const CargaHorariaGeneral = ({ isDark }) => {
                       <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Dedicación</p>
                       <p className="font-medium text-slate-800 dark:text-slate-200 capitalize">
                         {(() => {
-                            const labels = {
-                                tiempo_completo: 'Tiempo Completo',
-                                medio_tiempo: 'Medio Tiempo',
-                                horario_16: 'Horario 16hrs/sem',
-                                horario_24: 'Horario 24hrs/sem',
-                                horario_40: 'Horario 40hrs/sem',
-                                horario_48: 'Horario 48hrs/sem',
-                            };
-                            return labels[docente?.vinculos?.[0]?.dedicacion] || docente?.vinculos?.[0]?.dedicacion || 'No especificada';
+                            return ETIQUETAS_DEDICACION[docente?.vinculos?.[0]?.dedicacion] || docente?.vinculos?.[0]?.dedicacion || 'No especificada';
                         })()}
                       </p>
                     </div>

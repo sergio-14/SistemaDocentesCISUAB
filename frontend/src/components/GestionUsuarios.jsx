@@ -4,12 +4,13 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { FaEdit, FaTrash } from 'react-icons/fa';
 import api from '../apis/api';
 import ModalUsuario from './ModalUsuario';
+import { MENSAJE_RESOLUCION_JEFE, MENSAJE_UNA_SOLA_CARRERA, cuerpoConArchivo, esArchivoPdf } from '../utils/asignacionesUsuario';
+import CampoResolucionJefe from './common/CampoResolucionJefe';
 import toast from 'react-hot-toast';
 import {
   ERROR_MOTION_CLASS,
   ERROR_FIELD_BORDER_CLASS,
   ERROR_SHAKE_DURATION_MS,
-  sanitizeChoiceError,
   sanitizeApiErrors,
   getBackendErrorMessage,
 } from '../utils/formErrors';
@@ -114,12 +115,11 @@ const TrashIcon = (props) => (
 // Mensajes descriptivos para validación en caliente (Normativa UABJB)
 const MENSAJE_DUPLICADO = 'Esta combinación de Rol y Carrera ya se encuentra asignada.';
 const MENSAJE_LIMITE_ASIGNACIONES = 'Un usuario no puede tener más de 2 asignaciones en el sistema (Normativa de Fondo de Tiempo).';
-const MENSAJE_AUTORIDAD_MULTIPLE = 'No se puede asignar un cargo de autoridad (Director/Jefe) en múltiples carreras.';
-const MENSAJE_CONFLICTO_AUTORIDAD = 'Conflicto de Autoridad: Un usuario no puede ser Director y Jefe de Estudios de la misma carrera.';
-const MENSAJE_AUTORIDAD_UNICA = 'Un usuario no puede tener más de un cargo de autoridad (Director o Jefe de Estudios) en el sistema (Normativa UABJB).';
-const MENSAJE_DOCENTE_OTRA_CARRERA = 'La carga docente de un cargo de autoridad debe pertenecer a su misma carrera (dedicación exclusiva UABJB).';
+const MENSAJE_CONFLICTO_AUTORIDAD = 'Conflicto de Autoridad: Un usuario no puede tener dos cargos de mando (Director, Jefe de Estudios o Instituto) en la misma carrera.';
+const MENSAJE_AUTORIDAD_UNICA = 'Un usuario no puede tener más de un cargo de mando (Director, Jefe de Estudios o Instituto) en el sistema (Normativa UABJB).';
 const MENSAJE_CARRERA_PENDIENTE = 'Debe seleccionar una carrera para la asignación actual antes de agregar otra.';
-const ROLES_MANDO_UABJB = ['director', 'jefe_estudios'];
+// Cargos de mando: un solo cargo por usuario, y solo pueden ser docentes de su misma carrera.
+const ROLES_MANDO_UABJB = ['director', 'jefe_estudios', 'iiisyp'];
 
 const ROL_LABELS = {
   iiisyp: '🔬 Instituto de investigación',
@@ -136,6 +136,8 @@ const ROL_STYLES = {
 };
 
 const obtenerTextoRolUsuario = (usuario) => {
+  // El superusuario no tiene rol de carrera.
+  if (usuario?.is_superuser) return 'Super Admin';
   if (!usuario?.perfil) return 'Sin rol';
 
   const rolPrincipal = String(usuario.perfil.rol || '').trim();
@@ -197,20 +199,11 @@ const obtenerTextoCarrerasUsuario = (usuario) => {
   return carreras.join(' / ');
 };
 
-const ROLES_AUTORIDAD = ['director', 'jefe_estudios', 'iiisyp'];
-
 const usuarioTieneRolDocente = (usuario) => obtenerRolesUsuario(usuario).includes('docente');
-const usuarioTieneVinculoDocente = (usuario) => Boolean(usuario?.perfil?.docente_id || usuario?.perfil?.docente);
 
-const usuarioTienePerfilDocentePendiente = (usuario) => {
-  const roles = obtenerRolesUsuario(usuario);
-  return (
-    roles.length > 1
-    && roles.includes('docente')
-    && roles.some((rol) => ROLES_AUTORIDAD.includes(rol))
-    && !usuarioTieneVinculoDocente(usuario)
-  );
-};
+// Rol docente sin ficha de docente (lo calcula el backend). No desactiva al usuario:
+// sus cargos funcionan y solo su parte docente queda pendiente de ficha.
+const usuarioTienePerfilDocentePendiente = (usuario) => Boolean(usuario?.ficha_docente_pendiente);
 
 const AnimatedInlineMessage = ({ show, message, wrapperClassName = '', messageClassName = '' }) => {
   const [shouldRender, setShouldRender] = useState(show);
@@ -303,7 +296,7 @@ const SELECT_INPUT_BASE_CLASS = 'border-2 border-slate-300 dark:border-slate-600
 
 const STATIC_CONTROL_STYLE = { transition: 'none', transform: 'none', animation: 'none' };
 
-const SelectConDropdown = ({ label, name, value, onChange, options, error, disabled = false, required = false, placeholder = 'Seleccione...', hoverEffect = true, stable = false, standardStyle = false, onInteract = null, selectedIndex = null, selectedIndexesByValue = null, forwardedRef = null, pulse = 0 }) => {
+const SelectConDropdown = ({ label, name, value, onChange, options, error, disabled = false, placeholder = 'Seleccione...', standardStyle = false, onInteract = null, selectedIndex = null, selectedIndexesByValue = null, forwardedRef = null, pulse = 0 }) => {
   const [open, setOpen] = useState(false);
   const [isPulsing, setIsPulsing] = useState(false);
   const containerRef = useRef(null);
@@ -468,7 +461,6 @@ const FilterDocentes = ({
   docentes,
   error,
   disabled = false,
-  required = false,
   placeholder = 'Buscar docente...'
 }) => {
   const [open, setOpen] = useState(false);
@@ -639,7 +631,6 @@ const FilterCarreras = ({
   carreras,
   error,
   disabled = false,
-  required = false,
   placeholder = 'Buscar carrera...'
 }) => {
   const [open, setOpen] = useState(false);
@@ -680,7 +671,7 @@ const FilterCarreras = ({
     const term = searchTerm.toLowerCase();
     const nombre = String(carrera.nombre || '').toLowerCase();
     const codigo = String(carrera.codigo || '').toLowerCase();
-    const facultad = String(carrera.facultad_nombre || '').toLowerCase();
+    const facultad = String(carrera.facultad || '').toLowerCase();
     return nombre.includes(term) || codigo.includes(term) || facultad.includes(term);
   });
 
@@ -1029,7 +1020,7 @@ const SearchInput = ({ value, onChange, placeholder = 'Buscar por nombre o C.I..
   );
 };
 
-function GestionUsuarios({ isDark, sidebarCollapsed = false, user, hasSidebar = true }) {
+function GestionUsuarios({ sidebarCollapsed = false, user, hasSidebar = true }) {
   const navigate = useNavigate();
   const location = useLocation();
   const restoringFormRef = useRef(false);
@@ -1051,14 +1042,11 @@ function GestionUsuarios({ isDark, sidebarCollapsed = false, user, hasSidebar = 
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState({});
   const [crearNuevoDocente, setCrearNuevoDocente] = useState(false);
-  const [bloquearCrearNuevoDocente, setBloquearCrearNuevoDocente] = useState(false);
+  const [resolucionJefe, setResolucionJefe] = useState(null);
   const [asignacionesExtra, setAsignacionesExtra] = useState([]);
-  const [indiceAsignacionActiva, setIndiceAsignacionActiva] = useState(0);
   const [selectedRoleLeft, setSelectedRoleLeft] = useState(null);
   const [selectedRoleRight, setSelectedRoleRight] = useState(null);
   const [expandedCarreraRoles, setExpandedCarreraRoles] = useState({});
-  const rolDropdownRef = useRef(null);
-  const carreraDropdownRef = useRef(null);
   const lastToastRef = useRef({});
   const TOAST_DEBOUNCE_MS = 1500;
   const showToastOnce = (msg) => {
@@ -1068,7 +1056,7 @@ function GestionUsuarios({ isDark, sidebarCollapsed = false, user, hasSidebar = 
       if (last && (now - last) < TOAST_DEBOUNCE_MS) return;
       lastToastRef.current[msg] = now;
       toast.error(msg, { className: 'toast-brinco' });
-    } catch (e) {
+    } catch {
       // en caso de fallo, fallar silenciosamente mostrando el toast normal
       toast.error(msg, { className: 'toast-brinco' });
     }
@@ -1126,10 +1114,6 @@ function GestionUsuarios({ isDark, sidebarCollapsed = false, user, hasSidebar = 
     };
   }, [errors?.asignaciones, rightPanelPulse]);
 
-  const [addRoleButtonPulse, setAddRoleButtonPulse] = useState(0);
-  const [isAddRoleButtonPulsing, setIsAddRoleButtonPulsing] = useState(false);
-  const [showAddRoleTooltip, setShowAddRoleTooltip] = useState(false);
-  const [abrirModalAlVolver, setAbrirModalAlVolver] = useState(false);
   const [vinculacionRapidaDocente, setVinculacionRapidaDocente] = useState(false);
   const [volverANuevoDocente, setVolverANuevoDocente] = useState(false);
 
@@ -1174,17 +1158,15 @@ function GestionUsuarios({ isDark, sidebarCollapsed = false, user, hasSidebar = 
   };
   const filtrarRolesPorPermiso = (rolesBase) => (rolesBase || []).filter((rol) => {
     if (esSuperuserActual) return true;
-    if (esDirectorCarreraActual) return !['iiisyp', 'director'].includes(rol.value);
+    // El Director asigna Instituto y Jefe de Estudios en su carrera; Director de Carrera, no.
+    if (esDirectorCarreraActual) return rol.value !== 'director';
     return rol.value !== 'iiisyp';
   });
   
   // Usuarios huerfanos: sin perfil o con cualquier rol docente sin docente vinculado
-  const esUsuarioHuerfano = (u) => !u?.perfil || (usuarioTieneRolDocente(u) && !usuarioTieneVinculoDocente(u));
+  const esUsuarioHuerfano = (u) => !u?.perfil || usuarioTienePerfilDocentePendiente(u);
   const hayOrfanos = usuarios.length > 0 && usuarios.some(esUsuarioHuerfano);
 
-  useEffect(() => {
-    cargarDatos();
-  }, []);
 
   useEffect(() => {
     if (location?.state?.from !== 'docente') return;
@@ -1252,14 +1234,11 @@ function GestionUsuarios({ isDark, sidebarCollapsed = false, user, hasSidebar = 
           rol: 'docente',
           carrera: carreraSeleccionada,
           docente: docenteId,
-          docente_data: null,
           password: datosCrearUsuario?.password || '',
           password_confirm: datosCrearUsuario?.password_confirm || '',
         });
         setAsignacionesExtra([]);
-        setIndiceAsignacionActiva(0);
         setCrearNuevoDocente(false);
-        setBloquearCrearNuevoDocente(false);
         setErrors({});
         setUsuarioEditando(null);
         setIsCreating(true);
@@ -1300,18 +1279,13 @@ function GestionUsuarios({ isDark, sidebarCollapsed = false, user, hasSidebar = 
           last_name: lastName,
           carrera: docenteRetornado?.carrera || datos.carrera || '',
           docente: docenteRetornado?.id || (datos.docente || ''),
-          docente_data: null,
         });
         setCrearNuevoDocente(false);
-        setBloquearCrearNuevoDocente(Boolean(docenteRetornado?.id));
         setAsignacionesExtra([]);
-        setIndiceAsignacionActiva(0);
         sessionStorage.removeItem('datosCrearUsuario');
         sessionStorage.removeItem('docenteRetornadoDesdeUsuarios');
-        sessionStorage.removeItem('flujoDocenteDesdeUsuarios');
         // Abrir el modal automáticamente con los datos recuperados
         setIsCreating(true);
-        setAbrirModalAlVolver(false);
       } catch (e) {
         console.error('Error al recuperar datos:', e);
       }
@@ -1333,12 +1307,13 @@ function GestionUsuarios({ isDark, sidebarCollapsed = false, user, hasSidebar = 
     setFormData((prev) => ({
       ...prev,
       docente: docenteReciente.id,
-      docente_data: null,
       carrera: prev.carrera || docenteReciente.carrera_id || '',
     }));
   }, [isCreating, formData.rol, formData.docente, docenteReciente, asignacionesExtra]);
 
   const cargarDatos = async () => {
+    setError(null);
+    setLoading(true);
     try {
       const [usuariosRes, docentesRes, carrerasRes, rolesRes] = await Promise.all([
         api.get('/usuarios/'),
@@ -1362,14 +1337,18 @@ function GestionUsuarios({ isDark, sidebarCollapsed = false, user, hasSidebar = 
     }
   };
 
-  const docentesDisponibles = docenteReciente && !docentes.some((item) => String(item.id) === String(docenteReciente.id))
-    ? [...docentes, docenteReciente]
-    : docentes;
+  // Carga inicial y recarga si cambia el usuario o su rol/carrera activos. Hoy el rol
+  // se cambia en el selector de módulos (fuera de esta página), pero el `user` también
+  // puede actualizarse con la página abierta.
+  const cargarDatosRef = useRef(cargarDatos);
+  useEffect(() => {
+    cargarDatosRef.current = cargarDatos;
+  });
+  useEffect(() => {
+    cargarDatosRef.current();
+  }, [user?.id, user?.perfil?.rol, user?.perfil?.carrera]);
 
-  const docentesActivosDisponibles = docentesDisponibles.filter((docente) => docente?.activo !== false);
   const docentesPorId = new Map(docentes.map((docente) => [String(docente.id), docente]));
-  const usuarioEsDocenteSinVinculo = (usuario) => Boolean(usuarioTieneRolDocente(usuario) && !usuarioTieneVinculoDocente(usuario));
-
   const usuarioTieneDocenteInactivo = (usuario) => {
     if (!usuarioTieneRolDocente(usuario)) return false;
     const docenteId = usuario?.perfil?.docente_id || usuario?.perfil?.docente;
@@ -1406,8 +1385,8 @@ function GestionUsuarios({ isDark, sidebarCollapsed = false, user, hasSidebar = 
     result = [...result].sort((a, b) => {
       const rolA = a.perfil?.rol || 'docente';
       const rolB = b.perfil?.rol || 'docente';
-      const ordenA = ordenJerarquico[rolA] ?? 99;
-      const ordenB = ordenJerarquico[rolB] ?? 99;
+      const ordenA = a.is_superuser ? -1 : (ordenJerarquico[rolA] ?? 99);
+      const ordenB = b.is_superuser ? -1 : (ordenJerarquico[rolB] ?? 99);
 
       if (ordenA !== ordenB) {
         return ordenA - ordenB;
@@ -1432,10 +1411,6 @@ function GestionUsuarios({ isDark, sidebarCollapsed = false, user, hasSidebar = 
         return;
       }
       
-      const carreraDefault = esDirectorCarreraActual && carrerasGestionables.length === 1
-        ? String(carrerasGestionables[0].id)
-        : '';
-      
 const initialData = {
   username: '',
   email: '',
@@ -1444,54 +1419,45 @@ const initialData = {
   last_name: '',
   ci: '',
   rol: '',
-  carrera: carreraDefault,
+  carrera: '',
   docente: '',
-  docente_data: null,
   password: '',
   password_confirm: '',
 };
       setFormData(initialData);
       setAsignacionesExtra([]);
-      setIndiceAsignacionActiva(0);
       setVinculacionRapidaDocente(false);
       setCrearNuevoDocente(false);
-      setBloquearCrearNuevoDocente(false);
       setDocenteReciente(null);
+      setResolucionJefe(null);
       setErrors({});
     }
   }, [isCreating, user]);
+
+  // Carrera por defecto del Director que gestiona una sola carrera. Va aparte del
+  // reinicio del formulario para recalcularse cuando terminan de cargar las carreras.
+  // Solo el superusuario elige la carrera; para cualquier otro es automáticamente la suya.
+  const carreraPropiaEditor = !esSuperuserActual && carrerasGestionables.length === 1
+    ? String(carrerasGestionables[0].id)
+    : '';
+  const carreraDefaultDirector = esDirectorCarreraActual && carrerasGestionables.length === 1
+    ? String(carrerasGestionables[0].id)
+    : '';
+  useEffect(() => {
+    if (!isCreating || !carreraDefaultDirector) return;
+    setFormData((prev) => (prev.carrera ? prev : { ...prev, carrera: carreraDefaultDirector }));
+  }, [isCreating, carreraDefaultDirector]);
 
   const handleToggleCreateForm = () => {
     sessionStorage.removeItem('datosEditarUsuario');
     if (isCreating) {
       setVinculacionRapidaDocente(false);
       setAsignacionesExtra([]);
-      setIndiceAsignacionActiva(0);
-      setBloquearCrearNuevoDocente(false);
     }
     setIsCreating(!isCreating);
     setUsuarioEditando(null); // Ensure we are not in edit mode
   };
 
-  const triggerAddRoleButtonError = () => {
-    setAddRoleButtonPulse((prev) => prev + 1);
-  };
-
-  useEffect(() => {
-    if (!addRoleButtonPulse) {
-      setIsAddRoleButtonPulsing(false);
-      return;
-    }
-
-    setIsAddRoleButtonPulsing(false);
-    const frameId = requestAnimationFrame(() => setIsAddRoleButtonPulsing(true));
-    const timeoutId = setTimeout(() => setIsAddRoleButtonPulsing(false), ERROR_SHAKE_DURATION_MS);
-
-    return () => {
-      cancelAnimationFrame(frameId);
-      clearTimeout(timeoutId);
-    };
-  }, [addRoleButtonPulse]);
 
   const abrirModalEditar = (usuario) => {
     sessionStorage.removeItem('datosEditarUsuario');
@@ -1515,7 +1481,7 @@ const initialData = {
   };
 
   const eliminarDesdeDetalle = () => {
-    if (!usuarioDetalle || !puedeEliminarUsuarios() || usuarioDetalle.is_superuser) return;
+    if (!puedeEliminarUsuario(usuarioDetalle)) return;
     const usuario = usuarioDetalle;
     cerrarDetalleUsuario();
     handleEliminar(usuario);
@@ -1599,17 +1565,6 @@ const initialData = {
         updated.password_confirm = normalizedValue + 'UABJB';
       }
 
-      if (name === 'docente' && value) {
-        updated.docente_data = null;
-      }
-
-      if (name === 'carrera' && updated.docente_data) {
-        updated.docente_data = {
-          ...updated.docente_data,
-          carrera: value,
-        };
-      }
-
       return updated;
     });
 
@@ -1636,151 +1591,7 @@ const initialData = {
     });
   };
 
-  const handleRolChange = (e) => {
-    if (vinculacionRapidaDocente) return;
-
-    const newRol = e.target.value;
-
-    setErrors((prev) => {
-      const next = { ...prev };
-      next.rol = null;
-      next.carrera = null;
-      next.docente = null;
-      // Limpiar errores de asignaciones al cambiar rol
-      delete next.asignaciones;
-      return next;
-    });
-
-    // REFATOR: Preservar datos del docente si el rol 'docente' sigue activo
-    // en alguna asignación secundaria (asignacionesExtra). Esto permite al
-    // operador cambiar el orden de los roles (ej. pasar Docente de principal
-    // a secundario) sin perder la información del docente ya ingresada.
-    const docenteActivoEnSecundaria = asignacionesExtra.some(
-      (item) => String(item.rol || '').trim() === 'docente'
-    );
-    const newRolEsDocente = newRol === 'docente';
-    const conservarDatosDocente = newRolEsDocente || docenteActivoEnSecundaria;
-
-    setFormData(prev => ({
-      ...prev,
-      rol: newRol,
-      carrera: prev.carrera,
-      docente: conservarDatosDocente ? prev.docente : '',
-      docente_data: conservarDatosDocente ? prev.docente_data : null,
-    }));
-
-    // Solo desactivar la creación/vinculación de docente si el rol docente
-    // ya no está presente en NINGUNA asignación (ni principal ni secundaria).
-    if (!conservarDatosDocente) {
-      setCrearNuevoDocente(false);
-      setVinculacionRapidaDocente(false);
-    }
-  };
-
-  const handleCrearNuevoDocente = () => {
-    // 🔗 Al marcar checkbox, ir a /fondo-tiempo/docentes y abrir modal
-    // Guardar datos del formulario en sessionStorage para recuperarlos al volver
-    sessionStorage.removeItem('vincularDocentePendiente');
-    sessionStorage.setItem('datosCrearUsuario', JSON.stringify(formData));
-    const apellidos = (formData.last_name || '').trim().split(/\s+/).filter(Boolean);
-    sessionStorage.setItem('datosCrearDocente', JSON.stringify({
-      nombres: formData.first_name || '',
-      apellido_paterno: apellidos[0] || '',
-      apellido_materno: apellidos.slice(1).join(' '),
-      carrera: formData.carrera || '',
-      nombre_completo: formData.nombre_completo || `${formData.first_name || ''} ${formData.last_name || ''}`.trim(),
-      ci: '',
-      telefono: '',
-    }));
-    sessionStorage.setItem('flujoDocenteDesdeUsuarios', 'crear_usuario');
-    sessionStorage.setItem('abrirModalDesdeUsuarios', 'true');
-    // Marcar para abrir modal al volver
-    setAbrirModalAlVolver(true);
-    navigate('/fondo-tiempo/docentes');
-  };
-
-  const handleAsignacionChange = (index, field, value) => {
-    // Solo actualizamos el valor sin validación en tiempo real
-    // La validación ocurre solo en handleSubmit
-    setAsignacionesExtra((prev) => {
-      if (index !== 0) return prev;
-      return prev.map((item, itemIndex) => (itemIndex !== index ? item : { ...item, [field]: value }));
-    });
-
-    // Limpiar error de asignaciones cuando se edita la segunda asignación
-    setErrors((prev) => {
-      if (prev?.asignaciones) {
-        const next = { ...prev };
-        delete next.asignaciones;
-        return next;
-      }
-      return prev;
-    });
-  };
-
-  const handleRolSeleccionActual = (e) => {
-    if (indiceAsignacionActiva === 0) {
-      handleRolChange(e);
-      return;
-    }
-
-    const newRol = e.target.value;
-    handleAsignacionChange(0, 'rol', newRol);
-    setErrors((prev) => ({
-      ...prev,
-      rol: null,
-      carrera: null,
-      asignaciones: null,
-      docente: null,
-    }));
-  };
-
-  const handleCarreraSeleccionActual = (e) => {
-    if (indiceAsignacionActiva === 0) {
-      handleChange(e);
-      return;
-    }
-
-    const newCarrera = e.target.value;
-    handleAsignacionChange(0, 'carrera', newCarrera);
-    setErrors((prev) => ({
-      ...prev,
-      rol: null,
-      carrera: null,
-      asignaciones: null,
-    }));
-  };
-
   const MAX_ASIGNACIONES_TOTAL = 2;
-  const totalAsignaciones = 1 + asignacionesExtra.length;
-  const primeraAsignacionCompleta = Boolean(
-    String(formData.rol || '').trim() && String(formData.carrera || '').trim()
-  );
-  const puedeAgregarAsignacion = primeraAsignacionCompleta && totalAsignaciones < MAX_ASIGNACIONES_TOTAL;
-
-  const agregarAsignacion = () => {
-    if (!puedeAgregarAsignacion) return;
-    setAsignacionesExtra((prev) => {
-      if (prev.length >= 1) return prev;
-      return [...prev, { rol: '', carrera: '' }];
-    });
-    setIndiceAsignacionActiva(1);
-    setTimeout(() => {
-      rolDropdownRef.current?.open?.();
-      carreraDropdownRef.current?.open?.();
-    }, 0);
-  };
-
-  const eliminarAsignacion = (index) => {
-    setAsignacionesExtra((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
-    setIndiceAsignacionActiva(0);
-    // Limpiar errores de asignaciones cuando se elimina la segunda asignación
-    setErrors((prev) => {
-      const next = { ...prev };
-      delete next.asignaciones;
-      return next;
-    });
-  };
 
   // --- Transfer List de Roles y Carreras ---
   const rolesAsignadosLista = [
@@ -1824,6 +1635,12 @@ const initialData = {
       }
     });
 
+    // --- Regla 0: UNA SOLA CARRERA ---
+    // Todas las asignaciones del usuario son de la carrera de su contrato.
+    if (todasAsignaciones.some((item) => item.carrera && item.carrera !== carreraTrim)) {
+      return { valida: false, mensaje: MENSAJE_UNA_SOLA_CARRERA };
+    }
+
     // --- Regla 1: CONTROL DE DUPLICADOS IDÉNTICOS ---
     const existeDuplicado = todasAsignaciones.some(
       (item) => item.rol === rolTrim && item.carrera === carreraTrim
@@ -1833,19 +1650,6 @@ const initialData = {
     }
 
     const esRolMando = ROLES_MANDO_UABJB.includes(rolTrim);
-
-    // --- Regla 3: EXCLUSIVIDAD DE AUTORIDAD ---
-    // No se puede tener un cargo de autoridad (Director/Jefe) en carreras DIFERENTES.
-    if (esRolMando) {
-      const autoridadEnOtraCarrera = todasAsignaciones.some(
-        (item) =>
-          ROLES_MANDO_UABJB.includes(item.rol) &&
-          item.carrera !== carreraTrim
-      );
-      if (autoridadEnOtraCarrera) {
-        return { valida: false, mensaje: MENSAJE_AUTORIDAD_MULTIPLE };
-      }
-    }
 
     // --- Regla 4: CONFLICTO DE ROLES EN LA MISMA CARRERA ---
     // No se puede ser Director Y Jefe de Estudios de la misma carrera simultáneamente.
@@ -1858,26 +1662,6 @@ const initialData = {
       );
       if (conflictoMismaCarrera) {
         return { valida: false, mensaje: MENSAJE_CONFLICTO_AUTORIDAD };
-      }
-    }
-
-    // --- Regla 5: DEDICACIÓN EXCLUSIVA (mando + docente en misma carrera) ---
-    // La carga docente de un rol de mando debe pertenecer obligatoriamente a su
-    // misma carrera asignada. No puede haber Docente en Carrera B si hay Director en Carrera A.
-    if (rolTrim === 'docente') {
-      const mandoEnOtraCarrera = todasAsignaciones.some(
-        (item) => ROLES_MANDO_UABJB.includes(item.rol) && item.carrera !== carreraTrim
-      );
-      if (mandoEnOtraCarrera) {
-        return { valida: false, mensaje: MENSAJE_DOCENTE_OTRA_CARRERA };
-      }
-    }
-    if (esRolMando) {
-      const docenteEnOtraCarrera = todasAsignaciones.some(
-        (item) => item.rol === 'docente' && item.carrera !== carreraTrim
-      );
-      if (docenteEnOtraCarrera) {
-        return { valida: false, mensaje: MENSAJE_DOCENTE_OTRA_CARRERA };
       }
     }
 
@@ -1925,11 +1709,11 @@ const initialData = {
     }
 
     if (!formData.rol) {
-      setFormData((prev) => ({ ...prev, rol: rolValue, carrera: '' }));
-      setExpandedCarreraRoles((prev) => ({ ...prev, 0: true }));
+      setFormData((prev) => ({ ...prev, rol: rolValue, carrera: carreraPropiaEditor }));
+      if (!carreraPropiaEditor) setExpandedCarreraRoles((prev) => ({ ...prev, 0: true }));
     } else if (asignacionesExtra.length === 0) {
-      setAsignacionesExtra([{ rol: rolValue, carrera: '' }]);
-      setExpandedCarreraRoles((prev) => ({ ...prev, 1: true }));
+      setAsignacionesExtra([{ rol: rolValue, carrera: carreraPropiaEditor }]);
+      if (!carreraPropiaEditor) setExpandedCarreraRoles((prev) => ({ ...prev, 1: true }));
     } else {
       toast.error(MENSAJE_LIMITE_ASIGNACIONES, { className: 'toast-brinco' });
       setErrors((prev) => ({ ...prev, rol: [MENSAJE_LIMITE_ASIGNACIONES] }));
@@ -1957,7 +1741,6 @@ const initialData = {
           rol: '',
           carrera: '',
           docente: '',
-          docente_data: null,
         }));
         setExpandedCarreraRoles((prev) => {
           const next = { ...prev };
@@ -2066,8 +1849,8 @@ const initialData = {
       validationErrors.email = 'No debe estar vacío.';
       camposFaltantes.push('Correo institucional');
     } else if (!emailValido) {
+      // Lleno pero inválido: no es un campo faltante.
       validationErrors.email = 'Ingresa un correo electrónico válido.';
-      camposFaltantes.push('Correo institucional');
     }
 
     if (!rolNormalizado) {
@@ -2093,7 +1876,9 @@ const initialData = {
       showToastOnce(
         faltanSoloRolYCarrera
           ? 'Debes seleccionar un rol y una carrera para poder continuar.'
-          : 'Completa los campos obligatorios marcados en rojo.'
+          : camposFaltantes.length > 0
+            ? 'Completa los campos obligatorios marcados en rojo.'
+            : 'Revisa los campos marcados en rojo.'
       );
       return;
     }
@@ -2147,7 +1932,7 @@ const initialData = {
           carrera: String(asignacionesExtra[0].carrera || '').trim(),
         }
       : null;
-    const esRolMando = (rol) => ['director', 'jefe_estudios'].includes(String(rol || '').trim());
+    const esRolMando = (rol) => ROLES_MANDO_UABJB.includes(String(rol || '').trim());
 
     if (segundaAsignacion) {
       const mismaCombinacion = primeraAsignacion.rol === segundaAsignacion.rol && primeraAsignacion.carrera === segundaAsignacion.carrera;
@@ -2162,18 +1947,16 @@ const initialData = {
       const primeraMando = esRolMando(primeraAsignacion.rol);
       const segundaMando = esRolMando(segundaAsignacion.rol);
 
-      // Safety net: DOS roles de mando (Director + Jefe) — prohibido por normativa UABJB
+      // Safety net: DOS roles de mando (Director, Jefe o Instituto) — prohibido por normativa UABJB
       if (primeraMando && segundaMando) {
         toast.error(MENSAJE_AUTORIDAD_UNICA, { className: 'toast-brinco' });
         setIsSubmitting(false);
         return;
       }
 
-      // Safety net: Dedicación exclusiva (docente + mando en carreras distintas)
-      const hayDocente = primeraAsignacion.rol === 'docente' || segundaAsignacion.rol === 'docente';
-      const hayMando = primeraMando || segundaMando;
-      if (hayDocente && hayMando && !mismaCarrera) {
-        toast.error(MENSAJE_DOCENTE_OTRA_CARRERA, { className: 'toast-brinco' });
+      // Safety net: una sola carrera (la del contrato) para todos los roles.
+      if (!mismaCarrera) {
+        toast.error(MENSAJE_UNA_SOLA_CARRERA, { className: 'toast-brinco' });
         setIsSubmitting(false);
         return;
       }
@@ -2189,7 +1972,6 @@ const initialData = {
 
     const rolPrincipal = String(formData.rol || '').trim();
     const docenteSeleccionado = formData.docente || '';
-    const docenteDataCreacion = formData.docente_data || null;
 
     let payload = {
       username: formData.username,
@@ -2201,29 +1983,20 @@ const initialData = {
       password_confirm: formData.password_confirm,
     };
 
-    // Si el rol PRINCIPAL es docente, enviamos el docente/docente_data al nivel superior del payload
-    if (rolPrincipal === 'docente') {
-      if (docenteDataCreacion) {
-        payload.docente_data = docenteDataCreacion;
-      } else if (docenteSeleccionado) {
-        payload.docente = docenteSeleccionado;
-      }
+    // Si el rol PRINCIPAL es docente, se vincula la ficha existente elegida (la ficha
+    // nueva se crea en Docentes > Nuevo docente).
+    if (rolPrincipal === 'docente' && docenteSeleccionado) {
+      payload.docente = docenteSeleccionado;
     }
 
-    // Mapear asignaciones extra INCLUYENDO docente/docente_data cuando la asignación secundaria sea de tipo docente.
-    // FIX: Antes se descartaban estos campos, lo que provocaba que el backend no resolviera el docente
-    // cuando venía como asignación secundaria (doble rol con rol principal no-docente).
+    // Mapear asignaciones extra INCLUYENDO la ficha existente cuando la asignación secundaria sea de tipo docente.
     payload.asignaciones = asignacionesExtra.map((item) => {
       const asignacion = {
         rol: String(item.rol || '').trim(),
         carrera: String(item.carrera || '').trim(),
       };
-      if (asignacion.rol === 'docente') {
-        if (docenteDataCreacion) {
-          asignacion.docente_data = docenteDataCreacion;
-        } else if (docenteSeleccionado) {
-          asignacion.docente = docenteSeleccionado;
-        }
+      if (asignacion.rol === 'docente' && docenteSeleccionado) {
+        asignacion.docente = docenteSeleccionado;
       }
       return asignacion;
     });
@@ -2233,15 +2006,24 @@ const initialData = {
     // Enviar CI siempre
     payload.ci = ciNormalizado;
 
+    // Jefe de Estudios: resolución del Consejo de Carrera en PDF, obligatoria.
+    const designaJefe = [rolPrincipal, ...asignacionesExtra.map((item) => item.rol)].includes('jefe_estudios');
+    if (designaJefe && !esArchivoPdf(resolucionJefe)) {
+      const mensaje = resolucionJefe ? 'La resolución del Consejo de Carrera debe ser un PDF.' : MENSAJE_RESOLUCION_JEFE;
+      setErrors((prev) => ({ ...prev, resolucion_jefe: [mensaje] }));
+      toast.error(mensaje, { className: 'toast-brinco' });
+      setIsSubmitting(false);
+      return;
+    }
+    const { cuerpo, config } = cuerpoConArchivo(payload, 'resolucion_jefe', designaJefe ? resolucionJefe : null);
+
     try {
-      const response = await api.post('/usuarios/', payload);
+      const response = await api.post('/usuarios/', cuerpo, config);
       toast.success('Usuario creado correctamente');
       setUsuarios((prev) => [response.data, ...prev]);
       setIsCreating(false);
       setAsignacionesExtra([]);
-      setIndiceAsignacionActiva(0);
       sessionStorage.removeItem('docenteTemporalDesdeUsuarios');
-      sessionStorage.removeItem('flujoDocenteDesdeUsuarios');
       if (volverANuevoDocente) {
         sessionStorage.setItem('datosCrearUsuario', JSON.stringify({
           ...formData,
@@ -2307,14 +2089,6 @@ const initialData = {
     }
   };
 
-  const ciError = Array.isArray(errors?.ci)
-    ? errors.ci[0]
-    : (typeof errors?.ci === 'string' ? errors.ci : null);
-
-  const docenteError = Array.isArray(errors?.docente)
-    ? errors.docente[0]
-    : (typeof errors?.docente === 'string' ? errors.docente : null);
-
   const nombreCompletoError = Array.isArray(errors?.nombre_completo)
     ? errors.nombre_completo[0]
     : (typeof errors?.nombre_completo === 'string'
@@ -2330,22 +2104,6 @@ const initialData = {
   const obtenerRolLabel = (rolValue) => roles.find((item) => item.value === rolValue)?.label || rolValue || 'Sin rol';
   const obtenerCarreraLabel = (carreraValue) => carreras.find((item) => String(item.id) === String(carreraValue))?.nombre || 'Sin carrera';
 
-  const asignacionesActivas = [
-    { rol: formData.rol || '', carrera: formData.carrera || '' },
-    ...asignacionesExtra,
-  ];
-  const crearMarcadoresSeleccion = (campo) => asignacionesActivas.reduce((acc, item, index) => {
-    const key = String(item?.[campo] || '').trim();
-    if (!key) return acc;
-    acc[key] = [...(acc[key] || []), index + 1];
-    return acc;
-  }, {});
-  const rolSelectionMarkers = crearMarcadoresSeleccion('rol');
-  const carreraSelectionMarkers = crearMarcadoresSeleccion('carrera');
-  const rolSeleccionCreacion = indiceAsignacionActiva === 0
-    ? String(formData.rol || '').trim()
-    : String(asignacionesExtra[0]?.rol || '').trim();
-  const mostrarCarreraCreacion = Boolean(rolSeleccionCreacion) || indiceAsignacionActiva === 1;
   const mostrarNombreCompletoCreacion = true;
   const mostrarCiCreacion = true;
 
@@ -2368,8 +2126,28 @@ const initialData = {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen px-4 bg-slate-50 dark:bg-slate-900">
+        <div role="alert" className="max-w-md text-center">
+          <p className="text-lg font-bold text-red-700 dark:text-red-400">{error}</p>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+            No se pudo obtener la lista de usuarios. Revise su conexión e intente de nuevo.
+          </p>
+          <button
+            type="button"
+            onClick={cargarDatos}
+            className="mt-5 px-6 py-2.5 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all"
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const puedeGestionarUsuarios = () => esSuperuserActual || esDirectorCarreraActual;
-  const puedeEliminarUsuarios = () => esSuperuserActual;
+  const puedeEliminarUsuarios = () => esSuperuserActual || esDirectorCarreraActual;
   const puedeEditarUsuario = (usuario) => {
     if (!puedeGestionarUsuarios() || usuario?.is_superuser) return false;
     if (esSuperuserActual) return true;
@@ -2377,14 +2155,20 @@ const initialData = {
     return !obtenerRolesUsuario(usuario).includes('director');
   };
   const puedeCambiarEstadoUsuario = (usuario) => puedeEditarUsuario(usuario);
+  // Eliminar: nunca un superusuario ni a sí mismo. El Director, solo usuarios de su
+  // carrera que no sean Director (lo mismo que puede editar). Con datos registrados
+  // el backend lo rechaza: solo se puede desactivar.
+  const puedeEliminarUsuario = (usuario) => {
+    if (!usuario || usuario.is_superuser || !puedeEliminarUsuarios()) return false;
+    if (String(usuario.id) === String(user?.id)) return false;
+    return esSuperuserActual || puedeEditarUsuario(usuario);
+  };
   const obtenerNombreUsuario = (usuario) => ((usuario?.first_name || usuario?.last_name)
     ? `${(usuario.first_name || '').trim()} ${(usuario.last_name || '').trim()}`.trim()
     : (usuario?.nombre_completo || '-'));
   const obtenerEstadoUsuario = (usuario) => {
     if (!usuario) return '-';
-    const docenteSinVinculo = usuarioEsDocenteSinVinculo(usuario);
     if (usuario.is_superuser) return 'Protegido';
-    if (docenteSinVinculo) return 'Sin vinculo docente';
     return usuario.is_active ? 'Activo' : 'Inactivo';
   };
   const obtenerTextoCarrerasDetalleUsuario = (usuario) => {
@@ -2444,7 +2228,7 @@ const initialData = {
                 />
               </div>
               {puedeGestionarUsuarios() && (
-                <button
+                <button data-escritura
                   onClick={handleToggleCreateForm}
                   className="gestion-usuarios-create-btn px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 flex items-center gap-2"
                 >
@@ -2604,19 +2388,21 @@ const initialData = {
                                   >
                                     <span>{obtenerRolLabel(item.rol)}</span>
                                     <span
-                                      onClick={(e) => { e.stopPropagation(); toggleExpandCarrera(index); }}
-                                      className={`cursor-pointer font-bold text-xs px-2.5 py-1 rounded-lg truncate max-w-[45%] border-2 ${
+                                      onClick={(e) => { e.stopPropagation(); if (esSuperuserActual) toggleExpandCarrera(index); }}
+                                      className={`${esSuperuserActual ? 'cursor-pointer' : 'cursor-default'} font-bold text-xs px-2.5 py-1 rounded-lg truncate max-w-[45%] border-2 ${
                                         item.carrera
                                           ? 'bg-[#2C4AAE] text-white border-[#2C4AAE]'
                                           : 'bg-red-50 text-red-600 border-red-500 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700'
                                       }`}
                                     >
-                                      {item.carrera
-                                        ? `${expandedCarreraRoles[index] ? '▼' : '▶'} ${obtenerCarreraLabel(item.carrera)}`
-                                        : (expandedCarreraRoles[index] ? '▼ Carrera' : '▶ Carrera')}
+                                      {!esSuperuserActual
+                                        ? obtenerCarreraLabel(item.carrera)
+                                        : item.carrera
+                                          ? `${expandedCarreraRoles[index] ? '▼' : '▶'} ${obtenerCarreraLabel(item.carrera)}`
+                                          : (expandedCarreraRoles[index] ? '▼ Carrera' : '▶ Carrera')}
                                     </span>
                                   </button>
-                                  {expandedCarreraRoles[index] && (
+                                  {esSuperuserActual && expandedCarreraRoles[index] && (
                                     <div className="px-3 py-2 animate-panel-asignacion">
                                       <div className="flex justify-end">
                                         <div className="w-[70%] max-w-[260px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm max-h-40 overflow-y-auto">
@@ -2641,8 +2427,21 @@ const initialData = {
                         </div>
                       </div>
                       <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                        Catálogo permanente: puede reusar un rol en otra carrera (ej. Docente en 2 carreras distintas). Máximo 2 asignaciones. Expanda <span className="text-[#2C4AAE] dark:text-blue-400 font-bold">Carrera</span> para asignar.
+                        Todos los roles son de la carrera del contrato del usuario (ej. Director + Docente de la misma carrera). Máximo 2 asignaciones. {esSuperuserActual
+                          ? <>Expanda <span className="text-[#2C4AAE] dark:text-blue-400 font-bold">Carrera</span> para asignar.</>
+                          : 'La carrera es la tuya: se asigna sola.'}
                       </p>
+                      {[formData.rol, ...asignacionesExtra.map((item) => item.rol)].includes('jefe_estudios') && (
+                        <CampoResolucionJefe
+                          className="mt-3"
+                          archivo={resolucionJefe}
+                          error={errors.resolucion_jefe}
+                          onChange={(archivo) => {
+                            setResolucionJefe(archivo);
+                            setErrors((prev) => ({ ...prev, resolucion_jefe: null }));
+                          }}
+                        />
+                      )}
                     </div>
 
                     {/* Fila 3: Correo institucional - Cargo profesional / CI */}
@@ -2785,9 +2584,9 @@ const initialData = {
               <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                 {usuariosFiltrados.map(usuario => (
                   (() => {
-                    const docenteSinVinculo = usuarioEsDocenteSinVinculo(usuario);
                     const perfilDocentePendiente = usuarioTienePerfilDocentePendiente(usuario);
-                    const filaInactiva = (usuario.is_active === false || (docenteSinVinculo && !perfilDocentePendiente)) && !usuario.is_superuser;
+                    // Solo el estado real del usuario: la falta de ficha de docente no lo inactiva.
+                    const filaInactiva = usuario.is_active === false && !usuario.is_superuser;
                     const textoFila = filaInactiva ? 'text-red-700 dark:text-red-300' : 'text-slate-700 dark:text-slate-300';
                     const textoPrincipal = filaInactiva ? 'font-bold text-red-700 dark:text-red-300' : 'font-bold text-slate-800 dark:text-white';
                     return (
@@ -2826,12 +2625,7 @@ const initialData = {
                         )}
                         {perfilDocentePendiente && (
                           <div className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-                            ⚠️ Perfil Docente Pendiente
-                          </div>
-                        )}
-                        {docenteSinVinculo && !perfilDocentePendiente && (
-                          <div className="text-xs font-semibold text-red-700 dark:text-red-400">
-                            Estado: ⚠️ Sin perfil docente vinculado
+                            ⚠️ Falta crear la ficha de docente
                           </div>
                         )}
                       </div>
@@ -2893,16 +2687,14 @@ const initialData = {
                       <div className="flex items-center justify-center gap-3">
                         {!usuario.is_superuser && (
                           <ToggleSwitch
-                            isActive={!docenteSinVinculo && usuario.is_active}
-                            disabled={!puedeCambiarEstadoUsuario(usuario) || (docenteSinVinculo && !perfilDocentePendiente)}
+                            isActive={usuario.is_active}
+                            disabled={!puedeCambiarEstadoUsuario(usuario)}
                             onChange={() => puedeCambiarEstadoUsuario(usuario) && handleToggleActivo(usuario)}
                           />
                         )}
                         <span className="text-sm font-semibold">
                           {usuario.is_superuser
                             ? <span className="text-amber-600 dark:text-amber-400 italic">protegido</span>
-                            : docenteSinVinculo
-                            ? <span className="text-red-800 dark:text-red-400 font-black italic tracking-wide">sin vínculo docente</span>
                             : usuario.is_active
                             ? <span className="text-emerald-600 dark:text-emerald-400 italic">Activo</span>
                             : <span className="text-red-800 dark:text-red-400 font-black italic tracking-wide">inactivo</span>
@@ -2913,7 +2705,7 @@ const initialData = {
                     <td data-label="Acciones" className={`px-6 py-4 whitespace-nowrap text-center ${filaInactiva ? 'bg-red-200/90 dark:bg-red-950/35' : ''}`}>
                       {puedeGestionarUsuarios() && (() => {
                         const blockedBtn = !puedeEditarUsuario(usuario);
-                        const canDelete = puedeEliminarUsuarios() && !usuario.is_superuser;
+                        const canDelete = puedeEliminarUsuario(usuario);
                         const titleMsg = blockedBtn ? 'Acción deshabilitada: usuario protegido' : '';
                         return (
                           <div className="flex justify-center gap-3">
@@ -2964,8 +2756,7 @@ const initialData = {
         {usuarioDetalle && createPortal((() => {
           const rolesDetalle = obtenerRolesUsuario(usuarioDetalle);
           const puedeEditarDetalle = puedeEditarUsuario(usuarioDetalle);
-          const puedeEliminarDetalle = puedeEliminarUsuarios() && !usuarioDetalle.is_superuser;
-          const docenteSinVinculoDetalle = usuarioEsDocenteSinVinculo(usuarioDetalle);
+          const puedeEliminarDetalle = puedeEliminarUsuario(usuarioDetalle);
           const perfilDocentePendienteDetalle = usuarioTienePerfilDocentePendiente(usuarioDetalle);
           const docenteInactivoDetalle = usuarioTieneDocenteInactivo(usuarioDetalle);
           const correoDetalle = usuarioDetalle.email || usuarioDetalle.correo || '-';
@@ -3055,11 +2846,10 @@ const initialData = {
                       </div>
                     </div>
 
-                    {(!usuarioDetalle.perfil || perfilDocentePendienteDetalle || docenteSinVinculoDetalle) && (
+                    {(!usuarioDetalle.perfil || perfilDocentePendienteDetalle) && (
                       <div className="mt-4 md:mt-6 rounded-md border border-amber-300 bg-amber-50 p-3 md:p-4 text-xs md:text-sm font-semibold text-amber-900 dark:border-amber-700 dark:bg-amber-900/25 dark:text-amber-100">
                         {!usuarioDetalle.perfil && <p>Sin perfil asignado.</p>}
-                        {perfilDocentePendienteDetalle && <p>Perfil docente pendiente de vincular.</p>}
-                        {docenteSinVinculoDetalle && !perfilDocentePendienteDetalle && <p>Sin perfil docente vinculado.</p>}
+                        {perfilDocentePendienteDetalle && <p>Falta crear la ficha de docente: su parte docente (fondo de tiempo y carga horaria) queda pendiente. Sus demás roles funcionan normal.</p>}
                       </div>
                     )}
                   </div>

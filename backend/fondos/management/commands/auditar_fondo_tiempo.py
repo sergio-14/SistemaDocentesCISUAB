@@ -8,7 +8,7 @@ metodos auxiliares), sin guardar nada -- si difieren, es que algo cambio
 despues (dedicacion, antiguedad, etc.) y el fondo quedo desactualizado.
 
 Tambien suma CargaHoraria por categoria (las mismas 7 categorias de
-CategoriaFuncion.TIPO_CHOICES: academica, investigacion,
+UNIDADES_FONDO: academica, investigacion,
 extension_universitaria, interaccion_social, gestion,
 academica_administrativa, social_cultural_deportiva -- OJO: no son
 necesariamente las mismas 7 etiquetas/agrupaciones que puede traer un PDF de
@@ -19,17 +19,16 @@ porcentajes sumen 100%.
 
 Uso:
     python manage.py auditar_fondo_tiempo --docente "William Chao Rivero" --gestion 2024
-    python manage.py auditar_fondo_tiempo --docente-id 5 --gestion 2024 --carrera "Ingenieria de Sistemas"
+    python manage.py auditar_fondo_tiempo --docente-id 5 --gestion 2024
 """
 from decimal import Decimal
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Count, Sum
 
-from fondos.models import CargaHoraria, CategoriaFuncion, Docente, DocenteCarrera, FondoTiempo
+from fondos.models import UNIDADES_FONDO, Docente, DocenteCarrera, FondoTiempo
 
 TOLERANCIA = Decimal('0.01')
-SEMANAS_CLASES_AULA = Decimal('40')
 
 
 class Command(BaseCommand):
@@ -44,7 +43,6 @@ class Command(BaseCommand):
         parser.add_argument('--docente', type=str, default=None, help='Nombre (o parte) del docente a buscar.')
         parser.add_argument('--docente-id', type=int, default=None, help='ID exacto del Docente.')
         parser.add_argument('--gestion', type=int, required=True, help='Gestion (año) del Fondo de Tiempo a auditar.')
-        parser.add_argument('--carrera', type=str, default=None, help='Nombre (o parte) de la carrera, si el docente tiene mas de un fondo en esa gestion.')
 
     def handle(self, *args, **options):
         docente = self._resolver_docente(options)
@@ -88,22 +86,15 @@ class Command(BaseCommand):
         return coincidencias[0]
 
     def _resolver_fondo(self, docente, options):
-        qs = FondoTiempo.objects.select_related('docente', 'carrera', 'calendario_academico').filter(
-            docente=docente, gestion=options['gestion'],
-        )
-        if options['carrera']:
-            qs = qs.filter(carrera__nombre__icontains=options['carrera'])
-
-        fondos = list(qs)
-        if not fondos:
+        # Un solo fondo vigente por docente y gestión.
+        fondo = FondoTiempo.objects.select_related('docente', 'carrera').filter(
+            docente=docente, gestion=options['gestion'], archivado=False,
+        ).first()
+        if not fondo:
             raise CommandError(
-                f'{docente.nombre_completo} no tiene ningun FondoTiempo en la gestion {options["gestion"]}'
-                + (f' para una carrera que contenga "{options["carrera"]}".' if options['carrera'] else '.')
+                f'{docente.nombre_completo} no tiene Fondo de Tiempo vigente en la gestion {options["gestion"]}.'
             )
-        if len(fondos) > 1:
-            listado = '\n'.join(f'  - id={f.pk}: carrera={f.carrera.nombre!r} periodo={f.periodo!r}' for f in fondos)
-            raise CommandError(f'{docente.nombre_completo} tiene {len(fondos)} fondos en {options["gestion"]}, usa --carrera para elegir uno:\n{listado}')
-        return fondos[0]
+        return fondo
 
     # ------------------------------------------------------------------
     # Secciones de la auditoria
@@ -112,8 +103,9 @@ class Command(BaseCommand):
         vinculo = DocenteCarrera.objects.filter(docente=docente, carrera=fondo.carrera, activo=True).first()
         dedicacion_texto = vinculo.get_dedicacion_display() if vinculo else '(sin vinculo activo con esta carrera)'
         datos = getattr(docente, 'datos_laborales', None)
-        antiguedad = datos.calcular_antiguedad(fondo.gestion) if datos else None
-        dias_vacacion = datos.calcular_dias_vacacion(fondo.gestion) if datos else None
+        referencia = fondo.fecha_referencia_antiguedad()
+        antiguedad = datos.calcular_antiguedad(referencia) if datos else None
+        dias_vacacion = datos.calcular_dias_vacacion(referencia) if datos else None
 
         self.stdout.write('DATOS DEL DOCENTE:')
         self.stdout.write(f'  - Nombre: {docente.nombre_completo}')
@@ -166,26 +158,30 @@ class Command(BaseCommand):
         self.stdout.write('CATEGORIAS - SUMA REAL DE CargaHoraria (agrupada por tipo_actividad, igual que el PDF):')
         horas_efectivas = Decimal(str(fondo.horas_efectivas)) or Decimal('1')
 
-        categorias = fondo.categorias.all().order_by('id')
         totales = {}
-        for idx, cat in enumerate(categorias, start=1):
-            cargas = CargaHoraria.objects.filter(
-                docente=fondo.docente, calendario=fondo.calendario_academico, categoria=cat.tipo,
-            )
+        for idx, (tipo, nombre) in enumerate(UNIDADES_FONDO, start=1):
+            cargas = fondo.cargas.filter(categoria=tipo)
             agregados = cargas.aggregate(total=Sum('horas'), n=Count('id'))
             total_cat = Decimal(str(agregados['total'] or 0))
             porcentaje = (total_cat / horas_efectivas) * 100 if horas_efectivas else Decimal('0')
-            totales[cat.tipo] = total_cat
+            totales[tipo] = total_cat
 
             n_tipos = cargas.values('tipo_actividad').distinct().count()
             self.stdout.write(
-                f'  {idx}. {cat.get_tipo_display().upper()}: {total_cat} hrs/año  '
+                f'  {idx}. {nombre.upper()}: {total_cat} hrs/año  '
                 f'({porcentaje:.2f}%)  [{agregados["n"]} registros de CargaHoraria en {n_tipos} tipos de actividad distintos]'
             )
 
             for fila in cargas.values('tipo_actividad').annotate(total=Sum('horas'), n=Count('id')).order_by('tipo_actividad'):
-                hrs_sem = (Decimal(str(fila['total'])) / SEMANAS_CLASES_AULA) if cat.tipo == 'academica' else None
-                extra = f', {hrs_sem:.2f} hrs/sem' if hrs_sem is not None else ''
+                # Clases en aula: horas semanales de las materias en cada calendario; el resto es por año.
+                extra = ''
+                if fila['tipo_actividad'] == 'clases_aula':
+                    por_calendario = {}
+                    clases = cargas.filter(tipo_actividad='clases_aula').select_related('materia', 'calendario')
+                    for carga in clases.order_by('calendario__fecha_inicio', 'calendario_id'):
+                        nombre = carga.calendario.get_periodo_display()
+                        por_calendario[nombre] = por_calendario.get(nombre, 0) + carga.materia.horas_totales
+                    extra = ', ' + ', '.join(f'{nombre}: {horas} hrs/sem' for nombre, horas in por_calendario.items())
                 self.stdout.write(f'       - {fila["tipo_actividad"] or "(sin tipo)"}: {fila["total"]} hrs/año{extra} ({fila["n"]} registro(s))')
 
         self.stdout.write('')
@@ -224,8 +220,7 @@ class Command(BaseCommand):
     def _auditar_duplicados(self, fondo):
         self.stdout.write('VALIDACION DE DUPLICADOS:')
         duplicados = (
-            CargaHoraria.objects
-            .filter(docente=fondo.docente, calendario=fondo.calendario_academico)
+            fondo.cargas
             .values('categoria', 'tipo_actividad', 'materia_id')
             .annotate(n=Count('id'))
             .filter(n__gt=1)

@@ -140,10 +140,9 @@ function VistaCalendarioActivo() {
                         </div>
                     </div>
                     <div className="p-6 space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <InfoCard label="Gestión" value={calendario.gestion} />
                             <InfoCard label="Periodo" value={calendario.periodo_display} />
-                            <InfoCard label="Semanas Efectivas" value={`${calendario.semanas_efectivas} semanas`} />
                         </div>
 
                         <div>

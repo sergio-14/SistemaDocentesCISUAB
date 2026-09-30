@@ -167,7 +167,6 @@ const VerticalSemesterWheelPicker = ({
   const targetY = (centerOffset - targetDisplayIndex) * itemHeight;
   const clampedFloatIndex = Math.max(0, Math.min(semesters.length - 1, centerFloatIndex));
   const visualDisplayIndex = clampedFloatIndex + padSlots;
-  const centeredDisplayIndex = centeredIndex + padSlots;
   const lowerFloatIndex = Math.floor(clampedFloatIndex);
   const upperFloatIndex = Math.ceil(clampedFloatIndex);
   const centerProgress = clampedFloatIndex - lowerFloatIndex;
@@ -218,6 +217,7 @@ const VerticalSemesterWheelPicker = ({
     if (syncSemester !== undefined) {
       lastInternalSemesterRef.current = Number(syncSemester);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo se resincroniza al reiniciar la rueda, no con cada valor.
   }, [wheelResetToken, semesters.length]);
 
   useEffect(() => {
@@ -230,6 +230,7 @@ const VerticalSemesterWheelPicker = ({
     lastInternalSemesterRef.current = Number(selectedSemester);
     onChange(selectedSemester);
     onSettled?.(selectedSemester);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- avisa solo cuando la rueda se detiene en un semestre.
   }, [centeredIndex, targetIndex, semesters]);
 
   useEffect(() => {
@@ -276,6 +277,7 @@ const VerticalSemesterWheelPicker = ({
 
     node.addEventListener('wheel', handleWheelNative, { passive: false });
     return () => node.removeEventListener('wheel', handleWheelNative);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- el listener se registra una vez por rueda; usa refs para el estado.
   }, [semesters.length, wheelResetToken]);
 
   useEffect(() => {
@@ -673,6 +675,14 @@ const MateriaForm = ({ sidebarCollapsed = false }) => {
     });
     const [errors, setErrors] = useState({});
     const [errorPulse, setErrorPulse] = useState(0);
+    // Solo el superusuario elige la carrera; Director y Jefe usan la suya.
+    const esSuperAdmin = useMemo(() => {
+        try {
+            return JSON.parse(localStorage.getItem('user') || 'null')?.is_superuser === true;
+        } catch {
+            return false;
+        }
+    }, []);
 
     const carreraOptions = (carreras || []).map((c) => ({
         value: String(c.id),
@@ -699,7 +709,10 @@ const MateriaForm = ({ sidebarCollapsed = false }) => {
                 const carrerasData = res.data.results || res.data;
                 setCarreras(carrerasData);
 
-                if (!id && carreraFromFilter) {
+                // Director y Jefe: el backend solo devuelve su carrera y es la de la materia nueva.
+                if (!id && !userData?.is_superuser && carrerasData?.length) {
+                    setFormData(prev => ({ ...prev, carrera: String(carrerasData[0].id) }));
+                } else if (!id && carreraFromFilter) {
                     const carreraExiste = (carrerasData || []).some((c) => String(c.id) === String(carreraFromFilter));
                     if (carreraExiste) {
                         setFormData(prev => ({
@@ -778,7 +791,7 @@ const MateriaForm = ({ sidebarCollapsed = false }) => {
             clientErrors.sigla = 'La sigla de la materia es obligatoria.';
         }
         if (!String(formData.carrera || '').trim()) {
-            clientErrors.carrera = 'Debe seleccionar una carrera.';
+            clientErrors.carrera = esSuperAdmin ? 'Debe seleccionar una carrera.' : 'No tienes una carrera asignada.';
         }
 
         // Validaciones de horas
@@ -871,6 +884,7 @@ const MateriaForm = ({ sidebarCollapsed = false }) => {
                                 <InputField label="Sigla" name="sigla" value={formData.sigla} onChange={handleChange} onClearError={() => clearFieldError('sigla')} required error={errors.sigla} errorPulse={errorPulse} />
                             </div>
 
+                            {esSuperAdmin && (
                             <div>
                                 <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Carrera <span className="text-red-500">*</span></label>
                                 <CustomSelect
@@ -884,6 +898,7 @@ const MateriaForm = ({ sidebarCollapsed = false }) => {
                                 />
                                 {errors.carrera && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{getErrorMessage(errors.carrera)}</p>}
                             </div>
+                            )}
 
                             <div className="grid grid-cols-3 gap-3">
                               <SemesterPicker

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { FaEdit, FaTrash } from 'react-icons/fa';
 import { X } from 'lucide-react';
 import api from '../apis/api';
+import { finAnteriorAInicio, hoyBolivia } from '../utils/fechas';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -394,6 +395,7 @@ const VerticalYearWheelPicker = ({
     if (syncYear !== undefined) {
       lastInternalYearRef.current = Number(syncYear);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo se resincroniza al reiniciar o abrir la rueda, no con cada valor.
   }, [wheelResetToken, years.length, openInitialYear]);
 
   useEffect(() => {
@@ -406,6 +408,7 @@ const VerticalYearWheelPicker = ({
     lastInternalYearRef.current = Number(selectedYear);
     onChange(selectedYear);
     onSettled?.(selectedYear);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- avisa solo cuando la rueda se detiene en un año.
   }, [centeredIndex, targetIndex, years]);
 
   useEffect(() => {
@@ -659,7 +662,8 @@ const YearPickerField = ({ value, onChange, currentYear, error, errorPulse = 0, 
 
   const clampYear = (year) => Math.max(minYear, Math.min(maxYear, year));
   const isValidYearInRange = (year) => Number.isFinite(year) && year >= minYear && year <= maxYear;
-  const actualCurrentYear = clampYear(new Date().getFullYear());
+  // Año actual en Bolivia, no en la zona horaria del navegador.
+  const actualCurrentYear = clampYear(Number(hoyBolivia().slice(0, 4)));
 
   const commitManualYear = () => {
     const parsed = Number.parseInt(manualYear, 10);
@@ -984,7 +988,7 @@ const InputField = ({
   );
 };
 
-const DatePickerField = ({ label, name, value, onDateChange, required, error, errorPulse = 0, minDate, invalidSelectionMessage, onInvalidSelection, showErrorText = true, onFieldInteraction, onClearError }) => {
+const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse = 0, minDate, invalidSelectionMessage, onInvalidSelection, showErrorText = true, onFieldInteraction, onClearError }) => {
   const [open, setOpen] = useState(false);
   const [openQuickPicker, setOpenQuickPicker] = useState(null);
   const [draftDay, setDraftDay] = useState(null);
@@ -1041,18 +1045,21 @@ const DatePickerField = ({ label, name, value, onDateChange, required, error, er
 
   useEffect(() => {
     setInputValue(formatDisplayDate(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- formatDisplayDate es pura; solo depende de value.
   }, [value]);
 
   const selectedDate = parseIsoDate(value);
   const minAllowedDate = parseIsoDate(minDate);
-  const today = new Date();
+  // Hoy en Bolivia (no en la zona horaria del navegador), como fecha local.
+  const today = parseIsoDate(hoyBolivia());
   const [visibleMonth, setVisibleMonth] = useState(
     selectedDate ? new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1) : new Date(today.getFullYear(), today.getMonth(), 1)
   );
 
   useEffect(() => {
     if (open) {
-      const base = selectedDate || today;
+      // Sin fecha elegida se abre en el mes de la fecha mínima (p. ej. el inicio del periodo).
+      const base = selectedDate || minAllowedDate || today;
       setVisibleMonth(new Date(base.getFullYear(), base.getMonth(), 1));
       setDraftDay(null);
       setDraftMonth(base.getMonth());
@@ -1067,6 +1074,7 @@ const DatePickerField = ({ label, name, value, onDateChange, required, error, er
       setHasSelectedMonth(false);
       setHasSelectedYear(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- el mes visible se fija al abrir o cerrar el selector.
   }, [open]);
 
   useEffect(() => {
@@ -1143,12 +1151,8 @@ const DatePickerField = ({ label, name, value, onDateChange, required, error, er
   );
 
   const handlePickDate = (dateObj) => {
-    if (minAllowedDate && dateObj < minAllowedDate) {
-      if (invalidSelectionMessage) toast.error(invalidSelectionMessage);
-      if (onInvalidSelection) onInvalidSelection();
-      return;
-    }
-
+    // El día se elige antes que el mes y el año: la fecha mínima se revisa con la fecha
+    // final armada, no con el día pulsado en el mes que se estaba mirando.
     const nextDay = dateObj.getDate();
     setDraftDay(nextDay);
 
@@ -1161,6 +1165,11 @@ const DatePickerField = ({ label, name, value, onDateChange, required, error, er
     if (nextDay > maxDayForMonth) return;
 
     const finalDate = new Date(yearCandidate, monthCandidate, nextDay);
+    if (minAllowedDate && finalDate < minAllowedDate) {
+      if (invalidSelectionMessage) toast.error(invalidSelectionMessage);
+      if (onInvalidSelection) onInvalidSelection();
+      return;
+    }
     const iso = toIsoDate(finalDate);
     onDateChange(name, iso, { skipRangeToast: true });
     setInputValue(formatDisplayDate(iso));
@@ -1545,8 +1554,6 @@ function ListaCalendarios() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteImpact, setDeleteImpact] = useState({
     loading: false,
-    planificaciones: 0,
-    informes: 0,
     cargas_horarias: 0,
     failed: false,
     detail: '',
@@ -1574,6 +1581,9 @@ function ListaCalendarios() {
     }
   }, []);
   const esSuperAdmin = usuarioActual?.is_superuser === true;
+  // Crean, editan, activan y eliminan: superusuario, Director y Jefe de Estudios (en su
+  // carrera; el backend lo exige). El resto solo consulta.
+  const puedeGestionar = esSuperAdmin || ['director', 'jefe_estudios'].includes(usuarioActual?.perfil?.rol);
   const hayUnaSolaCarrera = carreras.length === 1;
   const carreraOptions = carreras.map((carrera) => ({
     value: String(carrera.id),
@@ -1583,11 +1593,13 @@ function ListaCalendarios() {
     ? calendarios.filter((cal) => String(cal.carrera) === String(carreraFiltro))
     : calendarios;
 
-  const currentYear = new Date().getFullYear();
+  // Gestión por defecto: el año actual en Bolivia.
+  const currentYear = Number(hoyBolivia().slice(0, 4));
 
   const buildInitialFormData = () => ({
-    carrera: hayUnaSolaCarrera ? carreras[0].id : '',
-    gestion: new Date().getFullYear(),
+    // Director y Jefe: su carrera (el backend solo les devuelve esa); el superusuario elige.
+    carrera: (!esSuperAdmin || hayUnaSolaCarrera) && carreras.length ? carreras[0].id : '',
+    gestion: currentYear,
     periodo: '1',
     fecha_inicio: '',
     fecha_fin: '',
@@ -1596,7 +1608,7 @@ function ListaCalendarios() {
     fecha_limite_programas_analiticos: '',
     fecha_inicio_receso: '',
     fecha_fin_receso: '',
-    semanas_efectivas: '',
+    dias_feriados_gestion: '',
     activo: false,
   });
 
@@ -1655,10 +1667,6 @@ function ListaCalendarios() {
     return `${y}-${m}-${d}`;
   };
 
-  const sortCalendarios = (items) => (
-    [...items].sort((a, b) => b.gestion - a.gestion || b.periodo.localeCompare(a.periodo))
-  );
-
   const extractValidationMessage = (data) => {
     if (!data) return 'Datos inválidos.';
     if (typeof data === 'string') return data;
@@ -1692,11 +1700,9 @@ function ListaCalendarios() {
   const activeCalendarEditWarning = 'ATENCIÓN: Estás editando un calendario en uso. Cambiar las fechas límite puede afectar la visibilidad de los formularios para los docentes.';
   const criticalProjectRangeMessage = 'Error Crítico: el rango del semestre deja fechas de proyectos fuera del periodo académico. Corrige las fechas antes de guardar.';
 
-  const isDateRangeInvalid = Boolean(
-    fechaInicioDate
-    && fechaFinDate
-    && fechaFinDate.getTime() < fechaInicioDate.getTime()
-  );
+  const isDateRangeInvalid = finAnteriorAInicio(formData.fecha_inicio, formData.fecha_fin);
+  const recesoOrderErrorMessage = 'La fecha de fin del receso no puede ser anterior a la de inicio';
+  const isRecesoOrderInvalid = finAnteriorAInicio(formData.fecha_inicio_receso, formData.fecha_fin_receso);
   const projectRangeWarning = 'La presentación de proyectos debe ocurrir dentro del periodo académico seleccionado';
   const projectOrderErrorMessage = 'La fecha límite de proyectos debe ser posterior a la fecha de inicio';
   const isProjectOrderInvalid = Boolean(
@@ -1735,40 +1741,20 @@ function ListaCalendarios() {
   const semanasCalendarioDisplay = semanasCalendario === null
     ? ''
     : String(semanasCalendario);
-  const semanasEfectivasCalculadas = semanasCalendario === null
-    ? ''
-    : String(semanasCalendario <= 18 ? 16 : semanasCalendario - 2);
-  const semanasEfectivasValue = Number(formData.semanas_efectivas);
-  const semanasEfectivasExcedenCalendario = Boolean(
-    semanasCalendario !== null
-    && Number.isFinite(semanasEfectivasValue)
-    && semanasEfectivasValue > semanasCalendario
-  );
-  const semanasEfectivasErrorMessage = 'Las semanas efectivas no pueden exceder las semanas calendario del periodo.';
-  const isFormReady = Boolean(
-    formData.carrera
-    && formData.gestion
-    && formData.periodo
-    && formData.fecha_inicio
-    && formData.fecha_fin
-    && formData.fecha_inicio_presentacion_proyectos
-    && formData.fecha_limite_presentacion_proyectos
-    && formData.semanas_efectivas !== ''
-    && formData.semanas_efectivas !== null
-    && formData.semanas_efectivas !== undefined
-    && !isDateRangeInvalid
-    && !semanasEfectivasExcedenCalendario
-    && !isProjectRangeInvalid
-    && !isProjectOrderInvalid
-  );
   const isSaveBlocked = Boolean(isSubmitting);
 
+  // Los días de feriado son de la gestión: iguales en todos sus calendarios de la carrera.
+  const calendarioDeLaMismaGestion = calendarios.find((calendario) => (
+    String(calendario.carrera) === String(formData.carrera)
+    && String(calendario.gestion) === String(formData.gestion)
+    && calendario.id !== calendarioSeleccionado?.id
+  ));
+  const diasFeriadosDeLaGestion = calendarioDeLaMismaGestion?.dias_feriados_gestion;
   useEffect(() => {
-    setFormData((prev) => {
-      if (prev.semanas_efectivas === semanasEfectivasCalculadas) return prev;
-      return { ...prev, semanas_efectivas: semanasEfectivasCalculadas };
-    });
-  }, [semanasEfectivasCalculadas]);
+    // Calendario nuevo: toma los días de feriado del otro calendario de su gestión.
+    if (calendarioSeleccionado || diasFeriadosDeLaGestion === undefined) return;
+    setFormData((prev) => ({ ...prev, dias_feriados_gestion: diasFeriadosDeLaGestion }));
+  }, [calendarioSeleccionado, diasFeriadosDeLaGestion]);
 
   useEffect(() => {
     cargarCalendarios();
@@ -1812,7 +1798,7 @@ function ListaCalendarios() {
       fecha_limite_programas_analiticos: calendario.fecha_limite_programas_analiticos || '',
       fecha_inicio_receso: calendario.fecha_inicio_receso || '',
       fecha_fin_receso: calendario.fecha_fin_receso || '',
-      semanas_efectivas: calendario.semanas_efectivas,
+      dias_feriados_gestion: calendario.dias_feriados_gestion ?? '',
       activo: calendario.activo,
     } : buildInitialFormData());
     setErrors({});
@@ -1822,7 +1808,7 @@ function ListaCalendarios() {
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     clearFieldError(name);
-    const nextValue = name === 'semanas_efectivas' && value !== ''
+    const nextValue = name === 'dias_feriados_gestion' && value !== ''
       ? Math.round(Number(value))
       : value;
     setFormData(prev => ({
@@ -1848,9 +1834,6 @@ function ListaCalendarios() {
 
   const handleDateFieldChange = (name, isoDate, options = {}) => {
     clearFieldError(name);
-    if (name === 'fecha_inicio' || name === 'fecha_fin') {
-      clearFieldError('semanas_efectivas');
-    }
     const { skipRangeToast = false } = options;
     const normalized = isoDate
       ? (() => {
@@ -1858,27 +1841,11 @@ function ListaCalendarios() {
           return parsed ? toIsoString(parsed) : '';
         })()
       : '';
-    let accepted = true;
-
-    setFormData((prev) => {
-      if (
-        name === 'fecha_fin'
-        && normalized
-        && prev.fecha_inicio
-      ) {
-        const nextEnd = parseDateValue(normalized);
-        const currentStart = parseDateValue(prev.fecha_inicio);
-        if (nextEnd && currentStart && nextEnd.getTime() < currentStart.getTime()) {
-          accepted = false;
-          return prev;
-        }
-      }
-
-      return {
-        ...prev,
-        [name]: normalized,
-      };
-    });
+    // Solo con las dos fechas llenas: una fecha de fin anterior al inicio no se acepta.
+    const accepted = !(name === 'fecha_fin' && finAnteriorAInicio(formData.fecha_inicio, normalized));
+    if (accepted) {
+      setFormData((prev) => ({ ...prev, [name]: normalized }));
+    }
 
     if (!accepted) {
       if (!skipRangeToast) {
@@ -1925,7 +1892,7 @@ function ListaCalendarios() {
     return true;
   };
 
-  const notifyProjectRangeIfInvalid = (fieldName) => {
+  const notifyProjectRangeIfInvalid = () => {
     // Limpia cualquier notificación anterior mientras el usuario vuelve a elegir fecha.
     toast.dismiss(PROJECT_RANGE_TOAST_ID);
   };
@@ -1975,25 +1942,34 @@ function ListaCalendarios() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!esSuperAdmin && !formData.carrera) {
+      toast.error('No tienes una carrera asignada.');
+      return;
+    }
+
     const requiredErrors = {};
     if (!formData.carrera) requiredErrors.carrera = 'Este campo es obligatorio.';
     if (!formData.gestion) requiredErrors.gestion = 'Este campo es obligatorio.';
     if (!formData.periodo) requiredErrors.periodo = 'Este campo es obligatorio.';
-    if (!formData.fecha_inicio) requiredErrors.fecha_inicio = 'Este campo es obligatorio.';
-    if (!formData.fecha_fin) requiredErrors.fecha_fin = 'Este campo es obligatorio.';
+    if (!formData.fecha_inicio) requiredErrors.fecha_inicio = 'La fecha de inicio es obligatoria.';
+    if (!formData.fecha_fin) requiredErrors.fecha_fin = 'La fecha de fin es obligatoria.';
     if (!formData.fecha_inicio_presentacion_proyectos) requiredErrors.fecha_inicio_presentacion_proyectos = 'Este campo es obligatorio.';
     if (!formData.fecha_limite_presentacion_proyectos) requiredErrors.fecha_limite_presentacion_proyectos = 'Este campo es obligatorio.';
-    if (
-      formData.semanas_efectivas === ''
-      || formData.semanas_efectivas === null
-      || formData.semanas_efectivas === undefined
-    ) {
-      requiredErrors.semanas_efectivas = 'Este campo es obligatorio.';
+    const diasFeriadosVacio = formData.dias_feriados_gestion === ''
+      || formData.dias_feriados_gestion === null
+      || formData.dias_feriados_gestion === undefined;
+    if (diasFeriadosVacio) {
+      requiredErrors.dias_feriados_gestion = 'Este campo es obligatorio.';
+    }
+    // "Completa..." solo si de verdad falta un campo; lleno pero inválido: "Revisa...".
+    const faltaCampo = Object.keys(requiredErrors).length > 0;
+    if (!diasFeriadosVacio && (Number(formData.dias_feriados_gestion) < 0 || Number(formData.dias_feriados_gestion) > 30)) {
+      requiredErrors.dias_feriados_gestion = 'Debe estar entre 0 y 30 días.';
     }
 
     if (Object.keys(requiredErrors).length > 0) {
       applyErrors(requiredErrors);
-      toast.error('Completa los campos obligatorios.');
+      toast.error(faltaCampo ? 'Completa los campos obligatorios.' : 'Revisa los campos marcados en rojo.');
       return;
     }
 
@@ -2026,17 +2002,14 @@ function ListaCalendarios() {
       return;
     }
 
-    if (semanasEfectivasExcedenCalendario) {
-      applyErrors({
-        ...errors,
-        semanas_efectivas: semanasEfectivasErrorMessage,
-      });
-      toast.error(semanasEfectivasErrorMessage);
+    if (isProjectRangeInvalid) {
+      toast.error(projectRangeWarning);
       return;
     }
 
-    if (isProjectRangeInvalid) {
-      toast.error(projectRangeWarning);
+    if (isRecesoOrderInvalid) {
+      applyErrors({ ...errors, fecha_fin_receso: recesoOrderErrorMessage });
+      toast.error(recesoOrderErrorMessage);
       return;
     }
 
@@ -2047,7 +2020,7 @@ function ListaCalendarios() {
       ...formData,
       carrera: Number(formData.carrera),
       gestion: parseInt(formData.gestion),
-      semanas_efectivas: parseInt(formData.semanas_efectivas),
+      dias_feriados_gestion: parseInt(formData.dias_feriados_gestion),
       fecha_limite_programas_analiticos: formData.fecha_limite_programas_analiticos || null,
       fecha_inicio_receso: formData.fecha_inicio_receso || null,
       fecha_fin_receso: formData.fecha_fin_receso || null,
@@ -2072,9 +2045,13 @@ function ListaCalendarios() {
       if (calendarioSeleccionado) {
         const response = await api.put(`/calendarios/${calendarioSeleccionado.id}/`, payload);
         if (response.data?.id) {
-          setCalendarios((prev) => prev.map((calendario) => (
-            calendario.id === response.data.id ? response.data : calendario
-          )));
+          // El backend copia los días de feriado a los demás calendarios de la gestión.
+          setCalendarios((prev) => prev.map((calendario) => {
+            if (calendario.id === response.data.id) return response.data;
+            const mismaGestion = String(calendario.carrera) === String(response.data.carrera)
+              && String(calendario.gestion) === String(response.data.gestion);
+            return mismaGestion ? { ...calendario, dias_feriados_gestion: response.data.dias_feriados_gestion } : calendario;
+          }));
         }
         toast.success('Calendario actualizado correctamente');
         resetAndCloseModal();
@@ -2130,9 +2107,8 @@ function ListaCalendarios() {
     setCalendarioToDelete(calendario);
     setDeleteImpact({
       loading: false,
-      planificaciones: impactData?.planificaciones || 0,
-      informes: impactData?.informes || 0,
       cargas_horarias: impactData?.cargas_horarias || 0,
+      fondos_gestion: impactData?.fondos_gestion || 0,
       failed: false,
       detail: customDetail || '',
     });
@@ -2145,8 +2121,6 @@ function ListaCalendarios() {
     setDeleteConfirmText('');
     setDeleteImpact({
       loading: false,
-      planificaciones: 0,
-      informes: 0,
       cargas_horarias: 0,
       failed: false,
       detail: '',
@@ -2186,8 +2160,6 @@ function ListaCalendarios() {
         setDeleteConfirmText('');
         setDeleteImpact({
           loading: false,
-          planificaciones: deps.planificaciones || 0,
-          informes: deps.informes || 0,
           cargas_horarias: deps.cargas_horarias || 0,
           failed: false,
           detail: '',
@@ -2196,11 +2168,7 @@ function ListaCalendarios() {
         return;
       }
 
-      openDependencyWarning(
-        calendario,
-        deps,
-        `ERROR DE INTEGRIDAD: No se puede eliminar el calendario ${calendario.gestion}-${calendario.periodo_display} porque aún tiene ${deps.planificaciones || 0} planificaciones y ${deps.informes || 0} informes vinculados.`
-      );
+      openDependencyWarning(calendario, deps, deps.detalle);
     } catch (err) {
       console.error('Error verificando dependencias del calendario:', err);
       toast.error('No se pudo verificar dependencias del calendario. Intenta nuevamente.');
@@ -2278,13 +2246,15 @@ function ListaCalendarios() {
                   />
                 </div>
               )}
-            <button
+            {puedeGestionar && (
+            <button data-escritura
               onClick={() => abrirModal()}
               className="w-full sm:w-auto px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 flex items-center justify-center gap-2"
             >
               <span>➕</span>
               Nuevo Calendario
             </button>
+            )}
             </div>
           </div>
         </div>
@@ -2321,10 +2291,14 @@ function ListaCalendarios() {
                   </div>
                   <div className="flex items-center gap-2 flex-wrap justify-end">
                     <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[#263F8A]/10 dark:bg-[#263F8A]/25 border-2 border-[#263F8A]/40 dark:border-[#3A56AF]/55">
-                      <ToggleSwitch
-                        isActive={cal.activo}
-                        onChange={() => handleToggleActivo(cal)}
-                      />
+                      {puedeGestionar && (
+                        <span data-escritura className="flex">
+                          <ToggleSwitch
+                            isActive={cal.activo}
+                            onChange={() => handleToggleActivo(cal)}
+                          />
+                        </span>
+                      )}
                       <span className="text-sm font-semibold">
                         {cal.activo
                           ? <span className="text-emerald-600 dark:text-emerald-400">Activo</span>
@@ -2332,20 +2306,24 @@ function ListaCalendarios() {
                         }
                       </span>
                     </div>
-                    <button
+                    {puedeGestionar && (
+                    <>
+                    <button data-escritura
                       onClick={() => abrirModal(cal)}
                       className="text-blue-500 hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300 transition-all duration-200 hover:scale-110"
                       title="Editar"
                     >
                       <FaEdit size={18} />
                     </button>
-                    <button
+                    <button data-escritura
                       onClick={() => eliminarCalendario(cal)}
                       className="text-red-500 hover:text-red-400 dark:text-red-400 dark:hover:text-red-300 transition-all duration-200 hover:scale-110"
                       title="Eliminar"
                     >
                       <FaTrash size={18} />
                     </button>
+                    </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2355,8 +2333,10 @@ function ListaCalendarios() {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in" style={{ animationDuration: '160ms' }}>
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl max-w-3xl w-full max-h-[98vh] md:max-h-[95vh] overflow-visible animate-slide-up" style={{ animationDuration: '180ms' }}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 overflow-y-auto animate-fade-in" style={{ animationDuration: '160ms' }}>
+          {/* Si el formulario no entra en la pantalla se desplaza el fondo: nada queda cortado. */}
+          <div className="min-h-full flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl max-w-6xl w-full overflow-visible animate-slide-up" style={{ animationDuration: '180ms' }}>
             <div className="px-6 py-4 border-b border-[#7F97E8]/45 bg-[#2C4AAE] rounded-t-2xl">
               <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
                 {calendarioSeleccionado ? '✏️ Editar Calendario' : '➕ Nuevo Calendario'}
@@ -2369,7 +2349,8 @@ function ListaCalendarios() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-5">
+                {esSuperAdmin && (
                 <div className="md:col-span-2">
                   <SelectConDropdown
                     label="Carrera"
@@ -2386,7 +2367,8 @@ function ListaCalendarios() {
                     clearValue=""
                   />
                 </div>
-                <div>
+                )}
+                <div className={esSuperAdmin ? '' : 'xl:col-span-2'}>
                   <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Gestión (Año)</label>
                   <YearPickerField
                     value={Number(formData.gestion || currentYear)}
@@ -2398,7 +2380,7 @@ function ListaCalendarios() {
                   />
                   {errors.gestion && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{getErrorMessage(errors.gestion)}</p>}
                 </div>
-                <div>
+                <div className={esSuperAdmin ? '' : 'xl:col-span-2'}>
                   <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Periodo</label>
                   <SegmentedOptions
                     options={periodoOptions}
@@ -2447,40 +2429,46 @@ function ListaCalendarios() {
                   </div>
                 </div>
 
+                <div className="md:col-span-2 rounded-xl border border-[#3D6DE0]/30 dark:border-[#4B67C0]/40 bg-gradient-to-r from-white/60 via-[#3D6DE0]/5 to-cyan-400/10 dark:from-slate-800/55 dark:to-cyan-900/20 p-4 shadow-sm hover:shadow-md transition-all duration-200">
+                  <h4 className="text-sm font-bold text-[#263F8A] dark:text-[#B6C3EC] mb-3">Presentación de Proyectos</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <DatePickerField
+                      label="Inicio Presentación Proyectos"
+                      name="fecha_inicio_presentacion_proyectos"
+                      value={formData.fecha_inicio_presentacion_proyectos}
+                      onDateChange={handleDateFieldChange}
+                      required
+                      error={errors.fecha_inicio_presentacion_proyectos || (isProjectOrderInvalid ? projectOrderErrorMessage : '') || (projectStartOutOfRange ? projectRangeWarning : '')}
+                      errorPulse={errorPulse}
+                      onFieldInteraction={() => notifyProjectRangeIfInvalid('fecha_inicio_presentacion_proyectos')}
+                      onClearError={() => clearFieldError('fecha_inicio_presentacion_proyectos')}
+                    />
+                    <DatePickerField
+                      label="Límite Presentación Proyectos"
+                      name="fecha_limite_presentacion_proyectos"
+                      value={formData.fecha_limite_presentacion_proyectos}
+                      onDateChange={handleDateFieldChange}
+                      required
+                      error={errors.fecha_limite_presentacion_proyectos || (isProjectOrderInvalid ? projectOrderErrorMessage : '') || (projectEndOutOfRange ? projectRangeWarning : '')}
+                      errorPulse={errorPulse}
+                      onFieldInteraction={() => notifyProjectRangeIfInvalid('fecha_limite_presentacion_proyectos')}
+                      onClearError={() => clearFieldError('fecha_limite_presentacion_proyectos')}
+                    />
+                  </div>
+                </div>
+
                 {isDateRangeInvalid && (
-                  <div className="md:col-span-2 rounded-lg border border-amber-400/40 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+                  <div className="md:col-span-2 xl:col-span-4 rounded-lg border border-amber-400/40 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
                     {endDateErrorMessage}
                   </div>
                 )}
 
                 {isCriticalProjectRangeConflict && (
-                  <div className="md:col-span-2 rounded-lg border border-red-600/60 bg-red-100 dark:bg-red-900/25 px-3 py-2 text-sm font-semibold text-red-800 dark:text-red-300">
+                  <div className="md:col-span-2 xl:col-span-4 rounded-lg border border-red-600/60 bg-red-100 dark:bg-red-900/25 px-3 py-2 text-sm font-semibold text-red-800 dark:text-red-300">
                     {criticalProjectRangeMessage}
                   </div>
                 )}
 
-                <DatePickerField
-                  label="Inicio Presentación Proyectos"
-                  name="fecha_inicio_presentacion_proyectos"
-                  value={formData.fecha_inicio_presentacion_proyectos}
-                  onDateChange={handleDateFieldChange}
-                  required
-                  error={errors.fecha_inicio_presentacion_proyectos || (isProjectOrderInvalid ? projectOrderErrorMessage : '') || (projectStartOutOfRange ? projectRangeWarning : '')}
-                  errorPulse={errorPulse}
-                  onFieldInteraction={() => notifyProjectRangeIfInvalid('fecha_inicio_presentacion_proyectos')}
-                  onClearError={() => clearFieldError('fecha_inicio_presentacion_proyectos')}
-                />
-                <DatePickerField
-                  label="Límite Presentación Proyectos"
-                  name="fecha_limite_presentacion_proyectos"
-                  value={formData.fecha_limite_presentacion_proyectos}
-                  onDateChange={handleDateFieldChange}
-                  required
-                  error={errors.fecha_limite_presentacion_proyectos || (isProjectOrderInvalid ? projectOrderErrorMessage : '') || (projectEndOutOfRange ? projectRangeWarning : '')}
-                  errorPulse={errorPulse}
-                  onFieldInteraction={() => notifyProjectRangeIfInvalid('fecha_limite_presentacion_proyectos')}
-                  onClearError={() => clearFieldError('fecha_limite_presentacion_proyectos')}
-                />
                 <DatePickerField
                   label="Fecha limite programas analiticos"
                   name="fecha_limite_programas_analiticos"
@@ -2504,7 +2492,9 @@ function ListaCalendarios() {
                   name="fecha_fin_receso"
                   value={formData.fecha_fin_receso}
                   onDateChange={handleDateFieldChange}
-                  error={errors.fecha_fin_receso}
+                  minDate={formData.fecha_inicio_receso}
+                  invalidSelectionMessage={recesoOrderErrorMessage}
+                  error={errors.fecha_fin_receso || (isRecesoOrderInvalid ? recesoOrderErrorMessage : '')}
                   errorPulse={errorPulse}
                   onClearError={() => clearFieldError('fecha_fin_receso')}
                 />
@@ -2523,25 +2513,29 @@ function ListaCalendarios() {
                 </div>
                 <div>
                   <InputField
-                    label="Semanas Efectivas"
-                    name="semanas_efectivas"
+                    label="Días de feriado de la gestión"
+                    name="dias_feriados_gestion"
                     type="number"
+                    min="0"
+                    max="30"
                     step="1"
-                    value={formData.semanas_efectivas}
+                    value={formData.dias_feriados_gestion}
                     onChange={handleChange}
                     required
-                    error={errors.semanas_efectivas || (semanasEfectivasExcedenCalendario ? semanasEfectivasErrorMessage : '')}
+                    error={errors.dias_feriados_gestion}
                     errorPulse={errorPulse}
-                    onClearError={() => clearFieldError('semanas_efectivas')}
-                    readOnly
+                    onClearError={() => clearFieldError('dias_feriados_gestion')}
                   />
-                  {!errors.semanas_efectivas && !semanasEfectivasExcedenCalendario && (
+                  {!errors.dias_feriados_gestion && (
                     <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                      Semanas efectivas calculadas automaticamente desde el rango de fechas
+                      Solo los que caen de lunes a viernes. El fondo descuenta días × jornada diaria del docente.
+                      {calendarioDeLaMismaGestion && (calendarioSeleccionado
+                        ? ` Al guardar se aplica también al calendario ${calendarioDeLaMismaGestion.periodo_display} de la gestión.`
+                        : ` Igual que el calendario ${calendarioDeLaMismaGestion.periodo_display} de la gestión.`)}
                     </p>
                   )}
                 </div>
-                <div className="mt-1 bg-white/70 dark:bg-slate-800/60 rounded-xl p-3 border border-[#3D6DE0]/25 dark:border-[#4B67C0]/40 md:self-end">
+                <div className="mt-1 bg-white/70 dark:bg-slate-800/60 rounded-xl p-3 border border-[#3D6DE0]/25 dark:border-[#4B67C0]/40 md:self-end xl:col-span-2">
                   <div className="flex items-center gap-3">
                     <ToggleSwitch
                       isActive={Boolean(formData.activo)}
@@ -2570,6 +2564,7 @@ function ListaCalendarios() {
                 </button>
               </div>
             </form>
+          </div>
           </div>
         </div>
       )}
@@ -2648,7 +2643,7 @@ function ListaCalendarios() {
                 Acción irreversible: <strong className="text-red-900 dark:text-red-300">se perderá el periodo y sus fechas de referencia para este calendario.</strong>
               </div>
               <div className="rounded-lg border border-amber-500/40 bg-amber-100 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
-                Dependencias actuales: {deleteImpact.planificaciones} planificaciones, {deleteImpact.informes} informes, {deleteImpact.cargas_horarias} cargas horarias.
+                Dependencias actuales: {deleteImpact.cargas_horarias} cargas horarias.
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
@@ -2700,7 +2695,7 @@ function ListaCalendarios() {
                 {deleteImpact.detail || `ERROR DE INTEGRIDAD: No se puede eliminar el calendario ${calendarioToDelete.gestion}-${calendarioToDelete.periodo_display} porque aún tiene dependencias vinculadas.`}
               </p>
               <div className="rounded-lg border border-red-700/70 bg-red-200/70 dark:bg-red-500/10 px-3 py-2 text-sm text-red-900 dark:text-red-100">
-                Dependencias detectadas: {deleteImpact.planificaciones} planificaciones, {deleteImpact.informes} informes, {deleteImpact.cargas_horarias} cargas horarias.
+                Dependencias detectadas: {deleteImpact.cargas_horarias} cargas horarias, {deleteImpact.fondos_gestion || 0} fondos de la gestión sin otro calendario.
               </div>
               <div className="rounded-lg border border-amber-500/40 bg-amber-100 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
                 Para eliminar este calendario, primero debes mover o eliminar manualmente sus registros asociados.

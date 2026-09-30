@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getFondoTiempoDetalle, crearActividad, eliminarActividad, presentarFondoADirector, aprobarFondo } from '../apis/api';
+import { getFondoTiempoDetalle, presentarFondoADirector, aprobarFondo } from '../apis/api';
 import api from '../apis/api';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-import DistribuirHoras from './DistribuirHoras';
 import { useActiveRole } from '../contexts/ActiveRoleContext';
 import FormularioObservar from './FormularioObservar';
 import BotonFlotanteObservaciones from './BotonFlotanteObservaciones';
@@ -20,20 +19,30 @@ import ThemeToggle from './ThemeToggle';
 import CargaHorariaManager from './CargaHorariaManager';
 import { getApiErrorMessage } from '../utils/formErrors';
 import { FileText as ArchivoIcon, Check as CheckIcon, Trash2 as TrashIcon, AlertTriangle as AlertTriangleIcon, Info as InfoIcon, Send as SendIcon, EyeOff as EyeOffIcon, X as XIcon, Plus as PlusIcon, ChevronDown as ChevronDownIcon, ChevronUp as ChevronUpIcon, Pencil as PencilIcon, Calendar as CalendarIcon, User as UserIcon } from 'lucide-react';
-import { Eye, CheckCircle2, FileDown, ChevronLeft, ChevronRight, Paperclip } from 'lucide-react';
+import { Eye, CheckCircle2, FileDown, Paperclip } from 'lucide-react';
 
 // Alias for template consistency
 const EyeIcon = Eye;
 
+// Materia asignada por el Jefe de otra carrera (doble carrera): la gestiona esa Jefatura.
+const EtiquetaOtraCarrera = ({ detalle }) => (
+  detalle?.es_de_otra_carrera ? (
+    <span className="ml-2 rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+      {detalle.carrera_calendario}
+    </span>
+  ) : null
+);
+
 const ActividadAsignadaCell = ({ detalle, compact = false }) => {
   if (!detalle?.es_subactividad_academica) {
-    return <>{detalle?.titulo_actividad || '-'}</>;
+    return <>{detalle?.titulo_actividad || '-'}<EtiquetaOtraCarrera detalle={detalle} /></>;
   }
 
   return (
     <div className="flex items-center gap-2 pl-5 whitespace-nowrap">
       <span className="font-black text-sky-700 dark:text-sky-300">-</span>
       <span className={compact ? 'font-semibold' : ''}>{detalle.titulo_actividad || '-'}</span>
+      <EtiquetaOtraCarrera detalle={detalle} />
     </div>
   );
 };
@@ -253,7 +262,7 @@ const CATEGORY_ICONS = {
   'social_cultural_deportiva': VidaUniversitariaIcon,
 };
 
-function DetalleFondo({ isDark }) {
+function DetalleFondo() {
   const { activeAssignment, activeRole, effectiveUser } = useActiveRole();
   const { id } = useParams();
   const navigate = useNavigate();
@@ -261,8 +270,6 @@ function DetalleFondo({ isDark }) {
   const [loading, setLoading] = useState(true);
   const [usuarioActual, setUsuarioActual] = useState(null);
   const [error, setError] = useState(null);
-  const [mostrarFormActividad, setMostrarFormActividad] = useState(false);
-  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState(null);
   const [mostrarFormObservar, setMostrarFormObservar] = useState(false);
 
   // Extraer datos del vínculo DocenteCarrera para el docente de este fondo
@@ -270,12 +277,9 @@ function DetalleFondo({ isDark }) {
   const dedicacionDocente = vinculo?.dedicacion || null;
   const categoriaDocente = vinculo?.categoria || null;
   const [mostrarModalAprobar, setMostrarModalAprobar] = useState(false);
+  const [documentoDecanatura, setDocumentoDecanatura] = useState(null);
   const observacionesRef = useRef();
   const [observacionesPendientes, setObservacionesPendientes] = useState(0);
-  const [actividadAEditar, setActividadAEditar] = useState(null);
-  const [mostrarFormEditar, setMostrarFormEditar] = useState(false);
-  const [actividadAEliminar, setActividadAEliminar] = useState(null);
-  const scrollPosRef = useRef(0);
   const contenedorRef = useRef(null);
   const refWidgetReferencia = useRef(null);
   const refWidgetAcciones = useRef(null);
@@ -287,9 +291,6 @@ function DetalleFondo({ isDark }) {
   const [mostrarModalInforme, setMostrarModalInforme] = useState(false);
   const [evidenciaActividadModal, setEvidenciaActividadModal] = useState(null);
   const [cargaParaEditar, setCargaParaEditar] = useState(null);
-  const [panelCentral, setPanelCentral] = useState('resumen');
-  const [direccionPanel, setDireccionPanel] = useState('derecha');
-  const [animarPanelCentral, setAnimarPanelCentral] = useState(false);
   const [slideGrafico, setSlideGrafico] = useState(0);
   const vistaActual = 'docente';
   const slideGraficoRef = useRef(0);
@@ -297,58 +298,6 @@ function DetalleFondo({ isDark }) {
   const prevTotalesCategoriasRef = useRef({});
   const estadoFondoRef = useRef(null);
   const observacionesPendientesRef = useRef(0);
-  const [animarTransicionMacroMicro, setAnimarTransicionMacroMicro] = useState(false);
-  const secuenciaGuardadoTimeoutsRef = useRef([]);
-  const limpiarSecuenciaGuardado = () => {
-    secuenciaGuardadoTimeoutsRef.current.forEach((timeoutId) => clearTimeout(timeoutId));
-    secuenciaGuardadoTimeoutsRef.current = [];
-  };
-  const [secuenciaGuardado, setSecuenciaGuardado] = useState({
-    activa: false,
-    balance: true,
-    distribucion: true,
-    acciones: true,
-  });
-  const iniciarSecuenciaGuardado = () => {
-    limpiarSecuenciaGuardado();
-    setAnimarPanelCentral(false);
-    setPanelCentral('resumen');
-    setAnimarTransicionMacroMicro(false);
-    setSecuenciaGuardado({
-      activa: true,
-      balance: false,
-      distribucion: false,
-      acciones: false,
-    });
-
-    secuenciaGuardadoTimeoutsRef.current = [
-      setTimeout(() => {
-        setAnimarTransicionMacroMicro(true);
-        setSecuenciaGuardado((prev) => ({ ...prev, balance: true }));
-      }, 0),
-      setTimeout(() => {
-        setSecuenciaGuardado((prev) => ({ ...prev, distribucion: true }));
-      }, 500),
-      setTimeout(() => {
-        setSecuenciaGuardado((prev) => ({ ...prev, acciones: true }));
-      }, 1000),
-      setTimeout(() => {
-        setDireccionPanel('derecha');
-        setAnimarPanelCentral(true);
-        setPanelCentral('carga');
-      }, 1500),
-      setTimeout(() => {
-        setAnimarTransicionMacroMicro(false);
-        setSecuenciaGuardado({
-          activa: false,
-          balance: true,
-          distribucion: true,
-          acciones: true,
-        });
-      }, 2250),
-    ];
-  };
-
   // La redacción/edición del Informe de Cumplimiento vive ahora en una página
   // dedicada (EditorInformePage.jsx, ruta /fondos/:id/informe) en vez de un
   // modal aquí. Solo quedan los estados para "Ver Informe" (solo lectura) y
@@ -360,22 +309,22 @@ function DetalleFondo({ isDark }) {
   // iiisyp es solo lectura: no puede aprobar ni gestionar fondos
   const rolOperativo = activeRole || activeAssignment?.rol || effectiveUser?.perfil?.rol || usuarioActual?.perfil?.rol;
   const esSuperAdmin = usuarioActual?.is_superuser === true;
-  const esAdmin = false;
   const esDirector = rolOperativo === 'director';
   const esJefeEstudios = rolOperativo === 'jefe_estudios';
   const esIisyp = rolOperativo === 'iiisyp';
-  const puedeGestionarDistribucion = esSuperAdmin || esJefeEstudios;
+  // Nadie revisa (aprueba, observa, inicia o evalúa) su propio fondo; el fondo del
+  // Director de la carrera lo revisa el superusuario con el documento de la Decanatura.
+  const esRevisorDelFondo = Boolean(fondo) && !fondo.es_fondo_propio && (
+    fondo.es_fondo_de_director ? esSuperAdmin : (esDirector && !esIisyp)
+  );
+  const requiereDocumentoDecanatura = Boolean(fondo?.es_fondo_de_director);
   const puedeGestionarCarga = esSuperAdmin || esJefeEstudios;
   const soloLecturaPorRol = !puedeGestionarCarga;
   const puedePresentarADirector = fondo?.estado === 'borrador' && (esJefeEstudios || esSuperAdmin);
   const puedeReenviarADirector = fondo?.estado === 'observado' && (esJefeEstudios || esSuperAdmin);
   const fondoPresentadoADirector = fondo?.estado === 'presentado_director' && (esJefeEstudios || esSuperAdmin);
-
-  useEffect(() => {
-    // Define panel inicial por rol al entrar a la vista.
-    setAnimarPanelCentral(false);
-    setPanelCentral('resumen');
-  }, [puedeGestionarCarga]);
+  // Un fondo rechazado vuelve a borrador para corregirlo (Jefe de su carrera o superusuario).
+  const puedeVolverABorrador = fondo?.estado === 'rechazado' && (esJefeEstudios || esSuperAdmin);
 
   const solicitarCorreccionesInforme = async () => {
     if (comentarioObservarInforme.trim().length < 10) {
@@ -403,6 +352,7 @@ function DetalleFondo({ isDark }) {
     estadoFondoRef.current = null;
     observacionesPendientesRef.current = 0;
     cargarDetalle();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- se recarga al cambiar de fondo o de rol activo.
   }, [id, activeAssignment?.id]);
 
   // Guarda el ultimo total por categoria para detectar aparicion de tarjetas (0 -> >0)
@@ -410,37 +360,30 @@ function DetalleFondo({ isDark }) {
     if (!fondo?.categorias) return;
     const snapshot = {};
     fondo.categorias.forEach((categoria) => {
-      snapshot[categoria.id] = Number(categoria.total_horas || 0);
+      snapshot[categoria.tipo] = Number(categoria.total_horas || 0);
     });
     prevTotalesCategoriasRef.current = snapshot;
   }, [fondo?.categorias]);
 
   // Evita overlays residuales al entrar a otro detalle
   useEffect(() => {
-    setMostrarFormActividad(false);
-    setMostrarFormEditar(false);
     setMostrarFormObservar(false);
     setMostrarFormPresentarInforme(false);
     setMostrarFormEvaluarInforme(false);
     setMostrarModalAprobar(false);
     setMostrarModalIniciarEjecucion(false);
     setMostrarModalInforme(false);
-    setActividadAEliminar(null);
   }, [id]);
 
   // Limpiar todos los modales al desmontar el componente
   useEffect(() => {
     return () => {
-      limpiarSecuenciaGuardado();
-      setMostrarFormActividad(false);
-      setMostrarFormEditar(false);
       setMostrarFormObservar(false);
       setMostrarFormPresentarInforme(false);
       setMostrarFormEvaluarInforme(false);
       setMostrarModalAprobar(false);
       setMostrarModalIniciarEjecucion(false);
       setMostrarModalInforme(false);
-      setActividadAEliminar(null);
     };
   }, [activeAssignment?.id]);
 
@@ -572,159 +515,11 @@ function DetalleFondo({ isDark }) {
     navigate('/fondo-tiempo');
   };
 
-  const abrirFormularioActividad = (categoria) => {
-    if (!puedeGestionarDistribucion) {
-      toast.error('Solo Jefatura puede agregar actividades.');
-      return;
-    }
-    setCategoriaSeleccionada(categoria);
-    setMostrarFormActividad(true);
-  };
-
-  const abrirFormularioActividadGlobal = () => {
-    if (!puedeGestionarDistribucion) {
-      toast.error('Solo Jefatura puede agregar actividades.');
-      return;
-    }
-    const catDefault = fondo.categorias?.find(c => c.tipo === 'social_cultural_deportiva') || fondo.categorias?.[0] || { id: '' };
-    setCategoriaSeleccionada({ id: catDefault.id, nombre: catDefault.tipo_display });
-    setMostrarFormActividad(true);
-  };
-
-  const cerrarFormularioActividad = () => {
-    setMostrarFormActividad(false);
-    setCategoriaSeleccionada(null);
-  };
-
-  const getScrollContainer = () => {
-    let element = contenedorRef.current;
-
-    while (element && element !== document.body) {
-      const hasScroll = element.scrollHeight > element.clientHeight;
-      const overflowY = window.getComputedStyle(element).overflowY;
-
-      if (hasScroll && (overflowY === 'auto' || overflowY === 'scroll')) {
-        return element;
-      }
-
-      element = element.parentElement;
-    }
-
-    return null;
-  };
-
-  const guardarActividad = async (actividadData) => {
-    if (!puedeGestionarDistribucion) {
-      toast.error('No tienes permisos para agregar actividades.');
-      return;
-    }
-    try {
-      const scrollContainer = getScrollContainer();
-      scrollPosRef.current = scrollContainer
-        ? scrollContainer.scrollTop
-        : window.scrollY;
-
-      await crearActividad(actividadData);
-      toast.success('Actividad agregada exitosamente');
-      cerrarFormularioActividad();
-      await cargarDetalle({ silencioso: true });
-
-      setTimeout(() => {
-        const container = getScrollContainer();
-        if (container) {
-          container.scrollTop = scrollPosRef.current;
-        } else {
-          window.scrollTo(0, scrollPosRef.current);
-        }
-      }, 300);
-    } catch (err) {
-      console.error('Error al guardar actividad:', err);
-      toast.error(getApiErrorMessage(err, 'Error al guardar la actividad'));
-    }
-  };
-
-  const editarActividadHandler = (actividad) => {
-    if (!puedeGestionarDistribucion) {
-      toast.error('No tienes permisos para editar actividades.');
-      return;
-    }
-    setActividadAEditar(actividad);
-    setCategoriaSeleccionada({
-      id: actividad.categoria,
-      nombre: actividad.categoria_nombre || 'Categoría'
-    });
-    setMostrarFormEditar(true);
-  };
-
-  const actualizarActividad = async (actividadData) => {
-    if (!puedeGestionarDistribucion) {
-      toast.error('No tienes permisos para editar actividades.');
-      return;
-    }
-    try {
-      const scrollContainer = getScrollContainer();
-      scrollPosRef.current = scrollContainer
-        ? scrollContainer.scrollTop
-        : window.scrollY;
-
-      await api.put(`/actividades/${actividadAEditar.id}/`, actividadData);
-      toast.success('Actividad actualizada exitosamente');
-      setMostrarFormEditar(false);
-      setActividadAEditar(null);
-      await cargarDetalle({ silencioso: true });
-
-      setTimeout(() => {
-        const container = getScrollContainer();
-        if (container) {
-          container.scrollTop = scrollPosRef.current;
-        } else {
-          window.scrollTo(0, scrollPosRef.current);
-        }
-      }, 300);
-    } catch (err) {
-      console.error('Error al actualizar actividad:', err);
-      toast.error(getApiErrorMessage(err, 'Error al actualizar la actividad'));
-    }
-  };
-
-  const confirmarEliminarActividad = async () => {
-    if (!actividadAEliminar) return;
-    if (!puedeGestionarDistribucion) {
-      toast.error('No tienes permisos para eliminar actividades.');
-      return;
-    }
-
-    try {
-      const scrollContainer = getScrollContainer();
-      scrollPosRef.current = scrollContainer
-        ? scrollContainer.scrollTop
-        : window.scrollY;
-
-      await eliminarActividad(actividadAEliminar);
-      toast.success('Actividad eliminada');
-      setActividadAEliminar(null);
-      await cargarDetalle({ silencioso: true });
-
-      setTimeout(() => {
-        const container = getScrollContainer();
-        if (container) {
-          container.scrollTop = scrollPosRef.current;
-        } else {
-          window.scrollTo(0, scrollPosRef.current);
-        }
-      }, 300);
-    } catch (err) {
-      console.error('Error al eliminar:', err);
-      toast.error('❌ Error al eliminar la actividad');
-    }
-  };
-
   const presentarADirector = async () => {
     const esReenvio = fondo.estado === 'observado';
     try {
-      const requisitosPresentacion = validarRequisitos();
-      if (!requisitosPresentacion.total) {
-        toast.error('Complete la distribución de horas y asigne al menos una materia antes de presentar');
+      if (!unidadesCompletas) {
+        toast.error(`La suma de las unidades debe ser exactamente ${horasEfectivasAnuales} horas (horas efectivas).`);
         return;
       }
 
@@ -749,11 +544,27 @@ function DetalleFondo({ isDark }) {
     }
   };
 
-  const aprobarFondoHandler = async () => {
+  const volverABorrador = async () => {
     try {
-      const response = await aprobarFondo(fondo.id);
+      await api.post(`/fondos-tiempo/${fondo.id}/volver-a-borrador/`);
+      estadoFondoRef.current = 'borrador';
+      toast.success('El fondo volvió a borrador para corregirlo');
+      await cargarDetalle({ silencioso: true });
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'No se pudo devolver el fondo a borrador'));
+    }
+  };
+
+  const aprobarFondoHandler = async () => {
+    if (requiereDocumentoDecanatura && !documentoDecanatura) {
+      toast.error('Adjunte el documento de la Decanatura (PDF) para aprobar el fondo del Director.');
+      return;
+    }
+    try {
+      await aprobarFondo(fondo.id, requiereDocumentoDecanatura ? documentoDecanatura : null);
       toast.success('Fondo aprobado exitosamente');
       setMostrarModalAprobar(false);
+      setDocumentoDecanatura(null);
       await cargarDetalle({ silencioso: true });
     } catch (err) {
       console.error('Error al aprobar:', err);
@@ -825,16 +636,6 @@ function DetalleFondo({ isDark }) {
     }
   };
 
-  const getPeriodoLabel = (periodo) => {
-    const periodos = {
-      '1S': 'Primer Semestre',
-      '2S': 'Segundo Semestre',
-      'A': 'Anual',
-      'V': 'Verano'
-    };
-    return periodos[periodo] || periodo;
-  };
-
   const calcularDiasEnEtapa = () => {
     if (!fondo || !fondo.fecha_creacion) return 0;
     const fechaCreacion = new Date(fondo.fecha_creacion);
@@ -887,21 +688,6 @@ function DetalleFondo({ isDark }) {
     return '0 días';
   };
 
-  const getEstadoBadgeColor = (estado) => {
-    const colores = {
-      'borrador': 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-500',
-      'presentado_director': 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700',
-      'revision_director': 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-700',
-      'aprobado_director': 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700',
-      'en_ejecucion': 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-700',
-      'informe_presentado': 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700',
-      'finalizado': 'bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-700',
-      'observado': 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-700',
-      'rechazado': 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border-red-200 dark:border-red-700',
-    };
-    return colores[estado] || colores['borrador'];
-  };
-
   const obtenerIniciales = (nombre) => {
     if (!nombre) return '??';
     return nombre.split(' ')
@@ -909,79 +695,6 @@ function DetalleFondo({ isDark }) {
       .join('')
       .substring(0, 2)
       .toUpperCase();
-  };
-
-  const validarRequisitos = () => {
-    if (!fondo) return { horas: false, micro: false, total: false };
-
-    const totalAsignado = Number(fondo.total_asignado || 0);
-    const horasObjetivo = Number(fondo.horas_semana || 0);
-    const horas = horasObjetivo > 0 && Math.abs(totalAsignado - horasObjetivo) < 0.1;
-    const micro = microCompletoExacto;
-
-    return {
-      horas,
-      micro,
-      total: horas && micro
-    };
-  };
-
-  // --- RENDERIZADO INTELIGENTE DE EVIDENCIAS ---
-  const renderEvidencia = (actividad) => {
-    const texto = actividad.evidencias;
-    const archivo = actividad.archivo_evidencia;
-
-    // 1. Prioridad: Si hay archivo adjunto, mostrar botón de descarga
-    if (archivo) {
-      return (
-        <a
-          href={archivo}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 text-xs font-bold transition-colors border border-indigo-200 dark:border-indigo-800 shadow-sm group"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 group-hover:scale-110 transition-transform">
-            <path fillRule="evenodd" d="M15.621 4.379a3 3 0 00-4.242 0l-7 7a3 3 0 004.241 4.243h.001l.497-.5a.75.75 0 011.064 1.057l-.498.501-.002.002a4.5 4.5 0 01-6.364-6.364l7-7a4.5 4.5 0 016.368 6.36l-3.455 3.553A2.625 2.625 0 119.52 9.52l3.45-3.451a.75.75 0 111.061 1.06l-3.45 3.451a1.125 1.125 0 001.587 1.595l3.454-3.553a3 3 0 000-4.242z" clipRule="evenodd" />
-          </svg>
-          Ver Archivo
-        </a>
-      );
-    }
-
-    if (!texto) return <span className="text-slate-300 dark:text-slate-600 italic text-xs">-</span>;
-
-    // 2. Detectar URL en el texto (http o www)
-    const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/;
-    const match = texto.match(urlRegex);
-
-    if (match) {
-      let url = match[0];
-      if (!url.startsWith('http')) {
-        url = 'https://' + url;
-      }
-
-      return (
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-xs font-bold transition-colors border border-blue-200 dark:border-blue-800 shadow-sm group"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 group-hover:scale-110 transition-transform">
-            <path d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.224a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.225 5.865.75.75 0 00.977-1.138 2.5 2.5 0 01-.142-3.667l3-3z" />
-            <path d="M11.603 7.96a.75.75 0 00-1.06-1.06l-2.25 2.25a4 4 0 005.656 5.656l3-3a4 4 0 00-.225-5.865.75.75 0 00-.977 1.138 2.5 2.5 0 01.142 3.667l-3 3a2.5 2.5 0 01-3.536-3.536l1.25-1.25z" />
-          </svg>
-          Ver Respaldo
-        </a>
-      );
-    }
-
-    // 3. Texto normal (Memo, Referencia, etc) - Estilo Badge
-    return (
-      <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-medium border border-slate-300 dark:border-slate-600 max-w-full truncate" title={texto}>
-        {texto}
-      </span>
-    );
   };
 
   const handleEditCarga = (detalle, tipoCategoria) => {
@@ -1077,68 +790,18 @@ function DetalleFondo({ isDark }) {
       value: parseFloat(cat.total_horas),
       porcentaje: parseFloat(cat.porcentaje)
     })) || [];
-  const tieneDistribucionGuardada = Number(fondo.total_asignado || 0) > 0 || datosGrafico.length > 0;
-  const mostrarBalanceWidget = secuenciaGuardado.activa ? secuenciaGuardado.balance : tieneDistribucionGuardada;
-  const mostrarDistribucionWidget = secuenciaGuardado.activa ? secuenciaGuardado.distribucion : tieneDistribucionGuardada;
-  const mostrarAccionesWidget = secuenciaGuardado.activa ? secuenciaGuardado.acciones : tieneDistribucionGuardada;
-  const objetivoMicroAnual = Math.round(Number(fondo.horas_efectivas || 1712));
-  const totalMicroAnual = Math.round((fondo.categorias || []).reduce(
-    (total, categoria) => total + Number(categoria.total_carga_horaria || 0),
-    0
-  ));
-  const microCompletoExacto = objetivoMicroAnual > 0 && totalMicroAnual === objetivoMicroAnual;
+  // Cada unidad suma sus ítems (horas por año); para presentar, el total es exactamente
+  // las horas efectivas.
+  const horasEfectivasAnuales = Math.round(Number(fondo.horas_efectivas || 0));
+  const totalUnidades = Math.round(Number(fondo.total_asignado || 0));
+  const unidadesCompletas = horasEfectivasAnuales > 0 && totalUnidades === horasEfectivasAnuales;
   const tieneProgramaAnalitico = Boolean(fondo.tiene_programa_analitico);
-  const puedeConfirmarPresentacion = microCompletoExacto && tieneProgramaAnalitico;
-  const motivoPresentacionBloqueada = !microCompletoExacto
-    ? `Micro incompleto: ${totalMicroAnual}/${objetivoMicroAnual} hrs/año`
+  const puedeConfirmarPresentacion = unidadesCompletas && tieneProgramaAnalitico;
+  const motivoPresentacionBloqueada = !unidadesCompletas
+    ? `Unidades: ${totalUnidades} de ${horasEfectivasAnuales} h/año (deben sumar exactamente las horas efectivas)`
     : (!tieneProgramaAnalitico ? 'Debe adjuntar el Programa Analítico antes de presentar al Director' : '');
 
-  const puedeEditar = fondo.puede_editar;
   const ocultarDetallePorBorradorDirector = esDirector && !esSuperAdmin && fondo.estado === 'borrador';
-  const puedeEditarDocente = (Boolean(puedeEditar) || esSuperAdmin) && !esAdmin && puedeGestionarDistribucion;
-  const puedeEditarDistribucion = puedeEditarDocente && ['borrador', 'observado'].includes(fondo.estado);
-
-  const mostrarCargaAcademica = panelCentral === 'carga';
-  const panelCentralInfo = mostrarCargaAcademica
-    ? {
-        titulo: 'Asignacion de Carga Especifica (Micro)',
-        descripcion: 'Detalle las materias, paralelos y horarios que sustentan la categoria Academica.'
-      }
-    : {
-        titulo: 'Distribucion de Horas (Macro)',
-        descripcion: `Asigne las ${Math.round(Number(fondo.horas_semana || 40))} horas semanales en las 7 categorias reglamentarias.`
-      };
-
-  const desplazarDerecha = () => {
-    if (!puedeGestionarCarga) return;
-    setDireccionPanel('derecha');
-    setAnimarPanelCentral(true);
-    setPanelCentral((prev) => (prev === 'resumen' ? 'carga' : 'resumen'));
-  };
-
-  const desplazarIzquierda = () => {
-    if (!puedeGestionarCarga) return;
-    setDireccionPanel('izquierda');
-    setAnimarPanelCentral(true);
-    setPanelCentral((prev) => (prev === 'resumen' ? 'carga' : 'resumen'));
-  };
-
-  const handleDistribucionGuardada = () => {
-    limpiarSecuenciaGuardado();
-    setPanelCentral('resumen');
-    setAnimarTransicionMacroMicro(false);
-    setSecuenciaGuardado({
-      activa: true,
-      balance: false,
-      distribucion: false,
-      acciones: false,
-    });
-
-    toast.success('Distribución guardada correctamente');
-    secuenciaGuardadoTimeoutsRef.current.push(
-      setTimeout(iniciarSecuenciaGuardado, 1000)
-    );
-  };
 
   return (
     <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900">
@@ -1195,7 +858,7 @@ function DetalleFondo({ isDark }) {
                   <div className="flex justify-center md:justify-start w-full">
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800/80 text-sm font-medium">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-                      {fondo.asignatura}
+                      {fondo.descripcion}
                     </div>
                   </div>
                 </div>
@@ -1261,11 +924,11 @@ function DetalleFondo({ isDark }) {
                   </p>
                 </div>
 
-                {/* Periodo y Gestión (Combinados) */}
+                {/* Carrera y Gestión (Combinados) */}
                 <div className="flex gap-2.5 w-full">
                   <div className="flex-1 bg-slate-50/70 dark:bg-slate-800/40 shadow-sm rounded-xl border border-slate-200 dark:border-slate-700/80 flex flex-col items-center justify-center py-2 px-1">
-                    <span className="text-[9px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-widest pb-0.5">Periodo</span>
-                    <span className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-none">{getPeriodoLabel(fondo.periodo)}</span>
+                    <span className="text-[9px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-widest pb-0.5">Carrera</span>
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-none text-center">{fondo.carrera?.nombre}</span>
                   </div>
                   <div className="flex-1 bg-slate-50/70 dark:bg-slate-800/40 shadow-sm rounded-xl border border-slate-200 dark:border-slate-700/80 flex flex-col items-center justify-center py-2 px-1">
                     <span className="text-[9px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-widest pb-0.5">Gestión</span>
@@ -1287,7 +950,7 @@ function DetalleFondo({ isDark }) {
                     Fondo pendiente de presentacion
                   </h2>
                   <p className="mt-1.5 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                    Este fondo aun no ha sido presentado por el Jefe de Estudios. La distribucion Macro, las asignaciones Micro y las acciones de revision estaran disponibles cuando el fondo sea presentado formalmente al Director.
+                    Este fondo aun no ha sido presentado por el Jefe de Estudios. La carga por unidad y las acciones de revision estaran disponibles cuando el fondo sea presentado formalmente al Director.
                   </p>
                 </div>
               </div>
@@ -1304,10 +967,7 @@ function DetalleFondo({ isDark }) {
               <div ref={refWidgetReferencia} className="flex flex-col gap-6 sticky top-24">
 
                 {/* Widget Balance de Horas */}
-                <div
-                  className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm p-6 relative overflow-hidden ${!mostrarBalanceWidget ? 'hidden' : ''} ${animarTransicionMacroMicro ? 'animate-slide-up' : ''}`}
-                  style={animarTransicionMacroMicro ? { animationDuration: '140ms', animationFillMode: 'both' } : undefined}
-                >
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm p-6 relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
                   <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-5 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-blue-500"></span>
@@ -1315,15 +975,15 @@ function DetalleFondo({ isDark }) {
                   </h3>
                   <div className="space-y-5">
                     <div className="flex justify-between items-center pb-4 border-b border-slate-300 dark:border-slate-700">
-                      <span className="text-slate-500 dark:text-slate-400 font-medium text-sm">Requerido</span>
-                      <span className="font-black text-slate-800 dark:text-white">{Math.round(fondo.horas_efectivas)}h</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium text-sm">Horas efectivas</span>
+                      <span className="font-black text-slate-800 dark:text-white">{horasEfectivasAnuales}h</span>
                     </div>
                     <div className="flex justify-between items-center pb-4 border-b border-slate-300 dark:border-slate-700">
-                      <span className="text-slate-500 dark:text-slate-400 font-medium text-sm">Asignado</span>
-                      <span className="font-black text-green-600 dark:text-green-400">{Math.round(fondo.total_asignado)}h</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium text-sm">Suma de unidades</span>
+                      <span className="font-black text-green-600 dark:text-green-400">{totalUnidades}h</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-500 dark:text-slate-400 font-medium text-sm">Disponible</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium text-sm">Por asignar</span>
                       <span className={`font-black text-lg ${fondo.horas_disponibles < 0 ? 'text-red-500' : 'text-blue-600 dark:text-blue-400'}`}>
                         {Math.round(fondo.horas_disponibles)}h
                       </span>
@@ -1332,7 +992,7 @@ function DetalleFondo({ isDark }) {
                 </div>
 
                 {/* Widget Gráfico Distribución - Carrusel */}
-                {mostrarDistribucionWidget && datosGrafico.length > 0 && (() => {
+                {datosGrafico.length > 0 && (() => {
                   const totalHoras = datosGrafico.reduce((s, d) => s + d.value, 0);
                   const maxVal = Math.max(...datosGrafico.map(d => d.value));
 
@@ -1349,10 +1009,7 @@ function DetalleFondo({ isDark }) {
                   };
 
                   return (
-                    <div
-                      className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm p-6 relative overflow-hidden ${animarTransicionMacroMicro ? 'animate-slide-up' : ''}`}
-                      style={animarTransicionMacroMicro ? { animationDuration: '140ms', animationFillMode: 'both' } : undefined}
-                    >
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm p-6 relative overflow-hidden">
                       <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
                       <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-blue-500"></span>
@@ -1481,23 +1138,6 @@ function DetalleFondo({ isDark }) {
                 </div>
               )}
 
-              {/* Widget Observaciones Pendientes */}
-              {false && observacionesPendientes > 0 && (
-                <div className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800 rounded-2xl p-6 relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-amber-500 to-orange-600"></div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
-                      <span className="text-lg">⚠️</span>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase">Pendientes</p>
-                      <p className="font-black text-amber-700 dark:text-amber-300 text-2xl">{observacionesPendientes}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
             </div>
 
             {/* ================================================= */}
@@ -1509,51 +1149,26 @@ function DetalleFondo({ isDark }) {
               <div className="relative bg-white dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm overflow-visible min-h-[34rem] flex flex-col">
                 <div className="h-1.5 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
 
-                {puedeGestionarCarga ? (
-                  <div className="fondo-central-nav-overlay">
-                    <div className="fondo-central-nav">
-                      <button
-                        onClick={desplazarIzquierda}
-                        className="fondo-central-nav-btn btn-left"
-                        title={mostrarCargaAcademica ? 'Ver distribucion macro' : 'Ver asignacion micro'}
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        onClick={desplazarDerecha}
-                        className="fondo-central-nav-btn btn-right"
-                        title={mostrarCargaAcademica ? 'Ver distribucion macro' : 'Ver asignacion micro'}
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-
                 <div className="p-5 flex-1 min-h-0 overflow-hidden">
-                  <div
-                    key={panelCentral}
-                    className={`fondo-panel-shell ${animarPanelCentral ? (direccionPanel === 'derecha' ? 'fondo-panel-enter-right' : 'fondo-panel-enter-left') : ''}`}
-                  >
-                    {puedeGestionarCarga && (
-                      <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50/80 px-4 py-3 text-center dark:border-blue-900/40 dark:bg-blue-950/20">
-                        <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                          {panelCentralInfo.titulo}
-                        </h2>
-                        <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                          {panelCentralInfo.descripcion}
-                        </p>
-                      </div>
-                    )}
+                  <div className="fondo-panel-shell">
+                    <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50/80 px-4 py-3 text-center dark:border-blue-900/40 dark:bg-blue-950/20">
+                      <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                        {puedeGestionarCarga ? 'Carga del Fondo de Tiempo' : 'Horas por unidad'}
+                      </h2>
+                      <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                        Cada unidad suma sus ítems en horas por año; las clases en aula salen de la materia y su calendario.
+                      </p>
+                    </div>
                     <div className="fondo-central-flex flex-1 min-h-0 gap-4">
                       <div className="fondo-central-stage">
-                        {puedeGestionarCarga && mostrarCargaAcademica ? (
-                          <div key="panel-carga" className="fondo-panel-anim">
+                        {puedeGestionarCarga ? (
+                          <div className="fondo-panel-anim">
                             <div className="h-full overflow-y-auto pr-1">
                               <CargaHorariaManager
+                                fondoId={fondo.id}
                                 docenteId={fondo.docente?.id}
-                                calendarioId={fondo.calendario_academico?.id}
+                                gestion={fondo.gestion}
+                                calendarios={fondo.calendarios}
                                 onCargaUpdate={handleActualizacionHoras}
                                 cargaEdicion={cargaParaEditar}
                                 onCancelarEdicion={() => setCargaParaEditar(null)}
@@ -1562,23 +1177,35 @@ function DetalleFondo({ isDark }) {
                             </div>
                           </div>
                         ) : (
-                          <div key="panel-resumen" className="fondo-panel-anim fondo-distribucion-grow">
-                            <div className="h-full flex flex-col justify-center">
-                              <DistribuirHoras
-                                fondoId={fondo.id}
-                                horasEfectivas={fondo.horas_efectivas}
-                                horasObjetivo={fondo.horas_semana}
-                                editable={puedeEditarDistribucion}
-                                onActualizar={handleActualizacionHoras}
-                                onGuardarExitoso={handleDistribucionGuardada}
-                                canAddActivity={false}
-                                hideActionButtons={esAdmin || !puedeEditarDistribucion}
-                              />
-                            </div>
+                          <div className="fondo-panel-anim overflow-y-auto">
+                            <table className="min-w-full text-sm">
+                              <thead>
+                                <tr className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                  <th className="px-3 py-2 text-left">Unidad</th>
+                                  <th className="px-3 py-2 text-right">Horas/año</th>
+                                  <th className="px-3 py-2 text-right">%</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(fondo.categorias || []).map((categoria) => (
+                                  <tr key={categoria.tipo} className="border-t border-slate-200 dark:border-slate-700">
+                                    <td className="px-3 py-2 text-slate-700 dark:text-slate-200">{categoria.tipo_display}</td>
+                                    <td className="px-3 py-2 text-right font-semibold text-slate-800 dark:text-white">{Math.round(Number(categoria.total_horas || 0))}</td>
+                                    <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{Number(categoria.porcentaje || 0).toFixed(1)}%</td>
+                                  </tr>
+                                ))}
+                                <tr className="border-t-2 border-slate-300 dark:border-slate-600 font-bold">
+                                  <td className="px-3 py-2 text-slate-800 dark:text-white">Total</td>
+                                  <td className="px-3 py-2 text-right text-slate-800 dark:text-white">{totalUnidades}</td>
+                                  <td className="px-3 py-2 text-right text-slate-800 dark:text-white">
+                                    {horasEfectivasAnuales > 0 ? ((totalUnidades / horasEfectivasAnuales) * 100).toFixed(1) : '0.0'}%
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
                           </div>
                         )}
                       </div>
-
                     </div>
                   </div>
                 </div>
@@ -1596,8 +1223,7 @@ function DetalleFondo({ isDark }) {
                 {/* Widget Acciones - alineado con Balance de Horas (top) y Distribución (bottom) */}
                 <div
                   ref={refWidgetAcciones}
-                  className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm p-5 relative overflow-hidden flex flex-col ${!mostrarAccionesWidget ? 'hidden' : ''} ${animarTransicionMacroMicro ? 'animate-slide-up' : ''}`}
-                  style={animarTransicionMacroMicro ? { animationDuration: '140ms', animationFillMode: 'both' } : undefined}
+                  className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm p-5 relative overflow-hidden flex flex-col"
                 >
                   <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
 
@@ -1616,23 +1242,13 @@ function DetalleFondo({ isDark }) {
 
                   <div className="space-y-2.5 mt-auto pt-2">
                     {/* JEFATURA: acciones principales de flujo */}
-                    {false && puedePresentarADirector && (
-                      <button
-                        onClick={presentarADirector}
-                        className="w-full py-2 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/30 flex justify-center items-center gap-2 transition-all hover:scale-[1.02] text-xs"
-                      >
-                        <PaperAirplaneIcon className="w-3.5 h-3.5" />
-                        Presentar
-                      </button>
-                    )}
-
-                    {false && puedeReenviarADirector && (
-                      <button
-                        onClick={presentarADirector}
-                        className="w-full py-2 rounded-xl font-bold text-white bg-orange-500 hover:bg-orange-600 shadow-lg shadow-orange-500/30 flex justify-center items-center gap-2 transition-all hover:scale-[1.02] text-xs"
+                    {puedeVolverABorrador && (
+                      <button data-escritura
+                        onClick={volverABorrador}
+                        className="w-full py-2 rounded-xl font-bold text-white bg-slate-600 hover:bg-slate-700 shadow-lg shadow-slate-500/30 flex justify-center items-center gap-2 transition-all hover:scale-[1.02] text-xs"
                       >
                         <ArrowPathIcon className="w-3.5 h-3.5" />
-                        Reenviar al Director
+                        Volver a borrador
                       </button>
                     )}
                     {/* Acciones rápidas superiores */}
@@ -1677,7 +1293,7 @@ function DetalleFondo({ isDark }) {
                     )}
 
                     {/* ADMIN/DIRECTOR: Revisar */}
-                    {fondo.estado === 'presentado_director' && esDirector && !esIisyp && (
+                    {fondo.estado === 'presentado_director' && esRevisorDelFondo && (
                       <div className="grid grid-cols-2 gap-1.5">
                         <button
                           onClick={abrirFormularioObservar}
@@ -1725,7 +1341,7 @@ function DetalleFondo({ isDark }) {
                       </button>
                     )}
 
-                    {fondo.estado === 'aprobado_director' && esDirector && !esIisyp && (
+                    {fondo.estado === 'aprobado_director' && esRevisorDelFondo && (
                       <button
                         onClick={() => setMostrarModalIniciarEjecucion(true)}
                         className="w-full py-2 rounded-xl font-bold text-white bg-purple-600 hover:bg-purple-700 shadow-lg shadow-purple-500/30 flex justify-center items-center gap-2 transition-all hover:scale-[1.02] text-xs"
@@ -1747,7 +1363,7 @@ function DetalleFondo({ isDark }) {
                     )}
 
                     {/* ADMIN: Evaluar Informe */}
-                    {fondo.estado === 'informe_presentado' && esDirector && !esIisyp && (
+                    {fondo.estado === 'informe_presentado' && esRevisorDelFondo && (
                       <div className="space-y-1.5">
                         <button
                           onClick={() => setMostrarModalInforme(true)}
@@ -1813,12 +1429,11 @@ function DetalleFondo({ isDark }) {
                       const Icon = CATEGORY_ICONS[categoria.tipo] || DocumentTextIcon;
                       const color = COLORS[idx % COLORS.length];
                       const totalActual = Number(categoria.total_horas || 0);
-                      const totalCargaHoraria = Number(categoria.total_carga_horaria || 0);
-                      const totalPrevio = Number(prevTotalesCategoriasRef.current[categoria.id] || 0);
+                      const totalPrevio = Number(prevTotalesCategoriasRef.current[categoria.tipo] || 0);
                       const aparecioRecien = totalPrevio <= 0 && totalActual > 0;
 
                       return (
-                        <div key={categoria.id} className={`group bg-white dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col ${aparecioRecien ? 'animate-fade-in' : ''}`}>
+                        <div key={categoria.tipo} className={`group bg-white dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col ${aparecioRecien ? 'animate-fade-in' : ''}`}>
 
                           {/* Header de categoría con diseño moderno */}
                           <div className="px-6 py-5 flex justify-between items-center bg-white dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 relative overflow-hidden">
@@ -1836,15 +1451,10 @@ function DetalleFondo({ isDark }) {
                                   </h3>
                                   <div className="flex items-center gap-3 text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">
                                     <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
-                                      Presupuesto: <span className="font-bold" style={{ color: color }}>{categoria.total_horas}</span> hrs/sem
+                                      Total: <span className="font-bold" style={{ color: color }}>{Math.round(totalActual)}</span> h/año
                                     </span>
-                                    {totalCargaHoraria > 0 && (
-                                      <span className="px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800/50">
-                                        Detalle de carga: <span className="font-bold">{totalCargaHoraria}</span> hrs/anio
-                                      </span>
-                                    )}
                                     <span className="text-slate-300 dark:text-slate-600">|</span>
-                                    <span>{parseFloat(categoria.porcentaje).toFixed(1)}% del total</span>
+                                    <span>{parseFloat(categoria.porcentaje).toFixed(1)}% de las horas efectivas</span>
                                   </div>
                                 </div>
                               </div>
@@ -1925,84 +1535,7 @@ function DetalleFondo({ isDark }) {
                             {/* 2. MOSTRAR ACTIVIDADES MANUALES (SI NO ESTÁ BLOQUEADA) */}
                             {vistaActual === 'docente' && !esBloqueada && (
                               <div>
-                                {false && categoria.detalles_carga && categoria.detalles_carga.length > 0 && categoria.actividades && categoria.actividades.length > 0 && (
-                                  <div className="px-6 py-2 bg-slate-50/50 dark:bg-slate-800 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-y border-slate-300 dark:border-slate-700 flex items-center gap-2">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                                    Fondo de Tiempo - Gestion Jefatura
-                                  </div>
-                                )}
-
-                                {false && categoria.actividades && categoria.actividades.length > 0 ? (
-                                  <div className="overflow-x-auto">
-                                    <table className="min-w-full">
-                                      <thead>
-                                        <tr className="bg-slate-50/30 dark:bg-slate-800/30 border-b border-slate-300 dark:border-slate-700">
-                                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-1/3">
-                                            Actividad
-                                          </th>
-                                          <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                            Hrs/Semana
-                                          </th>
-                                          <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                            Hrs/Año
-                                          </th>
-                                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-1/4">
-                                            Evidencias
-                                          </th>
-                                          {puedeEditarDocente && !esBloqueada && (
-                                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                              Acciones
-                                            </th>
-                                          )}
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {categoria.actividades.map((actividad, actIdx) => (
-                                          <tr
-                                            key={actividad.id}
-                                            className={`border-b border-slate-200 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors ${actIdx === categoria.actividades.length - 1 ? 'border-b-0' : ''
-                                              }`}
-                                          >
-                                            <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 font-medium">
-                                              {actividad.detalle}
-                                            </td>
-                                            <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400 text-center">
-                                              {actividad.horas_semana}
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                              <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-sm font-bold text-slate-800 dark:text-white min-w-[3rem]">
-                                                {actividad.horas_año}
-                                              </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
-                                              {renderEvidencia(actividad)}
-                                            </td>
-                                            {puedeEditarDocente && !esBloqueada && (
-                                              <td className="px-6 py-4 text-right">
-                                                <div className="flex gap-1 justify-end">
-                                                  <button
-                                                    onClick={() => editarActividadHandler(actividad)}
-                                                    className="p-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-                                                    title="Editar actividad"
-                                                  >
-                                                    <PencilIcon className="w-4 h-4" />
-                                                  </button>
-                                                  <button
-                                                    onClick={() => setActividadAEliminar(actividad.id)}
-                                                    className="p-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                                                    title="Eliminar actividad"
-                                                  >
-                                                    <TrashIcon className="w-4 h-4" />
-                                                  </button>
-                                                </div>
-                                              </td>
-                                            )}
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                ) : categoria.detalles_carga && categoria.detalles_carga.length > 0 ? (
+                                {categoria.detalles_carga && categoria.detalles_carga.length > 0 ? (
                                   <div>
                                     <div className="px-6 py-2 bg-blue-50/40 dark:bg-blue-900/10 text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider border-b border-blue-100 dark:border-blue-800/30 flex items-center gap-2">
                                       <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
@@ -2068,6 +1601,11 @@ function DetalleFondo({ isDark }) {
                                               )}
                                               {puedeGestionarCarga && (
                                                 <td className="px-6 py-4 text-right">
+                                                  {detalle.es_de_otra_carrera ? (
+                                                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                      Jefatura de {detalle.carrera_calendario}
+                                                    </span>
+                                                  ) : (
                                                   <div className="flex gap-1 justify-end">
                                                     <button
                                                       type="button"
@@ -2086,6 +1624,7 @@ function DetalleFondo({ isDark }) {
                                                       <TrashIcon className="w-4 h-4" />
                                                     </button>
                                                   </div>
+                                                  )}
                                                 </td>
                                               )}
                                             </tr>
@@ -2170,6 +1709,7 @@ function DetalleFondo({ isDark }) {
         fondo && mostrarFormEvaluarInforme && (
           <FormularioEvaluarInforme
             fondoId={fondo.id}
+            requiereDocumentoDecanatura={requiereDocumentoDecanatura}
             onInformeEvaluado={async () => {
               setMostrarFormEvaluarInforme(false);
               await cargarDetalle({ silencioso: true });
@@ -2212,18 +1752,30 @@ function DetalleFondo({ isDark }) {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-600 dark:text-slate-400">Asignatura:</span>
+                    <span className="text-slate-600 dark:text-slate-400">Fondo:</span>
                     <span className="font-bold text-slate-800 dark:text-white">
-                      {fondo.asignatura || 'N/A'}
+                      {fondo.descripcion}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-600 dark:text-slate-400">Gestión:</span>
                     <span className="font-bold text-slate-800 dark:text-white">
-                      {fondo.gestion} - {fondo.periodo_display}
+                      {fondo.gestion}
                     </span>
                   </div>
                 </div>
+                {requiereDocumentoDecanatura && (
+                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-100 space-y-2">
+                    <p className="font-semibold">Fondo del Director de la carrera</p>
+                    <p>Para aprobarlo adjunta el documento de la Decanatura (PDF, obligatorio).</p>
+                    <input
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      onChange={(e) => setDocumentoDecanatura(e.target.files?.[0] || null)}
+                      className="block w-full text-xs"
+                    />
+                  </div>
+                )}
               </div>
               <div className="flex gap-3 px-6 pb-6">
                 <button
@@ -2234,7 +1786,8 @@ function DetalleFondo({ isDark }) {
                 </button>
                 <button
                   onClick={aprobarFondoHandler}
-                  className="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl hover:scale-105 flex items-center justify-center gap-2"
+                  disabled={requiereDocumentoDecanatura && !documentoDecanatura}
+                  className="disabled:opacity-50 disabled:cursor-not-allowed flex-1 px-4 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl hover:scale-105 flex items-center justify-center gap-2"
                 >
                   <CheckBadgeIcon className="w-5 h-5" />
                   <span>Aprobar</span>
@@ -2377,7 +1930,7 @@ function DetalleFondo({ isDark }) {
                 </div>
               </div>
 
-              {fondo.estado === 'informe_presentado' && esDirector && !esIisyp && (
+              {fondo.estado === 'informe_presentado' && esRevisorDelFondo && (
                 <div className="px-6 py-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
                   <button
                     onClick={() => { setMostrarModalInforme(false); setMostrarModalObservarInforme(true); }}
@@ -2444,44 +1997,6 @@ function DetalleFondo({ isDark }) {
             </div>
           </div>
         )}
-      {/* Modal de confirmación para eliminar - Portal para centrar en pantalla */}
-      {actividadAEliminar && ReactDOM.createPortal(
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
-            <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-4">
-              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                <span>🗑️</span> Confirmar Eliminación
-              </h2>
-            </div>
-            <div className="p-6">
-              <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 rounded-lg p-4 mb-4">
-                <p className="text-slate-800 dark:text-slate-200 font-semibold mb-2">
-                  ¿Estás seguro de eliminar esta actividad?
-                </p>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  Esta acción no se puede deshacer. La actividad se eliminará permanentemente.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-3 px-6 pb-6">
-              <button
-                onClick={() => setActividadAEliminar(null)}
-                className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-700 dark:text-slate-300 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={confirmarEliminarActividad}
-                className="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 transition-all shadow-lg hover:shadow-xl hover:scale-105 flex items-center justify-center gap-2"
-              >
-                <span>🗑️</span>
-                <span>Eliminar</span>
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
 
       {/* MODAL EVIDENCIAS DE ACTIVIDAD (Fondo en Ejecucion) */}
       <EvidenciaActividadModal

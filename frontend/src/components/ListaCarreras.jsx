@@ -1,18 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FaEdit, FaTrash } from 'react-icons/fa';
-import { getCarreras, getFacultadesCarrera, addFacultadCarrera, deleteFacultadCarrera } from '../apis/api';
+import { getCarreras, getFacultadesCarrera, addFacultadCarrera, deleteFacultadCarrera, renameFacultadCarrera } from '../apis/api';
 import api from '../apis/api';
+import { EVENTO_CARRERAS_ACTUALIZADAS } from './common/AvisoCarreraInactiva';
 import toast from 'react-hot-toast';
+import { hoyBolivia } from '../utils/fechas';
 import {
   ERROR_FIELD_BORDER_CLASS,
   ERROR_MOTION_CLASS,
   ERROR_SHAKE_DURATION_MS,
-  sanitizeChoiceError,
   sanitizeApiErrors,
 } from '../utils/formErrors';
-
-const FECHA_MAXIMA_HOY = new Date().toISOString().split('T')[0];
 
 const InputField = ({ label, name, type = 'text', value, onChange, onFocus, required, error }) => (
   <div>
@@ -73,16 +72,13 @@ const SelectConDropdown = ({
   options,
   error,
   disabled = false,
-  required = false,
   placeholder = 'Seleccione...',
   searchable = false,
   showManageButton = false,
-  onManageClick,
   onAddFacultad,
   setFacultadOptions,
-  getFacultadesCarrera,
-  formData,
   setFormData,
+  onFacultadesCambiadas,
   pulse = 0,
 }) => {
   const [open, setOpen] = useState(false);
@@ -111,11 +107,6 @@ const SelectConDropdown = ({
     return () => document.removeEventListener('mousedown', handleOutside);
   }, [open]);
 
-  const handleManageToggle = () => {
-    setManageMode((prev) => !prev);
-    if (!open) setOpen(true);
-  };
-
   const handleSelectMode = () => {
     setManageMode(false);
     setOpen((prev) => !prev);
@@ -139,25 +130,17 @@ const SelectConDropdown = ({
     }
 
     try {
-      // Agregar la nueva facultad
-      await addFacultadCarrera(newNombre);
-      // Eliminar la antigua
-      await deleteFacultadCarrera(oldNombre);
-      
-      // Actualizar el estado local inmediatamente
-      const updatedOptions = options.map(opt => {
-        if (opt.value === editingFacultad) {
-          return { ...opt, label: newNombre, value: newNombre };
-        }
-        return opt;
-      });
-      setFacultadOptions(updatedOptions);
-      
+      // Renombra el MISMO registro: las carreras siguen vinculadas a esa facultad.
+      const response = await renameFacultadCarrera(oldNombre, newNombre);
+      setFacultadOptions(Array.isArray(response.data) ? response.data : []);
+
       // Actualizar el valor seleccionado si era la facultad editada
       if (value === editingFacultad) {
         setFormData((prev) => ({ ...prev, facultad: newNombre }));
       }
-      
+      // Las carreras muestran el nombre de su facultad: se recargan.
+      onFacultadesCambiadas?.();
+
       toast.success('Facultad actualizada correctamente.');
     } catch (err) {
       const detail = err.response?.data?.detail || err.message;
@@ -196,23 +179,36 @@ const SelectConDropdown = ({
       return;
     }
 
-    try {
-      for (const facValue of facultadesAEliminar) {
-        const facOption = options.find(opt => opt.value === facValue);
-        if (facOption && facOption.label) {
-          await deleteFacultadCarrera(facOption.label);
+    // Se intenta cada una: una facultad con carreras no impide borrar las demás,
+    // y cada rechazo se informa con el motivo que da el backend.
+    let eliminadas = 0;
+    const rechazos = [];
+    for (const facValue of facultadesAEliminar) {
+      const facOption = options.find(opt => opt.value === facValue);
+      if (!facOption || !facOption.label) continue;
+      try {
+        await deleteFacultadCarrera(facOption.label);
+        eliminadas += 1;
+        if (value === facValue) {
+          setFormData((prev) => ({ ...prev, facultad: '' }));
         }
+      } catch (err) {
+        rechazos.push(err.response?.data?.detail || `No se pudo eliminar "${facOption.label}": ${err.message}`);
       }
-      
-      // Actualizar el estado local inmediatamente filtrando las eliminadas
-      const facultadesRestantes = options.filter(opt => !facultadesAEliminar.includes(opt.value));
-      setFacultadOptions(facultadesRestantes);
-      setSelectedFacultades([]);
-      toast.success(`${facultadesAEliminar.length} facultad(es) eliminada(s) correctamente.`);
-    } catch (err) {
-      const detail = err.response?.data?.detail || err.message;
-      toast.error(`No se pudo eliminar: ${detail}`);
     }
+
+    // La lista sale del servidor: refleja lo que realmente se eliminó.
+    try {
+      const response = await getFacultadesCarrera();
+      setFacultadOptions(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      console.error('No se pudo recargar las facultades:', err);
+    }
+    setSelectedFacultades([]);
+    if (eliminadas > 0) {
+      toast.success(`${eliminadas} facultad(es) eliminada(s) correctamente.`);
+    }
+    rechazos.forEach((mensaje) => toast.error(mensaje, { duration: 6000 }));
   };
 
   const selectedLabel = options.find((opt) => opt.value === value)?.label;
@@ -577,7 +573,7 @@ function parseDisplayDate(display) {
   return d;
 }
 
-const DatePickerField = ({ label, name, value, onDateChange, error, required, maxIsoDate, pulse = 0 }) => {
+const DatePickerField = ({ label, name, value, onDateChange, error, maxIsoDate, pulse = 0, disabled = false }) => {
   const [open, setOpen] = useState(false);
   const [isPulsing, setIsPulsing] = useState(false);
   const [openQuickPicker, setOpenQuickPicker] = useState(null);
@@ -667,7 +663,7 @@ const DatePickerField = ({ label, name, value, onDateChange, error, required, ma
 
   const commitDate = (dateObj) => {
     if (isOverMaxDate(dateObj)) {
-      toast.error('La fecha de resolución no puede ser futura.');
+      toast.error('La fecha de resolución de creación (HCU) no puede ser futura.');
       return;
     }
     const iso = toIsoDate(dateObj);
@@ -698,7 +694,7 @@ const DatePickerField = ({ label, name, value, onDateChange, error, required, ma
       const parsed = parseDisplayDate(formatted);
       if (parsed) {
         if (isOverMaxDate(parsed)) {
-          toast.error('La fecha de resolución no puede ser futura.');
+          toast.error('La fecha de resolución de creación (HCU) no puede ser futura.');
           return;
         }
         onDateChange(name, toIsoDate(parsed));
@@ -718,7 +714,7 @@ const DatePickerField = ({ label, name, value, onDateChange, error, required, ma
     const parsed = parseDisplayDate(inputValue);
     if (parsed) {
       if (isOverMaxDate(parsed)) {
-        toast.error('La fecha de resolución no puede ser futura.');
+        toast.error('La fecha de resolución de creación (HCU) no puede ser futura.');
         setInputValue(formatDisplayDate(value));
         return;
       }
@@ -745,13 +741,15 @@ const DatePickerField = ({ label, name, value, onDateChange, error, required, ma
           value={inputValue}
           onChange={handleManualInputChange}
           onBlur={handleManualInputBlur}
-          className="w-full bg-transparent text-slate-800 dark:text-white px-4 py-2.5 pr-12 rounded-xl focus:outline-none"
+          disabled={disabled}
+          className="w-full bg-transparent text-slate-800 dark:text-white px-4 py-2.5 pr-12 rounded-xl focus:outline-none disabled:cursor-not-allowed disabled:text-slate-500 dark:disabled:text-slate-400"
           aria-label={label}
         />
         <button
           type="button"
           onClick={() => setOpen((prev) => !prev)}
-          className="absolute right-1.5 top-1/2 h-8 w-8 rounded-lg border border-[#3A56AF]/40 bg-[#2C4AAE] text-white hover:bg-[#233C8F] transition-colors"
+          disabled={disabled}
+          className="absolute right-1.5 top-1/2 h-8 w-8 rounded-lg border border-[#3A56AF]/40 bg-[#2C4AAE] text-white hover:bg-[#233C8F] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ transform: 'translateY(-50%)' }}
           aria-label={`Abrir calendario de ${label}`}
         >
@@ -761,7 +759,7 @@ const DatePickerField = ({ label, name, value, onDateChange, error, required, ma
         </button>
       </div>
 
-      {open && (
+      {open && !disabled && (
         <div
           className="absolute z-50 mt-2 w-[268px] max-w-[calc(100vw-2rem)] rounded-xl border border-[#7F97E8]/45 bg-[#2C4AAE] backdrop-blur-xl shadow-2xl p-2.5"
           onMouseDown={(e) => e.stopPropagation()}
@@ -1056,15 +1054,12 @@ const FilterCarreras = ({ carreras, onSelect, placeholder = 'Buscar carrera...' 
   );
 };
 
-function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) {
+function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
   const [carreras, setCarreras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [user, setUser] = useState(null);
   const [facultadOptions, setFacultadOptions] = useState([]);
-  const [showFacultadManager, setShowFacultadManager] = useState(false);
-  const [nuevaFacultad, setNuevaFacultad] = useState('');
-  const [facultadManageLoading, setFacultadManageLoading] = useState(false);
 
   // Modal de editar
   const [showModal, setShowModal] = useState(false);
@@ -1096,13 +1091,14 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
   const [carreraToDelete, setCarreraToDelete] = useState(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteImpact, setDeleteImpact] = useState({
-    loading: false,
-    materias: 0,
-    semestres: 0,
-    informes: 0,
-    failed: false,
+    detalle: [],
+    detail: '',
   });
   const [showDependencyWarningModal, setShowDependencyWarningModal] = useState(false);
+  // Si la carrera ya tiene datos académicos (materias, fondos, informes, docentes o
+  // calendarios), su identidad (nombre, código, facultad, resolución y fecha) no se
+  // puede cambiar. null = sin datos académicos.
+  const [identidadBloqueada, setIdentidadBloqueada] = useState(null);
   const createLogoInputRef = useRef(null);
   const suppressUpdateToastRef = useRef(false);
 
@@ -1150,11 +1146,6 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     }
   };
 
-  const abrirGestorFacultades = () => {
-    setNuevaFacultad('');
-    setShowFacultadManager(true);
-  };
-
   const handleAgregarFacultad = async (nombreFacultad) => {
     const nombre = String(nombreFacultad || '').trim();
     if (!nombre) {
@@ -1162,7 +1153,6 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
       return;
     }
 
-    setFacultadManageLoading(true);
     try {
       const response = await addFacultadCarrera(nombre);
       const data = response.data || [];
@@ -1178,41 +1168,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     } catch (err) {
       const detail = err.response?.data?.detail || err.message;
       toast.error(`No se pudo agregar: ${detail}`);
-    } finally {
-      setFacultadManageLoading(false);
     }
-  };
-
-  const handleEliminarFacultad = async (nombre) => {
-    const facultad = String(nombre || '').trim();
-    if (!facultad) return;
-
-    setFacultadManageLoading(true);
-    try {
-      const response = await deleteFacultadCarrera(facultad);
-      const data = response.data || [];
-      setFacultadOptions(Array.isArray(data) ? data : []);
-      if (String(formData.facultad || '').trim() === facultad) {
-        setFormData((prev) => ({ ...prev, facultad: '' }));
-      }
-      toast.success('Facultad eliminada correctamente.');
-    } catch (err) {
-      const detail = err.response?.data?.detail || err.message;
-      toast.error(`No se pudo eliminar: ${detail}`);
-    } finally {
-      setFacultadManageLoading(false);
-    }
-  };
-
-  const handleSeleccionarFacultad = (nombre) => {
-    setFormData((prev) => ({ ...prev, facultad: nombre }));
-    setErrors((prev) => {
-      if (!prev.facultad) return prev;
-      const next = { ...prev };
-      delete next.facultad;
-      return next;
-    });
-    setShowFacultadManager(false);
   };
 
   const cargarCarreras = async () => {
@@ -1258,33 +1214,23 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     setIsCreating(!isCreating);
   };
 
-  const abrirModalEditar = (carrera) => {
-    setCarreraSeleccionada(carrera);
-    setIsViewMode(false);
-    suppressUpdateToastRef.current = false;
-    setFormData({
-      nombre: carrera.nombre,
-      codigo: carrera.codigo,
-      facultad: carrera.facultad,
-      resolucion_ministerial: carrera.resolucion_ministerial || '',
-      fecha_resolucion: carrera.fecha_resolucion || '',
-      mision: carrera.mision || '',
-      vision: carrera.vision || '',
-      perfil_profesional: carrera.perfil_profesional || '',
-      objetivo_carrera: carrera.objetivo_carrera || '',
-      responsable: carrera.responsable || '',
-      activo: carrera.activo,
-      fecha_actualizacion: carrera.fecha_actualizacion
-    });
-    setLogoFile(null);
-    setLogoPreview(carrera.logo_carrera || '');
-    setRemoveLogoCarrera(false);
-    setShowModal(true);
-    setIsCreating(false);
+  const cargarBloqueoIdentidad = async (carrera) => {
+    setIdentidadBloqueada(null);
+    try {
+      const response = await api.get(`/carreras/${carrera.id}/dependencias/`);
+      const deps = response.data || {};
+      setIdentidadBloqueada(
+        deps.tiene_datos_academicos ? (deps.detalle || []).filter((item) => item.academico) : null
+      );
+    } catch (err) {
+      // El backend valida igual al guardar; aquí solo es una ayuda visual.
+      console.error('No se pudo verificar los datos asociados de la carrera:', err);
+    }
   };
 
   const abrirModalVer = (carrera) => {
     setCarreraSeleccionada(carrera);
+    cargarBloqueoIdentidad(carrera);
     setIsViewMode(true);
     suppressUpdateToastRef.current = false;
     setFormData({
@@ -1347,7 +1293,6 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     payload.append('vision', formData.vision || '');
     payload.append('perfil_profesional', formData.perfil_profesional || '');
     payload.append('objetivo_carrera', formData.objetivo_carrera || '');
-    payload.append('responsable', formData.responsable || '');
     payload.append('activo', String(Boolean(formData.activo)));
 
     if (logoFile) {
@@ -1435,13 +1380,13 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     }
 
     if (!String(formData.resolucion_ministerial || '').trim()) {
-      newErrors.resolucion_ministerial = ['Este campo es obligatorio: resolución ministerial.'];
+      newErrors.resolucion_ministerial = ['Este campo es obligatorio: resolución de creación (HCU).'];
     }
 
     if (!String(formData.fecha_resolucion || '').trim()) {
-      newErrors.fecha_resolucion = ['Este campo es obligatorio: fecha de resolución.'];
-    } else if (formData.fecha_resolucion > FECHA_MAXIMA_HOY) {
-      newErrors.fecha_resolucion = ['La fecha de resolución no puede ser futura.'];
+      newErrors.fecha_resolucion = ['Este campo es obligatorio: fecha de resolución de creación (HCU).'];
+    } else if (formData.fecha_resolucion > hoyBolivia()) {
+      newErrors.fecha_resolucion = ['La fecha de resolución de creación (HCU) no puede ser futura.'];
     }
 
     if (requireLogo && !logoFile) {
@@ -1452,6 +1397,14 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
       return newErrors;
   };
 
+  // "Completa..." solo si falta un campo; si están llenos pero alguno es inválido
+  // (p. ej. fecha de resolución futura): "Revisa...".
+  const mensajeErroresCarrera = (errores) => (
+    Object.values(errores).flat().some((mensaje) => /obligatori/i.test(String(mensaje)))
+      ? 'Completa los campos obligatorios marcados en rojo.'
+      : 'Revisa los campos marcados en rojo.'
+  );
+
   const handleCreateSubmit = async (e) => {
     // REGLA GLOBAL: detener el comportamiento por defecto para evitar parpadeo.
     if (e && typeof e.preventDefault === 'function') {
@@ -1461,7 +1414,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     setErrors({});
     const newErrors = validateCarreraForm({ requireLogo: true });
     if (Object.keys(newErrors).length > 0) {
-      toast.error('Completa los campos obligatorios marcados en rojo.');
+      toast.error(mensajeErroresCarrera(newErrors));
       pulseFieldErrors(Object.keys(newErrors));
       return;
     }
@@ -1502,9 +1455,13 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     }
 
     setErrors({});
+    if (reactivandoCarrera) {
+      await reactivarCarrera();
+      return;
+    }
     const newErrors = validateCarreraForm({ requireLogo: false });
     if (Object.keys(newErrors).length > 0) {
-      toast.error('Completa los campos obligatorios marcados en rojo.');
+      toast.error(mensajeErroresCarrera(newErrors));
       pulseFieldErrors(Object.keys(newErrors));
       return;
     }
@@ -1519,6 +1476,8 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
         toast.success('Carrera actualizada correctamente');
       }
       suppressUpdateToastRef.current = false;
+      // El aviso de solo lectura del superusuario vuelve a contar las carreras inactivas.
+      window.dispatchEvent(new Event(EVENTO_CARRERAS_ACTUALIZADAS));
       setShowModal(false);
       setLogoFile(null);
       setLogoPreview('');
@@ -1542,6 +1501,30 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
         let errorMsg = apiData?.detail || err.message;
         toast.error('Error al actualizar: ' + errorMsg);
       }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // La reactivación va sola: el backend rechaza que cambie algo más que `activo`.
+  const reactivarCarrera = async () => {
+    if (!formData.activo) {
+      toast.error('La carrera está desactivada. Actívala con el interruptor para reactivarla.');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const response = await api.patch(`/carreras/${carreraSeleccionada.id}/`, { activo: true });
+      suppressUpdateToastRef.current = false;
+      toast.success('Carrera reactivada. Ahora puedes editarla.');
+      window.dispatchEvent(new Event(EVENTO_CARRERAS_ACTUALIZADAS));
+      if (response.data?.id) {
+        setCarreras((prev) => prev.map((carrera) => (carrera.id === response.data.id ? response.data : carrera)));
+        setCarreraSeleccionada(response.data);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al reactivar: ' + (err.response?.data?.detail || err.message));
     } finally {
       setIsSubmitting(false);
     }
@@ -1598,11 +1581,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
   const openDependencyWarning = (carrera, impactData, customDetail) => {
     setCarreraToDelete(carrera);
     setDeleteImpact({
-      loading: false,
-      materias: impactData?.materias || 0,
-      semestres: impactData?.semestres || 0,
-      informes: impactData?.informes || 0,
-      failed: false,
+      detalle: Array.isArray(impactData?.detalle) ? impactData.detalle : [],
       detail: customDetail || '',
     });
     setShowDependencyWarningModal(true);
@@ -1618,22 +1597,12 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
       const deps = response.data || {};
       if (deps.can_delete) {
         setCarreraToDelete(carrera);
-        setDeleteImpact({
-          loading: false,
-          materias: deps.materias || 0,
-          semestres: deps.semestres || 0,
-          informes: deps.informes || 0,
-          failed: false,
-        });
+        setDeleteImpact({ detalle: [], detail: '' });
         setShowDeleteModal(true);
         return;
       }
 
-      openDependencyWarning(
-        carrera,
-        deps,
-        `ERROR DE INTEGRIDAD: No se puede eliminar la carrera ${carrera.nombre} porque aún tiene ${deps.materias || 0} materias e informes vinculados.`
-      );
+      openDependencyWarning(carrera, deps);
     } catch (err) {
       console.error('Error verificando dependencias de carrera:', err);
       toast.error('No se pudo verificar dependencias de la carrera. Intenta nuevamente.');
@@ -1644,13 +1613,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     setShowDeleteModal(false);
     setCarreraToDelete(null);
     setDeleteConfirmText('');
-    setDeleteImpact({
-      loading: false,
-      materias: 0,
-      semestres: 0,
-      informes: 0,
-      failed: false,
-    });
+    setDeleteImpact({ detalle: [], detail: '' });
   };
 
   const confirmarEliminar = async () => {
@@ -1667,10 +1630,10 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
     } catch (err) {
       console.error(err);
       const apiData = err.response?.data;
-      if (apiData?.code === 'protected_error') {
-        const deps = apiData?.dependencias || {};
+      if (apiData?.code === 'protected_error' || apiData?.code === 'dependency_exists') {
+        const carrera = carreraToDelete;
         closeDeleteModal();
-        openDependencyWarning(carreraToDelete, deps, apiData?.detail);
+        openDependencyWarning(carrera, apiData?.dependencias || {}, apiData?.detail);
         return;
       }
       toast.error('Error al eliminar: ' + (apiData?.detail || err.message));
@@ -1684,6 +1647,8 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
   const puedeEditarEstructura = () => esSuperusuario();
   const soloEditarLogo = () => !esSuperusuario() && rolActual === 'jefe_estudios';
   const puedeGestionarFacultades = () => esSuperusuario();
+  // Carrera inactiva en edición: solo se puede reactivar (el backend rechaza cambiar otros campos).
+  const reactivandoCarrera = carreraSeleccionada?.activo === false;
 
   const handleDescargarFichaPdf = async () => {
     if (!carreraSeleccionada?.id) return;
@@ -1805,11 +1770,9 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                           value={formData.facultad}
                           onChange={handleChange}
                           showManageButton={puedeGestionarFacultades()}
-                          onManageClick={abrirGestorFacultades}
                           onAddFacultad={handleAgregarFacultad}
                           setFacultadOptions={setFacultadOptions}
-                          getFacultadesCarrera={getFacultadesCarrera}
-                          formData={formData}
+                          onFacultadesCambiadas={cargarCarreras}
                           setFormData={setFormData}
                           required
                           searchable
@@ -1836,28 +1799,28 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
 
                         <div>
                           <InputFieldPulse
-                            label="Resolución Ministerial"
+                            label="Resolución de Creación (HCU)"
                             name="resolucion_ministerial"
                             value={formData.resolucion_ministerial}
                             onChange={handleChange}
                             required
                             error={errors.resolucion_ministerial}
                             pulse={errorPulse.resolucion_ministerial || 0}
-                            placeholder="Ej: RM 123/2020"
+                            placeholder="Ej: Res. HCU 123/2020"
                           />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <DatePickerField
-                          label="Fecha de Resolución"
+                          label="Fecha de Resolución de Creación (HCU)"
                           name="fecha_resolucion"
                           value={formData.fecha_resolucion}
                           onDateChange={handleDateChange}
                           required
                           error={errors.fecha_resolucion}
                           pulse={errorPulse.fecha_resolucion || 0}
-                          maxIsoDate={FECHA_MAXIMA_HOY}
+                          maxIsoDate={hoyBolivia()}
                         />
 
                         {/* Responsable: solo visible en edición si ya tiene valor */}
@@ -2247,7 +2210,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                 Cerrar
               </button>
               {puedeEditarInformacionCarrera() && (
-                <button
+                <button data-escritura
                   type="button"
                   onClick={() => setIsViewMode(false)}
                   className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all shadow-md"
@@ -2255,7 +2218,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                   Editar Carrera
                 </button>
               )}
-              {puedeEditarEstructura() && (
+              {puedeEditarEstructura() && carreraSeleccionada.activo !== false && (
                 <button
                   type="button"
                   onClick={() => eliminarCarrera(carreraSeleccionada)}
@@ -2278,12 +2241,24 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
             </div>
 
             <form onSubmit={handleUpdateSubmit} noValidate className="px-6 py-5 max-h-[calc(90vh-76px)] overflow-y-auto">
+              {carreraSeleccionada.activo === false && (
+                <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-800 dark:text-red-100">
+                  🔒 Esta carrera está desactivada y es de solo lectura, también para el superusuario.
+                  Primero reactívala con el interruptor del logo y pulsa Actualizar; después podrás editar el resto.
+                </div>
+              )}
+              {identidadBloqueada && (
+                <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100">
+                  Esta carrera ya tiene datos académicos ({identidadBloqueada.map((item) => `${item.etiqueta}: ${item.cantidad}`).join(', ')}).
+                  El nombre, el código, la facultad, la Resolución de Creación (HCU) y su fecha no se pueden cambiar.
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-5 gap-5 items-start">
-                <div className="md:col-span-3 space-y-4">
+                <fieldset disabled={reactivandoCarrera} className="md:col-span-3 space-y-4 min-w-0">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Nombre de la Carrera {errors.nombre && <span className="text-red-500">*</span>}</label>
-                      <input type="text" name="nombre" value={formData.nombre} onChange={handleChange} onFocus={() => setErrors(prev => prev.nombre ? ({ ...prev, nombre: undefined }) : prev)} required placeholder="Ej: Ingeniería de Sistemas" className={`w-full px-4 py-2.5 rounded-xl border-2 ${errors.nombre ? ERROR_FIELD_BORDER_CLASS : 'border-slate-300 dark:border-slate-600'} bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 placeholder:text-xs placeholder:italic transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:shadow-md`} />
+                      <input type="text" name="nombre" value={formData.nombre} onChange={handleChange} onFocus={() => setErrors(prev => prev.nombre ? ({ ...prev, nombre: undefined }) : prev)} required disabled={!puedeEditarEstructura() || Boolean(identidadBloqueada)} placeholder="Ej: Ingeniería de Sistemas" className={`w-full px-4 py-2.5 rounded-xl border-2 ${errors.nombre ? ERROR_FIELD_BORDER_CLASS : 'border-slate-300 dark:border-slate-600'} bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 placeholder:text-xs placeholder:italic transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:shadow-md disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-400`} />
                       {errors.nombre && <p className="text-xs text-red-600 mt-1">{getErrorMessage(errors.nombre)}</p>}
                     </div>
 
@@ -2293,17 +2268,15 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                       value={formData.facultad}
                       onChange={handleChange}
                       showManageButton={puedeGestionarFacultades()}
-                      onManageClick={abrirGestorFacultades}
                       onAddFacultad={handleAgregarFacultad}
                       setFacultadOptions={setFacultadOptions}
-                      getFacultadesCarrera={getFacultadesCarrera}
-                      formData={formData}
+                      onFacultadesCambiadas={cargarCarreras}
                       setFormData={setFormData}
                       required
                       searchable
                       options={facultadOptions}
                       error={errors.facultad}
-                      disabled={!puedeEditarEstructura()}
+                      disabled={!puedeEditarEstructura() || Boolean(identidadBloqueada)}
                       placeholder="Seleccione una facultad..."
                     />
                   </div>
@@ -2311,7 +2284,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Código {errors.codigo && <span className="text-red-500">*</span>}</label>
-                      <input type="text" name="codigo" value={formData.codigo} onChange={handleChange} onFocus={() => setErrors(prev => prev.codigo ? ({ ...prev, codigo: undefined }) : prev)} required disabled={!puedeEditarEstructura()} placeholder="Ej: IS" className={`w-full px-4 py-2.5 rounded-xl border-2 ${errors.codigo ? ERROR_FIELD_BORDER_CLASS : 'border-slate-300 dark:border-slate-600'} bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 placeholder:text-xs placeholder:italic transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:shadow-md disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-400`} />
+                      <input type="text" name="codigo" value={formData.codigo} onChange={handleChange} onFocus={() => setErrors(prev => prev.codigo ? ({ ...prev, codigo: undefined }) : prev)} required disabled={!puedeEditarEstructura() || Boolean(identidadBloqueada)} placeholder="Ej: IS" className={`w-full px-4 py-2.5 rounded-xl border-2 ${errors.codigo ? ERROR_FIELD_BORDER_CLASS : 'border-slate-300 dark:border-slate-600'} bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 placeholder:text-xs placeholder:italic transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:shadow-md disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-400`} />
                       {errors.codigo && <p className="text-xs text-red-600 mt-1">{getErrorMessage(errors.codigo)}</p>}
                       {!puedeEditarEstructura() && (
                         <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
@@ -2321,21 +2294,22 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Resolución Ministerial {errors.resolucion_ministerial && <span className="text-red-500">*</span>}</label>
-                      <input type="text" name="resolucion_ministerial" value={formData.resolucion_ministerial} onChange={handleChange} onFocus={() => setErrors(prev => prev.resolucion_ministerial ? ({ ...prev, resolucion_ministerial: undefined }) : prev)} required placeholder="Ej: RM 123/2020" className={`w-full px-4 py-2.5 rounded-xl border-2 ${errors.resolucion_ministerial ? ERROR_FIELD_BORDER_CLASS : 'border-slate-300 dark:border-slate-600'} bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 placeholder:text-xs placeholder:italic transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:shadow-md`} />
+                      <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Resolución de Creación (HCU) {errors.resolucion_ministerial && <span className="text-red-500">*</span>}</label>
+                      <input type="text" name="resolucion_ministerial" value={formData.resolucion_ministerial} onChange={handleChange} onFocus={() => setErrors(prev => prev.resolucion_ministerial ? ({ ...prev, resolucion_ministerial: undefined }) : prev)} required disabled={Boolean(identidadBloqueada)} placeholder="Ej: Res. HCU 123/2020" className={`w-full px-4 py-2.5 rounded-xl border-2 ${errors.resolucion_ministerial ? ERROR_FIELD_BORDER_CLASS : 'border-slate-300 dark:border-slate-600'} bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 placeholder:text-xs placeholder:italic transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:shadow-md disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-400`} />
                       {errors.resolucion_ministerial && <p className="text-xs text-red-600 mt-1">{getErrorMessage(errors.resolucion_ministerial)}</p>}
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <DatePickerField
-                      label="Fecha de Resolución"
+                      label="Fecha de Resolución de Creación (HCU)"
                       name="fecha_resolucion"
                       value={formData.fecha_resolucion}
                       onDateChange={handleDateChange}
                       required
                       error={errors.fecha_resolucion}
-                      maxIsoDate={FECHA_MAXIMA_HOY}
+                      maxIsoDate={hoyBolivia()}
+                      disabled={Boolean(identidadBloqueada)}
                     />
 
                     {/* Responsable: solo visible si ya tiene valor */}
@@ -2347,7 +2321,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                     )}
                   </div>
 
-                </div>
+                </fieldset>
 
                 <div className="md:col-span-2 h-full">
                   <div className={`rounded-xl border p-4 h-full flex flex-col ${
@@ -2362,7 +2336,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                       )}
                     </div>
 
-                    <input type="file" accept="image/*" onChange={handleLogoChange} className="hidden" id="editar-logo-carrera-file" />
+                    <input type="file" accept="image/*" onChange={handleLogoChange} className="hidden" id="editar-logo-carrera-file" disabled={reactivandoCarrera} />
 
                     <div className="flex-1 flex items-center justify-center">
                       <div className={`mx-auto w-40 h-40 rounded-full overflow-hidden border shadow-md relative group ${
@@ -2383,7 +2357,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                                 <span className="text-[10px] font-bold">CAMBIAR</span>
                               </label>
                               <div className="w-px h-full bg-white/20" />
-                              <button type="button" onClick={handleRemoveLogo} className="w-1/2 h-full bg-red-600/65 hover:bg-red-600/85 backdrop-blur-md flex flex-col items-center justify-center cursor-pointer text-white">
+                              <button type="button" onClick={handleRemoveLogo} disabled={reactivandoCarrera} className="w-1/2 h-full bg-red-600/65 hover:bg-red-600/85 backdrop-blur-md flex flex-col items-center justify-center cursor-pointer text-white">
                                 <span className="text-[10px] font-bold">BORRAR</span>
                               </button>
                             </>
@@ -2405,7 +2379,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
 
                 </div>
 
-                <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <fieldset disabled={reactivandoCarrera} className="md:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
                   <ExpandableTextField
                     label="Misión"
                     name="mision"
@@ -2425,9 +2399,9 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                     placeholder="Visión institucional de la carrera"
                     rows={3}
                   />
-                </div>
+                </fieldset>
 
-                <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <fieldset disabled={reactivandoCarrera} className="md:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
                   <ExpandableTextField
                     label="Perfil Profesional"
                     name="perfil_profesional"
@@ -2447,7 +2421,7 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
                     placeholder="Objetivo general de la carrera"
                     rows={3}
                   />
-                </div>
+                </fieldset>
 
               </div>
 
@@ -2485,18 +2459,10 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
             </div>
             <div className="px-5 py-4 space-y-3 text-slate-700 dark:text-slate-200">
               <p className="text-sm leading-relaxed">
-                ¿Estás seguro de eliminar esta carrera? Esta acción es irreversible y eliminará TODOS los semestres, materias e informes de docentes vinculados.
+                ¿Estás seguro de eliminar esta carrera? No tiene datos asociados, pero la eliminación es irreversible.
               </p>
               <div className="rounded-lg border border-red-700/70 bg-red-200/70 dark:bg-red-500/10 px-3 py-2 text-sm text-red-900 dark:text-red-200">
                 Carrera objetivo: <strong className="text-red-900 dark:text-red-300">{carreraToDelete?.nombre}</strong>
-              </div>
-              <div className="rounded-lg border-2 border-red-700 bg-red-100 px-3 py-2 text-sm font-bold text-red-950 dark:border-red-600 dark:bg-red-950/35 dark:text-red-100">
-                Advertencia: se borraran semestres, materias, informes de docentes y todos los registros asociados a esta carrera.
-              </div>
-              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100">
-                {deleteImpact.loading && 'Calculando impacto de eliminación...'}
-                {!deleteImpact.loading && !deleteImpact.failed && `Se eliminarán ${deleteImpact.materias} materias, ${deleteImpact.semestres} semestres y ${deleteImpact.informes} informes.`}
-                {!deleteImpact.loading && deleteImpact.failed && 'No se pudo calcular el conteo de daños en este momento.'}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
@@ -2543,18 +2509,28 @@ function ListaCarreras({ isDark, sidebarCollapsed = false, hasSidebar = true }) 
             <div className="px-5 py-4 border-b border-red-400 dark:border-slate-700/70 bg-gradient-to-r from-red-400 via-red-200 to-red-50 dark:from-red-900/30 dark:via-slate-900 dark:to-slate-900">
               <h4 className="text-lg font-bold text-red-900 dark:text-red-300 flex items-center gap-2">
                 <span>⛔</span>
-                Error de Integridad
+                No se puede eliminar
               </h4>
             </div>
             <div className="px-5 py-4 space-y-3 text-slate-700 dark:text-slate-200">
               <p className="text-sm leading-relaxed">
-                {deleteImpact.detail || `ERROR DE INTEGRIDAD: No se puede eliminar la carrera ${carreraToDelete.nombre} porque aún tiene ${deleteImpact.materias} materias e informes vinculados.`}
+                No se puede eliminar la carrera <strong>{carreraToDelete.nombre}</strong> porque tiene datos asociados.
               </p>
-              <div className="rounded-lg border border-red-700/70 bg-red-200/70 dark:bg-red-500/10 px-3 py-2 text-sm text-red-900 dark:text-red-100">
-                Dependencias detectadas: {deleteImpact.materias} materias, {deleteImpact.semestres} semestres, {deleteImpact.informes} informes.
-              </div>
+              {deleteImpact.detalle.length > 0 ? (
+                <ul className="rounded-lg border border-red-700/70 bg-red-200/70 dark:bg-red-500/10 px-3 py-2 text-sm text-red-900 dark:text-red-100 list-disc list-inside space-y-0.5">
+                  {deleteImpact.detalle.map((item) => (
+                    <li key={item.clave}>{item.etiqueta}: <strong>{item.cantidad}</strong></li>
+                  ))}
+                </ul>
+              ) : (
+                deleteImpact.detail && (
+                  <div className="rounded-lg border border-red-700/70 bg-red-200/70 dark:bg-red-500/10 px-3 py-2 text-sm text-red-900 dark:text-red-100">
+                    {deleteImpact.detail}
+                  </div>
+                )
+              )}
               <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100">
-                Para poder eliminar esta carrera, primero debes mover o eliminar manualmente todos sus registros asociados para evitar la pérdida accidental de datos.
+                Si la carrera ya no se usa, desactívala: sus datos quedan como histórico de solo lectura.
               </div>
             </div>
             <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700/70 flex justify-end bg-slate-50 dark:bg-slate-950/70">

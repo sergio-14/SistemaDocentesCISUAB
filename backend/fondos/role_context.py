@@ -39,6 +39,7 @@ def serialize_assignment(assignment):
         'carrera': assignment.carrera_id,
         'carrera_nombre': assignment.carrera.nombre if assignment.carrera else None,
         'carrera_codigo': assignment.carrera.codigo if assignment.carrera else None,
+        'carrera_activa': assignment.carrera.activo if assignment.carrera else None,
         'docente': assignment.docente_id,
         'docente_nombre': assignment.docente.nombre_completo if assignment.docente else None,
         'activo': assignment.activo,
@@ -76,9 +77,11 @@ def get_active_careers_for_user(user, request=None):
     if user.is_superuser:
         return Carrera.objects.filter(activo=True)
 
+    # Devuelve la carrera aunque esté inactiva: el usuario puede seguir viendo su
+    # histórico. Las escrituras las bloquea CarreraInactivaSoloLecturaMixin.
     assignment = get_active_assignment(request)
     if assignment and assignment.carrera_id:
-        return Carrera.objects.filter(id=assignment.carrera_id, activo=True)
+        return Carrera.objects.filter(id=assignment.carrera_id)
 
     perfil = getattr(user, 'perfil', None)
     if not perfil:

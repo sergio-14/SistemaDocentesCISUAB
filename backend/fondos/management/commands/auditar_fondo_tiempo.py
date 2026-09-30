@@ -26,7 +26,7 @@ from decimal import Decimal
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Count, Sum
 
-from fondos.models import CargaHoraria, CategoriaFuncion, Docente, DocenteCarrera, FondoTiempo
+from fondos.models import Docente, DocenteCarrera, FondoTiempo
 
 TOLERANCIA = Decimal('0.01')
 SEMANAS_CLASES_AULA = Decimal('40')
@@ -170,9 +170,7 @@ class Command(BaseCommand):
         categorias = fondo.categorias.all().order_by('id')
         totales = {}
         for idx, cat in enumerate(categorias, start=1):
-            cargas = CargaHoraria.objects.filter(
-                docente=fondo.docente, calendario=fondo.calendario_academico, categoria=cat.tipo,
-            )
+            cargas = fondo.cargas.filter(categoria=cat.tipo)
             agregados = cargas.aggregate(total=Sum('horas'), n=Count('id'))
             total_cat = Decimal(str(agregados['total'] or 0))
             porcentaje = (total_cat / horas_efectivas) * 100 if horas_efectivas else Decimal('0')
@@ -225,8 +223,7 @@ class Command(BaseCommand):
     def _auditar_duplicados(self, fondo):
         self.stdout.write('VALIDACION DE DUPLICADOS:')
         duplicados = (
-            CargaHoraria.objects
-            .filter(docente=fondo.docente, calendario=fondo.calendario_academico)
+            fondo.cargas
             .values('categoria', 'tipo_actividad', 'materia_id')
             .annotate(n=Count('id'))
             .filter(n__gt=1)

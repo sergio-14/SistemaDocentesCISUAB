@@ -1329,6 +1329,7 @@ function DetalleFondo() {
                           <div key="panel-carga" className="fondo-panel-anim">
                             <div className="h-full overflow-y-auto pr-1">
                               <CargaHorariaManager
+                                fondoId={fondo.id}
                                 docenteId={fondo.docente?.id}
                                 calendarioId={fondo.calendario_academico?.id}
                                 onCargaUpdate={handleActualizacionHoras}

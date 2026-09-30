@@ -284,7 +284,7 @@ const CustomSelect = ({
     );
 };
 
-const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdicion, onCancelarEdicion, readOnly = true }) => {
+const CargaHorariaManager = ({ fondoId, docenteId, calendarioId, onCargaUpdate, cargaEdicion, onCancelarEdicion, readOnly = true }) => {
     const [cargas, setCargas] = useState([]);
     const [semestre, setSemestre] = useState('');
     const [materias, setMaterias] = useState([]);
@@ -358,17 +358,17 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
     ];
 
     // Las funciones de carga cambian en cada render: se usan desde una ref para recargar
-    // solo cuando cambian el docente o el calendario.
+    // solo cuando cambia el fondo.
     const cargasRef = useRef(null);
     useEffect(() => {
         cargasRef.current = { cargarCargas, cargarFondoDetalle };
     });
     useEffect(() => {
-        if (docenteId && calendarioId) {
+        if (fondoId) {
             cargasRef.current.cargarCargas();
             cargasRef.current.cargarFondoDetalle();
         }
-    }, [docenteId, calendarioId]);
+    }, [fondoId]);
 
     useEffect(() => {
         if (cargaEdicion) {
@@ -426,9 +426,7 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
 
     const cargarCargas = async () => {
         try {
-            const response = await api.get('/cargas-horarias/', {
-                params: { docente: docenteId, calendario: calendarioId }
-            });
+            const response = await api.get('/cargas-horarias/', { params: { fondo: fondoId } });
             setCargas(response.data.results || response.data);
         } catch (error) {
             console.error("Error al cargar cargas horarias:", error);
@@ -438,16 +436,7 @@ const CargaHorariaManager = ({ docenteId, calendarioId, onCargaUpdate, cargaEdic
 
     const cargarFondoDetalle = async () => {
         try {
-            const response = await api.get('/fondos-tiempo/', {
-                params: { docente: docenteId, calendario: calendarioId }
-            });
-            const fondos = response.data.results || response.data;
-            const fondo = Array.isArray(fondos) ? fondos[0] : null;
-            if (!fondo?.id) {
-                setFondoDetalle(null);
-                return;
-            }
-            const detalle = await api.get(`/fondos-tiempo/${fondo.id}/`);
+            const detalle = await api.get(`/fondos-tiempo/${fondoId}/`);
             setFondoDetalle(detalle.data);
         } catch (error) {
             console.error("Error al cargar presupuesto macro:", error);

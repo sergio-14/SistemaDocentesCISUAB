@@ -16,7 +16,6 @@ import base64
 from html import escape
 from html.parser import HTMLParser
 from django.db.models import Sum
-from fondos.models import CargaHoraria
 from fondos.utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from fondos.utils.informe_imagenes import leer_imagen as leer_imagen_informe
 
@@ -773,11 +772,7 @@ class FondoPDFGenerator:
         # "Carrera de ..." y "Tiempo de dedicación: ..." con la fila de
         # "Feriados Nacionales y Locales", ver mas abajo).
         # Sincronización de Clases Aula (Total de horas anuales asignadas por Jefatura)
-        total_clases_aula = CargaHoraria.objects.filter(
-            docente=fondo.docente, 
-            calendario=fondo.calendario_academico, 
-            categoria='academica'
-        ).aggregate(total=Sum('horas'))['total'] or 0
+        total_clases_aula = fondo.cargas.filter(categoria='academica').aggregate(total=Sum('horas'))['total'] or 0
         total_clases_aula = float(total_clases_aula)
 
         horas_contrato = fondo.contrato_horas
@@ -909,11 +904,7 @@ class FondoPDFGenerator:
         # semana), por eso se deduplica por (materia, paralelo) en vez de
         # listar cada registro. El paralelo solo se muestra cuando no es el
         # unico/por defecto ('A'), igual que en el documento de referencia.
-        cargas_docencia = CargaHoraria.objects.filter(
-            docente=fondo.docente,
-            calendario=fondo.calendario_academico,
-            categoria='academica',
-        ).select_related('materia')
+        cargas_docencia = fondo.cargas.filter(categoria='academica').select_related('materia')
 
         materias_vistas = set()
         asignaturas_list = []
@@ -1165,9 +1156,7 @@ class FondoPDFGenerator:
         row_cursor = 2
 
         for cat in categorias:
-            cargas_cat = CargaHoraria.objects.filter(
-                docente=fondo.docente, calendario=fondo.calendario_academico, categoria=cat.tipo,
-            ).select_related('materia').order_by('id')
+            cargas_cat = fondo.cargas.filter(categoria=cat.tipo).select_related('materia').order_by('id')
 
             # Agrupar por tipo_actividad: una fila por tipo, con la suma de
             # horas de todos los registros de ese tipo.

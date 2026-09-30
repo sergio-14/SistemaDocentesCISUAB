@@ -6,7 +6,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import actualizar_con_historial, horas_semanales_contractuales
+from .models import actualizar_con_historial, fondo_de_la_carga, horas_semanales_contractuales, mensaje_sin_fondo
 from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, CategoriaFuncion, Actividad, PerfilUsuario, AsignacionCarrera, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, EvidenciaCargaHoraria
 from .role_context import get_active_assignment, get_active_careers_for_user, get_effective_profile, serialize_assignment
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
@@ -1198,7 +1198,7 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
     class Meta:
         model = CargaHoraria
         fields = '__all__'
-        read_only_fields = ['creado_por']
+        read_only_fields = ['creado_por', 'fondo']
         validators = []
 
     def validate(self, data):
@@ -1227,19 +1227,17 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
         categoria_macro = None
         semanas = Decimal('45.8')
         if docente and calendario:
-            fondo = FondoTiempo.objects.filter(
-                docente=docente,
-                calendario_academico=calendario,
-                archivado=False,
+            fondo = fondo_de_la_carga(docente, calendario)
+            if not fondo:
+                raise serializers.ValidationError({'docente': mensaje_sin_fondo(calendario)})
+            data['fondo'] = fondo
+            semanas = Decimal(str(getattr(fondo, 'semanas_a\u00f1o', '45.8') or '45.8'))
+            if semanas <= 0:
+                semanas = Decimal('45.8')
+            categoria_macro = CategoriaFuncion.objects.filter(
+                fondo_tiempo=fondo,
+                tipo=categoria,
             ).first()
-            if fondo:
-                semanas = Decimal(str(getattr(fondo, 'semanas_a\u00f1o', '45.8') or '45.8'))
-                if semanas <= 0:
-                    semanas = Decimal('45.8')
-                categoria_macro = CategoriaFuncion.objects.filter(
-                    fondo_tiempo=fondo,
-                    tipo=categoria,
-                ).first()
         semanas_validacion = SEMANAS_CLASES_AULA if categoria == 'academica' else semanas
 
         if categoria == 'academica':
@@ -1304,15 +1302,15 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
                 'materia': 'La materia seleccionada no pertenece a la carrera del Fondo de Tiempo.'
             })
 
-        if docente and calendario and categoria and tipo_actividad:
+        if fondo and categoria and tipo_actividad:
+            # Fuera de Académica el ítem es del fondo; en Académica, de la materia y paralelo del calendario.
             tipo_duplicado = CargaHoraria.objects.filter(
-                docente=docente,
-                calendario=calendario,
+                fondo=fondo,
                 categoria=categoria,
                 tipo_actividad=tipo_actividad,
             )
             if categoria == 'academica':
-                tipo_duplicado = tipo_duplicado.filter(materia=materia, paralelo=paralelo)
+                tipo_duplicado = tipo_duplicado.filter(calendario=calendario, materia=materia, paralelo=paralelo)
             if self.instance:
                 tipo_duplicado = tipo_duplicado.exclude(pk=self.instance.pk)
             if tipo_duplicado.exists():
@@ -1355,8 +1353,7 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
 
         if categoria_macro:
             cargas_categoria = CargaHoraria.objects.filter(
-                docente=docente,
-                calendario=calendario,
+                fondo=fondo,
                 categoria=categoria,
             )
             if self.instance:
@@ -1377,10 +1374,7 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
                 })
 
         if fondo:
-            cargas_fondo = CargaHoraria.objects.filter(
-                docente=docente,
-                calendario=calendario,
-            )
+            cargas_fondo = CargaHoraria.objects.filter(fondo=fondo)
             if self.instance:
                 cargas_fondo = cargas_fondo.exclude(pk=self.instance.pk)
 
@@ -1527,16 +1521,9 @@ class EvidenciaCargaHorariaSerializer(serializers.ModelSerializer):
                     'No puede adjuntar evidencias a actividades de otro docente.'
                 )
 
-        fondo = FondoTiempo.objects.filter(
-            docente=carga_horaria.docente,
-            calendario_academico=carga_horaria.calendario,
-            archivado=False,
-        ).first()
-
-        if not fondo:
-            raise serializers.ValidationError(
-                'No se encontro el Fondo de Tiempo asociado a esta actividad.'
-            )
+        fondo = carga_horaria.fondo
+        if fondo.archivado:
+            raise serializers.ValidationError('El Fondo de Tiempo de esta actividad está archivado.')
 
         if fondo.estado != 'en_ejecucion':
             raise serializers.ValidationError(
@@ -2456,8 +2443,6 @@ class CategoriaFuncionSerializer(serializers.ModelSerializer):
         """Total de asignaciones micro registradas en CargaHoraria para esta categoria."""
         # obj is CategoriaFuncion
         fondo = obj.fondo_tiempo
-        if not fondo.docente or not fondo.calendario_academico:
-            return 0
 
         # Usar el contexto para evitar recalcular para cada categoría del mismo fondo.
         context = self.context
@@ -2465,10 +2450,7 @@ class CategoriaFuncionSerializer(serializers.ModelSerializer):
 
         if cache_key not in context:
             # Calcular totales para todas las categorías de este fondo una sola vez.
-            cargas = CargaHoraria.objects.filter(
-                docente=fondo.docente,
-                calendario=fondo.calendario_academico
-            ).values('categoria').annotate(total=Sum('horas'))
+            cargas = fondo.cargas.values('categoria').annotate(total=Sum('horas'))
             
             context[cache_key] = {item['categoria']: item['total'] for item in cargas}
 
@@ -2484,8 +2466,6 @@ class CategoriaFuncionSerializer(serializers.ModelSerializer):
 
     def get_detalles_carga(self, obj):
         fondo = obj.fondo_tiempo
-        if not fondo.docente or not fondo.calendario_academico:
-            return []
 
         # Usar el contexto para evitar recalcular para cada categoría del mismo fondo.
         context = self.context
@@ -2493,10 +2473,7 @@ class CategoriaFuncionSerializer(serializers.ModelSerializer):
 
         if cache_key not in context:
             # Obtener todas las cargas de este fondo en una sola consulta
-            cargas = CargaHoraria.objects.filter(
-                docente=fondo.docente,
-                calendario=fondo.calendario_academico
-            )
+            cargas = fondo.cargas.all()
             
             # Agrupar por categoría en memoria
             detalles_map = {}
@@ -2573,10 +2550,7 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
                 total = 0
             else:
                 # Obtener mapa de horas de Jefatura
-                cargas = CargaHoraria.objects.filter(
-                    docente=obj.docente,
-                    calendario=obj.calendario_academico
-                ).values('categoria').annotate(total=Sum('horas'))
+                cargas = obj.cargas.values('categoria').annotate(total=Sum('horas'))
                 cargas_map = {c['categoria']: c['total'] for c in cargas}
 
                 # Sumar iterando sobre las categorías del fondo
@@ -2699,10 +2673,7 @@ class FondoTiempoListSerializer(serializers.ModelSerializer):
                 total = 0
             else:
                 # Lógica Híbrida Unificada (Igual que en Detalle)
-                cargas = CargaHoraria.objects.filter(
-                    docente=obj.docente,
-                    calendario=obj.calendario_academico
-                ).values('categoria').annotate(total=Sum('horas'))
+                cargas = obj.cargas.values('categoria').annotate(total=Sum('horas'))
                 cargas_map = {c['categoria']: c['total'] for c in cargas}
 
                 total_calculado = 0
@@ -4304,10 +4275,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             if not obj.docente or not obj.calendario_academico:
                 total = 0
             else:
-                cargas = CargaHoraria.objects.filter(
-                    docente=obj.docente,
-                    calendario=obj.calendario_academico
-                ).values('categoria').annotate(total=Sum('horas'))
+                cargas = obj.cargas.values('categoria').annotate(total=Sum('horas'))
                 cargas_map = {c['categoria']: c['total'] for c in cargas}
 
                 total_calculado = 0

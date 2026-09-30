@@ -1026,11 +1026,11 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
     - Directores: Lectura de su carrera.
     - Docentes: Lectura de sus propias asignaciones.
     """
-    queryset = CargaHoraria.objects.select_related('docente', 'materia', 'calendario', 'creado_por').all()
+    queryset = CargaHoraria.objects.select_related('docente', 'fondo', 'materia', 'calendario', 'creado_por').all()
     serializer_class = CargaHorariaSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['docente', 'calendario', 'categoria', 'materia', 'paralelo', 'dia_semana', 'aula']
+    filterset_fields = ['fondo', 'docente', 'calendario', 'categoria', 'materia', 'paralelo', 'dia_semana', 'aula']
     search_fields = ['materia__nombre', 'materia__sigla', 'docente__nombres', 'docente__apellido_paterno', 'aula']
     ordering_fields = ['calendario__gestion', 'docente', 'horas', 'dia_semana', 'hora_inicio']
     ordering = ['-calendario__gestion']
@@ -1078,16 +1078,10 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
 
         return queryset.none()
     
-    def _validar_estado_fondo(self, docente, calendario):
-        """Valida que el fondo esté en estado editable (borrador/observado) y que exista"""
-        fondo = FondoTiempo.objects.filter(
-            docente=docente,
-            calendario_academico=calendario,
-            archivado=False
-        ).first()
-
-        if not fondo:
-            raise PermissionDenied("No se puede crear carga horaria. El docente no tiene un Fondo de Tiempo registrado para este calendario.")
+    def _validar_estado_fondo(self, fondo):
+        """Valida que el fondo de la carga esté en estado editable (borrador/observado)."""
+        if fondo.archivado:
+            raise PermissionDenied("No se puede modificar la carga horaria porque el Fondo de Tiempo está archivado.")
 
         if fondo.carrera and not fondo.carrera.activo:
             raise PermissionDenied("No se puede modificar la carga horaria porque la carrera está inactiva.")
@@ -1096,18 +1090,18 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
             raise PermissionDenied(f"No se puede modificar la carga horaria. El fondo está en estado '{fondo.get_estado_display()}'.")
 
     def perform_create(self, serializer):
-        self._validar_estado_fondo(serializer.validated_data['docente'], serializer.validated_data['calendario'])
+        # El serializer asigna el fondo (o rechaza la carga si el docente no tiene).
+        self._validar_estado_fondo(serializer.validated_data['fondo'])
         serializer.save()
 
     def perform_update(self, serializer):
-        instance = self.get_object()
-        docente = serializer.validated_data.get('docente', instance.docente)
-        calendario = serializer.validated_data.get('calendario', instance.calendario)
-        self._validar_estado_fondo(docente, calendario)
+        # Si cambian el docente o el calendario, la carga pasa a otro fondo: ambos deben ser editables.
+        self._validar_estado_fondo(serializer.instance.fondo)
+        self._validar_estado_fondo(serializer.validated_data['fondo'])
         serializer.save()
 
     def perform_destroy(self, instance):
-        self._validar_estado_fondo(instance.docente, instance.calendario)
+        self._validar_estado_fondo(instance.fondo)
         instance.delete()
 
 # =====================================================
@@ -1174,12 +1168,8 @@ class EvidenciaCargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Mod
         if not user.is_superuser and instance.subido_por_id != user.id:
             raise PermissionDenied('Solo quien subió el archivo puede eliminarlo.')
 
-        fondo = FondoTiempo.objects.filter(
-            docente=instance.carga_horaria.docente,
-            calendario_academico=instance.carga_horaria.calendario,
-            archivado=False,
-        ).first()
-        if fondo and fondo.estado != 'en_ejecucion' and not user.is_superuser:
+        fondo = instance.carga_horaria.fondo
+        if fondo.estado != 'en_ejecucion' and not user.is_superuser:
             raise PermissionDenied(
                 'Solo se pueden eliminar evidencias mientras el fondo esta en estado "En Ejecución".'
             )
@@ -2123,16 +2113,10 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
 
         total_macro = Decimal(str(fondo.total_asignado or 0)).quantize(Decimal('0.01'))
         horas_objetivo = Decimal(str(fondo.horas_semana or 0)).quantize(Decimal('0.01'))
-        tiene_micro = CargaHoraria.objects.filter(
-            docente=fondo.docente,
-            calendario=fondo.calendario_academico,
-        ).exists()
+        tiene_micro = fondo.cargas.exists()
 
         total_micro_anual = Decimal(str(
-            CargaHoraria.objects.filter(
-                docente=fondo.docente,
-                calendario=fondo.calendario_academico,
-            ).aggregate(total=Sum('horas'))['total'] or 0
+            fondo.cargas.aggregate(total=Sum('horas'))['total'] or 0
         )).quantize(Decimal('0.01'))
         objetivo_micro_anual = Decimal(str(fondo.horas_efectivas or 1712)).quantize(Decimal('0.01'))
 
@@ -2740,11 +2724,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             errores.append('No se encontró un Director activo en la carrera para la firma oficial.')
 
         # 3) Totales de carga horaria vs dedicación
-        cargas = CargaHoraria.objects.filter(
-            docente=fondo.docente,
-            calendario=fondo.calendario_academico,
-            categoria='academica',
-        ).select_related('materia')
+        cargas = fondo.cargas.filter(categoria='academica').select_related('materia')
 
         if not cargas.exists():
             errores.append('No existen registros de Carga Horaria académica para este fondo/calendario.')

@@ -135,10 +135,7 @@ def cargo_firma_docente(fondo, cargo_dedicacion):
 def asignatura_principal_html(fondo):
     """Nombres de materias del docente, en negrita y unidos en prosa ('A y
     B' / 'A, B y C'), como HTML ya escapado listo para un Paragraph/editor."""
-    CargaHoraria = apps.get_model('fondos', 'CargaHoraria')
-    cargas = CargaHoraria.objects.filter(
-        docente=fondo.docente, calendario=fondo.calendario_academico, categoria='academica',
-    ).select_related('materia')
+    cargas = fondo.cargas.filter(categoria='academica').select_related('materia')
     materias = []
     vistos = set()
     for carga in cargas:

@@ -1326,6 +1326,19 @@ class FondoTiempo(models.Model):
     )['total'] or 0
 
 
+def fondo_de_la_carga(docente, calendario):
+    """Fondo de Tiempo (no archivado) al que va una carga del docente en ese calendario."""
+    if not docente or not calendario:
+        return None
+    return FondoTiempo.objects.filter(
+        docente=docente, calendario_academico=calendario, archivado=False,
+    ).first()
+
+
+def mensaje_sin_fondo(calendario):
+    return f'El docente aún no tiene Fondo de Tiempo de la gestión {calendario.gestion} en su carrera.'
+
+
 class CategoriaFuncion(models.Model):
     """Categorías de funciones sustantivas"""
     
@@ -1478,6 +1491,8 @@ class CargaHoraria(models.Model):
     ]
 
     docente = models.ForeignKey(Docente, on_delete=models.PROTECT, related_name='cargas_horarias')
+    # Se asigna solo al guardar desde la API (fondo_de_la_carga): no se elige a mano.
+    fondo = models.ForeignKey(FondoTiempo, on_delete=models.PROTECT, related_name='cargas')
     calendario = models.ForeignKey(CalendarioAcademico, on_delete=models.PROTECT, related_name='cargas_horarias')
     categoria = models.CharField(max_length=30, choices=CATEGORIA_CHOICES)
     materia = models.ForeignKey(
@@ -1549,10 +1564,11 @@ class CargaHoraria(models.Model):
                 condition=models.Q(categoria='academica'),
                 name='cargahoraria_unique_tipo_academica_por_materia_paralelo',
             ),
+            # Fuera de Académica el ítem es del fondo (horas por año), no de un calendario.
             models.UniqueConstraint(
-                fields=['docente', 'calendario', 'categoria', 'tipo_actividad'],
+                fields=['fondo', 'categoria', 'tipo_actividad'],
                 condition=~models.Q(categoria='academica'),
-                name='cargahoraria_unique_tipo_no_academica',
+                name='cargahoraria_unique_tipo_no_academica_por_fondo',
             ),
         ]
 

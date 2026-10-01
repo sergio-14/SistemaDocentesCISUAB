@@ -1325,6 +1325,15 @@ def fondo_de_la_carga(docente, gestion):
     return FondoTiempo.objects.filter(docente=docente, gestion=gestion, archivado=False).first()
 
 
+def nombre_calendario_en_fondo(calendario, fondo):
+    """'Primer Semestre 2026' (y la carrera si no es la del fondo, en doble carrera).
+    Lo usan el PDF y el detalle del fondo."""
+    nombre = f'{calendario.get_periodo_display()} {calendario.gestion}'
+    if calendario.carrera_id != fondo.carrera_id:
+        nombre += f' · {calendario.carrera.nombre}'
+    return nombre
+
+
 def mensaje_sin_fondo(gestion):
     return f'El docente aún no tiene Fondo de Tiempo de la gestión {gestion} en su carrera.'
 

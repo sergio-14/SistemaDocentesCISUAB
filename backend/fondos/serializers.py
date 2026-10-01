@@ -6,7 +6,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import UNIDADES_FONDO, actualizar_con_historial, fondo_de_la_carga, mensaje_sin_fondo
+from .models import UNIDADES_FONDO, actualizar_con_historial, nombre_calendario_en_fondo, fondo_de_la_carga, mensaje_sin_fondo
 from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, PerfilUsuario, AsignacionCarrera, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, EvidenciaCargaHoraria
 from .role_context import get_active_assignment, get_active_careers_for_user, get_effective_profile, serialize_assignment
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
@@ -2396,6 +2396,8 @@ def _detalle_de_carga(carga, fondo):
         "evidencias": carga.evidencias,
         "respaldo": carga.documento_respaldo,
         "carrera_calendario": carga.calendario.carrera.nombre if carga.calendario_id else None,
+        # Clases en aula: la misma materia puede darse en dos calendarios (igual que en el PDF).
+        "calendario_nombre": nombre_calendario_en_fondo(carga.calendario, fondo) if carga.calendario_id else None,
         "es_de_otra_carrera": bool(carga.calendario_id) and carga.calendario.carrera_id != fondo.carrera_id,
     }
 

@@ -14,7 +14,7 @@ import re
 import base64
 from html import escape
 from html.parser import HTMLParser
-from fondos.models import UNIDADES_FONDO
+from fondos.models import UNIDADES_FONDO, nombre_calendario_en_fondo
 from fondos.utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from fondos.utils.informe_imagenes import leer_imagen as leer_imagen_informe
 
@@ -46,14 +46,6 @@ except Exception:
 
 # Los ítems que no son clases en aula se registran en horas por año: su columna Hrs/Sem va vacía.
 SIN_HORAS_SEMANALES = '—'
-
-
-def _nombre_calendario(calendario, fondo):
-    """'Primer Semestre 2026' (y la carrera si no es la del fondo, en doble carrera)."""
-    nombre = f'{calendario.get_periodo_display()} {calendario.gestion}'
-    if calendario.carrera_id != fondo.carrera_id:
-        nombre += f' · {calendario.carrera.nombre}'
-    return nombre
 
 
 _DATA_IMG_RE = re.compile(r'^data:image/(png|jpe?g|gif);base64,(?P<data>.+)$', re.IGNORECASE | re.DOTALL)
@@ -1107,7 +1099,7 @@ class FondoPDFGenerator:
             ]))
             tabla_horario.hAlign = 'CENTER'
 
-            titulo_horario = escape(_nombre_calendario(calendario, fondo).upper())
+            titulo_horario = escape(nombre_calendario_en_fondo(calendario, fondo).upper())
             elementos.append(Paragraph(
                 f'<b>HORARIO SEMANAL (LUNES A SÁBADO) · {titulo_horario}</b>', estilo_celda_center,
             ))
@@ -1180,7 +1172,7 @@ class FondoPDFGenerator:
                 if es_clase:
                     # Una fila por calendario: sus horas semanales no se suman con las de otro semestre.
                     clave = f'clases_aula_{carga.calendario_id}'
-                    etiqueta = f'{etiqueta} · {_nombre_calendario(carga.calendario, fondo)}'
+                    etiqueta = f'{etiqueta} · {nombre_calendario_en_fondo(carga.calendario, fondo)}'
                 if clave not in grupos:
                     grupos[clave] = {
                         'etiqueta': etiqueta, 'horas': 0.0,

@@ -34,6 +34,16 @@ const EtiquetaOtraCarrera = ({ detalle }) => (
 );
 
 const ActividadAsignadaCell = ({ detalle, compact = false }) => {
+  // Clases en aula: el calendario (y la carrera, si es otra) distingue la misma materia
+  // dada en dos semestres, igual que en el PDF.
+  if (detalle?.tipo_actividad === 'clases_aula' && detalle?.calendario_nombre) {
+    return (
+      <>
+        {detalle.titulo_actividad || '-'}
+        <span className="text-slate-500 dark:text-slate-400"> · {detalle.calendario_nombre}</span>
+      </>
+    );
+  }
   if (!detalle?.es_subactividad_academica) {
     return <>{detalle?.titulo_actividad || '-'}<EtiquetaOtraCarrera detalle={detalle} /></>;
   }

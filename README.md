@@ -254,7 +254,10 @@ las copias. Sin otro servidor ni nube, la version simple es:
 
 1. **Cifrado:** definir `BACKUP_PASSPHRASE` en Dokploy (los backups ya se
    generan cifrados) y guardar esa contrasena en un gestor de contrasenas,
-   **fuera** del servidor. Sin ella los backups no se pueden abrir.
+   **fuera** del servidor. Sin ella los backups no se pueden abrir. Si no esta
+   definida, el sistema despliega igual, pero el servicio `backup` no genera
+   copias y lo avisa en sus logs ("BACKUP_PASSPHRASE no configurada: backups
+   desactivados").
 2. **Descargarlos a otra maquina:** con `scripts/descargar-backup.ps1` desde la
    PC (ver [Backups](#backups)). Se descargan base de datos **y** `media`.
 3. **Dos copias:** una en la PC y otra en un disco externo.

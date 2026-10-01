@@ -130,8 +130,10 @@ services:
       BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
       BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
       BACKUP_FIRST_DELAY_MINUTES: ${BACKUP_FIRST_DELAY_MINUTES:-10}
-      # Contraseña para cifrar los backups. Sin ella no se pueden abrir: guardarla fuera del servidor.
-      BACKUP_PASSPHRASE: ${BACKUP_PASSPHRASE:?Falta BACKUP_PASSPHRASE}
+      # Contraseña para cifrar los backups. Opcional para desplegar: sin ella el servicio
+      # arranca pero no genera backups (nunca sin cifrar) y lo avisa en sus logs.
+      # Sin ella los backups no se pueden abrir: guardarla fuera del servidor.
+      BACKUP_PASSPHRASE: ${BACKUP_PASSPHRASE:-}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h db -U $${PGUSER} -d $${PGDATABASE}"]
       interval: 60s

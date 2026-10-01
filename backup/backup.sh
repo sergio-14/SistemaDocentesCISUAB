@@ -8,7 +8,8 @@
 #
 # Cifrado simétrico GPG (AES-256) con la contraseña BACKUP_PASSPHRASE. Se cifra
 # al vuelo: la copia sin cifrar nunca se escribe en disco. Sin esa contraseña los
-# backups no se pueden abrir: guardarla fuera del servidor.
+# backups no se pueden abrir: guardarla fuera del servidor. Si no está configurada,
+# el servicio no genera backups y lo avisa en sus logs.
 #
 # Ejecutar un backup inmediato:  docker compose -f docker-compose.yml exec backup /backup.sh once
 set -eu
@@ -18,9 +19,19 @@ KEEP_DAYS="${BACKUP_KEEP_DAYS:-14}"
 DEST=/backups
 export GNUPGHOME=/tmp/gnupg
 
+AVISO_SIN_CONTRASENA="BACKUP_PASSPHRASE no configurada: backups desactivados"
+
+# Sin contraseña no se hacen backups (nunca sin cifrar). El servicio sigue en pie
+# para no reiniciarse en bucle y repite el aviso en cada intervalo.
 if [ -z "${BACKUP_PASSPHRASE:-}" ]; then
-    echo "ERROR: falta BACKUP_PASSPHRASE (contraseña para cifrar los backups)." >&2
-    exit 1
+    echo "[$(date -Iseconds)] AVISO: $AVISO_SIN_CONTRASENA" >&2
+    if [ "${1:-}" = "once" ]; then
+        exit 1
+    fi
+    while true; do
+        sleep "$((INTERVAL_HOURS * 3600))"
+        echo "[$(date -Iseconds)] AVISO: $AVISO_SIN_CONTRASENA" >&2
+    done
 fi
 mkdir -p "$GNUPGHOME" && chmod 700 "$GNUPGHOME"
 

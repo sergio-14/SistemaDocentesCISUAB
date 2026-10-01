@@ -1,7 +1,7 @@
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import LETTER, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, KeepTogether
 from reportlab.lib.units import cm
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas as pdfgen_canvas
@@ -9,6 +9,7 @@ from reportlab.pdfbase.pdfmetrics import stringWidth, registerFont, registerFont
 from reportlab.pdfbase.ttfonts import TTFont
 import os
 from datetime import datetime, date
+from decimal import Decimal, ROUND_HALF_UP
 import io
 import re
 import base64
@@ -44,8 +45,13 @@ try:
 except Exception:
     pass
 
-# Los ítems que no son clases en aula se registran en horas por año: su columna Hrs/Sem va vacía.
-SIN_HORAS_SEMANALES = '—'
+# Los ítems que no son clases en aula se registran en horas por año; su Hrs/Sem es
+# ese total repartido en las 40 semanas del año académico.
+SEMANAS_ANIO_ACADEMICO = 40
+
+# Palabras que van en minúscula dentro de un nombre (salvo al inicio).
+PALABRAS_EN_MINUSCULA = {'de', 'del', 'la', 'las', 'el', 'los', 'y', 'e', 'en', 'a'}
+NUMEROS_ROMANOS = {'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'}
 
 
 _DATA_IMG_RE = re.compile(r'^data:image/(png|jpe?g|gif);base64,(?P<data>.+)$', re.IGNORECASE | re.DOTALL)
@@ -146,6 +152,39 @@ def _etiqueta_tipo_actividad(categoria, carga):
     if (carga.titulo_actividad or '').strip():
         return carga.titulo_actividad.strip()
     return codigo or 'Actividad sin especificar'
+
+
+def _un_decimal_es(valor):
+    """Siempre con un decimal y coma (redondeo comercial), ej. 26 -> '26,0', 0.825 -> '0,8'."""
+    numero = Decimal(str(valor)).quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)
+    return f'{numero:.1f}'.replace('.', ',')
+
+
+def _capitalizar_palabra(palabra, es_primera, texto_en_mayusculas):
+    if not palabra:
+        return palabra
+    if not es_primera and palabra.lower() in PALABRAS_EN_MINUSCULA:
+        return palabra.lower()
+    if palabra.upper() in NUMEROS_ROMANOS:
+        return palabra.upper()
+    # Siglas (TC, T.C., UABJB): se respetan si el texto no venía todo en mayúsculas.
+    if palabra.isupper() and (len(palabra) > 1 and not texto_en_mayusculas or '.' in palabra):
+        return palabra
+    # Palabras compuestas con guion: cada parte con su mayúscula.
+    return '-'.join(parte[:1].upper() + parte[1:].lower() for parte in palabra.split('-'))
+
+
+def _capitalizar(texto):
+    """Como un título en castellano, sin los fallos de str.title(): "de, del, la, las,
+    el, los, y, e, en, a" en minúscula (salvo al inicio) y siglas o romanos intactos,
+    ej. "ADMINISTRACION DE EMPRESAS" -> "Administracion de Empresas",
+    "Docente Prueba TC" -> "Docente Prueba TC", "Física III" -> "Física III"."""
+    palabras = str(texto or '').split()
+    en_mayusculas = ' '.join(palabras).isupper()
+    return ' '.join(
+        _capitalizar_palabra(palabra, indice == 0, en_mayusculas)
+        for indice, palabra in enumerate(palabras)
+    )
 
 
 def _formato_es(valor, decimales=1):
@@ -737,7 +776,7 @@ class FondoPDFGenerator:
 
         # --- TÍTULO PRINCIPAL ---
         carrera_titulo = fondo.carrera.nombre.upper() if fondo.carrera else "INGENIERÍA DE SISTEMAS"
-        titulo_texto = f"FONDO DE TIEMPO - CARRERA DE {carrera_titulo}"
+        titulo_texto = f"FONDO DE TIEMPO – GESTIÓN {fondo.gestion} – CARRERA DE {carrera_titulo}"
         elementos.append(Paragraph(titulo_texto, self._get_estilo_titulo()))
         elementos.append(Spacer(1, 0.3*cm))
 
@@ -766,9 +805,21 @@ class FondoPDFGenerator:
         # "Feriados Nacionales y Locales", ver mas abajo).
         # Sincronización de Clases Aula (Total de horas anuales asignadas por Jefatura)
         # Clases en aula: materia x 20 semanas (semestre) o x 40 (calendario anual).
-        clases_aula = fondo.cargas.filter(categoria='academica', tipo_actividad='clases_aula').select_related('calendario')
+        clases_aula = fondo.cargas.filter(categoria='academica', tipo_actividad='clases_aula').select_related(
+            'calendario', 'materia',
+        ).order_by('calendario__fecha_inicio', 'id')
         total_clases_aula = float(sum(carga.horas for carga in clases_aula))
-        semanas_de_clase = sorted({carga.calendario.semanas_de_clase for carga in clases_aula if carga.calendario_id})
+        # Una línea por materia, como el formato en papel: sus semanas (20 por semestre,
+        # 40 si es anual o se dicta en los dos semestres) y sus horas por año.
+        clases_por_materia = {}
+        for carga in clases_aula:
+            materia = clases_por_materia.setdefault(carga.materia_id, {
+                'nombre': _capitalizar(carga.materia.nombre) if carga.materia else 'Sin materia',
+                'calendarios': {}, 'horas': 0.0,
+            })
+            if carga.calendario_id:
+                materia['calendarios'][carga.calendario_id] = carga.calendario.semanas_de_clase
+            materia['horas'] += float(carga.horas)
 
         horas_contrato = fondo.contrato_horas
         horas_vacacion = fondo.horas_vacacion
@@ -776,22 +827,28 @@ class FondoPDFGenerator:
         horas_efectivas = float(fondo.horas_efectivas)
         
         dias_vacacion = fondo.dias_vacacion
-        semanas_clase = ' y '.join(str(semanas) for semanas in semanas_de_clase) or '-'
         funciones_sustantivas = horas_efectivas - total_clases_aula
 
         def p_c3(txt, align=1, bold=False):
             font = 'Helvetica-Bold' if bold else 'Helvetica'
             return Paragraph(str(txt), ParagraphStyle('p3', parent=estilo_tabla_col3, alignment=align, fontName=font))
 
+        filas_clases = [
+            [p_c3(escape(materia['nombre']), 2), p_c3(f"{sum(materia['calendarios'].values())} sem"),
+             p_c3(f"{_formato_es(materia['horas'])} h")]
+            for materia in clases_por_materia.values()
+        ] or [[p_c3('Sin materias', 2), p_c3('0 sem'), p_c3('0 h')]]
         col3_data = [
             ['', p_c3('Semanas/Año'), p_c3('Hrs/Año')],
             [p_c3('Contrato:', 2, True), p_c3('52'), p_c3(_formato_es(horas_contrato))],
-            [p_c3('Clases Aula:', 2, True), p_c3(semanas_clase), p_c3(_formato_es(total_clases_aula))],
+            [p_c3('Clases Aula:', 2, True), '', ''],
+            *filas_clases,
             [p_c3('Funciones Sustantivas:', 2, True), '', p_c3(_formato_es(funciones_sustantivas))],
             [p_c3('Vacación(días):', 2, True), p_c3(_formato_es(dias_vacacion)), p_c3(_formato_es(horas_vacacion))],
             [p_c3('Feriados Nacionales y Locales:', 2, True), '', p_c3(_formato_es(horas_feriados))],
             [p_c3('<font backColor="#9CC2E5">Horas efectivas</font>', 2, True), '', p_c3(_formato_es(horas_efectivas), 1, True)]
         ]
+        fila_vacacion = len(col3_data) - 3
         
         col3_table = Table(col3_data, colWidths=[4.2*cm, 2.0*cm, 2.0*cm])
         col3_table.setStyle(TableStyle([
@@ -800,21 +857,21 @@ class FondoPDFGenerator:
             ('RIGHTPADDING', (0,0), (-1,-1), 1),
             ('TOPPADDING', (0,0), (-1,-1), 0),
             ('BACKGROUND', (1, 1), (1, 1), colors.HexColor('#E6B8B7')),
-            ('BACKGROUND', (1, 4), (1, 4), colors.HexColor('#C4D79B')),
+            ('BACKGROUND', (1, fila_vacacion), (1, fila_vacacion), colors.HexColor('#C4D79B')),
         ]))
 
         # Altura real (ya calculada por ReportLab) de las filas de la Columna
-        # 3 hasta la fila de "Feriados Nacionales y Locales" (indice 5 de
+        # 3 hasta la fila de "Feriados Nacionales y Locales" (la penúltima de
         # col3_data), sin contarla. Se usa para que "Carrera de ..." (Columna
         # 1) y "Tiempo de dedicación: ..." (Columna 2) arranquen exactamente
         # a esa altura, sin importar cuantas lineas tenga cada columna.
         col3_table.wrap(4.2*cm + 2.0*cm + 2.0*cm, 1000*cm)
-        altura_hasta_feriados = sum(col3_table._rowHeights[:5])
+        altura_hasta_feriados = sum(col3_table._rowHeights[:len(col3_data) - 2])
 
         # Columna 1
-        facultad_texto = fondo.carrera.facultad.nombre.title() if fondo.carrera else "Facultad de Ingeniería y Tecnología"
-        carrera_texto = fondo.carrera.nombre.title() if fondo.carrera else "Carrera"
-        nombre_docente = fondo.docente.nombre_completo.title() if fondo.docente else "Docente"
+        facultad_texto = _capitalizar(fondo.carrera.facultad.nombre) if fondo.carrera else "Facultad de Ingeniería y Tecnología"
+        carrera_texto = _capitalizar(fondo.carrera.nombre) if fondo.carrera else "Carrera"
+        nombre_docente = _capitalizar(fondo.docente.nombre_completo) if fondo.docente else "Docente"
 
         # "Universidad Autónoma del Beni José Ballivián" es larga y puede
         # ocupar 2 líneas dentro del ancho de la Columna 1, mientras que
@@ -911,7 +968,7 @@ class FondoPDFGenerator:
             if not carga.materia:
                 asignaturas_list.append(('Sin materia', None))
                 continue
-            nombre_materia = carga.materia.nombre.title()
+            nombre_materia = _capitalizar(carga.materia.nombre)
             if carga.paralelo and carga.paralelo != 'A':
                 nombre_completo = f"{nombre_materia} - {carga.paralelo}"
             else:
@@ -1023,7 +1080,7 @@ class FondoPDFGenerator:
         ]))
         tabla_cabecera.hAlign = 'CENTER'
         elementos.append(tabla_cabecera)
-        elementos.append(Spacer(1, 15))
+        elementos.append(Spacer(1, 8))
 
         # --- 2.1 HORARIO SEMANAL (LUNES A SÁBADO) ---
         # BUGFIX 2026-09-13: la mayoria de CargaHoraria se carga con horas
@@ -1117,12 +1174,11 @@ class FondoPDFGenerator:
 
         headers_1 = ['N°', 'INDICADORES', '', 'Hrs/Sem', 'Hrs/Año', 'Total\nHrs/Año', '%', 'Evidencias']
         headers_2 = ['', 'ITEM', 'DETALLE', '', '', '', '', '']
-        # Ancho total = 21.3cm, con margen de sobra dentro de los 24.94cm
-        # utiles de la pagina (27.94cm de ancho - 1.5cm de margen a cada
-        # lado): antes sumaba 24.5cm, dejando solo 0.44cm de holgura, lo que
-        # hacia que la columna "Total Hrs/Año" se desbordara del margen en
-        # paginas donde el encabezado se repite (repeatRows=1).
-        col_widths = [0.7*cm, 2.7*cm, 7.3*cm, 1.1*cm, 1.1*cm, 1.5*cm, 0.9*cm, 6.0*cm]
+        # Ancho total = 24.7cm dentro de los 24.94cm utiles de la pagina (27.94cm
+        # de ancho - 1.5cm de margen a cada lado). Detalle y Evidencias anchos
+        # para que cada actividad ocupe una linea y la firma del docente quepa
+        # al pie de la misma pagina.
+        col_widths = [0.7*cm, 3.4*cm, 8.0*cm, 1.1*cm, 1.1*cm, 1.5*cm, 0.9*cm, 8.0*cm]
 
         datos_tabla = [headers_1, headers_2]
 
@@ -1193,7 +1249,8 @@ class FondoPDFGenerator:
             total_cat = sum(fila['horas'] for fila in filas_categoria)
             suma_asignada_global += total_cat
             porc_cat = (total_cat / total_horas_efectivas) * 100
-            nombre_cat = nombre_unidad.upper()
+            # El guion permite partir "ACADÉMICA-ADMINISTRATIVA" sin cortar una palabra.
+            nombre_cat = escape(nombre_unidad.upper()).replace('-', '-<br/>')
 
             if n_filas > 0:
                 start_row = row_cursor
@@ -1204,8 +1261,12 @@ class FondoPDFGenerator:
                     es_ultima = (idx == n_filas - 1)
 
                     anual = fila['horas']
-                    # Clases en aula: las horas semanales reales de sus materias; el resto es por año.
-                    hs = _formato_es(fila['horas_semana']) if fila['horas_semana'] is not None else SIN_HORAS_SEMANALES
+                    # Clases en aula: las horas semanales reales de sus materias; el resto,
+                    # sus horas por año repartidas en las 40 semanas del año académico.
+                    hs = (
+                        _formato_es(fila['horas_semana']) if fila['horas_semana'] is not None
+                        else _un_decimal_es(anual / SEMANAS_ANIO_ACADEMICO)
+                    )
                     detalle = self._limpiar_texto(fila['etiqueta'])
                     evidencia_texto = self._limpiar_texto(fila['evidencia']) if fila['evidencia'] else "-"
 
@@ -1220,7 +1281,7 @@ class FondoPDFGenerator:
                             hs,
                             _formato_es(anual),
                             _formato_es(total_cat), # DATO
-                            _formato_es(porc_cat), # DATO
+                            _un_decimal_es(porc_cat), # DATO
                             Paragraph(evidencia_texto, self._get_estilo_celda())
                         ]
                     else:
@@ -1255,7 +1316,7 @@ class FondoPDFGenerator:
                 row_cursor += n_filas
             else:
                 # Caso vacío
-                row = [f"{cat_index}", Paragraph(f"<b>{nombre_cat}</b>", self._get_estilo_celda_center()), Paragraph("Sin actividades", self._get_estilo_celda()), "-", "-", "0", "0", "-"]
+                row = [f"{cat_index}", Paragraph(f"<b>{nombre_cat}</b>", self._get_estilo_celda_center()), Paragraph("Sin actividades", self._get_estilo_celda()), "0,0", "0", "0", "0,0", "-"]
                 datos_tabla.append(row)
                 estilos_tabla.append(('LINEBELOW', (0, row_cursor), (-1, row_cursor), 0.5, colors.black))
                 row_cursor += 1
@@ -1265,7 +1326,7 @@ class FondoPDFGenerator:
         # Total General
         # El % total es la suma de las unidades sobre las horas efectivas (100 solo si coinciden).
         porcentaje_total = (suma_asignada_global / total_horas_efectivas) * 100
-        row_total = ['TOTAL HORAS', '', '', '', '', f"{int(suma_asignada_global)}", _formato_es(porcentaje_total), '']
+        row_total = ['TOTAL HORAS', '', '', '', '', f"{int(suma_asignada_global)}", _un_decimal_es(porcentaje_total), '']
         datos_tabla.append(row_total)
         estilos_tabla.append(('FONTNAME', (0, row_cursor), (-1, row_cursor), 'Helvetica-Bold'))
         estilos_tabla.append(('BACKGROUND', (0, row_cursor), (-1, row_cursor), colors.Color(0.95, 0.95, 0.95)))
@@ -1286,18 +1347,18 @@ class FondoPDFGenerator:
         # en una posicion fija- para que ReportLab la empuje a una pagina
         # nueva si no entra, en vez de arriesgar que se superponga con la
         # ultima fila de la tabla cuando esta llena toda la pagina.
-        nombre_docente_firma = fondo.docente.nombre_completo.title() if fondo.docente else 'Sin docente asignado'
+        nombre_docente_firma = _capitalizar(fondo.docente.nombre_completo) if fondo.docente else 'Sin docente asignado'
+        # Dedicación abreviada (T.C., M.T., D.E.) o, si es por horas, su nombre completo.
         dedicacion_texto_firma, dedicacion_abrev_firma = self._dedicacion_docente(fondo)
-        rotulo_docente = f'DOCENTE {dedicacion_abrev_firma}'.strip() if dedicacion_abrev_firma else 'DOCENTE'
+        rotulo_docente = f'DOCENTE {dedicacion_abrev_firma or dedicacion_texto_firma.upper()}'.strip()
 
         estilo_firma = ParagraphStyle('FirmaDocente', parent=estilo_celda_center, fontSize=8, leading=10)
         tabla_firma = Table(
             [
                 [Paragraph('_______________________________', estilo_firma)],
-                [Paragraph(escape(nombre_docente_firma), estilo_firma)],
-                [Paragraph(escape(rotulo_docente), estilo_firma)],
+                [Paragraph(escape(f'{nombre_docente_firma} – {rotulo_docente}'), estilo_firma)],
             ],
-            colWidths=[7.5*cm],
+            colWidths=[9*cm],
         )
         tabla_firma.setStyle(TableStyle([
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
@@ -1307,8 +1368,8 @@ class FondoPDFGenerator:
             ('BOTTOMPADDING', (0,0), (-1,-1), 2),
         ]))
         tabla_firma.hAlign = 'RIGHT'
-        elementos.append(Spacer(1, 0.8*cm))
-        elementos.append(tabla_firma)
+        # Raya, nombre y dedicación van juntos: si no caben, pasan enteros a la página siguiente.
+        elementos.append(KeepTogether([Spacer(1, 0.4*cm), tabla_firma]))
 
         doc.build(elementos, canvasmaker=self._crear_clase_canvas_pie())
 

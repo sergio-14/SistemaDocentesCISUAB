@@ -233,6 +233,8 @@ SIMPLE_JWT = {
     'ROTATE_REFRESH_TOKENS': False,
     'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
+    # Cada ingreso exitoso (POST /api/token/) actualiza User.last_login.
+    'UPDATE_LAST_LOGIN': True,
 }
 # Media files
 MEDIA_URL = '/media/'

@@ -89,8 +89,7 @@ function ListaFondos() {
       if (!silencioso) {
         setLoading(true);
       }
-      const response = await getFondosTiempo();
-      const data = response.data.results || response.data;
+      const data = await getFondosTiempo();
       const fondosData = Array.isArray(data) ? data : [];
       const firmaEstados = fondosData
         .map((fondo) => `${fondo.id}:${fondo.estado}`)

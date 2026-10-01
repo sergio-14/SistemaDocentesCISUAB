@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FaEdit, FaTrash, FaToggleOn, FaToggleOff } from 'react-icons/fa';
 import { X } from 'lucide-react';
-import api from '../../apis/api';
+import api, { getCarreras } from '../../apis/api';
 import { Link, Outlet } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
@@ -209,8 +209,6 @@ const MateriaList = () => {
         || obtenerId(localStorage.getItem('carrera_activa_id'))
     );
 
-    const normalizarLista = (data) => data?.results || data || [];
-
     useEffect(() => {
         const fetchDatos = async () => {
             try {
@@ -218,7 +216,7 @@ const MateriaList = () => {
                 const [usuarioRes, perfilRes, resCarreras] = await Promise.all([
                     api.get('/usuario/').catch(() => ({ data: localUser })),
                     api.get('/perfil/').catch(() => null),
-                    api.get('/carreras/'),
+                    getCarreras(),
                 ]);
 
                 const userData = usuarioRes?.data || localUser;
@@ -229,7 +227,7 @@ const MateriaList = () => {
                 setUser(userData);
                 setPerfil(perfilData);
 
-                const carrerasData = normalizarLista(resCarreras.data);
+                const carrerasData = resCarreras;
                 setCarreras(carrerasData);
 
                 if (!isSuperAdmin && carreraPerfilId) {

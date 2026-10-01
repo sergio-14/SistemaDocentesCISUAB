@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { getDocentes, getCarreras, crearFondoTiempo, getCalendarioActivo, getCalendarios } from '../apis/api';
-import api from '../apis/api';
+import api, { obtenerTodos } from '../apis/api';
 import toast from 'react-hot-toast';
 import {
   ERROR_FIELD_BORDER_CLASS,
@@ -205,8 +205,6 @@ function FormularioFondo({ editar = false }) {
     return vinculos.find((vinculo) => vinculo?.activo !== false) || vinculos[0] || null;
   };
 
-  const normalizarLista = (data) => data?.results || data || [];
-
   const obtenerId = (value) => {
     if (!value) return '';
     if (typeof value === 'object') return value.id || '';
@@ -262,8 +260,7 @@ function FormularioFondo({ editar = false }) {
       if (gestion && !editar) {
         params.sin_fondo_gestion = gestion;
       }
-      const response = await getDocentes(params);
-      const lista = normalizarLista(response.data);
+      const lista = await getDocentes(params);
       const filtrados = lista.filter((docente) => docentePerteneceACarrera(docente, carreraId));
       setDocentes(filtrados);
 
@@ -289,7 +286,7 @@ function FormularioFondo({ editar = false }) {
     try {
       setLoadingDatos(true);
 
-      const [userResponse, perfilResponse, carrerasRes, calendariosRes] = await Promise.all([
+      const [userResponse, perfilResponse, carrerasLista, calendariosLista] = await Promise.all([
         api.get('/usuario/'),
         api.get('/perfil/').catch(() => null),
         getCarreras(),
@@ -305,8 +302,8 @@ function FormularioFondo({ editar = false }) {
 
       setUsuarioActual(userData);
       setCarreraBloqueada(bloquearCarrera);
-      setCarreras(normalizarLista(carrerasRes.data));
-      setCalendarios(normalizarLista(calendariosRes.data));
+      setCarreras(carrerasLista);
+      setCalendarios(calendariosLista);
 
       if (!editar) {
         setFormData(prev => ({
@@ -475,14 +472,10 @@ function FormularioFondo({ editar = false }) {
 
   const verificarDuplicado = async () => {
     try {
-      const response = await api.get('/fondos-tiempo/', {
-        params: {
-          docente: formData.docente,
-          gestion: formData.gestion,
-        }
+      const fondos = await obtenerTodos('/fondos-tiempo/', {
+        docente: formData.docente,
+        gestion: formData.gestion,
       });
-      
-      const fondos = response.data.results || response.data;
       
       const duplicados = fondos.filter(f => 
         (!editar || f.id !== parseInt(id)) &&

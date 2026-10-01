@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { FaChevronLeft, FaChevronRight, FaEdit, FaEye, FaTrash } from 'react-icons/fa';
-import { getDocentes } from '../apis/api';
+import { getCarreras, getDocentes, obtenerTodos } from '../apis/api';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
 import {
@@ -891,10 +891,9 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     setSinCalendarioActivo(false);
     if (!formData.carrera) return undefined;
     let vigente = true;
-    api.get('/calendarios/', { params: { carrera: formData.carrera } })
-      .then((response) => {
+    obtenerTodos('/calendarios/', { carrera: formData.carrera })
+      .then((calendarios) => {
         if (!vigente) return;
-        const calendarios = response.data?.results || response.data || [];
         const gestion = calendarios.find((calendario) => calendario.activo)?.gestion;
         if (!gestion) {
           // Sin calendario activo: se usa el 1 de enero, igual que un fondo sin calendarios.
@@ -1126,13 +1125,12 @@ function ListaDocentes({ sidebarCollapsed = false }) {
   const cargarDocentes = async () => {
     setLoading(true);
     try {
-      const [docentesResponse, carrerasResponse, usuariosResponse] = await Promise.all([
+      // Usuarios: solo las páginas necesarias para sugerir; el buscador consulta el resto en el servidor.
+      const [docentesData, carrerasData, usuariosResponse] = await Promise.all([
         getDocentes(),
-        api.get('/carreras/'),
+        getCarreras(),
         api.get('/usuarios/'),
       ]);
-      const docentesData = docentesResponse.data.results || docentesResponse.data;
-      const carrerasData = carrerasResponse.data.results || carrerasResponse.data;
       const docentesLista = Array.isArray(docentesData) ? docentesData : [];
       const usuariosIniciales = usuariosResponse.data.results || usuariosResponse.data;
       const usuariosAcumulados = Array.isArray(usuariosIniciales) ? [...usuariosIniciales] : [];

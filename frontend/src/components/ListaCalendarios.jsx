@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { FaEdit, FaTrash } from 'react-icons/fa';
 import { X } from 'lucide-react';
-import api from '../apis/api';
+import api, { getCalendarios, getCarreras } from '../apis/api';
 import { finAnteriorAInicio, hoyBolivia } from '../utils/fechas';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -1763,12 +1763,7 @@ function ListaCalendarios() {
   const cargarCalendarios = async () => {
     setLoading(true);
     try {
-      const [calendariosRes, carrerasRes] = await Promise.all([
-        api.get('/calendarios/'),
-        api.get('/carreras/'),
-      ]);
-      const data = calendariosRes.data.results || calendariosRes.data;
-      const carrerasData = carrerasRes.data.results || carrerasRes.data;
+      const [data, carrerasData] = await Promise.all([getCalendarios(), getCarreras()]);
       const carrerasLista = Array.isArray(carrerasData) ? carrerasData : [];
       setCarreras(carrerasLista);
       if (carrerasLista.length === 1) {

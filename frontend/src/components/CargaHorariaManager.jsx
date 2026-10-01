@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import api from '../apis/api';
+import api, { obtenerTodos } from '../apis/api';
 import toast from 'react-hot-toast';
 
 const PencilIcon = (props) => (
@@ -430,15 +430,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
     // Todas las páginas: los totales y la validación de duplicados necesitan todas las cargas.
     const cargarCargas = async () => {
         try {
-            let todas = [];
-            let respuesta = await api.get('/cargas-horarias/', { params: { fondo: fondoId } });
-            for (;;) {
-                const data = respuesta.data;
-                todas = [...todas, ...(data.results || data)];
-                if (!data.next) break;
-                respuesta = await api.get(data.next);
-            }
-            setCargas(todas);
+            setCargas(await obtenerTodos('/cargas-horarias/', { fondo: fondoId }));
         } catch (error) {
             console.error("Error al cargar cargas horarias:", error);
             toast.error("Error al cargar asignaciones");

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import api from '../../apis/api';
+import api, { getCarreras } from '../../apis/api';
 import toast from 'react-hot-toast';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -705,8 +705,7 @@ const MateriaForm = ({ sidebarCollapsed = false }) => {
 
         const fetchCarreras = async () => {
             try {
-                const res = await api.get('/carreras/');
-                const carrerasData = res.data.results || res.data;
+                const carrerasData = await getCarreras();
                 setCarreras(carrerasData);
 
                 // Director y Jefe: el backend solo devuelve su carrera y es la de la materia nueva.

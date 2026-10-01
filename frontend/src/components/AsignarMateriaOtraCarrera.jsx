@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import api from '../apis/api';
+import api, { obtenerTodos } from '../apis/api';
 import { getApiErrorMessage } from '../utils/formErrors';
 import ProgramaAnaliticoAccion from './fondos/ProgramaAnaliticoAccion';
 
@@ -15,17 +15,6 @@ const DIAS = [
 ];
 const FORM_VACIO = {
   calendario: '', materia: '', paralelo: 'A', dia_semana: 'lunes', hora_inicio: '', hora_fin: '', aula: '',
-};
-
-// Todas las páginas de un listado paginado.
-const obtenerTodos = async (url, params) => {
-  let respuesta = await api.get(url, { params });
-  let todos = respuesta.data.results || respuesta.data;
-  while (respuesta.data.next) {
-    respuesta = await api.get(respuesta.data.next);
-    todos = [...todos, ...respuesta.data.results];
-  }
-  return todos;
 };
 
 const inputCls = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:border-slate-600 dark:bg-slate-800 dark:text-white';

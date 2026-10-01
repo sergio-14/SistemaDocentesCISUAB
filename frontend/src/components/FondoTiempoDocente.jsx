@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import api from '../apis/api';
+import api, { obtenerTodos } from '../apis/api';
 import toast from 'react-hot-toast';
 import { puedeCrearFondoTiempo } from '../utils/fondoTiempoPermissions';
 import { ETIQUETAS_DEDICACION } from '../utils/dedicaciones';
@@ -66,13 +66,13 @@ const FondoTiempoDocente = () => {
                 const fondosParams = calendarioData?.gestion
                     ? { docente: id, gestion: calendarioData.gestion }
                     : { docente: id };
-                const fondosRes = await api.get('/fondos-tiempo/', { params: fondosParams });
+                const fondosLista = await obtenerTodos('/fondos-tiempo/', fondosParams);
 
                 if (cancelado) return;
 
                 setDocente(docenteData);
                 setCalendarioActivo(calendarioData);
-                setFondos(fondosRes.data.results || fondosRes.data);
+                setFondos(fondosLista);
             } catch (error) {
                 if (cancelado) return;
                 console.error("Error al cargar datos:", error);

@@ -34,7 +34,6 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
   const [esInterno, setEsInterno] = useState(false);
   const [sending, setSending] = useState(false);
   const [usuarioActual, setUsuarioActual] = useState(null);
-  const [alguienEscribiendo, setAlguienEscribiendo] = useState(false);
   const [typingIndicadorVisible, setTypingIndicadorVisible] = useState(false);
   const [panelBox, setPanelBox] = useState(null);
   const [isDraggingPanel, setIsDraggingPanel] = useState(false);
@@ -102,8 +101,7 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
     try {
       capturarPosicionesMensajes();
       if (!silent) setLoading(true);
-      const response = await getObservacionesPorFondo(fondoId, { marcarLeido });
-      const observacionesData = response.data.results || response.data || [];
+      const observacionesData = await getObservacionesPorFondo(fondoId, { marcarLeido });
       const idsActuales = extraerIdsMensajes(observacionesData);
 
       if (!initializedMessagesRef.current) {
@@ -160,7 +158,6 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
       const response = await getTypingObservacionFondo(fondoId);
       const siguienteEstado = Boolean(response.data?.alguien_escribiendo);
       typingVisibleRef.current = siguienteEstado;
-      setAlguienEscribiendo(siguienteEstado);
       if (siguienteEstado) {
         if (typingHideTimerRef.current) window.clearTimeout(typingHideTimerRef.current);
         setTypingIndicadorVisible(true);
@@ -172,7 +169,6 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
       }
     } catch {
       typingVisibleRef.current = false;
-      setAlguienEscribiendo(false);
       if (typingHideTimerRef.current) window.clearTimeout(typingHideTimerRef.current);
       typingHideTimerRef.current = window.setTimeout(() => {
         setTypingIndicadorVisible(false);
@@ -220,7 +216,6 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
       setRespondiendoA(null);
       setMensajeFijado(null);
       setSwipeMensaje(null);
-      setAlguienEscribiendo(false);
       setTypingIndicadorVisible(false);
     }
   }, [open]);
@@ -678,7 +673,6 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
   const cerrarChat = () => {
     if (isClosingChat) return;
     setIsClosingChat(true);
-    setAlguienEscribiendo(false);
     setTypingIndicadorVisible(false);
     if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
     if (typingHideTimerRef.current) window.clearTimeout(typingHideTimerRef.current);

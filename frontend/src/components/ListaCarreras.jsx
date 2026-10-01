@@ -1173,8 +1173,7 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
 
   const cargarCarreras = async () => {
     try {
-      const response = await getCarreras();
-      const data = response.data.results || response.data;
+      const data = await getCarreras();
       setCarreras(Array.isArray(data) ? data : []);
       setLoading(false);
     } catch (err) {

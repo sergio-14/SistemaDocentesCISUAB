@@ -80,8 +80,23 @@ api.interceptors.response.use(
 );
 
 // ===================================
+// LISTADOS PAGINADOS
+// ===================================
+// El backend pagina los listados de a 10 (PAGE_SIZE). Para selectores, totales,
+// validaciones y listas sin paginación visible se piden todas las páginas.
+export const obtenerTodos = async (url, params = {}) => {
+  const todos = [];
+  for (let pagina = 1; ; pagina += 1) {
+    const { data } = await api.get(url, { params: { ...params, page: pagina } });
+    if (Array.isArray(data)) return data;
+    todos.push(...(data?.results || []));
+    if (!data?.next) return todos;
+  }
+};
+
+// ===================================
 // ENDPOINTS - FONDOS DE TIEMPO
-export const getFondosTiempo = () => api.get('/fondos-tiempo/');
+export const getFondosTiempo = () => obtenerTodos('/fondos-tiempo/');
 export const getFondoTiempoDetalle = (id) => api.get(`/fondos-tiempo/${id}/`);
 export const crearFondoTiempo = (data) => api.post('/fondos-tiempo/', data);
 export const generarFondosTiempoMasivo = () => api.post('/fondos-tiempo/generar-masivo/');
@@ -125,8 +140,8 @@ export const restaurarFondo = (id) => api.post(`/fondos-tiempo/${id}/restaurar/`
 // ===================================
 // ENDPOINTS - DOCENTES Y CARRERAS
 // ===================================
-export const getDocentes = (params) => api.get('/docentes/', { params });
-export const getCarreras = () => api.get('/carreras/');
+export const getDocentes = (params) => obtenerTodos('/docentes/', params);
+export const getCarreras = () => obtenerTodos('/carreras/');
 export const getMaterias = (params) => api.get('/materias/', { params });
 export const getFacultadesCarrera = () => api.get('/carreras/facultades/');
 export const addFacultadCarrera = (value) => api.post('/carreras/facultades/agregar/', { value });
@@ -153,7 +168,7 @@ export const deleteProfilePicture = () => {
 // ===================================
 // ENDPOINTS - CALENDARIOS ACADÉMICOS
 // ===================================
-export const getCalendarios = () => api.get('/calendarios/');
+export const getCalendarios = () => obtenerTodos('/calendarios/');
 export const getCalendarioActivo = () => api.get('/calendarios/activo/');
 export const getCalendarioDetalle = (id) => api.get(`/calendarios/${id}/`);
 export const crearCalendario = (data) => api.post('/calendarios/', data);
@@ -181,7 +196,7 @@ export const getObservacionDetalle = (id) => api.get(`/observaciones/${id}/`);
 export const getObservacionesPorFondo = (fondoId, options = {}) => {
   const params = { fondo_tiempo: fondoId };
   if (options.marcarLeido) params.marcar_leido = true;
-  return api.get('/observaciones/', { params });
+  return obtenerTodos('/observaciones/', params);
 };
 export const agregarMensajeObservacion = (observacionId, texto, respondeA = null, esInterno = false) => {
   const payload = { texto };
@@ -194,7 +209,7 @@ export const agregarMensajeObservacion = (observacionId, texto, respondeA = null
 // ENDPOINTS - EVIDENCIAS DE CARGA HORARIA (actividades en ejecucion)
 // ===================================
 export const getEvidenciasCargaHoraria = (cargaHorariaId) => {
-  return api.get('/evidencias-carga-horaria/', { params: { carga_horaria: cargaHorariaId } });
+  return obtenerTodos('/evidencias-carga-horaria/', { carga_horaria: cargaHorariaId });
 };
 
 export const subirEvidenciaCargaHoraria = (cargaHorariaId, archivo, descripcion = '') => {

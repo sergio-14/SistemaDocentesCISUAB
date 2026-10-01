@@ -39,9 +39,8 @@ export default function EvidenciaActividadModal({ open, onClose, cargaHorariaId,
     if (!cargaHorariaId) return;
     setLoading(true);
     try {
-      const { data } = await getEvidenciasCargaHoraria(cargaHorariaId);
-      setEvidencias(data.results || data || []);
-    } catch (err) {
+      setEvidencias(await getEvidenciasCargaHoraria(cargaHorariaId));
+    } catch {
       toast.error('No se pudieron cargar las evidencias de esta actividad.');
     } finally {
       setLoading(false);

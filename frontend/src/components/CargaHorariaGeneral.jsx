@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../apis/api';
+import { getDocentes } from '../apis/api';
 import { ETIQUETAS_DEDICACION } from '../utils/dedicaciones';
 import AsignarMateriaOtraCarrera from './AsignarMateriaOtraCarrera';
 
@@ -32,8 +32,7 @@ const CargaHorariaGeneral = () => {
   useEffect(() => {
     const fetchDocentes = async () => {
       try {
-        const response = await api.get('/docentes/');
-        setDocentes(response.data.results || response.data);
+        setDocentes(await getDocentes());
       } catch (err) {
         console.error("Error fetching docentes:", err);
         setError("No se pudieron cargar los docentes.");

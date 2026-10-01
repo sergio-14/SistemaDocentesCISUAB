@@ -20,8 +20,7 @@ function Comparador() {
 
   const cargarDocentes = async () => {
     try {
-      const response = await getDocentes();
-      setDocentes(response.data.results || response.data);
+      setDocentes(await getDocentes());
     } catch (err) {
       console.error('Error al cargar docentes:', err);
     }

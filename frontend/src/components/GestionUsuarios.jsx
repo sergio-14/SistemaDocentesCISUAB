@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FaEdit, FaTrash } from 'react-icons/fa';
-import api from '../apis/api';
+import api, { getCarreras, getDocentes, obtenerTodos } from '../apis/api';
 import ModalUsuario from './ModalUsuario';
 import { MENSAJE_RESOLUCION_JEFE, MENSAJE_UNA_SOLA_CARRERA, cuerpoConArchivo, esArchivoPdf } from '../utils/asignacionesUsuario';
 import CampoResolucionJefe from './common/CampoResolucionJefe';
@@ -1315,16 +1315,16 @@ function GestionUsuarios({ sidebarCollapsed = false, user, hasSidebar = true }) 
     setError(null);
     setLoading(true);
     try {
-      const [usuariosRes, docentesRes, carrerasRes, rolesRes] = await Promise.all([
-        api.get('/usuarios/'),
-        api.get('/docentes/'),
-        api.get('/carreras/'),
+      const [usuariosLista, docentesLista, carrerasLista, rolesRes] = await Promise.all([
+        obtenerTodos('/usuarios/'),
+        getDocentes(),
+        getCarreras(),
         api.get('/usuarios/roles/')
       ]);
 
-      setUsuarios(usuariosRes.data.results || usuariosRes.data);
-      setDocentes(docentesRes.data.results || docentesRes.data);
-      setCarreras(carrerasRes.data.results || carrerasRes.data);
+      setUsuarios(usuariosLista);
+      setDocentes(docentesLista);
+      setCarreras(carrerasLista);
 
       const todosRoles = rolesRes.data || [];
       setRoles(filtrarRolesPorPermiso(todosRoles));

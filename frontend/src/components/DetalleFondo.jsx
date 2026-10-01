@@ -251,7 +251,6 @@ function DetalleFondo() {
   const contenedorRef = useRef(null);
   const refWidgetReferencia = useRef(null);
   const refWidgetAcciones = useRef(null);
-  const refWidgetCarga = useRef(null);
   const [esStaff, setEsStaff] = useState(false);
   const [mostrarFormPresentarInforme, setMostrarFormPresentarInforme] = useState(false);
   const [mostrarFormEvaluarInforme, setMostrarFormEvaluarInforme] = useState(false);
@@ -360,19 +359,12 @@ function DetalleFondo() {
   useEffect(() => {
     const refEl = refWidgetReferencia.current;
     const accionesEl = refWidgetAcciones.current;
-    const cargaEl = refWidgetCarga.current;
-    if (!refEl) return;
+    if (!refEl || !accionesEl) return;
 
+    // Acciones mide al menos lo que la columna de referencia, pero crece con sus
+    // botones: con altura fija y scroll interno, el último (Informe) quedaba oculto.
     const sync = () => {
-      const h = refEl.getBoundingClientRect().height;
-      if (accionesEl) {
-        accionesEl.style.height = h + 'px';
-        accionesEl.style.overflowY = 'auto';
-      }
-      if (cargaEl) {
-        cargaEl.style.height = h + 'px';
-        cargaEl.style.overflowY = 'auto';
-      }
+      accionesEl.style.minHeight = `${refEl.getBoundingClientRect().height}px`;
     };
 
     sync();
@@ -1323,7 +1315,8 @@ function DetalleFondo() {
                     )}
 
                     {/* DOCENTE: Presentar Informe - página dedicada, no modal */}
-                    {fondo.estado === 'en_ejecucion' && !esStaff && (
+                    {/* En ejecución el informe no está presentado; presentarlo pasa el fondo a informe_presentado. */}
+                    {fondo.estado === 'en_ejecucion' && fondo.informe_actual?.estado !== 'enviado' && !esStaff && (
                       <button
                         onClick={() => window.open(`/fondos/${fondo.id}/informe`, '_blank', 'noopener,noreferrer')}
                         className="w-full py-2 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/30 flex justify-center items-center gap-2 transition-all hover:scale-[1.02] text-xs"

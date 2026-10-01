@@ -12,7 +12,7 @@ from .role_context import get_active_assignment, get_active_careers_for_user, ge
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from .utils.informe_imagenes import CAMPOS_HTML_INFORME, firmar_imagenes_html
 from .utils.archivos import es_pdf
-from django.db.models import Q, Sum
+from django.db.models import F, Q, Sum
 from django.db import transaction
 from decimal import Decimal
 from django.utils import timezone
@@ -2383,7 +2383,6 @@ def _detalle_de_carga(carga, fondo):
         "categoria": carga.categoria,
         "tipo_actividad": carga.tipo_actividad,
         "tipo_actividad_display": CARGA_HORARIA_TIPOS_LABELS.get(carga.tipo_actividad, carga.tipo_actividad.replace('_', ' ').title() if carga.tipo_actividad else ''),
-        "es_subactividad_academica": carga.categoria == 'academica' and carga.tipo_actividad != 'clases_aula',
         "materia_titulo": (
             f"{carga.materia.sigla} - {carga.materia.nombre} ({carga.paralelo})"
             if carga.materia else ''
@@ -2407,7 +2406,11 @@ def unidades_del_fondo(fondo):
     porcentaje es ese total sobre las horas efectivas, y detalles_carga son sus ítems."""
     detalles = {tipo: [] for tipo, _nombre in UNIDADES_FONDO}
     totales = dict.fromkeys(detalles, 0)
-    for carga in fondo.cargas.select_related('materia', 'calendario__carrera'):
+    # Orden fijo: por inicio del calendario (los ítems sin calendario al final) y por alta.
+    cargas = fondo.cargas.select_related('materia', 'calendario__carrera').order_by(
+        F('calendario__fecha_inicio').asc(nulls_last=True), 'id',
+    )
+    for carga in cargas:
         detalles[carga.categoria].append(_detalle_de_carga(carga, fondo))
         totales[carga.categoria] += carga.horas
     horas_efectivas = Decimal(str(fondo.horas_efectivas or 0))

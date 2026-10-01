@@ -1186,6 +1186,8 @@ class FondoPDFGenerator:
                 if not grupo['evidencia']:
                     grupo['evidencia'] = (carga.documento_respaldo or '').strip() or (carga.evidencias or '').strip()
 
+            # Primero las clases en aula (una fila por calendario) y luego las demás, como en el detalle.
+            orden_claves.sort(key=lambda clave: not clave.startswith('clases_aula_'))
             filas_categoria = [grupos[clave] for clave in orden_claves]
             n_filas = len(filas_categoria)
             total_cat = sum(fila['horas'] for fila in filas_categoria)

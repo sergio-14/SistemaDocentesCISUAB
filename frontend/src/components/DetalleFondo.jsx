@@ -33,7 +33,7 @@ const EtiquetaOtraCarrera = ({ detalle }) => (
   ) : null
 );
 
-const ActividadAsignadaCell = ({ detalle, compact = false }) => {
+const ActividadAsignadaCell = ({ detalle }) => {
   // Clases en aula: el calendario (y la carrera, si es otra) distingue la misma materia
   // dada en dos semestres, igual que en el PDF.
   if (detalle?.tipo_actividad === 'clases_aula' && detalle?.calendario_nombre) {
@@ -44,52 +44,15 @@ const ActividadAsignadaCell = ({ detalle, compact = false }) => {
       </>
     );
   }
-  if (!detalle?.es_subactividad_academica) {
-    return <>{detalle?.titulo_actividad || '-'}<EtiquetaOtraCarrera detalle={detalle} /></>;
-  }
-
-  return (
-    <div className="flex items-center gap-2 pl-5 whitespace-nowrap">
-      <span className="font-black text-sky-700 dark:text-sky-300">-</span>
-      <span className={compact ? 'font-semibold' : ''}>{detalle.titulo_actividad || '-'}</span>
-      <EtiquetaOtraCarrera detalle={detalle} />
-    </div>
-  );
+  return <>{detalle?.titulo_actividad || '-'}<EtiquetaOtraCarrera detalle={detalle} /></>;
 };
 
+// Cada carga aparece una sola vez: primero las clases en aula (materia · calendario) y
+// luego las demás como filas propias, sin agruparlas bajo ninguna materia.
 const ordenarDetallesCarga = (categoria) => {
   const detalles = categoria?.detalles_carga || [];
-  if (categoria?.tipo !== 'academica') {
-    return detalles;
-  }
-
-  const usados = new Set();
-  const materias = detalles.filter((detalle) => detalle.tipo_actividad === 'clases_aula' && detalle.materia_id);
-  const ordenados = [];
-
-  materias.forEach((materia) => {
-    ordenados.push(materia);
-    usados.add(materia.id);
-
-    detalles
-      .filter((detalle) => (
-        detalle.es_subactividad_academica
-        && String(detalle.materia_id || '') === String(materia.materia_id || '')
-      ))
-      .sort((a, b) => String(a.tipo_actividad_display || '').localeCompare(String(b.tipo_actividad_display || ''), 'es'))
-      .forEach((detalle) => {
-        ordenados.push(detalle);
-        usados.add(detalle.id);
-      });
-  });
-
-  detalles.forEach((detalle) => {
-    if (!usados.has(detalle.id)) {
-      ordenados.push(detalle);
-    }
-  });
-
-  return ordenados;
+  const esClase = (detalle) => detalle.tipo_actividad === 'clases_aula';
+  return [...detalles.filter(esClase), ...detalles.filter((detalle) => !esClase(detalle))];
 };
 
 const ToastDistribucionGuardada = ({ t, onHidden }) => {
@@ -1583,7 +1546,7 @@ function DetalleFondo() {
                                           {ordenarDetallesCarga(categoria).map((detalle, dIdx) => (
                                             <tr key={dIdx} className="border-b border-slate-200 dark:border-slate-800/50 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
                                               <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 font-medium">
-                                                <ActividadAsignadaCell detalle={detalle} compact />
+                                                <ActividadAsignadaCell detalle={detalle} />
                                               </td>
                                               <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
                                                 {detalle.tipo_actividad_display || '-'}

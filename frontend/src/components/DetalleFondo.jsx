@@ -260,6 +260,8 @@ function DetalleFondo() {
   const [mostrarModalInforme, setMostrarModalInforme] = useState(false);
   const [evidenciaActividadModal, setEvidenciaActividadModal] = useState(null);
   const [cargaParaEditar, setCargaParaEditar] = useState(null);
+  // Sube al eliminar una carga desde la tabla: el gestor recarga sus cargas y totales.
+  const [versionCargas, setVersionCargas] = useState(0);
   const [slideGrafico, setSlideGrafico] = useState(0);
   const vistaActual = 'docente';
   const slideGraficoRef = useRef(0);
@@ -681,6 +683,8 @@ function DetalleFondo() {
     try {
       await api.delete(`/cargas-horarias/${id}/`);
       toast.success("Asignación eliminada");
+      if (cargaParaEditar?.id === id) setCargaParaEditar(null);
+      setVersionCargas((version) => version + 1);
       cargarDetalle({ silencioso: true });
     } catch (err) {
       console.error(err);
@@ -1153,6 +1157,7 @@ function DetalleFondo() {
                                 cargaEdicion={cargaParaEditar}
                                 onCancelarEdicion={() => setCargaParaEditar(null)}
                                 readOnly={soloLecturaPorRol}
+                                versionCargas={versionCargas}
                               />
                             </div>
                           </div>

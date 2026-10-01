@@ -281,7 +281,7 @@ const CustomSelect = ({
     );
 };
 
-const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], onCargaUpdate, cargaEdicion, onCancelarEdicion, readOnly = true }) => {
+const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], onCargaUpdate, cargaEdicion, onCancelarEdicion, readOnly = true, versionCargas = 0 }) => {
     const [cargas, setCargas] = useState([]);
     const [semestre, setSemestre] = useState('');
     const [materias, setMaterias] = useState([]);
@@ -359,7 +359,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
     ];
 
     // Las funciones de carga cambian en cada render: se usan desde una ref para recargar
-    // solo cuando cambia el fondo.
+    // cuando cambia el fondo o cuando el detalle cambia sus cargas (versionCargas).
     const cargasRef = useRef(null);
     useEffect(() => {
         cargasRef.current = { cargarCargas, cargarFondoDetalle };
@@ -369,7 +369,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
             cargasRef.current.cargarCargas();
             cargasRef.current.cargarFondoDetalle();
         }
-    }, [fondoId]);
+    }, [fondoId, versionCargas]);
 
     useEffect(() => {
         if (cargaEdicion) {
@@ -427,10 +427,18 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
         }
     }, [semestre, allMaterias]);
 
+    // Todas las páginas: los totales y la validación de duplicados necesitan todas las cargas.
     const cargarCargas = async () => {
         try {
-            const response = await api.get('/cargas-horarias/', { params: { fondo: fondoId } });
-            setCargas(response.data.results || response.data);
+            let todas = [];
+            let respuesta = await api.get('/cargas-horarias/', { params: { fondo: fondoId } });
+            for (;;) {
+                const data = respuesta.data;
+                todas = [...todas, ...(data.results || data)];
+                if (!data.next) break;
+                respuesta = await api.get(data.next);
+            }
+            setCargas(todas);
         } catch (error) {
             console.error("Error al cargar cargas horarias:", error);
             toast.error("Error al cargar asignaciones");
@@ -501,23 +509,16 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
         };
         try {
             if (cargaEdicion) {
-                const response = await api.put(`/cargas-horarias/${cargaEdicion.id}/`, payload);
+                await api.put(`/cargas-horarias/${cargaEdicion.id}/`, payload);
                 toast.success("Asignación actualizada");
-                if (response.data?.id) {
-                    setCargas((prev) => prev.map((carga) => (
-                        carga.id === response.data.id ? response.data : carga
-                    )));
-                }
                 if (onCancelarEdicion) onCancelarEdicion();
             } else {
-                const response = await api.post('/cargas-horarias/', payload);
+                await api.post('/cargas-horarias/', payload);
                 toast.success("Asignación agregada");
-                if (response.data?.id) {
-                    setCargas((prev) => [response.data, ...prev]);
-                }
             }
             setFormData({ categoria: 'academica', calendario: calendarioPorDefecto, materia: '', paralelo: 'A', titulo_actividad: '', tipo_actividad: '', horas: '', evidencias: '', documento_respaldo: '' });
             setSemestre('');
+            cargarCargas();
             cargarFondoDetalle();
             if (onCargaUpdate) onCargaUpdate();
         } catch (error) {

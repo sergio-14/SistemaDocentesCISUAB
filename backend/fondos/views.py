@@ -1072,7 +1072,8 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
     filterset_fields = ['fondo', 'docente', 'calendario', 'categoria', 'materia', 'paralelo', 'dia_semana', 'aula']
     search_fields = ['materia__nombre', 'materia__sigla', 'docente__nombres', 'docente__apellido_paterno', 'aula']
     ordering_fields = ['fondo__gestion', 'docente', 'horas', 'dia_semana', 'hora_inicio']
-    ordering = ['-fondo__gestion']
+    # 'id' desempata: sin él, las páginas de un mismo fondo pueden repetir u omitir cargas.
+    ordering = ['-fondo__gestion', 'id']
 
     def get_permissions(self):
         """

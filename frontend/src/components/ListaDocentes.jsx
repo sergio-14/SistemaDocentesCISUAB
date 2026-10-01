@@ -1906,11 +1906,11 @@ function ListaDocentes({ sidebarCollapsed = false }) {
   // Editar y eliminar fichas: solo el superusuario (igual que el backend).
   const esSuperusuario = Boolean(user?.is_superuser);
   const docenteVinculadoAUsuario = Boolean(docenteSeleccionado?.usuario_id);
-  // Misma regla que el backend: con historial (fondo presentado, evidencias o informes) la
+  // Misma regla que el backend: con historial (fondo presentado o informes) la
   // ficha queda fija; con fondos, cargas o saldos la carrera no cambia.
   const docenteTieneHistorial = Boolean(docenteSeleccionado?.tiene_historial);
   const docenteTieneRegistros = Boolean(docenteSeleccionado?.tiene_registros);
-  const tooltipBloqueoHistorial = 'No editable: el docente tiene un Fondo de Tiempo presentado, evidencias o informes';
+  const tooltipBloqueoHistorial = 'No editable: el docente tiene un Fondo de Tiempo presentado o informes';
   const tooltipBloqueoCarrera = 'No editable: el docente tiene fondos, cargas o saldos en su carrera';
   const tooltipDatosUsuarios = 'Estos datos se gestionan desde Usuarios';
   const estiloBloqueado = 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-100 border-slate-500 dark:border-slate-600';
@@ -2404,7 +2404,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                               onClick={() => !bloqueoEditar && abrirModalEditar(docente)}
                               disabled={bloqueoEditar}
                               className={`text-blue-500 ${bloqueoEditar ? 'opacity-50 cursor-not-allowed' : 'hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300 hover:scale-110'} transition-all duration-200`}
-                              title={bloqueoEditar ? 'Ficha fija: el docente tiene un Fondo de Tiempo presentado, evidencias o informes' : 'Editar'}
+                              title={bloqueoEditar ? 'Ficha fija: el docente tiene un Fondo de Tiempo presentado o informes' : 'Editar'}
                             >
                               <FaEdit size={18} />
                             </button>
@@ -2552,7 +2552,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                   lockTooltip={tooltipDatosUsuarios}
                   inputClassName={estiloBloqueado}
                 />
-                {/* El C.I. se puede corregir mientras el docente no tenga historial (fondo presentado, evidencias o informes). */}
+                {/* El C.I. se puede corregir mientras el docente no tenga historial (fondo presentado o informes). */}
                 <InputField
                   label="Cedula de Identidad (CI)"
                   name="ci"

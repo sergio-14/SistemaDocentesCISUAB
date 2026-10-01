@@ -205,27 +205,6 @@ export const agregarMensajeObservacion = (observacionId, texto, respondeA = null
   return api.post(`/observaciones/${observacionId}/agregar-mensaje/`, payload);
 };
 
-// ===================================
-// ENDPOINTS - EVIDENCIAS DE CARGA HORARIA (actividades en ejecucion)
-// ===================================
-export const getEvidenciasCargaHoraria = (cargaHorariaId) => {
-  return obtenerTodos('/evidencias-carga-horaria/', { carga_horaria: cargaHorariaId });
-};
-
-export const subirEvidenciaCargaHoraria = (cargaHorariaId, archivo, descripcion = '') => {
-  const formData = new FormData();
-  formData.append('carga_horaria', cargaHorariaId);
-  formData.append('archivo', archivo);
-  if (descripcion) formData.append('descripcion', descripcion);
-  return api.post('/evidencias-carga-horaria/', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-};
-
-export const eliminarEvidenciaCargaHoraria = (evidenciaId) => {
-  return api.delete(`/evidencias-carga-horaria/${evidenciaId}/`);
-};
-
 export const getTypingObservacionFondo = (fondoId) => {
   return api.get('/observaciones/typing-status/', { params: { fondo_tiempo: fondoId } });
 };

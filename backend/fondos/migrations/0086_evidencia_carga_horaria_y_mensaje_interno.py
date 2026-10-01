@@ -2,7 +2,6 @@
 
 import django.core.validators
 import django.db.models.deletion
-import fondos.models
 from django.conf import settings
 from django.db import migrations, models
 
@@ -24,7 +23,7 @@ class Migration(migrations.Migration):
             name='EvidenciaCargaHoraria',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('archivo', models.FileField(help_text='PDF, imagen (JPG/PNG) o documento Word (DOCX) que respalda el cumplimiento de la actividad.', upload_to=fondos.models.evidencia_carga_horaria_upload_path, validators=[django.core.validators.FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png', 'docx'])])),
+                ('archivo', models.FileField(help_text='PDF, imagen (JPG/PNG) o documento Word (DOCX) que respalda el cumplimiento de la actividad.', upload_to='fondos/evidencias_carga/', validators=[django.core.validators.FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png', 'docx'])])),
                 ('descripcion', models.CharField(blank=True, default='', help_text='Descripcion opcional del archivo adjunto.', max_length=255)),
                 ('fecha_subida', models.DateTimeField(auto_now_add=True)),
                 ('carga_horaria', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='archivos_evidencia', to='fondos.cargahoraria')),

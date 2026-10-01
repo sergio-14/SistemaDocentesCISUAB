@@ -1518,17 +1518,6 @@ class CargaHoraria(models.Model):
         )
 
 
-def evidencia_carga_horaria_upload_path(instance, filename):
-    """Ruta: fondos/evidencias_carga/docente_<id>/gestion_<año>/<categoria>/actividad_<id>/<archivo>"""
-    try:
-        carga = instance.carga_horaria
-        docente_id = carga.docente_id
-        gestion = carga.fondo.gestion
-        return f'fondos/evidencias_carga/docente_{docente_id}/gestion_{gestion}/{carga.categoria}/actividad_{carga.id}/{filename}'
-    except Exception:
-        return f'fondos/evidencias_carga/sin_clasificar/{filename}'
-
-
 def _carpeta_informe(instance):
     """Carpeta de un informe: fondos/informes/docente_<id>/gestion_<año>"""
     try:
@@ -1559,61 +1548,6 @@ def quitar_programas_analiticos_sin_clases(sender, instance, **kwargs):
     )
     for programa in ProgramaAnalitico.objects.filter(fondo_id=instance.fondo_id).exclude(models.Exists(clases)):
         programa.delete()
-
-
-class EvidenciaCargaHoraria(models.Model):
-    """
-    Archivo de respaldo (evidencia de cumplimiento) que el docente adjunta a
-    una actividad especifica de su carga horaria (CargaHoraria) mientras el
-    fondo esta 'en_ejecucion'.
-
-    Es independiente del campo de texto `CargaHoraria.evidencias` (la
-    descripcion esperada de que evidencia corresponde): este modelo guarda
-    los archivos reales que prueban que la actividad se cumplio, y permite
-    varios archivos por actividad.
-    """
-
-    EXTENSIONES_PERMITIDAS = ['pdf', 'jpg', 'jpeg', 'png', 'docx']
-    TAMANO_MAXIMO_MB = 10
-
-    carga_horaria = models.ForeignKey(
-        CargaHoraria,
-        on_delete=models.CASCADE,
-        related_name='archivos_evidencia',
-    )
-    archivo = models.FileField(
-        upload_to=evidencia_carga_horaria_upload_path,
-        validators=[FileExtensionValidator(allowed_extensions=EXTENSIONES_PERMITIDAS)],
-        help_text='PDF, imagen (JPG/PNG) o documento Word (DOCX) que respalda el cumplimiento de la actividad.',
-    )
-    descripcion = models.CharField(
-        max_length=255,
-        blank=True,
-        default='',
-        help_text='Descripcion opcional del archivo adjunto.',
-    )
-    subido_por = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name='evidencias_carga_horaria_subidas',
-    )
-    fecha_subida = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        verbose_name = 'Evidencia de Carga Horaria'
-        verbose_name_plural = 'Evidencias de Carga Horaria'
-        ordering = ['-fecha_subida']
-
-    def __str__(self):
-        return f'Evidencia #{self.pk} - {self.carga_horaria}'
-
-    def clean(self):
-        super().clean()
-        if self.archivo and self.archivo.size > self.TAMANO_MAXIMO_MB * 1024 * 1024:
-            raise ValidationError({
-                'archivo': f'El archivo supera el tamaño maximo permitido de {self.TAMANO_MAXIMO_MB}MB.'
-            })
 
 
 class Proyecto(models.Model):

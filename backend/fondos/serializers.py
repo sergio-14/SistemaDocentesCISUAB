@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import UNIDADES_FONDO, actualizar_con_historial, nombre_calendario_en_fondo, fondo_de_la_carga, mensaje_sin_fondo
-from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, PerfilUsuario, AsignacionCarrera, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, EvidenciaCargaHoraria, ProgramaAnalitico
+from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, PerfilUsuario, AsignacionCarrera, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, ProgramaAnalitico
 from .role_context import get_active_assignment, get_active_careers_for_user, get_effective_profile, serialize_assignment
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from .utils.informe_imagenes import CAMPOS_HTML_INFORME, firmar_imagenes_html
@@ -523,7 +523,6 @@ def datos_registrados_usuario(user):
         # Al borrar el usuario estos campos quedarían en NULL (SET_NULL) y se perdería quién lo hizo.
         ('fondos_aprobados', 'Fondos aprobados o validados',
          FondoTiempo.objects.filter(Q(aprobado_por=user) | Q(validado_por=user)).count()),
-        ('evidencias_subidas', 'Evidencias subidas', EvidenciaCargaHoraria.objects.filter(subido_por=user).count()),
     ]
     detalle = [
         {'clave': clave, 'etiqueta': etiqueta, 'cantidad': cantidad}
@@ -549,19 +548,18 @@ ESTADOS_FONDO_CON_HISTORIAL = [
     'presentado_director', 'aprobado_director', 'en_ejecucion', 'informe_presentado', 'finalizado',
 ]
 MENSAJE_FICHA_CON_HISTORIAL = (
-    'La ficha no se puede cambiar: el docente tiene un Fondo de Tiempo presentado, evidencias o informes.'
+    'La ficha no se puede cambiar: el docente tiene un Fondo de Tiempo presentado o informes.'
 )
 
 
 def docente_tiene_historial_operativo(docente):
-    """Historial de la ficha: algún fondo presentado (o más avanzado), evidencias o informes.
+    """Historial de la ficha: algún fondo presentado (o más avanzado) o informes.
     Con historial no cambian C.I., fecha de ingreso, carrera ni vínculo. Los fondos en
     borrador u observado no cuentan: al editar la ficha se recalculan."""
     if not docente:
         return False
     return (
         FondoTiempo.objects.filter(docente=docente, estado__in=ESTADOS_FONDO_CON_HISTORIAL).exists()
-        or EvidenciaCargaHoraria.objects.filter(carga_horaria__docente=docente).exists()
         or InformeFondo.objects.filter(fondo_tiempo__docente=docente).exists()
     )
 
@@ -1493,67 +1491,6 @@ class ProgramaAnaliticoSerializer(serializers.ModelSerializer):
         return data
 
 
-class EvidenciaCargaHorariaSerializer(serializers.ModelSerializer):
-    subido_por_nombre = serializers.SerializerMethodField()
-    nombre_archivo = serializers.SerializerMethodField()
-
-    class Meta:
-        model = EvidenciaCargaHoraria
-        fields = [
-            'id', 'carga_horaria', 'archivo', 'nombre_archivo', 'descripcion',
-            'subido_por', 'subido_por_nombre', 'fecha_subida',
-        ]
-        read_only_fields = ['subido_por', 'fecha_subida']
-
-    def get_subido_por_nombre(self, obj):
-        if not obj.subido_por:
-            return None
-        nombre = obj.subido_por.get_full_name()
-        return nombre or obj.subido_por.username
-
-    def get_nombre_archivo(self, obj):
-        if not obj.archivo:
-            return None
-        return obj.archivo.name.rsplit('/', 1)[-1]
-
-    def validate_carga_horaria(self, carga_horaria):
-        request = self.context.get('request')
-        user = getattr(request, 'user', None)
-        if not user:
-            return carga_horaria
-
-        if user.is_superuser:
-            return carga_horaria
-
-        # IMPORTANTE: usar el rol ACTIVO (get_effective_profile), no el perfil
-        # base del usuario. Un usuario puede tener varios roles sobre la misma
-        # carrera (p. ej. es Docente Y ademas iiisyp) via AsignacionCarrera; si
-        # aqui se lee `user.perfil.rol` directo y su perfil base no es
-        # 'docente', esta validacion de pertenencia se saltaria por completo
-        # aunque el usuario este operando como Docente en ese momento.
-        perfil = get_effective_profile(user, request)
-        if perfil and perfil.rol == 'docente' and perfil.docente_id:
-            if carga_horaria.docente_id != perfil.docente_id:
-                raise serializers.ValidationError(
-                    'No puede adjuntar evidencias a actividades de otro docente.'
-                )
-
-        fondo = carga_horaria.fondo
-        if fondo.archivado:
-            raise serializers.ValidationError('El Fondo de Tiempo de esta actividad está archivado.')
-
-        if fondo.estado != 'en_ejecucion':
-            raise serializers.ValidationError(
-                'Solo se pueden subir evidencias mientras el fondo esta en estado '
-                f'"En Ejecución". Estado actual: {fondo.get_estado_display()}.'
-            )
-
-        return carga_horaria
-
-
-# ============================================================
-# DOCENTECARRERA SERIALIZER
-# ============================================================
 class DocenteCarreraSerializer(serializers.ModelSerializer):
     docente_nombre = serializers.CharField(source='docente.nombre_completo', read_only=True)
     carrera_nombre = serializers.CharField(source='carrera.nombre', read_only=True)

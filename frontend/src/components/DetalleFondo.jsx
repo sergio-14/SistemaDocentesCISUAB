@@ -19,7 +19,7 @@ import ThemeToggle from './ThemeToggle';
 import CargaHorariaManager from './CargaHorariaManager';
 import { getApiErrorMessage } from '../utils/formErrors';
 import { FileText as ArchivoIcon, Check as CheckIcon, Trash2 as TrashIcon, AlertTriangle as AlertTriangleIcon, Info as InfoIcon, Send as SendIcon, EyeOff as EyeOffIcon, X as XIcon, Plus as PlusIcon, ChevronDown as ChevronDownIcon, ChevronUp as ChevronUpIcon, Pencil as PencilIcon, Calendar as CalendarIcon, User as UserIcon } from 'lucide-react';
-import { Eye, CheckCircle2, FileDown, Paperclip } from 'lucide-react';
+import { Eye, CheckCircle2, FileDown } from 'lucide-react';
 
 // Alias for template consistency
 const EyeIcon = Eye;
@@ -215,7 +215,6 @@ const VidaUniversitariaIcon = (props) => (
 
 import toast from 'react-hot-toast';
 import EstadoTimeline from './fondos/EstadoTimeline';
-import EvidenciaActividadModal from './EvidenciaActividadModal';
 import ProgramaAnaliticoAccion from './fondos/ProgramaAnaliticoAccion';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
@@ -258,7 +257,6 @@ function DetalleFondo() {
   const [mostrarFormEvaluarInforme, setMostrarFormEvaluarInforme] = useState(false);
   const [mostrarModalIniciarEjecucion, setMostrarModalIniciarEjecucion] = useState(false);
   const [mostrarModalInforme, setMostrarModalInforme] = useState(false);
-  const [evidenciaActividadModal, setEvidenciaActividadModal] = useState(null);
   const [cargaParaEditar, setCargaParaEditar] = useState(null);
   // Sube al eliminar una carga desde la tabla: el gestor recarga sus cargas y totales.
   const [versionCargas, setVersionCargas] = useState(0);
@@ -1540,11 +1538,6 @@ function DetalleFondo() {
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                               Evidencias
                                             </th>
-                                            {fondo.estado === 'en_ejecucion' && (
-                                              <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                                Archivos
-                                              </th>
-                                            )}
                                             {puedeGestionarCarga && (
                                               <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                                 Acciones
@@ -1577,21 +1570,6 @@ function DetalleFondo() {
                                               <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
                                                 {detalle.evidencias || '-'}
                                               </td>
-                                              {fondo.estado === 'en_ejecucion' && (
-                                                <td className="px-6 py-4 text-center">
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => setEvidenciaActividadModal({
-                                                      cargaHorariaId: detalle.id,
-                                                      titulo: detalle.titulo_actividad || detalle.tipo_actividad_display || 'Actividad',
-                                                    })}
-                                                    className="p-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-                                                    title={rolOperativo === 'docente' ? 'Subir o ver evidencias' : 'Ver evidencias'}
-                                                  >
-                                                    <Paperclip className="w-4 h-4" />
-                                                  </button>
-                                                </td>
-                                              )}
                                               {puedeGestionarCarga && (
                                                 <td className="px-6 py-4 text-right">
                                                   {detalle.es_de_otra_carrera ? (
@@ -1990,15 +1968,6 @@ function DetalleFondo() {
             </div>
           </div>
         )}
-
-      {/* MODAL EVIDENCIAS DE ACTIVIDAD (Fondo en Ejecucion) */}
-      <EvidenciaActividadModal
-        open={Boolean(evidenciaActividadModal)}
-        onClose={() => setEvidenciaActividadModal(null)}
-        cargaHorariaId={evidenciaActividadModal?.cargaHorariaId}
-        tituloActividad={evidenciaActividadModal?.titulo}
-        puedeSubir={rolOperativo === 'docente'}
-      />
 
     </div>
   );

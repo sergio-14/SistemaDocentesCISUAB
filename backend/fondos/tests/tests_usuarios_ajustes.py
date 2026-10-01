@@ -1,7 +1,7 @@
 """Ajustes posteriores a la auditoría de Usuarios.
 
 1. Vacaciones del fondo por antigüedad (15/20/30 días) proporcionales a la jornada.
-2. El C.I. de Docentes se guarda y se edita mientras no haya historial (fondo presentado, evidencias o informes).
+2. El C.I. de Docentes se guarda y se edita mientras no haya historial (fondo presentado o informes).
 3. El Director crea fichas de docente en su carrera.
 4. El Director cambia rol y carrera de usuarios sin datos, dentro de su carrera.
 5. Director y Jefe de Estudios únicos por carrera según las asignaciones activas.

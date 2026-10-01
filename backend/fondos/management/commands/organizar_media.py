@@ -7,7 +7,6 @@ Organiza la carpeta MEDIA con la estructura actual del sistema:
   ├── usuarios/usuario_<id>/foto_perfil.<ext>
   ├── fondos/
   │   ├── evidencias_actividades/docente_<id>/gestion_<año>/<categoria>/
-  │   ├── evidencias_carga/docente_<id>/gestion_<año>/<categoria>/actividad_<id>/
   │   └── informes/docente_<id>/gestion_<año>/{adjuntos,evidencias}/
   └── poa/
       ├── compras/<año>/<mes>/   recepciones/...   entregas/...
@@ -18,7 +17,7 @@ Hace tres cosas, y se puede ejecutar varias veces sin efectos repetidos:
 1. Pasa a archivos en media las fotos de perfil y logos de carrera que
    estaban guardados cifrados dentro de la base de datos.
 2. Mueve los archivos subidos con la estructura anterior (uploads/,
-   evidencias_carga/, informes_evidencia/, evidencias/, perfiles/, carreras/)
+   informes_evidencia/, evidencias/, perfiles/, carreras/)
    a su carpeta nueva y actualiza la ruta en la base de datos.
 3. Extrae las imágenes que el editor de informes guardaba en base64 dentro
    del HTML y las deja en fondos/informes/.../imagenes/.
@@ -41,7 +40,6 @@ from fondos.utils.informe_imagenes import CAMPOS_HTML_INFORME, carpeta_imagenes,
 
 from fondos.models import (
     Carrera,
-    EvidenciaCargaHoraria,
     InformeFondo,
     PerfilUsuario,
     _extension_imagen,
@@ -54,7 +52,6 @@ from poa_document.models import EvidenciaArchivo
 CAMPOS_REUBICABLES = [
     (Carrera, 'logo_carrera', 'carreras/carrera_'),
     (PerfilUsuario, 'foto_perfil', 'usuarios/usuario_'),
-    (EvidenciaCargaHoraria, 'archivo', 'fondos/evidencias_carga/'),
     (InformeFondo, 'archivo_adjunto', 'fondos/informes/'),
     (InformeFondo, 'evidencia', 'fondos/informes/'),
 ]

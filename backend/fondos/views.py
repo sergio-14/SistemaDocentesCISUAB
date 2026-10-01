@@ -25,7 +25,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import (
     Docente, Carrera, Materia, FondoTiempo, PerfilUsuario, CargaHoraria,
     CalendarioAcademico, Proyecto, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo,
-    SaldoVacacionesGestion, FacultadCatalogo, DatosLaborales, DocenteCarrera, EvidenciaCargaHoraria, ProgramaAnalitico,
+    SaldoVacacionesGestion, FacultadCatalogo, DatosLaborales, DocenteCarrera, ProgramaAnalitico,
     AsignacionCarrera,
 )
 from .serializers import (
@@ -40,7 +40,7 @@ from .serializers import (
     FondoTiempoDetalleSerializer,
     AprobarFondoSerializer, ObservarFondoSerializer,
     SaldoVacacionesGestionSerializer, DatosLaboralesSerializer,
-    CustomTokenObtainPairSerializer, EvidenciaCargaHorariaSerializer, ProgramaAnaliticoSerializer,
+    CustomTokenObtainPairSerializer, ProgramaAnaliticoSerializer,
     # Validadores estructurales de asignación (blindaje de reactivación, normativa UABJB)
     validar_unicidad_cargo_por_carrera,
     ROLES_UNICOS_POR_CARRERA,
@@ -1205,78 +1205,6 @@ class ProgramaAnaliticoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Generic
             self.get_serializer(programa).data,
             status=status.HTTP_200_OK if anterior else status.HTTP_201_CREATED,
         )
-
-# =====================================================
-# EVIDENCIA DE CARGA HORARIA VIEWSET
-# =====================================================
-
-class EvidenciaCargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
-    """
-    Archivos de evidencia que el docente adjunta a cada actividad de su
-    carga horaria mientras el fondo esta 'en_ejecucion'.
-
-    - Docente: solo ve y sube evidencias de sus propias actividades.
-    - Director/Jefe/Admin: solo lectura (ven las evidencias de los docentes
-      de su(s) carrera(s) para poder revisarlas), no pueden subir ni borrar.
-    """
-    queryset = EvidenciaCargaHoraria.objects.select_related(
-        'carga_horaria', 'carga_horaria__docente', 'carga_horaria__materia', 'subido_por'
-    ).all()
-    serializer_class = EvidenciaCargaHorariaSerializer
-    permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['carga_horaria']
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        user = self.request.user
-
-        if user.is_superuser:
-            return queryset
-
-        perfil = _obtener_perfil_efectivo(user, self.request)
-        if not perfil:
-            return queryset.none()
-
-        if perfil.rol == 'docente' and perfil.docente_id:
-            return queryset.filter(carga_horaria__docente_id=perfil.docente_id)
-
-        if perfil.rol in ['director', 'jefe_estudios', 'iiisyp']:
-            carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
-            if not carreras_activas.exists():
-                return queryset.none()
-            docentes_carrera = _docentes_por_carreras(carreras_activas)
-            return queryset.filter(carga_horaria__docente__in=docentes_carrera)
-
-        return queryset.none()
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            user = self.request.user
-            if not user.is_superuser:
-                perfil = _obtener_perfil_efectivo(user, self.request)
-                if not (perfil and perfil.rol == 'docente' and perfil.docente_id):
-                    raise PermissionDenied(
-                        'Solo el docente dueño de la actividad puede subir o eliminar evidencias.'
-                    )
-        return super().get_permissions()
-
-    def perform_create(self, serializer):
-        serializer.save(subido_por=self.request.user)
-
-    def perform_destroy(self, instance):
-        user = self.request.user
-        if not user.is_superuser and instance.subido_por_id != user.id:
-            raise PermissionDenied('Solo quien subió el archivo puede eliminarlo.')
-
-        fondo = instance.carga_horaria.fondo
-        if fondo.estado != 'en_ejecucion' and not user.is_superuser:
-            raise PermissionDenied(
-                'Solo se pueden eliminar evidencias mientras el fondo esta en estado "En Ejecución".'
-            )
-
-        instance.delete()
 
 # =====================================================
 # CALENDARIO ACADÉMICO VIEWSET

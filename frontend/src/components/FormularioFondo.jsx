@@ -189,8 +189,6 @@ function FormularioFondo({ editar = false }) {
     docente: '',
     carrera: '',
     gestion: '',
-    tiene_programa_analitico: false,
-    programa_analitico_url: '',
     estado: 'borrador',
   });
 
@@ -376,8 +374,6 @@ function FormularioFondo({ editar = false }) {
         docente: docenteId,
         carrera: carreraId,
         gestion: fondo.gestion,
-        tiene_programa_analitico: fondo.tiene_programa_analitico || false,
-        programa_analitico_url: fondo.programa_analitico_url || '',
         estado: fondo.estado,
       });
       if (carreraId) {
@@ -471,9 +467,6 @@ function FormularioFondo({ editar = false }) {
     }
     if (!formData.gestion) {
       errores.gestion = 'Por favor, seleccione una opción.';
-    }
-    if (formData.tiene_programa_analitico && !formData.programa_analitico_url) {
-      errores.programa_analitico_url = 'Debe proporcionar la URL del programa analítico';
     }
 
     setErroresCampos(errores);
@@ -872,76 +865,6 @@ function FormularioFondo({ editar = false }) {
                       </div>
               </div>
 
-              <div className="pt-8 border-t border-slate-200 dark:border-slate-700">
-                    <h3 className="text-base font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                        <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      </div>
-                      <span>Programa Analítico</span>
-                    </h3>
-
-                    <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-xl border border-slate-200 dark:border-slate-600 space-y-4">
-                      <div className="flex items-start gap-3">
-                        <input
-                          type="checkbox"
-                          id="tiene_programa_analitico"
-                          name="tiene_programa_analitico"
-                          checked={formData.tiene_programa_analitico}
-                          onChange={handleChange}
-                          disabled={loading}                          
-                          className="mt-1 w-5 h-5 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:bg-slate-700 dark:border-slate-600"
-                        />
-                        <label htmlFor="tiene_programa_analitico" className="text-sm text-slate-800 dark:text-slate-300">
-                          <span className="font-semibold">Tengo el programa analítico de la asignatura</span>
-                          <p className="text-xs text-slate-600 dark:text-slate-500 mt-1">
-                            Obligatorio para presentar el fondo al Director (Art. 18)
-                          </p>
-                        </label>
-                      </div>
-
-                      <div className={`form-reveal-wrap ${formData.tiene_programa_analitico ? 'is-open' : ''}`}>
-                        <div>
-                          <div className={shakingFields.programa_analitico_url ? ERROR_MOTION_CLASS : ''}>
-                            <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
-                              URL del Programa {erroresCampos.programa_analitico_url && <span className="text-red-500">*</span>}
-                            </label>
-                            <input
-                              type="url"
-                              name="programa_analitico_url"
-                              value={formData.programa_analitico_url}
-                              onChange={handleChange}
-                              onFocus={handleFieldFocus}
-                              onClick={handleFieldFocus}
-                              disabled={loading}
-                              placeholder="https://drive.google.com/file/d/..."
-                              className={`w-full px-4 py-3 rounded-xl border-2 ${
-                                erroresCampos.programa_analitico_url ? ERROR_FIELD_BORDER_CLASS : 'border-slate-300 dark:border-slate-600'
-                              } bg-white dark:bg-slate-900 text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm`}
-                            />
-                            {erroresCampos.programa_analitico_url && (
-                              <p className="text-xs text-red-600 dark:text-red-400 mt-1">{erroresCampos.programa_analitico_url}</p>
-                            )}
-                            {formData.programa_analitico_url && (
-                              <a
-                                href={formData.programa_analitico_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center mt-2 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition-colors"
-                              >
-                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                </svg>
-                                Abrir enlace del programa
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-              </div>
-
                   {/* Nota final */}
                   <div className="p-5 rounded-xl border-l-4 border-blue-500 bg-gradient-to-r from-blue-50 to-indigo-50/30 dark:from-blue-900/20 dark:to-indigo-900/10 shadow-sm">
                     <div className="flex items-start gap-3">
@@ -951,7 +874,8 @@ function FormularioFondo({ editar = false }) {
                       <div className="text-xs text-blue-800 dark:text-blue-300">
                         <p className="font-bold mb-2">Resumen:</p>
                         <ul className="list-disc list-inside space-y-1">
-                          <li>Después de crear, distribuya las horas semanales del docente (ej. 40h para TC) entre las 7 categorías oficiales</li>
+                          <li>Después de crear, asigne las materias y actividades de cada unidad: el total debe coincidir con las horas efectivas</li>
+                          <li>El programa analítico (PDF) se sube por materia en el detalle del fondo y es obligatorio para presentarlo al Director</li>
                           <li>Un solo fondo por docente y gestión: reúne las materias de todos los calendarios del año</li>
                           <li>Solo fondos en "borrador" pueden editarse</li>
                         </ul>

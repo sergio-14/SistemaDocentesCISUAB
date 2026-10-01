@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import UNIDADES_FONDO, actualizar_con_historial, nombre_calendario_en_fondo, fondo_de_la_carga, mensaje_sin_fondo
-from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, PerfilUsuario, AsignacionCarrera, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, EvidenciaCargaHoraria
+from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, PerfilUsuario, AsignacionCarrera, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, EvidenciaCargaHoraria, ProgramaAnalitico
 from .role_context import get_active_assignment, get_active_careers_for_user, get_effective_profile, serialize_assignment
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from .utils.informe_imagenes import CAMPOS_HTML_INFORME, firmar_imagenes_html
@@ -1207,6 +1207,9 @@ def _ensure_docente_role_for_user(user, docente=None, carrera=None, force_primar
 
 class CargaHorariaSerializer(serializers.ModelSerializer):
     docente_nombre = serializers.CharField(source='docente.nombre_completo', read_only=True)
+    programa_analitico_url = serializers.SerializerMethodField()
+    # Estado del fondo: el programa analítico solo se sube en borrador u observado.
+    fondo_estado = serializers.CharField(source='fondo.estado', read_only=True, default=None)
     materia_nombre = serializers.CharField(source='materia.nombre', read_only=True)
     materia_sigla = serializers.CharField(source='materia.sigla', read_only=True)
     # Ítems fuera de Académica (sin calendario): gestión del fondo al que van.
@@ -1219,6 +1222,14 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['creado_por', 'fondo']
         validators = []
+
+    def get_programa_analitico_url(self, obj):
+        if obj.tipo_actividad != 'clases_aula' or not obj.calendario_id:
+            return None
+        programa = ProgramaAnalitico.objects.filter(
+            fondo_id=obj.fondo_id, materia_id=obj.materia_id, calendario_id=obj.calendario_id,
+        ).first()
+        return programa.archivo.url if programa else None
 
     def validate(self, data):
         from .models import DocenteCarrera
@@ -1459,6 +1470,33 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
 # ============================================================
 # EVIDENCIA DE CARGA HORARIA SERIALIZER
 # ============================================================
+class ProgramaAnaliticoSerializer(serializers.ModelSerializer):
+    """Sube o reemplaza el programa analítico (PDF) de una materia en un calendario del fondo."""
+
+    class Meta:
+        model = ProgramaAnalitico
+        fields = ['id', 'fondo', 'materia', 'calendario', 'archivo', 'fecha_subida']
+        read_only_fields = ['fecha_subida']
+        validators = []
+
+    def validate_archivo(self, archivo):
+        if not es_pdf(archivo):
+            raise serializers.ValidationError('El programa analítico debe ser un archivo PDF válido.')
+        if archivo.size > ProgramaAnalitico.TAMANO_MAXIMO_MB * 1024 * 1024:
+            raise serializers.ValidationError(
+                f'El archivo supera el tamaño máximo de {ProgramaAnalitico.TAMANO_MAXIMO_MB} MB.'
+            )
+        return archivo
+
+    def validate(self, data):
+        fondo, materia, calendario = data['fondo'], data['materia'], data['calendario']
+        if not fondo.cargas.filter(tipo_actividad='clases_aula', materia=materia, calendario=calendario).exists():
+            raise serializers.ValidationError({
+                'materia': 'La materia no tiene clases en aula en ese calendario dentro del Fondo de Tiempo.'
+            })
+        return data
+
+
 class EvidenciaCargaHorariaSerializer(serializers.ModelSerializer):
     subido_por_nombre = serializers.SerializerMethodField()
     nombre_archivo = serializers.SerializerMethodField()
@@ -2376,7 +2414,7 @@ class MateriaSerializer(serializers.ModelSerializer):
         return instance
 
 
-def _detalle_de_carga(carga, fondo):
+def _detalle_de_carga(carga, fondo, programas):
     return {
         "id": carga.id,
         "materia_id": carga.materia_id,
@@ -2398,6 +2436,12 @@ def _detalle_de_carga(carga, fondo):
         # Clases en aula: la misma materia puede darse en dos calendarios (igual que en el PDF).
         "calendario_nombre": nombre_calendario_en_fondo(carga.calendario, fondo) if carga.calendario_id else None,
         "es_de_otra_carrera": bool(carga.calendario_id) and carga.calendario.carrera_id != fondo.carrera_id,
+        "calendario_id": carga.calendario_id,
+        # Programa analítico (PDF) de la materia en ese calendario, solo en clases en aula.
+        "programa_analitico_url": (
+            programas.get((carga.materia_id, carga.calendario_id))
+            if carga.tipo_actividad == 'clases_aula' else None
+        ),
     }
 
 
@@ -2405,13 +2449,17 @@ def unidades_del_fondo(fondo):
     """Las 7 unidades del fondo: su total es la suma de sus ítems (horas por año), su
     porcentaje es ese total sobre las horas efectivas, y detalles_carga son sus ítems."""
     detalles = {tipo: [] for tipo, _nombre in UNIDADES_FONDO}
+    programas = {
+        (programa.materia_id, programa.calendario_id): programa.archivo.url
+        for programa in fondo.programas_analiticos.all()
+    }
     totales = dict.fromkeys(detalles, 0)
     # Orden fijo: por inicio del calendario (los ítems sin calendario al final) y por alta.
     cargas = fondo.cargas.select_related('materia', 'calendario__carrera').order_by(
         F('calendario__fecha_inicio').asc(nulls_last=True), 'id',
     )
     for carga in cargas:
-        detalles[carga.categoria].append(_detalle_de_carga(carga, fondo))
+        detalles[carga.categoria].append(_detalle_de_carga(carga, fondo, programas))
         totales[carga.categoria] += carga.horas
     horas_efectivas = Decimal(str(fondo.horas_efectivas or 0))
     return [
@@ -2436,15 +2484,6 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
     total_asignado = serializers.SerializerMethodField()
     informe_actual = serializers.SerializerMethodField()
     
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        request = self.context.get('request')
-        # Para docentes, la URL del programa analítico es de solo lectura (ver/clic pero no editar)
-        perfil = get_effective_profile(request.user, request) if request else None
-        if perfil and perfil.rol == 'docente':
-            self.fields['programa_analitico_url'].read_only = True
-    # Aseguramos que se devuelva la URL como string explícito
-    programa_analitico_url = serializers.URLField(required=False, allow_blank=True)
     descripcion = serializers.CharField(read_only=True)
 
     class Meta:
@@ -2530,13 +2569,12 @@ class FondoTiempoListSerializer(serializers.ModelSerializer):
     porcentaje_completado = serializers.SerializerMethodField()
     total_asignado = serializers.SerializerMethodField()
     # Aseguramos que se devuelva la URL como string explícito
-    programa_analitico_url = serializers.URLField(read_only=True)
     
     class Meta:
         model = FondoTiempo
         fields = ['id', 'docente', 'docente_nombre', 'carrera', 'carrera_nombre', 
                   'gestion', 'descripcion', 'total_asignado', 'horas_efectivas',
-                  'porcentaje_completado', 'estado', 'programa_analitico_url']
+                  'porcentaje_completado', 'estado']
 
     def get_total_asignado(self, obj):
         if not hasattr(obj, '_total_asignado_calculado'):
@@ -4084,10 +4122,10 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     carrera = CarreraSerializer(read_only=True)
     # Calendarios de la carrera en la gestión del fondo (para asignar materias).
     calendarios = serializers.SerializerMethodField()
+    programas_analiticos_faltantes = serializers.SerializerMethodField()
     
     estado_display = serializers.CharField(source='get_estado_display', read_only=True)
     # Aseguramos que se devuelva la URL como string explícito
-    programa_analitico_url = serializers.URLField(read_only=True)
     
     # Propiedades calculadas
     porcentaje_completado = serializers.SerializerMethodField()
@@ -4118,7 +4156,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             'contrato_horas',
             'horas_efectivas', 'total_asignado',
             'estado', 'estado_display', 'observaciones',
-            'tiene_programa_analitico', 'programa_analitico_url',
+            'programas_analiticos_faltantes',
             'fecha_presentacion', 'fecha_aprobacion', 'fecha_validacion',
             'aprobado_por', 'validado_por',
             'archivado', 'comentarios_admin',
@@ -4135,7 +4173,6 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'estado', 'horas_efectivas',
             'fecha_aprobacion', 'fecha_validacion',
-            'programa_analitico_url'
         ]
     
     def get_total_asignado(self, obj):
@@ -4160,6 +4197,9 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
         if obj.docente:
             return obj.docente.calcular_antiguedad(obj.fecha_referencia_antiguedad())
         return 0
+
+    def get_programas_analiticos_faltantes(self, obj):
+        return obj.programas_analiticos_faltantes()
 
     def get_calendarios(self, obj):
         return CalendarioAcademicoSerializer(

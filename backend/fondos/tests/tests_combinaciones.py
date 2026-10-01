@@ -204,9 +204,9 @@ class AutoaprobacionTests(UsuariosBaseTestCase):
 
         response = self.client.patch(f'/api/fondos-tiempo/{fondo.pk}/presentar-a-director/', {}, format='json')
 
-        # No se le prohíbe por ser su fondo: falla solo por requisitos del fondo (programa analítico).
+        # No se le prohíbe por ser su fondo: falla solo por requisitos del fondo (unidades vacías).
         self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
-        self.assertIn('Programa Analítico', str(response.data))
+        self.assertIn('La suma de las unidades', str(response.data))
 
     def _con_informe(self, fondo):
         self._estado(fondo, 'informe_presentado')

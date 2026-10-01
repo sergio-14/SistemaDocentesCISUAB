@@ -942,15 +942,6 @@ class FondoTiempo(models.Model):
     estado = models.CharField(max_length=30, choices=ESTADO_CHOICES, default='borrador')
     observaciones = models.TextField(blank=True)
     
-    # Programa analítico
-    tiene_programa_analitico = models.BooleanField(
-        default=False,
-        help_text="Indica si se adjuntó el programa analítico (obligatorio Art. 15)"
-    )
-    programa_analitico_url = models.URLField(
-        blank=True,
-        help_text="URL del programa analítico (Google Drive, etc.)"
-    )
     fecha_presentacion = models.DateTimeField(
         blank=True,
         null=True,
@@ -1239,9 +1230,8 @@ class FondoTiempo(models.Model):
                 # Auditoria 2026-09-12: la lista original solo cubria 7 campos
                 # (docente, carrera, gestion, periodo, horas_vacacion,
                 # horas_feriados, horas_efectivas) y dejaba editables campos
-                # como horas_semana, contrato_horas,
-                # tiene_programa_analitico, programa_analitico_url y
-                # observaciones aunque el fondo ya estuviera presentado.
+                # como horas_semana, contrato_horas y observaciones aunque el
+                # fondo ya estuviera presentado.
                 #
                 # `observaciones` (texto libre en el propio FondoTiempo) se
                 # incluye aqui como bloqueado: los comentarios reales del
@@ -1264,7 +1254,7 @@ class FondoTiempo(models.Model):
                     'docente', 'carrera', 'gestion',
                     'horas_semana',
                     'horas_vacacion', 'horas_feriados', 'contrato_horas', 'horas_efectivas',
-                    'observaciones', 'tiene_programa_analitico', 'programa_analitico_url',
+                    'observaciones',
                 ]
 
                 cambios_detectados = False
@@ -1312,6 +1302,24 @@ class FondoTiempo(models.Model):
             for fila in self.cargas.values('categoria').annotate(total=models.Sum('horas'))
         }
 
+    def programas_analiticos_faltantes(self):
+        """Mensajes de las materias de clases en aula (por calendario) sin programa analítico."""
+        subidos = set(self.programas_analiticos.values_list('materia_id', 'calendario_id'))
+        faltantes, vistos = [], set()
+        clases = self.cargas.filter(tipo_actividad='clases_aula', calendario__isnull=False).select_related(
+            'materia', 'calendario__carrera',
+        ).order_by('calendario__fecha_inicio', 'id')
+        for carga in clases:
+            clave = (carga.materia_id, carga.calendario_id)
+            if clave in subidos or clave in vistos:
+                continue
+            vistos.add(clave)
+            faltantes.append(
+                f'Falta el programa analítico de {carga.materia.nombre} '
+                f'({nombre_calendario_en_fondo(carga.calendario, self)})'
+            )
+        return faltantes
+
     @property
     def total_asignado(self):
         """Suma de todas las unidades (horas por año). Para presentar debe ser igual a horas_efectivas."""
@@ -1349,6 +1357,47 @@ def evidencia_upload_path(instance, filename):
         return f'fondos/evidencias_actividades/docente_{docente_id}/gestion_{gestion}/{categoria_tipo}/{filename}'
     except Exception:
         return f'fondos/evidencias_actividades/sin_clasificar/{filename}'
+
+def programa_analitico_upload_path(instance, filename):
+    """Ruta: fondos/programas_analiticos/docente_<id>/gestion_<año>/<sigla>_calendario_<id>.pdf"""
+    fondo = instance.fondo
+    return (
+        f'fondos/programas_analiticos/docente_{fondo.docente_id}/gestion_{fondo.gestion}/'
+        f'{instance.materia.sigla}_calendario_{instance.calendario_id}.pdf'
+    )
+
+
+class ProgramaAnalitico(models.Model):
+    """Programa analítico de una materia (Art. 15 y 18): un PDF por materia y calendario
+    del fondo; los paralelos de esa materia en ese calendario lo comparten."""
+
+    TAMANO_MAXIMO_MB = 10
+
+    fondo = models.ForeignKey(FondoTiempo, on_delete=models.CASCADE, related_name='programas_analiticos')
+    materia = models.ForeignKey(Materia, on_delete=models.PROTECT, related_name='programas_analiticos')
+    calendario = models.ForeignKey(CalendarioAcademico, on_delete=models.PROTECT, related_name='programas_analiticos')
+    archivo = models.FileField(upload_to=programa_analitico_upload_path, validators=[FileExtensionValidator(['pdf'])])
+    subido_por = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='programas_analiticos_subidos',
+    )
+    fecha_subida = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Programa analítico'
+        verbose_name_plural = 'Programas analíticos'
+        constraints = [
+            models.UniqueConstraint(fields=['fondo', 'materia', 'calendario'], name='programa_analitico_unico'),
+        ]
+
+    def __str__(self):
+        return f'{self.materia.nombre} - {self.calendario}'
+
+
+@receiver(post_delete, sender=ProgramaAnalitico)
+def borrar_archivo_de_programa_analitico(sender, instance, **kwargs):
+    if instance.archivo:
+        instance.archivo.storage.delete(instance.archivo.name)
+
 
 class CargaHoraria(models.Model):
     """Asignación de horas a un docente por parte de una autoridad (Jefe de Estudios)."""
@@ -1495,6 +1544,21 @@ def informe_adjunto_upload_path(instance, filename):
 
 def informe_evidencia_upload_path(instance, filename):
     return f'{_carpeta_informe(instance)}/evidencias/{filename}'
+
+
+@receiver(post_save, sender=CargaHoraria)
+@receiver(post_delete, sender=CargaHoraria)
+def quitar_programas_analiticos_sin_clases(sender, instance, **kwargs):
+    """Al quitar o cambiar la última clase de una materia en un calendario, su programa
+    analítico deja de corresponder al fondo y se borra (con su archivo)."""
+    if not instance.fondo_id:
+        return
+    clases = CargaHoraria.objects.filter(
+        fondo_id=instance.fondo_id, tipo_actividad='clases_aula',
+        materia_id=models.OuterRef('materia_id'), calendario_id=models.OuterRef('calendario_id'),
+    )
+    for programa in ProgramaAnalitico.objects.filter(fondo_id=instance.fondo_id).exclude(models.Exists(clases)):
+        programa.delete()
 
 
 class EvidenciaCargaHoraria(models.Model):

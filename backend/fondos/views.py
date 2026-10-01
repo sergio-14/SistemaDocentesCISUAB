@@ -25,7 +25,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import (
     Docente, Carrera, Materia, FondoTiempo, PerfilUsuario, CargaHoraria,
     CalendarioAcademico, Proyecto, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo,
-    SaldoVacacionesGestion, FacultadCatalogo, DatosLaborales, DocenteCarrera, EvidenciaCargaHoraria,
+    SaldoVacacionesGestion, FacultadCatalogo, DatosLaborales, DocenteCarrera, EvidenciaCargaHoraria, ProgramaAnalitico,
     AsignacionCarrera,
 )
 from .serializers import (
@@ -40,7 +40,7 @@ from .serializers import (
     FondoTiempoDetalleSerializer,
     AprobarFondoSerializer, ObservarFondoSerializer,
     SaldoVacacionesGestionSerializer, DatosLaboralesSerializer,
-    CustomTokenObtainPairSerializer, EvidenciaCargaHorariaSerializer,
+    CustomTokenObtainPairSerializer, EvidenciaCargaHorariaSerializer, ProgramaAnaliticoSerializer,
     # Validadores estructurales de asignación (blindaje de reactivación, normativa UABJB)
     validar_unicidad_cargo_por_carrera,
     ROLES_UNICOS_POR_CARRERA,
@@ -1162,6 +1162,50 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
         instance.delete()
 
 # =====================================================
+# PROGRAMA ANALÍTICO (Art. 15 y 18)
+# =====================================================
+
+class ProgramaAnaliticoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.GenericViewSet):
+    """POST /api/programas-analiticos/: sube o reemplaza el PDF del programa analítico de
+    una materia en un calendario del fondo. Lo hacen el superusuario y el Jefe de
+    Estudios de la carrera de la materia, con el fondo en borrador u observado."""
+    queryset = ProgramaAnalitico.objects.all()
+    serializer_class = ProgramaAnaliticoSerializer
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        datos = serializer.validated_data
+        fondo, materia, calendario = datos['fondo'], datos['materia'], datos['calendario']
+
+        if not request.user.is_superuser:
+            perfil = _obtener_perfil_efectivo(request.user, request)
+            if not (perfil and perfil.rol == 'jefe_estudios'
+                    and _usuario_tiene_acceso_a_carrera(request.user, calendario.carrera, request)):
+                raise PermissionDenied(
+                    f'Solo el Jefe de Estudios de {calendario.carrera.nombre} sube el programa analítico de esta materia.'
+                )
+        if fondo.archivado or fondo.estado not in ['borrador', 'observado']:
+            raise PermissionDenied('El programa analítico solo se sube con el fondo en borrador u observado.')
+
+        programa = ProgramaAnalitico.objects.filter(fondo=fondo, materia=materia, calendario=calendario).first()
+        anterior = programa.archivo.name if programa and programa.archivo else None
+        if programa is None:
+            programa = ProgramaAnalitico(fondo=fondo, materia=materia, calendario=calendario)
+        if anterior:
+            # Reemplazo: se borra el PDF anterior para que el nuevo quede con el mismo nombre.
+            programa.archivo.storage.delete(anterior)
+        programa.archivo = datos['archivo']
+        programa.subido_por = request.user
+        programa.save()
+        return Response(
+            self.get_serializer(programa).data,
+            status=status.HTTP_200_OK if anterior else status.HTTP_201_CREATED,
+        )
+
+# =====================================================
 # EVIDENCIA DE CARGA HORARIA VIEWSET
 # =====================================================
 
@@ -2051,11 +2095,10 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        if not fondo.tiene_programa_analitico:
-            return Response(
-                {'error': 'Debe adjuntar el Programa Analítico antes de presentar al Director. Es un requisito reglamentario obligatorio (Art. 15).'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Art. 15 y 18: un programa analítico por materia y calendario de clases en aula.
+        faltantes = fondo.programas_analiticos_faltantes()
+        if faltantes:
+            return Response({'error': '. '.join(faltantes) + '.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # La suma de todas las unidades debe ser exactamente las horas efectivas.
         total_unidades = Decimal(fondo.total_asignado)

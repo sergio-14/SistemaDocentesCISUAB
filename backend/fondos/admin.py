@@ -197,10 +197,6 @@ class FondoTiempoAdmin(admin.ModelAdmin):
             ),
             'classes': ('collapse',)
         }),
-        ('Programa Analítico (Art. 15, 18)', {
-            'fields': ('tiene_programa_analitico', 'programa_analitico_url'),
-            'description': 'Programa analítico obligatorio para presentación'
-        }),
         ('Control de Estado', {
             'fields': (
                 'estado', 'fecha_presentacion', 'fecha_aprobacion',
@@ -252,10 +248,11 @@ class FondoTiempoAdmin(admin.ModelAdmin):
     porcentaje_badge.short_description = '% Completado'
     
     def programa_badge(self, obj):
-        if obj.tiene_programa_analitico:
-            return mark_safe('<span style="color: green; font-weight: bold;">✓ Sí</span>')
-        return mark_safe('<span style="color: red;">✗ No</span>')
-    programa_badge.short_description = 'Programa'
+        faltantes = len(obj.programas_analiticos_faltantes())
+        if not faltantes:
+            return mark_safe('<span style="color: green; font-weight: bold;">✓ Completos</span>')
+        return mark_safe(f'<span style="color: red;">✗ Faltan {faltantes}</span>')
+    programa_badge.short_description = 'Programas analíticos'
 
 
 # =====================================================

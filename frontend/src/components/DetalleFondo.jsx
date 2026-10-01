@@ -213,14 +213,10 @@ const VidaUniversitariaIcon = (props) => (
   </svg>
 );
 
-const ExternalLinkIcon = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-  </svg>
-);
 import toast from 'react-hot-toast';
 import EstadoTimeline from './fondos/EstadoTimeline';
 import EvidenciaActividadModal from './EvidenciaActividadModal';
+import ProgramaAnaliticoAccion from './fondos/ProgramaAnaliticoAccion';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
 const CATEGORIAS_BLOQUEADAS = [];
@@ -493,6 +489,10 @@ function DetalleFondo() {
     try {
       if (!unidadesCompletas) {
         toast.error(`La suma de las unidades debe ser exactamente ${horasEfectivasAnuales} horas (horas efectivas).`);
+        return;
+      }
+      if (programasFaltantes.length > 0) {
+        toast.error(motivoPresentacionBloqueada);
         return;
       }
 
@@ -768,11 +768,18 @@ function DetalleFondo() {
   const horasEfectivasAnuales = Math.round(Number(fondo.horas_efectivas || 0));
   const totalUnidades = Math.round(Number(fondo.total_asignado || 0));
   const unidadesCompletas = horasEfectivasAnuales > 0 && totalUnidades === horasEfectivasAnuales;
-  const tieneProgramaAnalitico = Boolean(fondo.tiene_programa_analitico);
-  const puedeConfirmarPresentacion = unidadesCompletas && tieneProgramaAnalitico;
+  // Art. 15 y 18: cada materia de clases en aula (por calendario) necesita su programa analítico.
+  const programasFaltantes = fondo.programas_analiticos_faltantes || [];
+  const puedeConfirmarPresentacion = unidadesCompletas && programasFaltantes.length === 0;
   const motivoPresentacionBloqueada = !unidadesCompletas
     ? `Unidades: ${totalUnidades} de ${horasEfectivasAnuales} h/año (deben sumar exactamente las horas efectivas)`
-    : (!tieneProgramaAnalitico ? 'Debe adjuntar el Programa Analítico antes de presentar al Director' : '');
+    : programasFaltantes.join('. ');
+  // Lo suben el superusuario y el Jefe de Estudios de la carrera de la materia (las de
+  // otra carrera, desde la pantalla de esa Jefatura) mientras el fondo se puede corregir.
+  const puedeSubirPrograma = (detalle) => (
+    ['borrador', 'observado'].includes(fondo.estado) && !fondo.archivado
+    && (esSuperAdmin || (esJefeEstudios && !detalle.es_de_otra_carrera))
+  );
 
   const ocultarDetallePorBorradorDirector = esDirector && !esSuperAdmin && fondo.estado === 'borrador';
 
@@ -1226,18 +1233,6 @@ function DetalleFondo() {
                     )}
                     {/* Acciones rápidas superiores */}
                     <div className="space-y-2 pb-2 border-b border-slate-200 dark:border-slate-700">
-                      {fondo.tiene_programa_analitico && fondo.programa_analitico_url && (
-                        <a
-                          href={fondo.programa_analitico_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-full py-2 rounded-xl font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 flex justify-center items-center gap-2 border border-blue-200 dark:border-blue-800 transition-all shadow-sm hover:shadow-md group text-xs"
-                        >
-                          <ExternalLinkIcon className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
-                          Programa Analítico
-                        </a>
-                      )}
-
                       <button
                         onClick={abrirPdfEnNuevaPestana}
                         className="w-full py-2 rounded-xl font-bold text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 dark:from-indigo-700 dark:to-blue-700 dark:hover:from-indigo-800 dark:hover:to-blue-800 shadow-md hover:shadow-lg flex justify-center items-center gap-2 transition-all text-xs border border-indigo-500 dark:border-indigo-600"
@@ -1470,6 +1465,16 @@ function DetalleFondo() {
                                         <tr key={dIdx} className="border-b border-slate-200 dark:border-slate-800/50 hover:bg-blue-50/30 dark:hover:bg-blue-900/10 last:border-0 transition-colors">
                                           <td className="px-6 py-3.5 text-sm text-slate-700 dark:text-slate-300 font-medium">
                                             <ActividadAsignadaCell detalle={detalle} />
+                                            {detalle.tipo_actividad === 'clases_aula' && (
+                                              <ProgramaAnaliticoAccion
+                                                fondoId={fondo.id}
+                                                materiaId={detalle.materia_id}
+                                                calendarioId={detalle.calendario_id}
+                                                url={detalle.programa_analitico_url}
+                                                puedeSubir={puedeSubirPrograma(detalle)}
+                                                onSubido={() => cargarDetalle({ silencioso: true })}
+                                              />
+                                            )}
                                           </td>
                                           <td className="px-6 py-3.5 text-sm text-slate-600 dark:text-slate-400">{detalle.tipo_actividad_display || '-'}</td>
                                           <td className="px-6 py-3.5 text-sm font-bold text-slate-800 dark:text-white text-right">{detalle.horas}</td>
@@ -1547,6 +1552,16 @@ function DetalleFondo() {
                                             <tr key={dIdx} className="border-b border-slate-200 dark:border-slate-800/50 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
                                               <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 font-medium">
                                                 <ActividadAsignadaCell detalle={detalle} />
+                                                {detalle.tipo_actividad === 'clases_aula' && (
+                                                  <ProgramaAnaliticoAccion
+                                                    fondoId={fondo.id}
+                                                    materiaId={detalle.materia_id}
+                                                    calendarioId={detalle.calendario_id}
+                                                    url={detalle.programa_analitico_url}
+                                                    puedeSubir={puedeSubirPrograma(detalle)}
+                                                    onSubido={() => cargarDetalle({ silencioso: true })}
+                                                  />
+                                                )}
                                               </td>
                                               <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
                                                 {detalle.tipo_actividad_display || '-'}

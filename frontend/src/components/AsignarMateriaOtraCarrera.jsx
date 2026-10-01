@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import api from '../apis/api';
 import { getApiErrorMessage } from '../utils/formErrors';
+import ProgramaAnaliticoAccion from './fondos/ProgramaAnaliticoAccion';
 
 // Doble carrera: el Jefe de Estudios asigna una materia de SU carrera a un docente de otra.
 // La carga va al Fondo de Tiempo del docente en su carrera, que este Jefe no ve: aquí solo
@@ -257,7 +258,17 @@ const AsignarMateriaOtraCarrera = () => {
                 <tbody>
                   {cargas.map((carga) => (
                     <tr key={carga.id} className="border-t border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
-                      <td className="px-2 py-1">{`${carga.materia_sigla} - ${carga.materia_nombre} (${carga.paralelo})`}</td>
+                      <td className="px-2 py-1">
+                        {`${carga.materia_sigla} - ${carga.materia_nombre} (${carga.paralelo})`}
+                        <ProgramaAnaliticoAccion
+                          fondoId={carga.fondo}
+                          materiaId={carga.materia}
+                          calendarioId={carga.calendario}
+                          url={carga.programa_analitico_url}
+                          puedeSubir={['borrador', 'observado'].includes(carga.fondo_estado)}
+                          onSubido={() => cargarCargas(docente.id)}
+                        />
+                      </td>
                       <td className="px-2 py-1">{nombreCalendario(carga.calendario)}</td>
                       <td className="px-2 py-1 capitalize">{`${carga.dia_semana} ${(carga.hora_inicio || '').slice(0, 5)}-${(carga.hora_fin || '').slice(0, 5)}`}</td>
                       <td className="px-2 py-1 text-right font-semibold">{carga.horas}</td>

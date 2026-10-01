@@ -3397,7 +3397,10 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         
         user.set_password(password)
         user.save()
-        
+        # Contraseña puesta por otra persona: el usuario la cambia en su siguiente ingreso.
+        if user != request.user:
+            actualizar_con_historial(PerfilUsuario.objects.filter(user=user), debe_cambiar_password=not user.is_superuser)
+
         return Response({'success': 'Contraseña actualizada correctamente'})
 
     @action(detail=True, methods=['post'], permission_classes=[IsFullAdminOrDirectorCarrera])
@@ -3407,9 +3410,7 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         nueva_password = f"{user.username}UABJB"
         user.set_password(nueva_password)
         user.save()
-        if hasattr(user, 'perfil'):
-            user.perfil.debe_cambiar_password = True
-            user.perfil.save()
+        actualizar_con_historial(PerfilUsuario.objects.filter(user=user), debe_cambiar_password=not user.is_superuser)
         return Response({'success': f'Contraseña restablecida correctamente a: {nueva_password}'})
 
     @action(detail=True, methods=['post'], permission_classes=[IsFullAdminOrDirectorCarrera])

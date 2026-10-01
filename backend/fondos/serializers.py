@@ -1164,7 +1164,6 @@ def _ensure_docente_role_for_user(user, docente=None, carrera=None, force_primar
         defaults={
             'rol': 'docente',
             'activo': user.is_active,
-            'debe_cambiar_password': False,
         }
     )
 
@@ -1185,9 +1184,6 @@ def _ensure_docente_role_for_user(user, docente=None, carrera=None, force_primar
     if perfil.activo != user.is_active:
         perfil.activo = user.is_active
         campos.append('activo')
-    if perfil.debe_cambiar_password:
-        perfil.debe_cambiar_password = False
-        campos.append('debe_cambiar_password')
     if campos:
         perfil.save(update_fields=campos)
 
@@ -2026,7 +2022,6 @@ class DocenteSerializer(serializers.ModelSerializer):
                 carrera=carrera,
                 telefono='',
                 activo=True,
-                debe_cambiar_password=False,
             )
 
         DocenteCarrera.objects.update_or_create(
@@ -2105,7 +2100,6 @@ class DocenteSerializer(serializers.ModelSerializer):
                         'carrera': carrera,
                         'telefono': '',
                         'activo': True,
-                        'debe_cambiar_password': False,
                     }
                 )
             else:
@@ -3011,7 +3005,7 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
                 perfil.ci = ci
                 perfil.telefono = ''
                 perfil.activo = True
-                perfil.debe_cambiar_password = False
+                perfil.debe_cambiar_password = True
                 perfil.save()
             elif perfil_ci_es_reutilizable(perfil_ci, rol):
                 perfil = perfil_ci
@@ -3026,7 +3020,7 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
                 perfil.ci = ci
                 perfil.telefono = ''
                 perfil.activo = True
-                perfil.debe_cambiar_password = False
+                perfil.debe_cambiar_password = True
                 perfil.save()
             elif not perfil_actual_usuario:
                 # Crear DatosLaborales si es administrativo puro y no hay perfil previo
@@ -3050,7 +3044,7 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
                     ci=ci,
                     telefono='',
                     activo=True,
-                    debe_cambiar_password=False
+                    debe_cambiar_password=True
                 )
             else:
                 # Perfil existe, actualizarlo y asegurar DatosLaborales para admin puro

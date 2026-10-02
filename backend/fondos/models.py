@@ -1067,6 +1067,16 @@ class FondoTiempo(models.Model):
         """True si el fondo es del propio usuario (su ficha de docente)."""
         return bool(self.docente_id and user and user.id in usuarios_del_docente(self.docente))
 
+    def puede_redactar_informe(self, user, perfil):
+        """True si el usuario guarda y presenta el informe de este fondo: el superusuario
+        o el docente dueño trabajando con su rol de docente (``perfil`` es el efectivo)."""
+        if user.is_superuser:
+            return True
+        return bool(
+            perfil and perfil.rol == 'docente'
+            and self.docente_id and perfil.docente_id == self.docente_id
+        )
+
     def es_de_director_de_su_carrera(self):
         """True si el docente del fondo es el Director de la carrera del fondo."""
         if not self.docente_id:

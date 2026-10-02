@@ -1848,9 +1848,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         fondo = self.get_object()
 
         perfil = _obtener_perfil_efectivo(request.user, request)
-        if not request.user.is_superuser:
-            if not (perfil and perfil.rol == 'docente' and perfil.docente and fondo.docente_id == perfil.docente_id):
-                raise PermissionDenied("Solo el docente dueño del fondo puede editar su informe.")
+        if not fondo.puede_redactar_informe(request.user, perfil):
+            raise PermissionDenied("Solo el docente dueño del fondo puede editar su informe.")
 
         if fondo.estado != 'en_ejecucion':
             return Response(
@@ -1948,12 +1947,12 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         Director con presentar-a-director."""
         fondo = self.get_object()
         
-        # Verificar que sea el docente dueño del fondo
+        # Solo el docente dueño (con su rol de docente) o el superusuario: Jefatura
+        # y Dirección no redactan ni presentan el informe de otro docente.
         perfil = _obtener_perfil_efectivo(request.user, request)
-        if not request.user.is_superuser and perfil and perfil.rol == 'docente':
-            if not perfil.docente or fondo.docente != perfil.docente:
-                raise PermissionDenied("No puede presentar fondos de otros docentes")
-        
+        if not fondo.puede_redactar_informe(request.user, perfil):
+            raise PermissionDenied("Solo el docente dueño del fondo puede presentar su informe.")
+
         if fondo.estado != 'en_ejecucion':
             return Response(
                 {'error': 'Solo se presenta el informe con el fondo en ejecución. El fondo lo presenta Jefatura al Director.'},
@@ -2288,12 +2287,9 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         """
         fondo = self.get_object()
         
-        # Verificar que sea el docente dueño del fondo
         perfil = _obtener_perfil_efectivo(request.user, request)
-        if not perfil or perfil.rol != 'docente' or not perfil.docente:
-            raise PermissionDenied("Solo el docente titular puede presentar el informe final.")
-        if fondo.docente_id != perfil.docente.id:
-            raise PermissionDenied("No puede presentar informes de otros docentes")
+        if not fondo.puede_redactar_informe(request.user, perfil):
+            raise PermissionDenied("Solo el docente dueño del fondo puede presentar su informe.")
         
         # Validar estado actual
         if fondo.estado != 'en_ejecucion':

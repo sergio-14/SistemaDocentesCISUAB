@@ -54,7 +54,8 @@ def fecha_larga_es(fecha):
 def nombre_director(carrera):
     """Director(a) de la carrera según su asignación activa (la misma fuente que
     FondoTiempo.es_de_director_de_su_carrera): el rol base del perfil no sirve
-    para quien tiene varios cargos."""
+    para quien tiene varios cargos. El nombre va tal como está registrado (no se
+    fuerza a mayúsculas)."""
     if not carrera:
         return 'SIN DIRECTOR ASIGNADO'
     AsignacionCarrera = apps.get_model('fondos', 'AsignacionCarrera')
@@ -65,9 +66,9 @@ def nombre_director(carrera):
         return 'SIN DIRECTOR ASIGNADO'
     docente = asignacion.docente or getattr(getattr(asignacion.user, 'perfil', None), 'docente', None)
     if docente:
-        return docente.nombre_completo.upper()
+        return docente.nombre_completo
     nombre = asignacion.user.get_full_name().strip()
-    return (nombre or asignacion.user.username).upper()
+    return nombre or asignacion.user.username
 
 
 def dedicacion_docente(fondo):

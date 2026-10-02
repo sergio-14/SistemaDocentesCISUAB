@@ -679,30 +679,25 @@ def _resolver_carrera_asignacion(valor_carrera):
     return Carrera.objects.filter(pk=valor_carrera).first()
 
 
-def _rol_usuario_solicitante(user):
-    perfil = getattr(user, 'perfil', None)
+def _rol_usuario_solicitante(user, request=None):
+    """Rol ACTIVO de quien hace la petición (no el rol base del perfil)."""
+    perfil = get_effective_profile(user, request) if user else None
     return getattr(perfil, 'rol', None)
 
 
-def _carreras_gestionables_director(user):
+def _carreras_gestionables_director(user, request=None):
+    """Carreras donde el usuario gestiona usuarios: None (todas) para el superusuario;
+    las de su rol activo de Director; ninguna con cualquier otro rol activo."""
     if not user or not getattr(user, 'is_authenticated', False):
         return Carrera.objects.none()
 
     if user.is_superuser:
         return None
 
-    perfil = getattr(user, 'perfil', None)
-    if not perfil or perfil.rol != 'director':
+    if _rol_usuario_solicitante(user, request) != 'director':
         return Carrera.objects.none()
 
-    carreras = perfil.get_carreras_activas() if hasattr(perfil, 'get_carreras_activas') else Carrera.objects.none()
-    if carreras.exists():
-        return carreras
-
-    if perfil.carrera_id:
-        return Carrera.objects.filter(pk=perfil.carrera_id)
-
-    return Carrera.objects.none()
+    return get_active_careers_for_user(user, request)
 
 
 def _ids_carreras_gestionables(carreras_gestionables):
@@ -769,7 +764,7 @@ def _guardar_resolucion_jefe(user, archivo):
 MENSAJE_CARRERA_DEL_EDITOR = 'Solo el superusuario elige la carrera: los usuarios que creas o editas son de tu carrera.'
 
 
-def _aplicar_carrera_del_editor(data, asignaciones, current_user, editando=False):
+def _aplicar_carrera_del_editor(data, asignaciones, current_user, editando=False, request=None):
     """Quien no es superusuario (el Director) no elige carrera: es la suya.
 
     Completa la carrera de cada rol que no la trae y rechaza cualquier otra.
@@ -777,7 +772,7 @@ def _aplicar_carrera_del_editor(data, asignaciones, current_user, editando=False
     """
     if not current_user or not current_user.is_authenticated or current_user.is_superuser:
         return
-    carreras = _carreras_gestionables_director(current_user)
+    carreras = _carreras_gestionables_director(current_user, request)
     if carreras is None:
         return
     ids = list(carreras.values_list('id', flat=True))
@@ -2835,7 +2830,7 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
         if asignaciones and not all(isinstance(item, dict) for item in asignaciones):
             raise serializers.ValidationError({'asignaciones': 'Cada asignación debe ser un objeto con rol y carrera.'})
 
-        _aplicar_carrera_del_editor(data, asignaciones, current_user)
+        _aplicar_carrera_del_editor(data, asignaciones, current_user, request=request)
 
         bloques = [{
             'rol': data.get('rol'),
@@ -2845,9 +2840,9 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
         }] + asignaciones
         _rechazar_ficha_desde_usuarios(bloques)
 
-        carreras_gestionables = _carreras_gestionables_director(current_user)
+        carreras_gestionables = _carreras_gestionables_director(current_user, request)
         if current_user and not current_user.is_superuser:
-            if _rol_usuario_solicitante(current_user) != 'director':
+            if _rol_usuario_solicitante(current_user, request) != 'director':
                 raise serializers.ValidationError({
                     'detail': 'No tienes permiso para crear usuarios.'
                 })
@@ -3144,7 +3139,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
         """
         if not current_user or current_user.is_superuser:
             return
-        if _rol_usuario_solicitante(current_user) == 'director' and not datos_registrados_usuario(self.instance)['tiene_datos']:
+        if _rol_usuario_solicitante(current_user, self.context.get('request')) == 'director' and not datos_registrados_usuario(self.instance)['tiene_datos']:
             return
         principal = {
             'rol': data.get('rol', perfil_actual.rol if perfil_actual else None),
@@ -3279,7 +3274,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
         if asignaciones and not all(isinstance(item, dict) for item in asignaciones):
             raise serializers.ValidationError({'asignaciones': 'Cada asignación debe ser un objeto con rol y carrera.'})
 
-        _aplicar_carrera_del_editor(data, asignaciones, current_user, editando=True)
+        _aplicar_carrera_del_editor(data, asignaciones, current_user, editando=True, request=request)
 
         bloques = [{
             'rol': data.get('rol'),
@@ -3289,8 +3284,8 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
         }] + asignaciones
         _rechazar_ficha_desde_usuarios(bloques)
 
-        carreras_gestionables = _carreras_gestionables_director(current_user)
-        if current_user and not current_user.is_superuser and _rol_usuario_solicitante(current_user) == 'director':
+        carreras_gestionables = _carreras_gestionables_director(current_user, request)
+        if current_user and not current_user.is_superuser and _rol_usuario_solicitante(current_user, request) == 'director':
             _validar_bloques_en_carreras_gestionables(bloques, carreras_gestionables)
             self.context['carreras_gestionables'] = carreras_gestionables
             bloques_validacion = _combinar_bloques_con_asignaciones_externas(
@@ -3325,7 +3320,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
         )
         if solicita_cambio_rol and (
             not current_user
-            or (not current_user.is_superuser and _rol_usuario_solicitante(current_user) != 'director')
+            or (not current_user.is_superuser and _rol_usuario_solicitante(current_user, self.context.get('request')) != 'director')
         ):
             raise serializers.ValidationError({
                 'rol': 'Solo el Superusuario tiene la potestad de cambiar el rol de cualquier usuario en el sistema.'
@@ -4160,19 +4155,20 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
         ).data
 
     def get_puede_editar(self, obj):
+        """Mismas condiciones que FondoTiempoViewSet._puede_editar_fondo (rol activo):
+        superusuario, o Director / Jefe de Estudios de la carrera con el fondo en
+        borrador u observado. El docente no edita su fondo."""
         request = self.context.get('request')
-        if request and hasattr(request, 'user'):
-            perfil = get_effective_profile(request.user, request)
-            if request.user.is_superuser:
-                return True
-            if obj.estado not in ['borrador', 'observado']:
-                return False
-            if perfil and perfil.rol in ['director', 'jefe_estudios'] and request.user.is_staff:
-                return perfil.carrera_id == obj.carrera_id
-            if perfil and perfil.rol == 'docente' and perfil.docente:
-                return obj.docente_id == perfil.docente.id
-            return obj.puede_editar(request.user)
-        return False
+        if not request or not getattr(request, 'user', None):
+            return False
+        if request.user.is_superuser:
+            return True
+        if obj.estado not in ['borrador', 'observado']:
+            return False
+        perfil = get_effective_profile(request.user, request)
+        if not (perfil and perfil.rol in ['director', 'jefe_estudios']):
+            return False
+        return get_active_careers_for_user(request.user, request).filter(pk=obj.carrera_id).exists()
 
     def get_puede_editar_informe(self, obj):
         """Mismas condiciones que guardar-informe-borrador: el docente dueño (o el

@@ -1036,26 +1036,6 @@ class FondoTiempo(models.Model):
     def horas_disponibles(self):
         return self.horas_efectivas - self.total_asignado
     
-    def puede_editar(self, usuario):
-        """Determina si un usuario puede editar este fondo"""
-        if usuario.is_superuser:
-            return True
-
-        estados_editables = ['borrador', 'observado']
-
-        # Solo el staff con rol de gestión real puede editar.
-        if usuario.is_staff and hasattr(usuario, 'perfil') and usuario.perfil.rol in ['director', 'jefe_estudios']:
-            return self.estado in estados_editables
-        
-        # El docente dueño puede editar si el estado lo permite.
-        if hasattr(usuario, 'perfil') and usuario.perfil.docente:
-            return (
-                self.docente == usuario.perfil.docente and
-                self.estado in estados_editables
-            )
-        
-        return False
-    
     def _obtener_vinculo(self):
         """Obtiene el vínculo DocenteCarrera activo para este fondo."""
         if not self.docente_id or not self.carrera_id:

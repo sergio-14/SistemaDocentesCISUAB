@@ -1,14 +1,14 @@
 from rest_framework import viewsets, filters, status, generics, serializers as drf_serializers
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser, BasePermission
+from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
-from django.http import HttpResponse, FileResponse
+from django.http import Http404, HttpResponse, FileResponse
 from django.db import transaction, IntegrityError
 from django.db.models import Max, ProtectedError, prefetch_related_objects, Q
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -149,11 +149,17 @@ class IsFullAdmin(BasePermission):
             and request.user.is_superuser
         )
 
+def _rol_activo(request):
+    """Rol con el que trabaja el usuario (X-Active-Assignment), nunca el rol base del perfil."""
+    perfil = _obtener_perfil_efectivo(request.user, request)
+    return getattr(perfil, 'rol', None)
+
+
 class IsAdminOrDirector(BasePermission):
+    """Superusuario, o Director / Jefe de Estudios como rol activo."""
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_authenticated and (
-            request.user.is_superuser or 
-            (hasattr(request.user, 'perfil') and request.user.perfil.rol in ['director', 'jefe_estudios'])
+            request.user.is_superuser or _rol_activo(request) in ['director', 'jefe_estudios']
         ))
 
 
@@ -164,8 +170,7 @@ class IsFullAdminOrDirectorCarrera(BasePermission):
     """
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_authenticated and (
-            request.user.is_superuser
-            or (hasattr(request.user, 'perfil') and request.user.perfil.rol == 'director')
+            request.user.is_superuser or _rol_activo(request) == 'director'
         ))
 
 class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
@@ -553,18 +558,12 @@ class CarreraViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         if activo is not None:
             queryset = queryset.filter(activo=activo.strip().lower() in ('true', '1', 'si', 'yes'))
 
-        # Usuarios con permisos de gestión deben ver activas e inactivas.
         if self._is_superuser(user):
             return queryset
 
-        if self._can_edit_own_profile(user) or self._can_edit_logo_only(user):
-            carreras = _obtener_carreras_activas_usuario(user)
-            if carreras.exists():
-                return queryset.filter(id__in=carreras.values_list('id', flat=True))
-            return queryset.none()
-
-        # Para el resto, mantener solo carreras activas.
-        return queryset.filter(activo=True)
+        # Director, Jefe, Instituto y Docente: solo la carrera de su rol activo.
+        carreras = _obtener_carreras_activas_usuario(user, self.request)
+        return queryset.filter(id__in=carreras.values_list('id', flat=True))
 
     def get_permissions(self):
         # Crear y eliminar carreras: solo superusuario.
@@ -592,9 +591,10 @@ class CarreraViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         )
 
     def _rol_usuario(self, user):
-        if not user or not user.is_authenticated or not hasattr(user, 'perfil'):
+        """Rol activo del usuario (no el rol base del perfil)."""
+        if not user or not user.is_authenticated:
             return None
-        return user.perfil.rol
+        return _rol_activo(self.request)
 
     def _can_edit_logo_only(self, user):
         return self._rol_usuario(user) == 'jefe_estudios'
@@ -605,7 +605,7 @@ class CarreraViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     def _user_can_access_carrera(self, user, carrera):
         if self._is_superuser(user):
             return True
-        carreras = _obtener_carreras_activas_usuario(user)
+        carreras = _obtener_carreras_activas_usuario(user, self.request)
         return carreras.filter(pk=carrera.pk).exists()
 
     def _enforce_create_destroy_permission(self, request):
@@ -1078,9 +1078,8 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
         """
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             user = self.request.user
-            if not user.is_superuser:
-                if not hasattr(user, 'perfil') or user.perfil.rol != 'jefe_estudios':
-                    raise PermissionDenied("Solo Jefes de Estudio pueden modificar cargas horarias.")
+            if not user.is_superuser and _rol_activo(self.request) != 'jefe_estudios':
+                raise PermissionDenied("Solo Jefes de Estudio pueden modificar cargas horarias.")
         
         return super().get_permissions()
 
@@ -1533,7 +1532,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         if not perfil:
             return False
 
-        if perfil.rol in ['director', 'jefe_estudios'] and user.is_staff:
+        if perfil.rol in ['director', 'jefe_estudios']:
             return _usuario_tiene_acceso_a_carrera(user, fondo.carrera, self.request)
 
         return False
@@ -1732,9 +1731,10 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             status=status.HTTP_200_OK
         )
     
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrDirector])
     def agregar_comentario(self, request, pk=None):
-        """Agregar comentario administrativo"""
+        """Comentario administrativo: superusuario, o Director / Jefe de Estudios (rol
+        activo) de la carrera del fondo (get_object limita a su carrera)."""
         fondo = self.get_object()
         comentario = request.data.get('comentario', '')
         
@@ -2101,7 +2101,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         )
         return Response({'status': 'Fondo devuelto a borrador'}, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     @transaction.atomic
     def aprobar(self, request, pk=None):
         """Aprobar fondo (Director)"""
@@ -2230,8 +2230,9 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             return Response(self.get_serializer(fondo).data)
             
         except Exception as e:
-            # Si es una excepción de validación de DRF, la dejamos pasar para que el frontend la maneje
-            if hasattr(e, 'detail'):
+            # Excepciones de DRF (validación, permisos) y el 404 de un fondo fuera del
+            # alcance pasan tal cual: no son errores internos (antes daban 500).
+            if hasattr(e, 'detail') or isinstance(e, Http404):
                 raise e
             # Si es otro error interno, lo capturamos y devolvemos el detalle
             transaction.set_rollback(True)

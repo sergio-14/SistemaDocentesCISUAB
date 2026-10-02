@@ -2553,8 +2553,9 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         secciones que redacta el docente), como documento independiente del
         reporte de horas de 'pdf-oficial'.
         """
+        # Fuera del try: un fondo fuera del alcance del usuario debe dar 404, no 500.
+        fondo = self.get_object()
         try:
-            fondo = self.get_object()
             buffer = InformePDFGenerator.generar_informe_individual(fondo)
 
             nombre_docente = fondo.docente.nombre_completo.replace(' ', '_') if fondo.docente else 'Docente'

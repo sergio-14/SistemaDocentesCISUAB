@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Save, Eye, Send, Loader2, FileWarning, Lock } from 'lucide-react';
+import { ArrowLeft, Save, Eye, Send, Loader2, FileWarning, Lock, Download } from 'lucide-react';
 import api, { getFondoTiempoDetalle, guardarInformeBorrador } from '../apis/api';
-import { API_URL } from '../apis/apiConfig';
 import { getApiErrorMessage } from '../utils/formErrors';
 import useConsultaPeriodica from '../utils/useConsultaPeriodica';
 import InformeCampoRico from './InformeCampoRico';
@@ -135,31 +134,32 @@ export default function EditorInformePage() {
     return () => document.removeEventListener('visibilitychange', guardarAlOcultar);
   }, [soloLectura, cargando, guardarBorrador]);
 
-  const abrirPdfNuevaPestana = async () => {
+  // PDF del informe: en una pestaña nueva o descargado. Va por `api` para que
+  // lleve el rol activo (X-Active-Assignment), igual que el resto de pantallas.
+  const abrirPdf = async ({ descargar = false } = {}) => {
     try {
       setPrevisualizando(true);
       if (!soloLectura) {
         const guardado = await guardarBorrador({ silencioso: true });
         if (!guardado) return;
       }
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_URL}/fondos-tiempo/${id}/pdf-informe/`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!response.ok) throw new Error('No se pudo generar el PDF.');
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
+      const { data } = await api.get(`/fondos-tiempo/${id}/pdf-informe/`, { responseType: 'blob' });
+      const blobUrl = URL.createObjectURL(data);
       const link = document.createElement('a');
       link.href = blobUrl;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
+      if (descargar) {
+        link.download = `Informe_${(nombreDocente || 'Docente').replace(/\s+/g, '_')}_${fondo?.gestion || ''}.pdf`;
+      } else {
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+      }
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
     } catch (err) {
-      console.error('Error al generar la vista previa:', err);
-      toast.error('No se pudo generar la vista previa del PDF.');
+      console.error('Error al generar el PDF del informe:', err);
+      toast.error('No se pudo generar el PDF del informe.');
     } finally {
       setPrevisualizando(false);
     }
@@ -248,12 +248,20 @@ export default function EditorInformePage() {
                 </button>
               )}
               <button
-                onClick={abrirPdfNuevaPestana}
+                onClick={() => abrirPdf()}
                 disabled={previsualizando}
                 className="px-3.5 py-2 rounded-xl font-bold text-sm text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 border-2 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all flex items-center gap-2 disabled:opacity-60"
               >
                 {previsualizando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
                 Previsualizar
+              </button>
+              <button
+                onClick={() => abrirPdf({ descargar: true })}
+                disabled={previsualizando}
+                className="px-3.5 py-2 rounded-xl font-bold text-sm text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 border-2 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all flex items-center gap-2 disabled:opacity-60"
+              >
+                <Download className="w-4 h-4" />
+                Descargar PDF
               </button>
               {!soloLectura && (
                 <button
@@ -286,8 +294,9 @@ export default function EditorInformePage() {
               <div className="bg-emerald-50 dark:bg-emerald-900/20 border-l-4 border-emerald-500 p-4 rounded-r-lg flex items-start gap-3 mb-3">
                 <Lock className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                 <p className="text-sm text-emerald-800 dark:text-emerald-300">
-                  Informe {estadoInforme === 'aprobado' ? 'aprobado' : 'enviado'} - en espera de aprobación del Director.
-                  Ya no se puede editar, salvo que el Director solicite correcciones.
+                  {estadoInforme === 'aprobado'
+                    ? 'Informe aprobado por el Director: el Fondo de Tiempo está finalizado. Solo lectura.'
+                    : 'Informe enviado - en espera de la revisión del Director. Ya no se puede editar, salvo que el Director solicite correcciones.'}
                 </p>
               </div>
             )}

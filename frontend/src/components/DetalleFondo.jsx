@@ -1312,6 +1312,19 @@ function DetalleFondo() {
                       </button>
                     )}
 
+                    {/* Informe presentado o aprobado: solo lectura y PDF para todo el que ve el
+                        fondo (el backend ya limita el detalle: docente dueño, Jefe, Director e
+                        Instituto de la carrera, superusuario). */}
+                    {['informe_presentado', 'finalizado'].includes(fondo.estado) && (
+                      <button
+                        onClick={() => window.open(`/fondos/${fondo.id}/informe`, '_blank', 'noopener,noreferrer')}
+                        className="w-full py-2 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/30 flex justify-center items-center gap-2 transition-all hover:scale-[1.02] text-xs"
+                      >
+                        <DocumentTextIcon className="w-3.5 h-3.5" />
+                        Ver Informe
+                      </button>
+                    )}
+
                     {/* ADMIN: Evaluar Informe */}
                     {fondo.estado === 'informe_presentado' && esRevisorDelFondo && (
                       <div className="space-y-1.5">
@@ -1319,7 +1332,7 @@ function DetalleFondo() {
                           onClick={() => setMostrarModalInforme(true)}
                           className="w-full py-1.5 rounded-xl font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 transition-colors text-xs"
                         >
-                          Ver Informe
+                          Revisar Informe
                         </button>
                         <button
                           onClick={() => setMostrarFormEvaluarInforme(true)}

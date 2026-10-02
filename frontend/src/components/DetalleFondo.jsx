@@ -13,7 +13,6 @@ const getVinculoCarrera = (docente, carreraId) => {
   if (!docente?.vinculos) return null;
   return docente.vinculos.find(v => String(v.carrera) === String(carreraId)) || docente.vinculos[0] || null;
 };
-import FormularioPresentarInforme from './FormularioPresentarInforme';
 import FormularioEvaluarInforme from './FormularioEvaluarInforme';
 import ThemeToggle from './ThemeToggle';
 import CargaHorariaManager from './CargaHorariaManager';
@@ -253,7 +252,6 @@ function DetalleFondo() {
   const contenedorRef = useRef(null);
   const refWidgetReferencia = useRef(null);
   const refWidgetAcciones = useRef(null);
-  const [mostrarFormPresentarInforme, setMostrarFormPresentarInforme] = useState(false);
   const [mostrarFormEvaluarInforme, setMostrarFormEvaluarInforme] = useState(false);
   const [mostrarModalIniciarEjecucion, setMostrarModalIniciarEjecucion] = useState(false);
   const [mostrarModalInforme, setMostrarModalInforme] = useState(false);
@@ -337,7 +335,6 @@ function DetalleFondo() {
   // Evita overlays residuales al entrar a otro detalle
   useEffect(() => {
     setMostrarFormObservar(false);
-    setMostrarFormPresentarInforme(false);
     setMostrarFormEvaluarInforme(false);
     setMostrarModalAprobar(false);
     setMostrarModalIniciarEjecucion(false);
@@ -348,7 +345,6 @@ function DetalleFondo() {
   useEffect(() => {
     return () => {
       setMostrarFormObservar(false);
-      setMostrarFormPresentarInforme(false);
       setMostrarFormEvaluarInforme(false);
       setMostrarModalAprobar(false);
       setMostrarModalIniciarEjecucion(false);
@@ -1648,22 +1644,6 @@ function DetalleFondo() {
         />,
         document.body
       )}
-
-      {/* ============================================ */}
-      {/* NUEVO: Modal Presentar Informe */}
-      {/* ============================================ */}
-      {
-        fondo && mostrarFormPresentarInforme && (
-          <FormularioPresentarInforme
-            fondoId={fondo.id}
-            onInformePresentado={async () => {
-              setMostrarFormPresentarInforme(false);
-              await cargarDetalle({ silencioso: true });
-            }}
-            onCancelar={() => setMostrarFormPresentarInforme(false)}
-          />
-        )
-      }
 
       {/* ============================================ */}
       {/* NUEVO: Modal Evaluar Informe */}

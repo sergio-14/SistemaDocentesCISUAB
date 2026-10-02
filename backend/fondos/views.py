@@ -14,7 +14,6 @@ from django.db.models import Max, ProtectedError, prefetch_related_objects, Q
 from django.core.exceptions import ValidationError as DjangoValidationError
 from datetime import datetime, date
 from decimal import Decimal
-import json
 import io
 from .utils.carrera_pdf_generator import CarreraPDFGenerator
 from .utils.pdf_generator import FondoPDFGenerator, InformePDFGenerator
@@ -24,7 +23,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import (
     Docente, Carrera, Materia, FondoTiempo, PerfilUsuario, CargaHoraria,
-    CalendarioAcademico, Proyecto, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo,
+    CalendarioAcademico, Proyecto, InformeFondo, ObservacionFondo, MensajeObservacion, HistorialFondo,
     SaldoVacacionesGestion, FacultadCatalogo, DatosLaborales, DocenteCarrera, ProgramaAnalitico,
     AsignacionCarrera,
 )
@@ -2281,115 +2280,6 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         
         output_serializer = FondoTiempoDetalleSerializer(fondo, context={'request': request})
         return Response(output_serializer.data)
-
-
-    @action(detail=True, methods=['post'], url_path='presentar-informe')
-    @transaction.atomic
-    def presentar_informe(self, request, pk=None):
-        """
-        Presentar informe de cumplimiento al finalizar el semestre
-        Solo el docente puede hacerlo
-        Estado: en_ejecucion → informe_presentado
-        """
-        fondo = self.get_object()
-        
-        perfil = _obtener_perfil_efectivo(request.user, request)
-        if not fondo.puede_redactar_informe(request.user, perfil):
-            raise PermissionDenied("Solo el docente dueño del fondo puede presentar su informe.")
-        
-        # Validar estado actual
-        if fondo.estado != 'en_ejecucion':
-            return Response(
-                {'error': f'Solo se pueden presentar informes de fondos en ejecución. Estado actual: {fondo.get_estado_display()}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Validar datos del informe
-        actividades_realizadas = request.data.get('actividades_realizadas', '').strip()
-        logros = request.data.get('logros', '').strip()
-        dificultades = request.data.get('dificultades', '').strip()
-        evidencia = request.FILES.get('evidencia') or request.FILES.get('archivo_adjunto')
-        
-        if not actividades_realizadas or len(actividades_realizadas) < 50:
-            return Response(
-                {'error': 'Debe describir las actividades realizadas (mínimo 50 caracteres)'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        if not logros or len(logros) < 30:
-            return Response(
-                {'error': 'Debe describir los logros alcanzados (mínimo 30 caracteres)'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Crear el informe
-        informe = InformeFondo.objects.create(
-            fondo_tiempo=fondo,
-            tipo='final',
-            resumen_ejecutivo=actividades_realizadas[:500],
-            actividades_realizadas=actividades_realizadas,
-            resultados=logros,
-            logros=logros,
-            dificultades=dificultades,
-            elaborado_por=request.user,
-            fecha_elaboracion=timezone.localdate(),
-            evidencia=evidencia,
-            archivo_adjunto=evidencia
-        )
-
-        asignaturas_raw = request.data.get('asignaturas') or request.data.get('materias') or '[]'
-        if isinstance(asignaturas_raw, str):
-            try:
-                asignaturas_data = json.loads(asignaturas_raw)
-            except json.JSONDecodeError:
-                asignaturas_data = []
-        else:
-            asignaturas_data = asignaturas_raw if isinstance(asignaturas_raw, list) else []
-
-        def entero_no_negativo(valor):
-            try:
-                return max(int(valor or 0), 0)
-            except (TypeError, ValueError):
-                return 0
-
-        InformeAsignaturaEjecutada.objects.filter(fondo_tiempo=fondo).delete()
-        for asignatura in asignaturas_data:
-            if not isinstance(asignatura, dict):
-                continue
-            nombre_materia = str(asignatura.get('nombre_materia') or asignatura.get('nombre') or '').strip()
-            if not nombre_materia:
-                continue
-            InformeAsignaturaEjecutada.objects.create(
-                fondo_tiempo=fondo,
-                nombre_materia=nombre_materia,
-                inscritos=entero_no_negativo(asignatura.get('inscritos')),
-                aprobados=entero_no_negativo(asignatura.get('aprobados')),
-                reprobados=entero_no_negativo(asignatura.get('reprobados')),
-                habilitados=entero_no_negativo(asignatura.get('habilitados')),
-            )
-        
-        # Cambiar estado del fondo
-        estado_anterior = fondo.estado
-        fondo.estado = 'informe_presentado'
-        fondo.fecha_informe = timezone.now()
-        fondo.save()
-        
-        # Registrar en historial
-        HistorialFondo.objects.create(
-            fondo_tiempo=fondo,
-            usuario=request.user,
-            tipo_cambio='informe_presentado',
-            descripcion=f'Docente presentó informe de cumplimiento (ID: {informe.id})',
-            estado_anterior=estado_anterior,
-            estado_nuevo=fondo.estado
-        )
-        
-        output_serializer = FondoTiempoDetalleSerializer(fondo, context={'request': request})
-        return Response({
-            'fondo': output_serializer.data,
-            'informe_id': informe.id,
-            'message': 'Informe presentado exitosamente'
-        })
 
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated], url_path='evaluar-y-finalizar')

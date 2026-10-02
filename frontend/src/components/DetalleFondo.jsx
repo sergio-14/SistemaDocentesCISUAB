@@ -253,7 +253,6 @@ function DetalleFondo() {
   const contenedorRef = useRef(null);
   const refWidgetReferencia = useRef(null);
   const refWidgetAcciones = useRef(null);
-  const [esStaff, setEsStaff] = useState(false);
   const [mostrarFormPresentarInforme, setMostrarFormPresentarInforme] = useState(false);
   const [mostrarFormEvaluarInforme, setMostrarFormEvaluarInforme] = useState(false);
   const [mostrarModalIniciarEjecucion, setMostrarModalIniciarEjecucion] = useState(false);
@@ -410,15 +409,6 @@ function DetalleFondo() {
       setObservacionesPendientes(pendientes);
       estadoFondoRef.current = response.data.estado;
       observacionesPendientesRef.current = pendientes;
-
-      // Verificar si el usuario es staff/director
-      try {
-        const userResponse = await api.get('/usuario/');
-        setEsStaff(userResponse.data.is_staff || false);
-      } catch (userErr) {
-        console.warn('No se pudo verificar permisos de usuario:', userErr);
-        setEsStaff(false);
-      }
 
       if (!silencioso) setLoading(false);
     } catch (err) {
@@ -1310,8 +1300,9 @@ function DetalleFondo() {
                     )}
 
                     {/* DOCENTE: Presentar Informe - página dedicada, no modal */}
-                    {/* En ejecución el informe no está presentado; presentarlo pasa el fondo a informe_presentado. */}
-                    {fondo.estado === 'en_ejecucion' && fondo.informe_actual?.estado !== 'enviado' && !esStaff && (
+                    {/* Lo decide el backend con el rol activo (docente dueño, fondo en ejecución,
+                        informe sin enviar): User.is_staff no sirve, un Jefe también es docente. */}
+                    {fondo.puede_editar_informe && (
                       <button
                         onClick={() => window.open(`/fondos/${fondo.id}/informe`, '_blank', 'noopener,noreferrer')}
                         className="w-full py-2 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/30 flex justify-center items-center gap-2 transition-all hover:scale-[1.02] text-xs"

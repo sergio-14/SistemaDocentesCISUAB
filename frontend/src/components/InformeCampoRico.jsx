@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
 import { useInformeDocumento } from './InformeDocumentoContext';
+import { sanitizarHtmlInforme } from '../utils/sanitizarHtmlInforme';
 
 const TAMANOS_IMAGEN_PRESET = [
   { etiqueta: 'S', titulo: 'Pequeña (200px)', ancho: 200 },
@@ -53,12 +54,25 @@ export default function InformeCampoRico({ value, onChange, placeholder = 'Escri
     const el = editorRef.current;
     if (!el) return;
     if (!enFocoRef.current && el.innerHTML !== (value || '')) {
-      el.innerHTML = value || '';
+      el.innerHTML = sanitizarHtmlInforme(value);
     }
   }, [value]);
 
   const emitirCambio = () => {
     if (editorRef.current) onChange(editorRef.current.innerHTML);
+  };
+
+  // Lo pegado (de Word, de una web...) entra limpio: solo el formato que el
+  // editor admite, sin scripts, estilos ni atributos extraños.
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const html = e.clipboardData.getData('text/html');
+    if (html) {
+      document.execCommand('insertHTML', false, sanitizarHtmlInforme(html));
+    } else {
+      document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+    }
+    emitirCambio();
   };
 
   const guardarSeleccion = () => {
@@ -238,6 +252,7 @@ export default function InformeCampoRico({ value, onChange, placeholder = 'Escri
         onFocus={handleFocus}
         onBlur={handleBlur}
         onInput={emitirCambio}
+        onPaste={handlePaste}
         onClick={handleClickEditor}
         onMouseUp={guardarSeleccion}
         onKeyUp={guardarSeleccion}

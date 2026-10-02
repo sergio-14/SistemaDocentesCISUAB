@@ -93,7 +93,7 @@ export default function InformeFormatToolbar() {
       for (let c = 0; c < columnas; c += 1) {
         const esEncabezado = f === 0;
         const tag = esEncabezado ? 'th' : 'td';
-        const fondo = esEncabezado ? 'background:#f1f5f9;' : '';
+        const fondo = esEncabezado ? 'background-color:#f1f5f9;' : '';
         const contenido = esEncabezado ? `Columna ${c + 1}` : '&nbsp;';
         html += `<${tag} style="border:1px solid #94a3b8;padding:6px;min-width:60px;${fondo}">${contenido}</${tag}>`;
       }

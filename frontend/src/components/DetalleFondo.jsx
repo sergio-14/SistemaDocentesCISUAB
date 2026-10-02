@@ -18,6 +18,7 @@ import FormularioEvaluarInforme from './FormularioEvaluarInforme';
 import ThemeToggle from './ThemeToggle';
 import CargaHorariaManager from './CargaHorariaManager';
 import { getApiErrorMessage } from '../utils/formErrors';
+import { sanitizarHtmlInforme } from '../utils/sanitizarHtmlInforme';
 import { FileText as ArchivoIcon, Check as CheckIcon, Trash2 as TrashIcon, AlertTriangle as AlertTriangleIcon, Info as InfoIcon, Send as SendIcon, EyeOff as EyeOffIcon, X as XIcon, Plus as PlusIcon, ChevronDown as ChevronDownIcon, ChevronUp as ChevronUpIcon, Pencil as PencilIcon, Calendar as CalendarIcon, User as UserIcon } from 'lucide-react';
 import { Eye, CheckCircle2, FileDown } from 'lucide-react';
 
@@ -1867,7 +1868,7 @@ function DetalleFondo() {
                         </div>
                         <div
                           className="p-4 text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line [&_img]:max-w-full [&_img]:rounded-lg [&_img]:my-2 [&_ul]:list-disc [&_ul]:pl-5"
-                          dangerouslySetInnerHTML={{ __html: fondo.informe_actual[campo] }}
+                          dangerouslySetInnerHTML={{ __html: sanitizarHtmlInforme(fondo.informe_actual[campo]) }}
                         />
                       </div>
                     )

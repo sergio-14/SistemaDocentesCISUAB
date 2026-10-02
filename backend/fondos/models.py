@@ -1748,11 +1748,13 @@ class InformeFondo(models.Model):
         return f"Informe {self.get_tipo_display()} - {self.fondo_tiempo.docente.nombre_completo}"
 
     def save(self, *args, **kwargs):
-        # Las imágenes insertadas en el editor llegan en base64: se guardan como
-        # archivos en media y en la BD queda solo la ruta (ver informe_imagenes).
+        # El HTML del editor se limpia contra XSS (ver informe_html). Las imágenes
+        # insertadas llegan en base64: se guardan como archivos en media y en la
+        # BD queda solo la ruta (ver informe_imagenes).
+        from fondos.utils.informe_html import sanitizar_campos_informe
         from fondos.utils.informe_imagenes import extraer_imagenes_informe, limpiar_imagenes_huerfanas
 
-        cambiados = extraer_imagenes_informe(self)
+        cambiados = sanitizar_campos_informe(self) + extraer_imagenes_informe(self)
         if cambiados and kwargs.get('update_fields') is not None:
             kwargs['update_fields'] = set(kwargs['update_fields']) | set(cambiados)
         super().save(*args, **kwargs)

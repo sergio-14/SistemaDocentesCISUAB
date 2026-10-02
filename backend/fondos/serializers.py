@@ -10,6 +10,7 @@ from .models import UNIDADES_FONDO, actualizar_con_historial, nombre_calendario_
 from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, PerfilUsuario, AsignacionCarrera, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, ProgramaAnalitico
 from .role_context import get_active_assignment, get_active_careers_for_user, get_effective_profile, serialize_assignment
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
+from .utils.informe_html import CAMPOS_HTML_RICO_INFORME, sanitizar_html_informe
 from .utils.informe_imagenes import CAMPOS_HTML_INFORME, firmar_imagenes_html
 from .utils.archivos import es_pdf
 from django.db.models import F, Q, Sum
@@ -3809,6 +3810,11 @@ class InformeFondoSerializer(serializers.ModelSerializer):
         for campo in CAMPOS_TEXTO_INFORME:
             if not (data.get(campo) or '').strip():
                 data[campo] = defaults.get(campo, '')
+        # El HTML se entrega limpio también al leer: cubre informes guardados
+        # antes de que se limpiara al guardar.
+        for campo in CAMPOS_HTML_RICO_INFORME:
+            if data.get(campo):
+                data[campo] = sanitizar_html_informe(data[campo])
         # Las imágenes del editor se guardan en media con su ruta canónica: se
         # entregan como URL firmada para que el navegador las pueda cargar.
         request = self.context.get('request')

@@ -52,20 +52,22 @@ def fecha_larga_es(fecha):
 
 
 def nombre_director(carrera):
+    """Director(a) de la carrera según su asignación activa (la misma fuente que
+    FondoTiempo.es_de_director_de_su_carrera): el rol base del perfil no sirve
+    para quien tiene varios cargos."""
     if not carrera:
         return 'SIN DIRECTOR ASIGNADO'
-    PerfilUsuario = apps.get_model('fondos', 'PerfilUsuario')
-    perfil_director = PerfilUsuario.objects.filter(
-        carrera=carrera, rol='director', activo=True,
-    ).select_related('docente', 'user').first()
-    if not perfil_director:
+    AsignacionCarrera = apps.get_model('fondos', 'AsignacionCarrera')
+    asignacion = AsignacionCarrera.objects.filter(
+        carrera=carrera, rol='director', activo=True, user__isnull=False,
+    ).select_related('docente', 'user').order_by('id').first()
+    if not asignacion:
         return 'SIN DIRECTOR ASIGNADO'
-    if perfil_director.docente:
-        return perfil_director.docente.nombre_completo.upper()
-    if perfil_director.user:
-        nombre = perfil_director.user.get_full_name().strip()
-        return (nombre or perfil_director.user.username).upper()
-    return 'SIN DIRECTOR ASIGNADO'
+    docente = asignacion.docente or getattr(getattr(asignacion.user, 'perfil', None), 'docente', None)
+    if docente:
+        return docente.nombre_completo.upper()
+    nombre = asignacion.user.get_full_name().strip()
+    return (nombre or asignacion.user.username).upper()
 
 
 def dedicacion_docente(fondo):
@@ -132,23 +134,30 @@ def cargo_firma_docente(fondo, cargo_dedicacion):
     return f'DOCENTE {etiqueta} – {codigo_puntos}'
 
 
-def asignatura_principal_html(fondo):
-    """Nombres de materias del docente, en negrita y unidos en prosa ('A y
-    B' / 'A, B y C'), como HTML ya escapado listo para un Paragraph/editor."""
-    cargas = fondo.cargas.filter(categoria='academica').select_related('materia')
+def asignaturas_dictadas_html(fondo):
+    """'la asignatura de <b>A</b>' / 'las asignaturas de <b>A</b>, <b>B</b> y <b>C</b>'
+    (HTML ya escapado) con las materias de las Clases en aula del fondo: una vez
+    cada una aunque se dicte en los dos semestres; las de otra carrera llevan su
+    carrera entre paréntesis."""
+    cargas = fondo.cargas.filter(
+        tipo_actividad='clases_aula', materia__isnull=False,
+    ).select_related('materia__carrera').order_by('calendario__fecha_inicio', 'id')
     materias = []
     vistos = set()
     for carga in cargas:
-        if not carga.materia or carga.materia_id in vistos:
+        materia = carga.materia
+        if materia.pk in vistos:
             continue
-        vistos.add(carga.materia_id)
-        materias.append(carga.materia.nombre)
+        vistos.add(materia.pk)
+        nombre = f'<b>{escape(materia.nombre)}</b>'
+        if materia.carrera_id != fondo.carrera_id and materia.carrera:
+            nombre += f' ({escape(materia.carrera.nombre)})'
+        materias.append(nombre)
     if not materias:
         return 'las asignaturas asignadas'
-    nombres = [f'<b>{escape(nombre)}</b>' for nombre in materias]
-    if len(nombres) == 1:
-        return nombres[0]
-    return ', '.join(nombres[:-1]) + f' y {nombres[-1]}'
+    if len(materias) == 1:
+        return f'la asignatura de {materias[0]}'
+    return 'las asignaturas de ' + ', '.join(materias[:-1]) + f' y {materias[-1]}'
 
 
 def construir_defaults_informe(fondo):
@@ -163,7 +172,7 @@ def construir_defaults_informe(fondo):
     cargo_docente = f'Docente a {dedicacion_texto}' if dedicacion_texto else 'Docente'
     cargo_destinatario = cargo_gestion_docente(fondo) or cargo_docente
     email_docente = fondo.docente.correo_institucional if fondo.docente else ''
-    asignatura_principal = asignatura_principal_html(fondo) if fondo.docente else 'sus asignaturas asignadas'
+    asignaturas = asignaturas_dictadas_html(fondo) if fondo.docente else 'las asignaturas asignadas'
     cargo_firma = cargo_firma_docente(fondo, cargo_docente)
 
     abreviatura_texto = f' ({dedicacion_abrev})' if dedicacion_abrev else ''
@@ -179,10 +188,9 @@ def construir_defaults_informe(fondo):
     saludo_intro_html = (
         '<p>Señor Director:</p>'
         '<p>En cumplimiento al Reglamento de Control y Distribución del tiempo de la Docencia de la U.A.B.J.B., '
-        f'en mi calidad de docente con dedicación a {escape(dedicacion_intro)}{abreviatura_texto}, dicto la '
-        f'Asignatura de {asignatura_principal} del área de Tecnologías de Información y Comunicación y '
-        'de acuerdo a la planificación presentada al inicio de la gestión académica para las 7 unidades de '
-        f'medida establecidas, es que, al culminar el semestre de la gestión {escape(gestion_texto)} paso a '
+        f'en mi calidad de docente con dedicación a {escape(dedicacion_intro)}{abreviatura_texto}, dicto '
+        f'{asignaturas} y de acuerdo a la planificación presentada al inicio de la gestión académica para '
+        f'las 7 unidades de medida establecidas, es que, al culminar la gestión {escape(gestion_texto)} paso a '
         'informar lo siguiente:</p>'
     )
 

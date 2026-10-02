@@ -369,13 +369,14 @@ export default function EditorInformePage() {
                     value={informeData.destinatario_nombre}
                     onChange={(v) => handleCampoChange('destinatario_nombre', v)}
                     placeholder="Nombre del Director"
-                    className="block"
+                    bloque
                   />
                   <InformeCampoPlano
                     value={informeData.destinatario_cargo}
                     onChange={(v) => handleCampoChange('destinatario_cargo', v)}
                     placeholder="Cargo del Director"
-                    className="block font-bold"
+                    bloque
+                    className="font-bold"
                   />
                 </div>
               </div>
@@ -386,13 +387,14 @@ export default function EditorInformePage() {
                     value={informeData.remitente_nombre}
                     onChange={(v) => handleCampoChange('remitente_nombre', v)}
                     placeholder="Nombre del docente"
-                    className="block"
+                    bloque
                   />
                   <InformeCampoPlano
                     value={informeData.remitente_cargo}
                     onChange={(v) => handleCampoChange('remitente_cargo', v)}
                     placeholder="Cargo del docente"
-                    className="block font-bold"
+                    bloque
+                    className="font-bold"
                   />
                 </div>
               </div>
@@ -446,19 +448,22 @@ export default function EditorInformePage() {
                   value={informeData.firma_nombre}
                   onChange={(v) => handleCampoChange('firma_nombre', v)}
                   placeholder="Nombre del docente"
-                  className="block italic text-[16px]"
+                  bloque
+                  className="italic text-[16px]"
                 />
                 <InformeCampoPlano
                   value={informeData.firma_cargo}
                   onChange={(v) => handleCampoChange('firma_cargo', v)}
                   placeholder="Cargo del docente"
-                  className="block font-bold"
+                  bloque
+                  className="font-bold"
                 />
                 <InformeCampoPlano
                   value={informeData.firma_email}
                   onChange={(v) => handleCampoChange('firma_email', v)}
                   placeholder="E-mail"
-                  className="block text-[11px] text-[#0563C1] underline"
+                  bloque
+                  className="text-[11px] text-[#0563C1] underline"
                 />
               </div>
             </div>

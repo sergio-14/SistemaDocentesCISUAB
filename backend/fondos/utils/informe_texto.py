@@ -165,7 +165,8 @@ def construir_defaults_informe(fondo):
     editables del Informe (ver CAMPOS_TEXTO_INFORME), calculado a partir de
     los datos reales de Docente/Carrera/Director en este momento."""
     nombre_direct = nombre_director(fondo.carrera)
-    nombre_docente = fondo.docente.nombre_completo.upper() if fondo.docente else 'SIN DOCENTE ASIGNADO'
+    # El nombre tal como está registrado (no se fuerza a mayúsculas).
+    nombre_docente = fondo.docente.nombre_completo if fondo.docente else 'SIN DOCENTE ASIGNADO'
     carrera_nombre = fondo.carrera.nombre.upper() if fondo.carrera else 'CARRERA'
     gestion_texto = str(fondo.gestion) if fondo.gestion else ''
     dedicacion_texto, dedicacion_abrev = dedicacion_docente(fondo)

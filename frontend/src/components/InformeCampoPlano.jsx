@@ -10,7 +10,7 @@ import { useInformeDocumento } from './InformeDocumentoContext';
  * no activan la barra de formato ni aceptan HTML pegado. `multilinea`
  * habilita saltos de línea (usado solo en el encabezado institucional).
  */
-export default function InformeCampoPlano({ value, onChange, placeholder = '', className = '', multilinea = false }) {
+export default function InformeCampoPlano({ value, onChange, placeholder = '', className = '', multilinea = false, bloque = false }) {
   const ref = useRef(null);
   const enFocoRef = useRef(false);
   const { setCampoActivo, soloLectura } = useInformeDocumento();
@@ -58,8 +58,10 @@ export default function InformeCampoPlano({ value, onChange, placeholder = '', c
       // gane sobre "inline-block" en la misma cadena de clases (misma
       // especificidad CSS), asi que el encabezado (multilinea, con
       // text-center del padre) quedaba angosto y pegado a la izquierda en
-      // vez de centrado en todo el ancho.
-      className={`informe-campo-editable informe-campo-plano min-w-[2ch] rounded px-1 -mx-1 focus:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 dark:empty:before:text-slate-500 ${soloLectura ? '' : 'hover:bg-blue-50/60 dark:hover:bg-blue-900/10 focus:bg-blue-50/80 dark:focus:bg-blue-900/20 focus:ring-1 focus:ring-blue-300 dark:focus:ring-blue-700'} ${multilinea ? 'block w-full whitespace-pre-line' : 'inline-block whitespace-normal break-words'} ${className}`}
+      // vez de centrado en todo el ancho. Por lo mismo, `bloque` (una línea
+      // propia, p. ej. nombre y cargo uno debajo del otro) se decide aquí: un
+      // "block" pasado en className dejaba el cargo pegado al nombre.
+      className={`informe-campo-editable informe-campo-plano min-w-[2ch] rounded px-1 -mx-1 focus:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 dark:empty:before:text-slate-500 ${soloLectura ? '' : 'hover:bg-blue-50/60 dark:hover:bg-blue-900/10 focus:bg-blue-50/80 dark:focus:bg-blue-900/20 focus:ring-1 focus:ring-blue-300 dark:focus:ring-blue-700'} ${multilinea ? 'block w-full whitespace-pre-line' : bloque ? 'block w-full whitespace-normal break-words' : 'inline-block whitespace-normal break-words'} ${className}`}
     />
   );
 }

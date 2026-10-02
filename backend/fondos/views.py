@@ -86,12 +86,13 @@ def _usuario_tiene_acceso_a_carrera(user, carrera, request=None):
 
 
 def _docentes_por_carreras(carreras):
-    """Docentes de esas carreras: con su vínculo (ficha) o una asignación activa en ellas."""
+    """Docentes con vínculo activo en esas carreras. Los de otra carrera (doble
+    carrera) no salen en listas ni detalles: solo en DocenteViewSet.buscar, con
+    nombre y últimos 4 dígitos del C.I."""
     if not carreras:
         return Docente.objects.none()
     return Docente.objects.filter(
-        Q(vinculos_carrera__carrera__in=carreras, vinculos_carrera__activo=True)
-        | Q(asignaciones_carrera__carrera__in=carreras, asignaciones_carrera__activo=True)
+        vinculos_carrera__carrera__in=carreras, vinculos_carrera__activo=True,
     ).distinct()
 
 
@@ -254,22 +255,18 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         # Superusuario ve todos los docentes sin restricciones
         if user.is_superuser:
             return aplicar_filtros_selector(Docente.objects.all())
-        
-        # Admin y Director de carrera ven docentes de sus carreras activas
-        if hasattr(user, 'perfil') and user.perfil.rol in ['iiisyp', 'director']:
-            carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
-            if carreras_activas.exists():
-                return aplicar_filtros_selector(_docentes_por_carreras(carreras_activas))
-            return Docente.objects.none()
-        
-        # Jefe de Estudios ve todos los docentes (para gestión general)
-        es_jefe_estudios = hasattr(user, 'perfil') and user.perfil.rol == 'jefe_estudios'
-        if es_jefe_estudios:
-            return aplicar_filtros_selector(Docente.objects.all())
 
-        # Docente normal solo ve su propio perfil
-        if hasattr(user, 'perfil') and user.perfil.docente:
-            return aplicar_filtros_selector(Docente.objects.filter(id=user.perfil.docente.id))
+        # Director, Jefe de Estudios e Instituto (rol activo): solo los docentes con
+        # vínculo activo en su carrera. Antes el Jefe veía todos los de todas las carreras.
+        perfil = _obtener_perfil_efectivo(user, self.request)
+        if perfil and perfil.rol in ['iiisyp', 'director', 'jefe_estudios']:
+            return aplicar_filtros_selector(
+                _docentes_por_carreras(_obtener_carreras_activas_usuario(user, self.request))
+            )
+
+        # Docente: solo su propia ficha
+        if perfil and perfil.rol == 'docente' and perfil.docente_id:
+            return aplicar_filtros_selector(Docente.objects.filter(id=perfil.docente_id))
 
         return Docente.objects.none()
 
@@ -1767,10 +1764,11 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
                 'error': 'Se requieren los parámetros: docente, gestion1, gestion2'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        fondos = FondoTiempo.objects.filter(
+        # Dentro del alcance del usuario (get_queryset): antes devolvía los fondos de
+        # cualquier docente de cualquier carrera.
+        fondos = self.get_queryset().filter(
             docente_id=docente_id,
             gestion__in=[gestion1, gestion2],
-            archivado=False
         ).select_related('docente', 'carrera')
         
         serializer = self.get_serializer(fondos, many=True)
@@ -2508,9 +2506,9 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
 
     @action(detail=True, methods=['get'], url_path='pdf-oficial')
     def generar_pdf_oficial(self, request, pk=None):
+        # Fuera del try: un fondo fuera del alcance del usuario debe dar 404, no 500.
+        fondo = self.get_object()
         try:
-            fondo = self.get_object()
-
             checklist = self._build_checklist_salud_pdf(fondo)
             if not checklist['ok']:
                 return Response(
@@ -2963,17 +2961,19 @@ class HistorialFondoViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['-fecha']
     
     def get_queryset(self):
-        """Filtrar historial según el usuario"""
+        """Historial de los fondos al alcance del usuario (rol activo), como en los fondos:
+        superusuario todo; Director, Jefe e Instituto su carrera; docente sus fondos.
+        Antes cualquier staff veía el historial de todas las carreras."""
         queryset = super().get_queryset()
-        
-        # Si no es admin, solo ver historial de sus fondos
-        if not self.request.user.is_staff:
-            if hasattr(self.request.user, 'perfil') and self.request.user.perfil.docente:
-                queryset = queryset.filter(fondo_tiempo__docente=self.request.user.perfil.docente)
-            else:
-                queryset = queryset.none()
-        
-        return queryset
+        user = self.request.user
+        if user.is_superuser:
+            return queryset
+        perfil = _obtener_perfil_efectivo(user, self.request)
+        if perfil and perfil.rol in ['director', 'jefe_estudios', 'iiisyp']:
+            return queryset.filter(fondo_tiempo__carrera__in=_obtener_carreras_activas_usuario(user, self.request))
+        if perfil and perfil.rol == 'docente' and perfil.docente_id:
+            return queryset.filter(fondo_tiempo__docente_id=perfil.docente_id)
+        return queryset.none()
 
 
 # ============================================
@@ -3494,10 +3494,20 @@ def dashboard_stats(request):
     Retorna estadísticas rápidas para el dashboard de administración.
     """
     try:
-        user_count = User.objects.count()
-        docente_count = Docente.objects.count()
-        carrera_count = Carrera.objects.filter(activo=True).count()
-        
+        if request.user.is_superuser:
+            user_count = User.objects.count()
+            docente_count = Docente.objects.count()
+            carrera_count = Carrera.objects.filter(activo=True).count()
+        else:
+            # Roles de carrera: solo lo de sus carreras (mismas reglas que los listados).
+            carreras = _obtener_carreras_activas_usuario(request.user, request)
+            user_count = User.objects.filter(
+                Q(perfil__carrera__in=carreras)
+                | Q(asignaciones_carrera__carrera__in=carreras, asignaciones_carrera__activo=True)
+            ).distinct().count()
+            docente_count = _docentes_por_carreras(carreras).count()
+            carrera_count = carreras.filter(activo=True).count()
+
         stats = {
             'usuarios': user_count,
             'docentes': docente_count,

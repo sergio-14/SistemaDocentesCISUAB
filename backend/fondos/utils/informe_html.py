@@ -52,10 +52,25 @@ _PROPIEDADES_CSS = {
     'border', 'border-collapse',
 }
 
+# Las imágenes solo tienen tamaño; la alineación la da el bloque que las
+# envuelve (<div data-img-wrap style="text-align:...">). Sin margin, float ni
+# position no hay forma de colocarlas en otro sitio.
+_PROPIEDADES_CSS_IMAGEN = {'width', 'height'}
+
 # data: para las imágenes recién insertadas (base64); http(s) para las URL
 # firmadas de media que el editor reenvía. Las rutas relativas (/media/...)
 # se aceptan siempre.
 _ESQUEMAS_URL = {'http', 'https', 'data'}
+
+
+def _filtrar_atributo(etiqueta, atributo, valor):
+    if etiqueta == 'img' and atributo == 'style':
+        declaraciones = [
+            d.strip() for d in valor.split(';')
+            if d.split(':', 1)[0].strip().lower() in _PROPIEDADES_CSS_IMAGEN
+        ]
+        return ';'.join(declaraciones) or None
+    return valor
 
 
 def sanitizar_html_informe(html):
@@ -66,6 +81,7 @@ def sanitizar_html_informe(html):
         html,
         tags=_ETIQUETAS,
         attributes=_ATRIBUTOS,
+        attribute_filter=_filtrar_atributo,
         filter_style_properties=_PROPIEDADES_CSS,
         url_schemes=_ESQUEMAS_URL,
         strip_comments=True,

@@ -5,7 +5,7 @@ import { useInformeDocumento } from './InformeDocumentoContext';
 import { sanitizarHtmlInforme } from '../utils/sanitizarHtmlInforme';
 import {
   MAXIMO_IMAGENES_INFORME, MENSAJE_LIMITE_IMAGENES,
-  ajustarImagenInsertada, contarImagenesInforme, prepararImagenInforme, quitarImagenesNoAdmitidas,
+  ajustarImagenInsertada, contarImagenesInforme, prepararHtmlPegado, prepararImagenInforme,
 } from '../utils/imagenesInforme';
 
 const TAMANOS_IMAGEN_PRESET = [
@@ -99,7 +99,7 @@ export default function InformeCampoRico({ value, onChange, placeholder = 'Escri
       return;
     }
     if (html) {
-      const { html: limpio, quitadas } = quitarImagenesNoAdmitidas(sanitizarHtmlInforme(html));
+      const { html: limpio, quitadas } = prepararHtmlPegado(sanitizarHtmlInforme(html));
       if (quitadas > 0) {
         toast.error(
           'Se quitaron imágenes con dirección externa o en formato no admitido: guárdalas en tu equipo e insértalas con el botón Imagen.'
@@ -110,6 +110,21 @@ export default function InformeCampoRico({ value, onChange, placeholder = 'Escri
       document.execCommand('insertText', false, texto);
     }
     emitirCambio();
+  };
+
+  // Sin posicionamiento libre: una imagen no se arrastra a otro punto del
+  // texto (solo se alinea y redimensiona) y no se sueltan imágenes ni archivos
+  // (se insertan con el botón Imagen o pegándolas, que aplican las reglas).
+  const handleDragStart = (e) => {
+    if (e.target.tagName === 'IMG') e.preventDefault();
+  };
+
+  const handleDrop = (e) => {
+    const html = e.dataTransfer.getData('text/html');
+    if (e.dataTransfer.files.length > 0 || /<img\b/i.test(html)) {
+      e.preventDefault();
+      toast.error('Para agregar una imagen usa el botón Imagen o pégala; luego puedes alinearla y cambiar su tamaño.');
+    }
   };
 
   const guardarSeleccion = () => {
@@ -290,6 +305,8 @@ export default function InformeCampoRico({ value, onChange, placeholder = 'Escri
         onBlur={handleBlur}
         onInput={emitirCambio}
         onPaste={handlePaste}
+        onDragStart={handleDragStart}
+        onDrop={handleDrop}
         onClick={handleClickEditor}
         onMouseUp={guardarSeleccion}
         onKeyUp={guardarSeleccion}

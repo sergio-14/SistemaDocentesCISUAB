@@ -31,9 +31,14 @@ const PROPIEDADES_CSS = new Set([
   'border', 'border-collapse',
 ]);
 
+// Las imágenes solo tienen tamaño; la alineación la da el bloque que las
+// envuelve (<div data-img-wrap>). Sin margin, float ni position no se pueden
+// colocar en otro sitio.
+const PROPIEDADES_CSS_IMAGEN = new Set(['width', 'height']);
+
 const VALOR_CSS_PELIGROSO = /url\s*\(|expression\s*\(|javascript:/i;
 
-const filtrarEstilo = (estilo) => estilo
+const filtrarEstilo = (estilo, permitidas) => estilo
   .split(';')
   .map((declaracion) => declaracion.trim())
   .filter((declaracion) => {
@@ -41,15 +46,16 @@ const filtrarEstilo = (estilo) => estilo
     if (separador < 1) return false;
     const propiedad = declaracion.slice(0, separador).trim().toLowerCase();
     const valor = declaracion.slice(separador + 1);
-    return PROPIEDADES_CSS.has(propiedad) && !VALOR_CSS_PELIGROSO.test(valor);
+    return permitidas.has(propiedad) && !VALOR_CSS_PELIGROSO.test(valor);
   })
   .join('; ');
 
 // Instancia propia: el hook de estilos no afecta a otros usos de DOMPurify.
 const purificador = DOMPurify(window);
-purificador.addHook('uponSanitizeAttribute', (_nodo, datos) => {
+purificador.addHook('uponSanitizeAttribute', (nodo, datos) => {
   if (datos.attrName !== 'style') return;
-  datos.attrValue = filtrarEstilo(datos.attrValue || '');
+  const permitidas = nodo.nodeName === 'IMG' ? PROPIEDADES_CSS_IMAGEN : PROPIEDADES_CSS;
+  datos.attrValue = filtrarEstilo(datos.attrValue || '', permitidas);
   if (!datos.attrValue) datos.keepAttr = false;
 });
 

@@ -66,8 +66,12 @@ const esImagenPropia = (src) => {
   }
 };
 
-/** Quita del HTML pegado las imágenes externas o en formato no admitido. */
-export function quitarImagenesNoAdmitidas(html) {
+/**
+ * HTML pegado listo para insertar: quita las imágenes externas o en formato no
+ * admitido y deja cada imagen en su propio bloque alineable (como las que se
+ * insertan con el botón), para que solo se puedan alinear y redimensionar.
+ */
+export function prepararHtmlPegado(html) {
   const plantilla = document.createElement('template');
   plantilla.innerHTML = html;
   let quitadas = 0;
@@ -75,6 +79,14 @@ export function quitarImagenesNoAdmitidas(html) {
     if (!esImagenPropia(img.getAttribute('src') || '')) {
       img.remove();
       quitadas += 1;
+      return;
+    }
+    if (!img.parentElement?.hasAttribute('data-img-wrap')) {
+      const contenedor = document.createElement('div');
+      contenedor.setAttribute('data-img-wrap', '1');
+      contenedor.style.textAlign = 'left';
+      img.replaceWith(contenedor);
+      contenedor.appendChild(img);
     }
   });
   return { html: plantilla.innerHTML, quitadas };

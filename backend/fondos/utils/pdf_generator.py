@@ -495,6 +495,9 @@ class _InformeHTMLParser(HTMLParser):
             alineacion_imagen = self._alineacion_actual
             self._flush_parrafo()
             self._insertar_imagen(attrs_dict, alineacion_imagen)
+            # Lo que sigue dentro del mismo bloque (otra imagen, texto) conserva
+            # su alineación: sin esto la segunda imagen salía a la izquierda.
+            self._alineacion_actual = alineacion_imagen
 
     def handle_startendtag(self, tag, attrs):
         self.handle_starttag(tag, attrs)

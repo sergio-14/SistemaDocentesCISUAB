@@ -1285,7 +1285,7 @@ function DetalleFondo() {
                       </button>
                     )}
 
-                    {fondo.estado === 'aprobado_director' && esRevisorDelFondo && (
+                    {fondo.puede_iniciar_ejecucion && (
                       <button
                         onClick={() => setMostrarModalIniciarEjecucion(true)}
                         className="w-full py-2 rounded-xl font-bold text-white bg-purple-600 hover:bg-purple-700 shadow-lg shadow-purple-500/30 flex justify-center items-center gap-2 transition-all hover:scale-[1.02] text-xs"

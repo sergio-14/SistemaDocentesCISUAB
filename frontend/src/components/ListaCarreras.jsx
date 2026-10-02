@@ -6,6 +6,7 @@ import api from '../apis/api';
 import { EVENTO_CARRERAS_ACTUALIZADAS } from './common/AvisoCarreraInactiva';
 import toast from 'react-hot-toast';
 import { hoyBolivia } from '../utils/fechas';
+import { useActiveRole } from '../contexts/activeRole';
 import {
   ERROR_FIELD_BORDER_CLASS,
   ERROR_MOTION_CLASS,
@@ -1058,7 +1059,8 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
   const [carreras, setCarreras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [user, setUser] = useState(null);
+  // Usuario con su rol activo (contexto de rol).
+  const { effectiveUser: user, activeRole } = useActiveRole();
   const [facultadOptions, setFacultadOptions] = useState([]);
 
   // Modal de editar
@@ -1131,8 +1133,6 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
   useEffect(() => {
     cargarCarreras();
     cargarFacultades();
-    const userData = JSON.parse(localStorage.getItem('user') || 'null');
-    setUser(userData);
   }, []);
 
   const cargarFacultades = async () => {
@@ -1640,7 +1640,7 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
   };
 
   const esSuperusuario = () => user?.is_superuser === true;
-  const rolActual = user?.perfil?.rol;
+  const rolActual = activeRole;
   const esDirectorCarrera = () => rolActual === 'director';
   const puedeEditarInformacionCarrera = () => esSuperusuario() || esDirectorCarrera();
   const puedeEditarEstructura = () => esSuperusuario();

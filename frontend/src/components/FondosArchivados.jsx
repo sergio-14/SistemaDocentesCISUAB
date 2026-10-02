@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getFondosArchivados, restaurarFondo as restaurarFondoAPI } from '../apis/api';
+import { useActiveRole } from '../contexts/activeRole';
 
 function FondosArchivados() {
   const [archivados, setArchivados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [user, setUser] = useState(null);
+  // Rol activo (contexto de rol): igual que el backend al restaurar.
+  const { effectiveUser, activeRole } = useActiveRole();
   const navigate = useNavigate();
 
   useEffect(() => {
     cargarArchivados();
-    const userData = JSON.parse(localStorage.getItem('user') || 'null');
-    setUser(userData);
   }, []);
 
   const cargarArchivados = async () => {
@@ -226,7 +226,7 @@ function FondosArchivados() {
 
                     {/* Botones de acción */}
                     <div className="flex lg:flex-col gap-2">
-                      {(user?.is_superuser || ['director', 'jefe_estudios'].includes(user?.perfil?.rol)) && (
+                      {(effectiveUser?.is_superuser || ['director', 'jefe_estudios'].includes(activeRole)) && (
                         <button data-escritura
                           onClick={() => restaurarFondo(fondo.id, fondo.docente_nombre)}
                           className="flex-1 lg:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"

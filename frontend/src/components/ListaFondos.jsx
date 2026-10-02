@@ -62,7 +62,7 @@ function ListaFondos() {
 
   useEffect(() => {
     cargarFondos();
-    setUser(effectiveUser || JSON.parse(localStorage.getItem('user') || 'null'));
+    setUser(effectiveUser);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- se recarga al cambiar de rol activo.
   }, [activeAssignment?.id]);
 

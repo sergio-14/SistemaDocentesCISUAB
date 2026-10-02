@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import api, { getCarreras } from '../../apis/api';
 import toast from 'react-hot-toast';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useActiveRole } from '../../contexts/activeRole';
 import {
   ERROR_FIELD_BORDER_CLASS,
   getBackendErrorMessage,
@@ -675,14 +676,9 @@ const MateriaForm = ({ sidebarCollapsed = false }) => {
     });
     const [errors, setErrors] = useState({});
     const [errorPulse, setErrorPulse] = useState(0);
-    // Solo el superusuario elige la carrera; Director y Jefe usan la suya.
-    const esSuperAdmin = useMemo(() => {
-        try {
-            return JSON.parse(localStorage.getItem('user') || 'null')?.is_superuser === true;
-        } catch {
-            return false;
-        }
-    }, []);
+    // Solo el superusuario elige la carrera; Director y Jefe usan la suya (rol activo).
+    const { effectiveUser, activeRole } = useActiveRole();
+    const esSuperAdmin = effectiveUser?.is_superuser === true;
 
     const carreraOptions = (carreras || []).map((c) => ({
         value: String(c.id),
@@ -693,9 +689,8 @@ const MateriaForm = ({ sidebarCollapsed = false }) => {
         const searchParams = new URLSearchParams(location.search);
         const carreraFromFilter = searchParams.get('carrera');
 
-        const userData = JSON.parse(localStorage.getItem('user') || '{}');
         // iiisyp es solo lectura: no puede acceder al form de gestion de materias
-        const esAdmin = userData?.is_superuser || ['director', 'jefe_estudios'].includes(userData?.perfil?.rol);
+        const esAdmin = esSuperAdmin || ['director', 'jefe_estudios'].includes(activeRole);
 
         if (!esAdmin) {
             toast.error("No tienes permisos para gestionar materias");
@@ -709,7 +704,7 @@ const MateriaForm = ({ sidebarCollapsed = false }) => {
                 setCarreras(carrerasData);
 
                 // Director y Jefe: el backend solo devuelve su carrera y es la de la materia nueva.
-                if (!id && !userData?.is_superuser && carrerasData?.length) {
+                if (!id && !esSuperAdmin && carrerasData?.length) {
                     setFormData(prev => ({ ...prev, carrera: String(carrerasData[0].id) }));
                 } else if (!id && carreraFromFilter) {
                     const carreraExiste = (carrerasData || []).some((c) => String(c.id) === String(carreraFromFilter));
@@ -744,7 +739,7 @@ const MateriaForm = ({ sidebarCollapsed = false }) => {
             };
             fetchMateria();
         }
-    }, [id, location.search, navigate]);
+    }, [id, location.search, navigate, esSuperAdmin, activeRole]);
 
     const clearFieldError = (fieldName) => {
         setErrors(prev => {

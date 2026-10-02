@@ -4091,6 +4091,8 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     puede_editar_informe = serializers.SerializerMethodField()
     # Variantes de "Ejercicio del cargo" que el formulario de cargas ofrece.
     tipos_ejercicio_cargo = serializers.SerializerMethodField()
+    # El botón Iniciar del detalle sigue exactamente a iniciar_ejecucion.
+    puede_iniciar_ejecucion = serializers.SerializerMethodField()
     # Revisión: nadie revisa su propio fondo; el del Director lo revisa el superusuario.
     es_fondo_propio = serializers.SerializerMethodField()
     es_fondo_de_director = serializers.SerializerMethodField()
@@ -4115,7 +4117,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             'categorias', 'informes', 'asignaturas_ejecutadas', 'observaciones_detalladas',
             'informe_actual',
             # Permisos
-            'puede_editar', 'puede_editar_informe', 'tipos_ejercicio_cargo',
+            'puede_editar', 'puede_editar_informe', 'tipos_ejercicio_cargo', 'puede_iniciar_ejecucion',
             'es_fondo_propio', 'es_fondo_de_director', 'documento_decanatura', 'documento_decanatura_informe',
         ]
         read_only_fields = [
@@ -4183,6 +4185,24 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
 
     def get_tipos_ejercicio_cargo(self, obj):
         return tipos_ejercicio_cargo_del_fondo(obj)
+
+    def get_puede_iniciar_ejecucion(self, obj):
+        """Mismas condiciones que FondoTiempoViewSet.iniciar_ejecucion: fondo aprobado,
+        nadie inicia su propio fondo, el del Director lo inicia el superusuario y el resto
+        el superusuario o el Director (rol activo) de la carrera."""
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not user or obj.estado != 'aprobado_director' or obj.pertenece_a(user):
+            return False
+        if obj.es_de_director_de_su_carrera():
+            return user.is_superuser
+        if user.is_superuser:
+            return True
+        perfil = get_effective_profile(user, request)
+        return bool(
+            perfil and perfil.rol == 'director'
+            and get_active_careers_for_user(user, request).filter(pk=obj.carrera_id).exists()
+        )
 
     def get_es_fondo_propio(self, obj):
         request = self.context.get('request')

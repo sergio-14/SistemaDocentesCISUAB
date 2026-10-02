@@ -89,7 +89,7 @@ function Sidebar({ user, collapsed, setCollapsed, onProfileUpdate }) {
       return 'Super Admin';
     }
     if (!user?.perfil?.rol) {
-      return user?.is_staff ? 'Administrador' : 'Usuario';
+      return 'Usuario';
     }
     const roles = {
       iiisyp: 'Instituto de investigación',

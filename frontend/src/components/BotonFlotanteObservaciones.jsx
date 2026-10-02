@@ -21,6 +21,7 @@ import {
 import api from '../apis/api';
 import toast from 'react-hot-toast';
 import useConsultaPeriodica from '../utils/useConsultaPeriodica';
+import { useActiveRole } from '../contexts/activeRole';
 
 // Consulta del chat: más seguida con el panel abierto.
 const CONSULTA_CHAT_ABIERTO_MS = 5000;
@@ -59,6 +60,7 @@ const formatBadgeCount = (count) => (count > 99 ? '99+' : String(count));
 const quoteAccentColors = ['#00e5ff', '#ff3df2', '#a3ff12', '#ffb000', '#7c4dff', '#00ffa3'];
 
 const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObservacionCambiada }, ref) => {
+  const { activeRole } = useActiveRole();
   const [observaciones, setObservaciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -350,10 +352,9 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
     }
   }));
 
-  const esAutoridad = usuarioActual?.perfil?.rol === 'director' ||
-    usuarioActual?.perfil?.rol === 'jefe_estudios';
-  const rolActivo = localStorage.getItem('active_role') || usuarioActual?.perfil?.rol;
-  const puedeMarcarObservacionResuelta = usuarioActual?.is_superuser || rolActivo === 'jefe_estudios';
+  // Rol activo (contexto de rol). Resolver: docente del fondo o Jefatura, como el backend.
+  const esAutoridad = ['director', 'jefe_estudios'].includes(activeRole);
+  const puedeMarcarObservacionResuelta = usuarioActual?.is_superuser || ['docente', 'jefe_estudios'].includes(activeRole);
 
   const observacionesOrdenadas = useMemo(() => {
     return [...observaciones].sort(

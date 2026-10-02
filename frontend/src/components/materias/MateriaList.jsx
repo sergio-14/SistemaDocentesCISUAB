@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import api, { getCarreras } from '../../apis/api';
 import { Link, Outlet } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useActiveRole } from '../../contexts/activeRole';
 
 // Componente Select con diseño personalizado (mismo estilo que ListaDocentes)
 const SelectConDropdown = ({ label, value, onChange, options, name, placeholder = 'Buscar...', emptyText = 'Sin resultados' }) => {
@@ -306,8 +307,10 @@ const MateriaList = () => {
         }
     };
 
+    const { activeRole } = useActiveRole();
     const isSuperAdmin = user?.is_superuser === true;
-    const rolActual = perfil?.rol || user?.perfil?.rol || user?.rol;
+    // Rol activo (contexto de rol), no el del perfil base.
+    const rolActual = activeRole;
     // iiisyp es solo lectura: solo superuser, director y jefe de estudios gestionan materias.
     const canEdit = isSuperAdmin || ['director', 'jefe_estudios'].includes(rolActual);
     const carreraPerfilId = obtenerCarreraPerfil(perfil, user);

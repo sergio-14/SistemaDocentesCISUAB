@@ -4,7 +4,7 @@ import api from '../apis/api';
 import toast from 'react-hot-toast';
 import { horasSemanalesDedicacion } from '../utils/dedicaciones';
 import {
-  MENSAJE_RESOLUCION_JEFE, MENSAJE_UNA_SOLA_CARRERA, asignacionesIniciales, asignacionesParaEnviar, cuerpoConArchivo, esArchivoPdf,
+  MENSAJE_RESOLUCION_JEFE, MENSAJE_UNA_SOLA_CARRERA, asignacionesIniciales, asignacionesParaEnviar, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf,
 } from '../utils/asignacionesUsuario';
 import CampoResolucionJefe from './common/CampoResolucionJefe';
 
@@ -206,6 +206,11 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     return () => { vigente = false; };
   }, [isOpen, userToEdit?.id]);
   const esDirectorEditor = currentUser?.perfil?.rol === 'director' && !currentUser?.is_superuser;
+  // Contraseña: el Director solo la restablece a docentes sin cargo (o a sí mismo); igual que el backend.
+  const puedeRestablecerPassword = Boolean(userToEdit) && (
+    currentUser?.is_superuser
+    || (esDirectorEditor && (String(userToEdit.id) === String(currentUser?.id) || cargosDelUsuario(userToEdit).length === 0))
+  );
   // Solo el superusuario elige la carrera; para cualquier otro es automáticamente la suya.
   const puedeElegirCarrera = Boolean(currentUser?.is_superuser);
   const carreraPropiaEditor = !puedeElegirCarrera && (carreras || []).length === 1 ? String(carreras[0].id) : '';
@@ -751,7 +756,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
         <div className="px-6 py-4 bg-slate-100 dark:bg-slate-700 border-t border-slate-300 dark:border-slate-600 rounded-b-2xl">
           <div className="flex items-center justify-between">
             <div>
-              {userToEdit && (
+              {puedeRestablecerPassword && (
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                       type="button"

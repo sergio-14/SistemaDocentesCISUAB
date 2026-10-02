@@ -57,6 +57,24 @@ export const asignacionesIniciales = ({ asignaciones = [], perfil = null, esDire
 };
 
 // Lo que se envía al backend: solo filas con rol y carrera elegidos.
+const CARGOS = ['director', 'jefe_estudios', 'iiisyp'];
+
+/**
+ * Cargos (Director, Jefe de Estudios, Instituto) de un usuario, con la misma regla que
+ * el backend (UsuarioViewSet._cargos_del_usuario): desactivar libera sus asignaciones,
+ * así que de un usuario inactivo cuentan también las inactivas.
+ */
+export const cargosDelUsuario = (usuario) => {
+  if (!usuario) return [];
+  const roles = new Set(
+    (Array.isArray(usuario.asignaciones) ? usuario.asignaciones : [])
+      .filter((item) => item?.rol && (usuario.is_active === false || item.activo !== false))
+      .map((item) => String(item.rol).trim())
+  );
+  if (usuario.perfil?.rol) roles.add(String(usuario.perfil.rol).trim());
+  return CARGOS.filter((cargo) => roles.has(cargo));
+};
+
 export const asignacionesParaEnviar = (extras = []) => (
   (Array.isArray(extras) ? extras : [])
     .filter((item) => String(item?.rol || '').trim() && String(item?.carrera || '').trim())

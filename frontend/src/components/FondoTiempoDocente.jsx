@@ -4,6 +4,7 @@ import api, { obtenerTodos } from '../apis/api';
 import toast from 'react-hot-toast';
 import { puedeCrearFondoTiempo } from '../utils/fondoTiempoPermissions';
 import { ETIQUETAS_DEDICACION } from '../utils/dedicaciones';
+import { useActiveRole } from '../contexts/activeRole';
 
 // debug: ayuda a asegurar que esta versión se está usando
 console.log('FondoTiempoDocente component loaded (redesign v2).');
@@ -26,7 +27,8 @@ const FondoTiempoDocente = () => {
     const [docente, setDocente] = useState(null);
     const [fondos, setFondos] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [user, setUser] = useState(null);
+    // Usuario con su rol activo (contexto de rol).
+    const { effectiveUser: user } = useActiveRole();
     const [calendarioActivo, setCalendarioActivo] = useState(null);
 
     useEffect(() => {
@@ -81,9 +83,6 @@ const FondoTiempoDocente = () => {
                 if (!cancelado) setLoading(false);
             }
         };
-
-        const userData = JSON.parse(localStorage.getItem('user') || 'null');
-        setUser(userData);
 
         if (id) {
             fetchData();

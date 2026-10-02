@@ -4,7 +4,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { FaEdit, FaTrash } from 'react-icons/fa';
 import api, { getCarreras, getDocentes, obtenerTodos } from '../apis/api';
 import ModalUsuario from './ModalUsuario';
-import { MENSAJE_RESOLUCION_JEFE, MENSAJE_UNA_SOLA_CARRERA, cuerpoConArchivo, esArchivoPdf } from '../utils/asignacionesUsuario';
+import { MENSAJE_RESOLUCION_JEFE, MENSAJE_UNA_SOLA_CARRERA, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf } from '../utils/asignacionesUsuario';
+import { useActiveRole } from '../contexts/activeRole';
 import CampoResolucionJefe from './common/CampoResolucionJefe';
 import toast from 'react-hot-toast';
 import {
@@ -1020,7 +1021,10 @@ const SearchInput = ({ value, onChange, placeholder = 'Buscar por nombre o C.I..
   );
 };
 
-function GestionUsuarios({ sidebarCollapsed = false, user, hasSidebar = true }) {
+function GestionUsuarios({ sidebarCollapsed = false, user: usuarioSesion, hasSidebar = true }) {
+  // Usuario con su rol ACTIVO (contexto de rol), no el guardado al iniciar sesión.
+  const { effectiveUser } = useActiveRole();
+  const user = effectiveUser || usuarioSesion;
   const navigate = useNavigate();
   const location = useLocation();
   const restoringFormRef = useRef(false);
@@ -2154,14 +2158,17 @@ const initialData = {
     if (!usuarioPerteneceACarrerasGestionables(usuario)) return false;
     return !obtenerRolesUsuario(usuario).includes('director');
   };
-  const puedeCambiarEstadoUsuario = (usuario) => puedeEditarUsuario(usuario);
-  // Eliminar: nunca un superusuario ni a sí mismo. El Director, solo usuarios de su
-  // carrera que no sean Director (lo mismo que puede editar). Con datos registrados
-  // el backend lo rechaza: solo se puede desactivar.
+  // El Director no activa, desactiva ni elimina a un Director ni al Jefe de Estudios
+  // (lo designa el Consejo de Carrera); sí a docentes y al Instituto. Igual que el backend.
+  const tieneCargoDeDireccion = (usuario) => cargosDelUsuario(usuario).some((cargo) => ['director', 'jefe_estudios'].includes(cargo));
+  const puedeCambiarEstadoUsuario = (usuario) => puedeEditarUsuario(usuario)
+    && (esSuperuserActual || !tieneCargoDeDireccion(usuario));
+  // Eliminar: nunca un superusuario ni a sí mismo. Con datos registrados el backend lo
+  // rechaza: solo se puede desactivar.
   const puedeEliminarUsuario = (usuario) => {
     if (!usuario || usuario.is_superuser || !puedeEliminarUsuarios()) return false;
     if (String(usuario.id) === String(user?.id)) return false;
-    return esSuperuserActual || puedeEditarUsuario(usuario);
+    return esSuperuserActual || (puedeEditarUsuario(usuario) && !tieneCargoDeDireccion(usuario));
   };
   const obtenerNombreUsuario = (usuario) => ((usuario?.first_name || usuario?.last_name)
     ? `${(usuario.first_name || '').trim()} ${(usuario.last_name || '').trim()}`.trim()

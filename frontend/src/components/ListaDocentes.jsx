@@ -12,6 +12,7 @@ import {
 } from '../utils/formErrors';
 import { DEDICACIONES_HORARIO, ETIQUETAS_DEDICACION, describirDedicacion, horasSemanalesDedicacion } from '../utils/dedicaciones';
 import { hoyBolivia } from '../utils/fechas';
+import { useActiveRole } from '../contexts/activeRole';
 import {
   TOPE_HORAS_SEMANALES_FONDO, calcularAntiguedad, calcularHorasFondo, diasVacacionPorAntiguedad, inicioDeGestion,
 } from '../utils/horasFondo';
@@ -848,7 +849,8 @@ function ListaDocentes({ sidebarCollapsed = false }) {
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [user, setUser] = useState(null);
+  // Usuario con su rol activo (contexto de rol).
+  const { effectiveUser: user, activeRole } = useActiveRole();
 
   // Modal de crear/editar
   const [showModal, setShowModal] = useState(false);
@@ -1009,8 +1011,6 @@ function ListaDocentes({ sidebarCollapsed = false }) {
 
   useEffect(() => {
     cargarDocentes();
-    const userData = JSON.parse(localStorage.getItem('user') || 'null');
-    setUser(userData);
     
     // Detectar si venimos desde "Crear Usuario" para abrir modal
     const abrirModal = sessionStorage.getItem('abrirModalDesdeUsuarios');
@@ -1902,7 +1902,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
   };
 
   // iiisyp es solo lectura: solo superuser y director pueden crear/editar/eliminar
-  const esAdmin = () => user?.is_superuser || (user?.perfil?.rol === 'director');
+  const esAdmin = () => user?.is_superuser || activeRole === 'director';
   // Editar y eliminar fichas: solo el superusuario (igual que el backend).
   const esSuperusuario = Boolean(user?.is_superuser);
   const docenteVinculadoAUsuario = Boolean(docenteSeleccionado?.usuario_id);

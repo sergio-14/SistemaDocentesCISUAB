@@ -5,6 +5,7 @@ import api, { getCalendarios, getCarreras } from '../apis/api';
 import { finAnteriorAInicio, hoyBolivia } from '../utils/fechas';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useActiveRole } from '../contexts/activeRole';
 import {
   ERROR_FIELD_BORDER_CLASS,
   getErrorMessage,
@@ -1573,17 +1574,11 @@ function ListaCalendarios() {
     { value: '2', label: 'Segundo Semestre' },
     { value: 'anual', label: 'Anual' },
   ];
-  const usuarioActual = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem('user') || 'null');
-    } catch {
-      return null;
-    }
-  }, []);
-  const esSuperAdmin = usuarioActual?.is_superuser === true;
-  // Crean, editan, activan y eliminan: superusuario, Director y Jefe de Estudios (en su
-  // carrera; el backend lo exige). El resto solo consulta.
-  const puedeGestionar = esSuperAdmin || ['director', 'jefe_estudios'].includes(usuarioActual?.perfil?.rol);
+  const { effectiveUser, activeRole } = useActiveRole();
+  const esSuperAdmin = effectiveUser?.is_superuser === true;
+  // Crean, editan, activan y eliminan: superusuario, Director y Jefe de Estudios (rol
+  // activo, en su carrera; el backend lo exige). El resto solo consulta.
+  const puedeGestionar = esSuperAdmin || ['director', 'jefe_estudios'].includes(activeRole);
   const hayUnaSolaCarrera = carreras.length === 1;
   const carreraOptions = carreras.map((carrera) => ({
     value: String(carrera.id),

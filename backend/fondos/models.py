@@ -13,8 +13,11 @@ from simple_history.models import HistoricalRecords
 from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 import base64
 import hashlib
+import logging
 import mimetypes
 import os
+
+logger = logging.getLogger(__name__)
 
 
 def _get_image_cipher():
@@ -1776,8 +1779,13 @@ def limpiar_imagenes_de_informe_borrado(sender, instance, **kwargs):
     from fondos.utils.informe_imagenes import limpiar_imagenes_huerfanas
     try:
         limpiar_imagenes_huerfanas(instance)
-    except FondoTiempo.DoesNotExist:
-        pass
+    except Exception:
+        # No se frena el borrado (p. ej. del fondo entero), pero queda en el log:
+        # pueden haber quedado imágenes sin uso en media.
+        logger.exception(
+            'No se pudieron limpiar las imágenes del informe %s (fondo %s).',
+            instance.pk, instance.fondo_tiempo_id,
+        )
 
 
 class InformeAsignaturaEjecutada(models.Model):

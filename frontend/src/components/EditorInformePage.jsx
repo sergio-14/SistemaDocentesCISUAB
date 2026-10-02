@@ -66,7 +66,10 @@ export default function EditorInformePage() {
 
   const informe = fondo?.informe_actual || null;
   const estadoInforme = informe?.estado || null;
-  const soloLectura = estadoInforme === 'enviado' || estadoInforme === 'aprobado';
+  const informeEnviado = estadoInforme === 'enviado' || estadoInforme === 'aprobado';
+  // Lo decide el backend (docente dueño, fondo en ejecución, informe sin
+  // enviar): Director, Jefatura y los demás lo ven en solo lectura.
+  const soloLectura = !fondo?.puede_editar_informe;
   const nombreDocente = fondo?.docente?.nombre_completo || '';
   const logoCarrera = fondo?.carrera?.logo_carrera || null;
 
@@ -272,12 +275,20 @@ export default function EditorInformePage() {
         {/* Avisos de estado */}
         {(soloLectura || estadoInforme === 'observado' || !soloLectura) && (
           <div className="max-w-[850px] w-full mx-auto px-4 md:px-6 pt-4">
-            {soloLectura && (
+            {soloLectura && informeEnviado && (
               <div className="bg-emerald-50 dark:bg-emerald-900/20 border-l-4 border-emerald-500 p-4 rounded-r-lg flex items-start gap-3 mb-3">
                 <Lock className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                 <p className="text-sm text-emerald-800 dark:text-emerald-300">
                   Informe {estadoInforme === 'aprobado' ? 'aprobado' : 'enviado'} - en espera de aprobación del Director.
                   Ya no se puede editar, salvo que el Director solicite correcciones.
+                </p>
+              </div>
+            )}
+            {soloLectura && !informeEnviado && (
+              <div className="bg-slate-50 dark:bg-slate-800/60 border-l-4 border-slate-400 p-4 rounded-r-lg flex items-start gap-3 mb-3">
+                <Lock className="w-5 h-5 text-slate-500 dark:text-slate-400 mt-0.5 shrink-0" />
+                <p className="text-sm text-slate-700 dark:text-slate-300">
+                  Solo lectura: el informe lo redacta el docente del fondo mientras está en ejecución.
                 </p>
               </div>
             )}

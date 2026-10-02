@@ -4077,6 +4077,8 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     total_asignado = serializers.SerializerMethodField()
     # Permisos
     puede_editar = serializers.SerializerMethodField()
+    # El editor del informe se abre en solo lectura si es False.
+    puede_editar_informe = serializers.SerializerMethodField()
     # Revisión: nadie revisa su propio fondo; el del Director lo revisa el superusuario.
     es_fondo_propio = serializers.SerializerMethodField()
     es_fondo_de_director = serializers.SerializerMethodField()
@@ -4101,7 +4103,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             'categorias', 'proyectos', 'informes', 'asignaturas_ejecutadas', 'observaciones_detalladas',
             'informe_actual',
             # Permisos
-            'puede_editar',
+            'puede_editar', 'puede_editar_informe',
             'es_fondo_propio', 'es_fondo_de_director', 'documento_decanatura', 'documento_decanatura_informe',
         ]
         read_only_fields = [
@@ -4154,7 +4156,18 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
                 return obj.docente_id == perfil.docente.id
             return obj.puede_editar(request.user)
         return False
-    
+
+    def get_puede_editar_informe(self, obj):
+        """Mismas condiciones que guardar-informe-borrador: el docente dueño (o el
+        superusuario), con el fondo en ejecución y el informe sin enviar."""
+        request = self.context.get('request')
+        if not request or obj.estado != 'en_ejecucion':
+            return False
+        if not obj.puede_redactar_informe(request.user, get_effective_profile(request.user, request)):
+            return False
+        informe = obj.informes.filter(tipo='parcial').order_by('-fecha_elaboracion').first()
+        return informe is None or informe.estado in ('borrador', 'observado')
+
     def get_es_fondo_propio(self, obj):
         request = self.context.get('request')
         return obj.pertenece_a(getattr(request, 'user', None))

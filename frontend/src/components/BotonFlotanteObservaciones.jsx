@@ -14,11 +14,45 @@ import {
 } from 'lucide-react';
 import {
   getObservacionesPorFondo,
+  getNovedadesObservaciones,
   agregarMensajeObservacion,
   marcarObservacionResuelta
 } from '../apis/api';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
+
+// Consulta del chat: más seguida con el panel abierto.
+const CONSULTA_CHAT_ABIERTO_MS = 5000;
+const CONSULTA_CHAT_CERRADO_MS = 30000;
+
+const DATOS_HILO = ['resuelta', 'resuelta_por', 'fecha_resolucion'];
+
+/**
+ * Une la respuesta de /observaciones/novedades/ (hilos sin mensajes + mensajes
+ * nuevos + último mensaje propio ya leído) al estado del chat. Devuelve el
+ * mismo arreglo si nada cambió, para no re-renderizar en cada consulta.
+ */
+const fusionarNovedades = (actuales, novedades, usuarioId) => {
+  const { observaciones: hilos = [], mensajes = [], leidos_propios_hasta: leidosHasta } = novedades;
+  const previos = new Map(actuales.map((obs) => [obs.id, obs]));
+  let cambio = hilos.length !== actuales.length || mensajes.length > 0;
+
+  const resultado = hilos.map((hilo) => {
+    const previo = previos.get(hilo.id);
+    if (!previo || DATOS_HILO.some((campo) => previo[campo] !== hilo[campo])) cambio = true;
+
+    const porId = new Map((previo?.mensajes || []).map((m) => [m.id, m]));
+    mensajes.filter((m) => m.observacion === hilo.id).forEach((m) => porId.set(m.id, m));
+    const lista = [...porId.values()].sort((a, b) => a.id - b.id).map((m) => {
+      if (!leidosHasta || m.leido || Number(m.autor) !== usuarioId || m.id > leidosHasta) return m;
+      cambio = true;
+      return { ...m, leido: true };
+    });
+    return { ...previo, ...hilo, mensajes: lista };
+  });
+
+  return cambio ? resultado : actuales;
+};
 
 const formatBadgeCount = (count) => (count > 99 ? '99+' : String(count));
 const quoteAccentColors = ['#00e5ff', '#ff3df2', '#a3ff12', '#ffb000', '#7c4dff', '#00ffa3'];
@@ -58,6 +92,13 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
   const messageRefs = useRef(new Map());
   const knownMessageIdsRef = useRef(new Set());
   const initializedMessagesRef = useRef(false);
+  // Para las consultas incrementales (desde_id) y para fusionarlas sin
+  // depender del render: último mensaje conocido, usuario y estado actual.
+  const ultimoMensajeIdRef = useRef(0);
+  const usuarioIdRef = useRef(null);
+  usuarioIdRef.current = Number(usuarioActual?.id);
+  const observacionesRef = useRef(observaciones);
+  observacionesRef.current = observaciones;
   const previousMessageRectsRef = useRef(new Map());
   const newMessageTimerRef = useRef(null);
   const closeChatTimerRef = useRef(null);
@@ -88,62 +129,79 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
     }
   }, []);
 
-  const cargarObservaciones = useCallback(async ({ silent = false, marcarLeido = false } = {}) => {
+  // Carga completa: solo al abrir la pantalla del fondo. Después, novedades.
+  const cargarObservaciones = useCallback(async () => {
     if (!fondoId) return;
 
     try {
-      capturarPosicionesMensajes();
-      if (!silent) setLoading(true);
-      const observacionesData = await getObservacionesPorFondo(fondoId, { marcarLeido });
-      const idsActuales = extraerIdsMensajes(observacionesData);
-
-      if (!initializedMessagesRef.current) {
-        knownMessageIdsRef.current = idsActuales;
-        initializedMessagesRef.current = true;
-      } else {
-        const nuevos = [...idsActuales].filter((id) => !knownMessageIdsRef.current.has(id));
-        knownMessageIdsRef.current = idsActuales;
-
-        if (nuevos.length > 0) {
-          if (newMessageTimerRef.current) window.clearTimeout(newMessageTimerRef.current);
-          setMensajesNuevosIds(nuevos);
-          newMessageTimerRef.current = window.setTimeout(() => {
-            setMensajesNuevosIds((actuales) => actuales.filter((id) => !nuevos.includes(id)));
-          }, 760);
-        }
-      }
-
+      setLoading(true);
+      const observacionesData = await getObservacionesPorFondo(fondoId);
+      knownMessageIdsRef.current = extraerIdsMensajes(observacionesData);
+      ultimoMensajeIdRef.current = Math.max(0, ...knownMessageIdsRef.current);
+      initializedMessagesRef.current = true;
       setObservaciones(observacionesData);
     } catch (err) {
       console.error('Error al cargar observaciones:', err);
-      if (!silent) toast.error('No se pudo cargar el chat.');
+      toast.error('No se pudo cargar el chat.');
     } finally {
-      if (!silent) setLoading(false);
+      setLoading(false);
+    }
+  }, [fondoId]);
+
+  // Solo los mensajes posteriores al último conocido (o a desdeId).
+  const cargarNovedades = useCallback(async ({ marcarLeido = false, desdeId = null } = {}) => {
+    if (!fondoId || !initializedMessagesRef.current) return;
+
+    try {
+      const { data } = await getNovedadesObservaciones(fondoId, desdeId ?? ultimoMensajeIdRef.current, { marcarLeido });
+      const recibidos = data.mensajes || [];
+      const nuevos = recibidos.map((m) => m.id).filter((id) => !knownMessageIdsRef.current.has(id));
+      recibidos.forEach((m) => {
+        knownMessageIdsRef.current.add(m.id);
+        ultimoMensajeIdRef.current = Math.max(ultimoMensajeIdRef.current, m.id);
+      });
+
+      if (nuevos.length > 0) {
+        capturarPosicionesMensajes();
+        if (newMessageTimerRef.current) window.clearTimeout(newMessageTimerRef.current);
+        setMensajesNuevosIds(nuevos);
+        newMessageTimerRef.current = window.setTimeout(() => {
+          setMensajesNuevosIds((actuales) => actuales.filter((id) => !nuevos.includes(id)));
+        }, 760);
+      }
+
+      setObservaciones((actuales) => fusionarNovedades(actuales, data, usuarioIdRef.current));
+    } catch (err) {
+      console.error('Error al consultar el chat:', err);
     }
   }, [fondoId, capturarPosicionesMensajes]);
 
   useEffect(() => {
     if (!fondoId) return;
-    cargarObservaciones({ marcarLeido: false });
+    cargarObservaciones();
     cargarUsuario();
   }, [fondoId, cargarObservaciones, cargarUsuario]);
 
+  // Al abrir el chat se marcan como leídos los mensajes pendientes: se vuelven
+  // a pedir desde el primero sin leer, con marcar_leido.
   useEffect(() => {
-    if (!open || !fondoId) return undefined;
-    cargarObservaciones({ silent: true, marcarLeido: true });
-    const intervalId = window.setInterval(() => {
-      cargarObservaciones({ silent: true, marcarLeido: true });
-    }, 1800);
-    return () => window.clearInterval(intervalId);
-  }, [open, fondoId, cargarObservaciones]);
+    if (!open || !fondoId) return;
+    const pendientes = observacionesRef.current
+      .flatMap((obs) => obs.mensajes || [])
+      .filter((m) => !m.leido && Number(m.autor) !== usuarioIdRef.current)
+      .map((m) => m.id);
+    if (pendientes.length > 0) {
+      cargarNovedades({ marcarLeido: true, desdeId: Math.min(...pendientes) - 1 });
+    }
+  }, [open, fondoId, cargarNovedades]);
 
   useEffect(() => {
-    if (open || !fondoId) return undefined;
+    if (!fondoId) return undefined;
     const intervalId = window.setInterval(() => {
-      cargarObservaciones({ silent: true, marcarLeido: false });
-    }, 5000);
+      cargarNovedades({ marcarLeido: open });
+    }, open ? CONSULTA_CHAT_ABIERTO_MS : CONSULTA_CHAT_CERRADO_MS);
     return () => window.clearInterval(intervalId);
-  }, [open, fondoId, cargarObservaciones]);
+  }, [open, fondoId, cargarNovedades]);
 
   useEffect(() => () => {
     if (newMessageTimerRef.current) window.clearTimeout(newMessageTimerRef.current);
@@ -289,7 +347,7 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
       return observaciones.filter((obs) => !obs.resuelta).length;
     },
     actualizarObservaciones: async () => {
-      await cargarObservaciones({ silent: true, marcarLeido: open });
+      await cargarNovedades({ marcarLeido: open });
     }
   }));
 
@@ -542,7 +600,7 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
       setTexto('');
       setEsInterno(false);
       setRespondiendoA(null);
-      await cargarObservaciones({ silent: true, marcarLeido: true });
+      await cargarNovedades({ marcarLeido: true });
     } catch (err) {
       console.error('Error al enviar mensaje:', err);
       toast.error(err.response?.data?.error || 'No se pudo enviar el mensaje.');

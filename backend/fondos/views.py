@@ -10,7 +10,7 @@ from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 from django.http import HttpResponse, FileResponse
 from django.db import transaction, IntegrityError
-from django.db.models import ProtectedError, prefetch_related_objects, Q
+from django.db.models import Max, ProtectedError, prefetch_related_objects, Q
 from django.core.exceptions import ValidationError as DjangoValidationError
 from datetime import datetime, date
 from decimal import Decimal
@@ -35,7 +35,8 @@ from .serializers import (
     FotoPerfilSerializer, PerfilUsuarioSerializer,
     CalendarioAcademicoSerializer, ProyectoSerializer, ProyectoListSerializer,
     InformeFondoSerializer,
-    ObservacionFondoSerializer,
+    ObservacionFondoSerializer, HiloObservacionSerializer, MensajeObservacionSerializer,
+    _usuario_puede_ver_mensajes_internos,
     HistorialFondoSerializer,
     FondoTiempoDetalleSerializer,
     AprobarFondoSerializer, ObservarFondoSerializer,
@@ -2800,21 +2801,50 @@ class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelVie
     ordering_fields = ['fecha_creacion']
     ordering = ['-fecha_creacion']
 
-    def _marcar_mensajes_entrantes_como_leidos(self):
-        fondo_id = self.request.query_params.get('fondo_tiempo', None)
-        if not fondo_id:
-            return
+    @action(detail=False, methods=['get'])
+    def novedades(self, request):
+        """Chat del fondo, incremental: GET /observaciones/novedades/?fondo_tiempo=&desde_id=
 
-        MensajeObservacion.objects.filter(
-            observacion__fondo_tiempo_id=fondo_id,
-            leido_en__isnull=True,
-        ).exclude(autor=self.request.user).update(leido_en=timezone.now())
+        Devuelve los hilos sin sus mensajes (son pocos y así se ve si alguno se
+        resolvió), solo los mensajes visibles con id > desde_id y el id del último
+        mensaje propio que otro ya leyó (para el "leído"). Con marcar_leido=1 (chat
+        abierto) se marcan como leídos los mensajes de otros que trae esta respuesta:
+        solo hay escritura cuando llegan mensajes nuevos.
+        """
+        try:
+            fondo_id = int(request.query_params.get('fondo_tiempo'))
+            desde_id = int(request.query_params.get('desde_id') or 0)
+        except (TypeError, ValueError):
+            return Response(
+                {'detail': "Los parámetros 'fondo_tiempo' y 'desde_id' deben ser enteros."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-    def list(self, request, *args, **kwargs):
-        marcar_leido = str(request.query_params.get('marcar_leido', '')).lower() in ('1', 'true', 'yes')
-        if marcar_leido:
-            self._marcar_mensajes_entrantes_como_leidos()
-        return super().list(request, *args, **kwargs)
+        hilos = self.get_queryset().prefetch_related(None).filter(fondo_tiempo_id=fondo_id)
+        mensajes = MensajeObservacion.objects.filter(
+            observacion__in=hilos, id__gt=desde_id,
+        ).select_related('autor', 'responde_a__autor').order_by('id')
+        if not _usuario_puede_ver_mensajes_internos(request):
+            mensajes = mensajes.exclude(es_interno=True)
+        mensajes = list(mensajes)
+
+        marcar_leido = request.query_params.get('marcar_leido') == '1'
+        entrantes = [m for m in mensajes if m.autor_id != request.user.id and m.leido_en is None]
+        if marcar_leido and entrantes:
+            ahora = timezone.now()
+            MensajeObservacion.objects.filter(id__in=[m.id for m in entrantes]).update(leido_en=ahora)
+            for mensaje in entrantes:
+                mensaje.leido_en = ahora
+
+        leidos_propios_hasta = MensajeObservacion.objects.filter(
+            observacion__in=hilos, autor=request.user, leido_en__isnull=False,
+        ).aggregate(maximo=Max('id'))['maximo']
+
+        return Response({
+            'observaciones': HiloObservacionSerializer(hilos, many=True).data,
+            'mensajes': MensajeObservacionSerializer(mensajes, many=True).data,
+            'leidos_propios_hasta': leidos_propios_hasta,
+        })
 
     def get_queryset(self):
         """Filtrar observaciones según el usuario y fondo"""

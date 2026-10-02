@@ -193,10 +193,13 @@ export const cambiarEstadoProyecto = (id, estado) =>
 // ===================================
 export const getObservaciones = () => api.get('/observaciones/');
 export const getObservacionDetalle = (id) => api.get(`/observaciones/${id}/`);
-export const getObservacionesPorFondo = (fondoId, options = {}) => {
-  const params = { fondo_tiempo: fondoId };
-  if (options.marcarLeido) params.marcar_leido = true;
-  return obtenerTodos('/observaciones/', params);
+export const getObservacionesPorFondo = (fondoId) => obtenerTodos('/observaciones/', { fondo_tiempo: fondoId });
+// Chat incremental: hilos sin mensajes + solo los mensajes con id > desdeId.
+// marcarLeido (chat abierto): el backend marca como leídos los de otros que devuelve.
+export const getNovedadesObservaciones = (fondoId, desdeId, { marcarLeido = false } = {}) => {
+  const params = { fondo_tiempo: fondoId, desde_id: desdeId };
+  if (marcarLeido) params.marcar_leido = 1;
+  return api.get('/observaciones/novedades/', { params });
 };
 export const agregarMensajeObservacion = (observacionId, texto, respondeA = null, esInterno = false) => {
   const payload = { texto };

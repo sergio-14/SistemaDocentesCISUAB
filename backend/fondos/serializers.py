@@ -3948,21 +3948,33 @@ def _usuario_puede_ver_mensajes_internos(request):
     return bool(perfil and perfil.rol in ['director', 'jefe_estudios'])
 
 
-class ObservacionFondoSerializer(serializers.ModelSerializer):
-    """Serializer para hilos de observación"""
-    mensajes = serializers.SerializerMethodField()
+class HiloObservacionSerializer(serializers.ModelSerializer):
+    """Datos del hilo de observación sin sus mensajes (consulta incremental del chat)."""
     resuelta_por_nombre = serializers.SerializerMethodField()
-    cantidad_mensajes = serializers.SerializerMethodField()
-    ultimo_mensaje = serializers.SerializerMethodField()
 
     class Meta:
         model = ObservacionFondo
         fields = [
             'id', 'fondo_tiempo', 'fecha_creacion', 'resuelta',
             'resuelta_por', 'resuelta_por_nombre', 'fecha_resolucion',
-            'mensajes', 'cantidad_mensajes', 'ultimo_mensaje'
         ]
         read_only_fields = ['id', 'fecha_creacion', 'resuelta', 'resuelta_por', 'fecha_resolucion']
+
+    def get_resuelta_por_nombre(self, obj):
+        """Retorna el nombre completo del usuario que resolvió la observación."""
+        if obj.resuelta_por:
+            return obj.resuelta_por.get_full_name()
+        return None
+
+
+class ObservacionFondoSerializer(HiloObservacionSerializer):
+    """Serializer para hilos de observación"""
+    mensajes = serializers.SerializerMethodField()
+    cantidad_mensajes = serializers.SerializerMethodField()
+    ultimo_mensaje = serializers.SerializerMethodField()
+
+    class Meta(HiloObservacionSerializer.Meta):
+        fields = HiloObservacionSerializer.Meta.fields + ['mensajes', 'cantidad_mensajes', 'ultimo_mensaje']
 
     def _mensajes_visibles(self, obj):
         """
@@ -3992,12 +4004,6 @@ class ObservacionFondoSerializer(serializers.ModelSerializer):
                 'fecha': ultimo.fecha,
                 'es_admin': ultimo.es_admin
             }
-        return None
-
-    def get_resuelta_por_nombre(self, obj):
-        """Retorna el nombre completo del usuario que resolvió la observación."""
-        if obj.resuelta_por:
-            return obj.resuelta_por.get_full_name()
         return None
 
 

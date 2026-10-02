@@ -20,6 +20,7 @@ import {
 } from '../apis/api';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
+import useConsultaPeriodica from '../utils/useConsultaPeriodica';
 
 // Consulta del chat: más seguida con el panel abierto.
 const CONSULTA_CHAT_ABIERTO_MS = 5000;
@@ -195,13 +196,11 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
     }
   }, [open, fondoId, cargarNovedades]);
 
-  useEffect(() => {
-    if (!fondoId) return undefined;
-    const intervalId = window.setInterval(() => {
-      cargarNovedades({ marcarLeido: open });
-    }, open ? CONSULTA_CHAT_ABIERTO_MS : CONSULTA_CHAT_CERRADO_MS);
-    return () => window.clearInterval(intervalId);
-  }, [open, fondoId, cargarNovedades]);
+  useConsultaPeriodica(
+    () => cargarNovedades({ marcarLeido: open }),
+    open ? CONSULTA_CHAT_ABIERTO_MS : CONSULTA_CHAT_CERRADO_MS,
+    Boolean(fondoId),
+  );
 
   useEffect(() => () => {
     if (newMessageTimerRef.current) window.clearTimeout(newMessageTimerRef.current);

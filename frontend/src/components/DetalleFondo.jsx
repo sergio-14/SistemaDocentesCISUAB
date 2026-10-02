@@ -19,6 +19,7 @@ import ThemeToggle from './ThemeToggle';
 import CargaHorariaManager from './CargaHorariaManager';
 import { getApiErrorMessage } from '../utils/formErrors';
 import { sanitizarHtmlInforme } from '../utils/sanitizarHtmlInforme';
+import useConsultaPeriodica from '../utils/useConsultaPeriodica';
 import { FileText as ArchivoIcon, Check as CheckIcon, Trash2 as TrashIcon, AlertTriangle as AlertTriangleIcon, Info as InfoIcon, Send as SendIcon, EyeOff as EyeOffIcon, X as XIcon, Plus as PlusIcon, ChevronDown as ChevronDownIcon, ChevronUp as ChevronUpIcon, Pencil as PencilIcon, Calendar as CalendarIcon, User as UserIcon } from 'lucide-react';
 import { Eye, CheckCircle2, FileDown } from 'lucide-react';
 
@@ -432,42 +433,35 @@ function DetalleFondo() {
     }
   };
 
-  useEffect(() => {
-    const debeVigilarCambios =
-      (esJefeEstudios && fondo?.estado === 'presentado_director') ||
-      (esDirector && ['borrador', 'observado'].includes(fondo?.estado));
+  const debeVigilarCambios =
+    (esJefeEstudios && fondo?.estado === 'presentado_director') ||
+    (esDirector && ['borrador', 'observado'].includes(fondo?.estado));
 
-    if (!debeVigilarCambios) return undefined;
-
-    const intervalId = window.setInterval(() => {
-      if (document.visibilityState !== 'visible') return;
-      getFondoTiempoDetalle(id)
-        .then((response) => {
-          const pendientes = response.data.observaciones_detalladas?.filter(obs => !obs.resuelta).length || 0;
-          if (estadoFondoRef.current === null) {
-            estadoFondoRef.current = response.data.estado;
-            observacionesPendientesRef.current = pendientes;
-            return;
-          }
-
-          const cambioDetectado =
-            response.data.estado !== estadoFondoRef.current ||
-            pendientes !== observacionesPendientesRef.current;
-
-          if (!cambioDetectado) return;
-
-          setFondo(response.data);
-          setObservacionesPendientes(pendientes);
+  useConsultaPeriodica(() => {
+    getFondoTiempoDetalle(id)
+      .then((response) => {
+        const pendientes = response.data.observaciones_detalladas?.filter(obs => !obs.resuelta).length || 0;
+        if (estadoFondoRef.current === null) {
           estadoFondoRef.current = response.data.estado;
           observacionesPendientesRef.current = pendientes;
-        })
-        .catch((err) => {
-          console.warn('No se pudo sincronizar el estado del fondo:', err);
-        });
-    }, 5000);
+          return;
+        }
 
-    return () => window.clearInterval(intervalId);
-  }, [id, activeAssignment?.id, fondo?.estado, esJefeEstudios, esDirector]);
+        const cambioDetectado =
+          response.data.estado !== estadoFondoRef.current ||
+          pendientes !== observacionesPendientesRef.current;
+
+        if (!cambioDetectado) return;
+
+        setFondo(response.data);
+        setObservacionesPendientes(pendientes);
+        estadoFondoRef.current = response.data.estado;
+        observacionesPendientesRef.current = pendientes;
+      })
+      .catch((err) => {
+        console.warn('No se pudo sincronizar el estado del fondo:', err);
+      });
+  }, 5000, debeVigilarCambios);
 
   const handleActualizacionHoras = () => {
     cargarDetalle({ silencioso: true });

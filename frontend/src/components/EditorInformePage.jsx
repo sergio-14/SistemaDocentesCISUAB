@@ -5,6 +5,7 @@ import { ArrowLeft, Save, Eye, Send, Loader2, FileWarning, Lock } from 'lucide-r
 import api, { getFondoTiempoDetalle, guardarInformeBorrador } from '../apis/api';
 import { API_URL } from '../apis/apiConfig';
 import { getApiErrorMessage } from '../utils/formErrors';
+import useConsultaPeriodica from '../utils/useConsultaPeriodica';
 import InformeCampoRico from './InformeCampoRico';
 import InformeCampoPlano from './InformeCampoPlano';
 import InformeFormatToolbar from './InformeFormatToolbar';
@@ -119,13 +120,19 @@ export default function EditorInformePage() {
     }
   }, [id, soloLectura]);
 
-  // Auto-guardado cada 30s mientras haya cambios sin guardar.
+  // Auto-guardado cada 30s mientras haya cambios sin guardar (pausado con la
+  // pestaña oculta). Al ocultarla se guarda en el acto lo pendiente.
+  useConsultaPeriodica(() => {
+    if (sucioRef.current) guardarBorrador({ silencioso: true });
+  }, AUTOGUARDADO_MS, !soloLectura && !cargando);
+
   useEffect(() => {
     if (soloLectura || cargando) return undefined;
-    const intervalId = window.setInterval(() => {
-      if (sucioRef.current) guardarBorrador({ silencioso: true });
-    }, AUTOGUARDADO_MS);
-    return () => window.clearInterval(intervalId);
+    const guardarAlOcultar = () => {
+      if (document.visibilityState === 'hidden' && sucioRef.current) guardarBorrador({ silencioso: true });
+    };
+    document.addEventListener('visibilitychange', guardarAlOcultar);
+    return () => document.removeEventListener('visibilitychange', guardarAlOcultar);
   }, [soloLectura, cargando, guardarBorrador]);
 
   const abrirPdfNuevaPestana = async () => {

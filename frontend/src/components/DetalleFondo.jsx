@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getFondoTiempoDetalle, presentarFondoADirector, aprobarFondo } from '../apis/api';
 import api from '../apis/api';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-import { useActiveRole } from '../contexts/ActiveRoleContext';
+import { useActiveRole } from '../contexts/activeRole';
 import FormularioObservar from './FormularioObservar';
 import BotonFlotanteObservaciones from './BotonFlotanteObservaciones';
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useActiveRole } from '../../contexts/ActiveRoleContext';
+import { useActiveRole } from '../../contexts/activeRole';
 import api from '../../apis/api';
 
 // Evento que dispara ListaCarreras al activar o desactivar una carrera.

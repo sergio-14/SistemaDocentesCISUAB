@@ -1,9 +1,8 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { setCarreraSoloLectura } from '../utils/soloLectura';
+import { ActiveRoleContext } from './activeRole';
 
-const ActiveRoleContext = createContext(null);
-
-export const ROLE_LABELS = {
+const ROLE_LABELS = {
   iiisyp: 'Instituto de investigacion',
   director: 'Director de Carrera',
   jefe_estudios: 'Jefe de Estudios',
@@ -156,13 +155,5 @@ export const ActiveRoleProvider = ({ user, setUser, children }) => {
       {children}
     </ActiveRoleContext.Provider>
   );
-};
-
-export const useActiveRole = () => {
-  const context = useContext(ActiveRoleContext);
-  if (!context) {
-    throw new Error('useActiveRole debe usarse dentro de ActiveRoleProvider');
-  }
-  return context;
 };
 

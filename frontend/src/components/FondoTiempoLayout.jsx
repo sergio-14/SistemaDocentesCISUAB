@@ -2,7 +2,7 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useEffect } from 'react';
 import Sidebar from './Sidebar';
 import ThemeToggle from './ThemeToggle';
-import { useActiveRole } from '../contexts/ActiveRoleContext';
+import { useActiveRole } from '../contexts/activeRole';
 import AvisoCarreraInactiva from './common/AvisoCarreraInactiva';
 import AvisoFichaDocentePendiente from './common/AvisoFichaDocentePendiente';
 

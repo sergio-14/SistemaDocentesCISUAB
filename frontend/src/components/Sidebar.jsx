@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import ProfilePicture from './ProfilePicture';
-import { useActiveRole } from '../contexts/ActiveRoleContext';
+import { useActiveRole } from '../contexts/activeRole';
 
 // --- ICONOS ---
 const DashboardIcon = (props) => (

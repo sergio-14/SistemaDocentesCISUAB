@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import ThemeToggle from './ThemeToggle';
-import { useActiveRole } from '../contexts/ActiveRoleContext';
+import { useActiveRole } from '../contexts/activeRole';
 import {
     ERROR_FIELD_BORDER_CLASS,
     ERROR_MOTION_CLASS,

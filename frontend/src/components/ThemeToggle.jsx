@@ -1,4 +1,4 @@
-function ThemeToggle({ theme, setTheme }) {
+function ThemeToggle({ setTheme }) {
   const toggleTheme = () => {
     const isDark = document.documentElement.classList.contains('dark');
     const nextTheme = isDark ? 'light' : 'dark';

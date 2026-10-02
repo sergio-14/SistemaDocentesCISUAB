@@ -1,4 +1,4 @@
-import { useActiveRole } from '../../contexts/ActiveRoleContext';
+import { useActiveRole } from '../../contexts/activeRole';
 
 // Aviso al propio usuario: tiene rol docente pero todavía no tiene ficha de docente.
 // No lo bloquea: sus cargos funcionan y su parte docente (fondo de tiempo, carga

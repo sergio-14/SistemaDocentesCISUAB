@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { eliminarFondoTiempo, generarFondosTiempoMasivo, getFondosTiempo } from '../apis/api';
 import { puedeCrearFondoTiempo } from '../utils/fondoTiempoPermissions';
-import { useActiveRole } from '../contexts/ActiveRoleContext';
+import { useActiveRole } from '../contexts/activeRole';
 import useConsultaPeriodica from '../utils/useConsultaPeriodica';
 
 const CONSULTA_FONDOS_MS = 30000;

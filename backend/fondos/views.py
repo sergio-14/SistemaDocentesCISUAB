@@ -2788,8 +2788,14 @@ class ProyectoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
 # OBSERVACIÓN FONDO VIEWSET
 # =====================================================
 
-class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
-    """ViewSet para gestionar hilos de observaciones"""
+class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ReadOnlyModelViewSet):
+    """Hilos de observaciones del fondo (chat).
+
+    Solo lectura más sus acciones: los hilos los crean las acciones del fondo
+    (observar, observar-informe). Cada usuario ve los de su alcance, igual que
+    los fondos: superusuario todo; Director, Jefe e Instituto su carrera;
+    docente solo los de su propio fondo.
+    """
     queryset = ObservacionFondo.objects.select_related(
         'fondo_tiempo', 'resuelta_por',
         'fondo_tiempo__docente'
@@ -2828,7 +2834,8 @@ class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelVie
             mensajes = mensajes.exclude(es_interno=True)
         mensajes = list(mensajes)
 
-        marcar_leido = request.query_params.get('marcar_leido') == '1'
+        # El Instituto (solo lectura) lee el chat sin marcar nada como leído.
+        marcar_leido = request.query_params.get('marcar_leido') == '1' and not self.es_rol_solo_lectura(request)
         entrantes = [m for m in mensajes if m.autor_id != request.user.id and m.leido_en is None]
         if marcar_leido and entrantes:
             ahora = timezone.now()
@@ -2847,40 +2854,33 @@ class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelVie
         })
 
     def get_queryset(self):
-        """Filtrar observaciones según el usuario y fondo"""
+        """Observaciones al alcance del usuario (rol activo), como en FondoTiempoViewSet."""
         queryset = super().get_queryset()
-    
-        # Si no es staff (es docente), solo ver observaciones de sus fondos
-        if not self.request.user.is_staff:
-            if hasattr(self.request.user, 'perfil') and self.request.user.perfil.docente:
-                # Filtrar explícitamente por el ID del docente del perfil
-                queryset = queryset.filter(fondo_tiempo__docente_id=self.request.user.perfil.docente.id)
+        user = self.request.user
+
+        if not user.is_superuser:
+            perfil = _obtener_perfil_efectivo(user, self.request)
+            if perfil and perfil.rol in ['director', 'jefe_estudios', 'iiisyp']:
+                carreras = _obtener_carreras_activas_usuario(user, self.request)
+                queryset = queryset.filter(fondo_tiempo__carrera__in=carreras)
+            elif perfil and perfil.rol == 'docente' and perfil.docente_id:
+                queryset = queryset.filter(fondo_tiempo__docente_id=perfil.docente_id)
             else:
                 queryset = queryset.none()
-    
+
         # Filtrar por fondo_tiempo si viene en parámetros (DESPUÉS del filtro de permisos)
         fondo_id = self.request.query_params.get('fondo_tiempo', None)
         if fondo_id:
             queryset = queryset.filter(fondo_tiempo_id=fondo_id)
-    
+
         return queryset
-    
+
     @action(detail=True, methods=['post'], url_path='agregar-mensaje')
     def agregar_mensaje(self, request, pk=None):
-        """Agregar un mensaje al hilo"""
+        """Agregar un mensaje al hilo. get_object ya limita el hilo al alcance del
+        usuario (el docente, a su fondo) y el Instituto es solo lectura (mixin)."""
         observacion = self.get_object()
-    
-        # Verificar permisos
-        es_admin = request.user.is_staff
-    
-        if not es_admin:
-            # Si es docente, verificar que sea su fondo
-           if hasattr(request.user, 'perfil') and request.user.perfil.docente:
-               if observacion.fondo_tiempo.docente != request.user.perfil.docente:
-                   raise PermissionDenied("No puede agregar mensajes a observaciones de otros docentes")
-           else:
-               raise PermissionDenied("Usuario no tiene docente asignado")
-    
+
         # Validar que haya texto
         texto = request.data.get('texto', '').strip()
         if not texto:
@@ -2906,7 +2906,7 @@ class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelVie
         # Nota interna Director <-> Jefe de Estudios: nunca visible para el docente.
         # Solo Director/Jefe de Estudios (o superuser) pueden marcar un mensaje como interno;
         # cualquier otro rol que envie el flag es ignorado y se fuerza a False.
-        rol_activo = getattr(getattr(request.user, 'perfil', None), 'rol', None)
+        rol_activo = getattr(_obtener_perfil_efectivo(request.user, request), 'rol', None)
         puede_marcar_interno = request.user.is_superuser or rol_activo in ['director', 'jefe_estudios']
         es_interno = puede_marcar_interno and str(request.data.get('es_interno', '')).lower() in ('1', 'true', 'yes')
 
@@ -2926,29 +2926,12 @@ class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelVie
     @action(detail=True, methods=['post'], url_path='marcar-resuelta')
     def marcar_resuelta(self, request, pk=None):
         """Marcar hilo como resuelto."""
+        # get_object limita el hilo: el docente, a su fondo; Jefatura, a su carrera.
         observacion = self.get_object()
-        fondo = observacion.fondo_tiempo
         perfil = _obtener_perfil_efectivo(request.user, request)
-        es_jefatura = (
-            perfil
-            and perfil.rol == 'jefe_estudios'
-            and _usuario_tiene_acceso_a_carrera(request.user, fondo.carrera, request)
-        )
-      
-        # Solo el docente puede marcar como resuelta
-        if request.user.is_staff and not (request.user.is_superuser or es_jefatura):
-            return Response(
-                {'error': 'Solo el docente puede marcar como resuelta'},
-                status=status.HTTP_403_FORBIDDEN
-        )
-    
-        # Verificar que sea el docente dueño del fondo
-        if request.user.is_superuser or es_jefatura or (hasattr(request.user, 'perfil') and request.user.perfil.docente):
-             if not (request.user.is_superuser or es_jefatura) and observacion.fondo_tiempo.docente != request.user.perfil.docente:
-                 raise PermissionDenied("No puede resolver observaciones de otros docentes")
-        else:
-             raise PermissionDenied("Usuario no tiene docente asignado")
-    
+        if not (request.user.is_superuser or (perfil and perfil.rol in ('docente', 'jefe_estudios'))):
+            raise PermissionDenied('Solo el docente del fondo o Jefatura de Estudios marcan la observación como resuelta.')
+
         if observacion.resuelta:
             return Response(
                 {'error': 'Esta observación ya fue resuelta'},

@@ -191,8 +191,6 @@ export const cambiarEstadoProyecto = (id, estado) =>
 // ===================================
 // ENDPOINTS - OBSERVACIONES
 // ===================================
-export const getObservaciones = () => api.get('/observaciones/');
-export const getObservacionDetalle = (id) => api.get(`/observaciones/${id}/`);
 export const getObservacionesPorFondo = (fondoId) => obtenerTodos('/observaciones/', { fondo_tiempo: fondoId });
 // Chat incremental: hilos sin mensajes + solo los mensajes con id > desdeId.
 // marcarLeido (chat abierto): el backend marca como leídos los de otros que devuelve.
@@ -211,13 +209,6 @@ export const agregarMensajeObservacion = (observacionId, texto, respondeA = null
 export const marcarObservacionResuelta = (observacionId) => {
   return api.post(`/observaciones/${observacionId}/marcar-resuelta/`);
 };
-export const crearObservacion = (data) => api.post('/observaciones/', data);
-export const actualizarObservacion = (id, data) => api.put(`/observaciones/${id}/`, data);
-export const eliminarObservacion = (id) => api.delete(`/observaciones/${id}/`);
-export const resolverObservacion = (id, respuesta) => 
-  api.post(`/observaciones/${id}/resolver/`, { respuesta });
-export const responderObservacion = (id, respuesta) => 
-  api.patch(`/observaciones/${id}/responder/`, { respuesta });
 
 // ===================================
 // ENDPOINTS - HISTORIAL (Solo lectura)

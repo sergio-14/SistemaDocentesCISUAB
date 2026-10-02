@@ -12,7 +12,6 @@ from django.http import HttpResponse, FileResponse
 from django.db import transaction, IntegrityError
 from django.db.models import ProtectedError, prefetch_related_objects, Q
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.core.cache import cache
 from datetime import datetime, date
 from decimal import Decimal
 import json
@@ -2817,45 +2816,6 @@ class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelVie
             self._marcar_mensajes_entrantes_como_leidos()
         return super().list(request, *args, **kwargs)
 
-    @action(detail=False, methods=['get', 'post'], url_path='typing-status')
-    def typing_status(self, request):
-        fondo_id = request.query_params.get('fondo_tiempo') or request.data.get('fondo_tiempo')
-        if not fondo_id:
-            return Response({'detail': "El campo 'fondo_tiempo' es obligatorio."}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            fondo_id = int(fondo_id)
-        except (TypeError, ValueError):
-            return Response({'detail': "El campo 'fondo_tiempo' debe ser un entero valido."}, status=status.HTTP_400_BAD_REQUEST)
-
-        if request.method == 'POST':
-            escribiendo = bool(request.data.get('escribiendo'))
-            cache_key = f'fondo-tiempo-chat-typing:{fondo_id}:{request.user.id}'
-            fondo_cache_key = f'fondo-tiempo-chat-typing:{fondo_id}:usuarios'
-            usuarios_escribiendo = cache.get(fondo_cache_key, {})
-
-            if escribiendo:
-                ahora = timezone.now().isoformat()
-                cache.set(cache_key, ahora, timeout=6)
-                usuarios_escribiendo[str(request.user.id)] = ahora
-                cache.set(fondo_cache_key, usuarios_escribiendo, timeout=6)
-            else:
-                cache.delete(cache_key)
-                usuarios_escribiendo.pop(str(request.user.id), None)
-                if usuarios_escribiendo:
-                    cache.set(fondo_cache_key, usuarios_escribiendo, timeout=6)
-                else:
-                    cache.delete(fondo_cache_key)
-            return Response({'escribiendo': escribiendo})
-
-        usuarios_escribiendo = cache.get(f'fondo-tiempo-chat-typing:{fondo_id}:usuarios', {})
-        otros = [
-            user_id for user_id in usuarios_escribiendo.keys()
-            if str(user_id) != str(request.user.id)
-        ]
-
-        return Response({'alguien_escribiendo': bool(otros)})
-    
     def get_queryset(self):
         """Filtrar observaciones según el usuario y fondo"""
         queryset = super().get_queryset()

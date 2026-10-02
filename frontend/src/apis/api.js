@@ -205,14 +205,6 @@ export const agregarMensajeObservacion = (observacionId, texto, respondeA = null
   return api.post(`/observaciones/${observacionId}/agregar-mensaje/`, payload);
 };
 
-export const getTypingObservacionFondo = (fondoId) => {
-  return api.get('/observaciones/typing-status/', { params: { fondo_tiempo: fondoId } });
-};
-
-export const setTypingObservacionFondo = (fondoId, escribiendo) => {
-  return api.post('/observaciones/typing-status/', { fondo_tiempo: fondoId, escribiendo });
-};
-
 export const marcarObservacionResuelta = (observacionId) => {
   return api.post(`/observaciones/${observacionId}/marcar-resuelta/`);
 };

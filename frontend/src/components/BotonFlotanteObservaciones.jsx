@@ -15,8 +15,6 @@ import {
 import {
   getObservacionesPorFondo,
   agregarMensajeObservacion,
-  getTypingObservacionFondo,
-  setTypingObservacionFondo,
   marcarObservacionResuelta
 } from '../apis/api';
 import api from '../apis/api';
@@ -34,7 +32,6 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
   const [esInterno, setEsInterno] = useState(false);
   const [sending, setSending] = useState(false);
   const [usuarioActual, setUsuarioActual] = useState(null);
-  const [typingIndicadorVisible, setTypingIndicadorVisible] = useState(false);
   const [panelBox, setPanelBox] = useState(null);
   const [isDraggingPanel, setIsDraggingPanel] = useState(false);
   const [isResizingPanel, setIsResizingPanel] = useState(false);
@@ -53,8 +50,6 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
   const [swipeMensaje, setSwipeMensaje] = useState(null);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
-  const typingTimerRef = useRef(null);
-  const typingHideTimerRef = useRef(null);
   const panelRef = useRef(null);
   const dragStateRef = useRef(null);
   const resizeStateRef = useRef(null);
@@ -64,8 +59,6 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
   const knownMessageIdsRef = useRef(new Set());
   const initializedMessagesRef = useRef(false);
   const previousMessageRectsRef = useRef(new Map());
-  const typingVisibleRef = useRef(false);
-  const localTypingRef = useRef(false);
   const newMessageTimerRef = useRef(null);
   const closeChatTimerRef = useRef(null);
   const justOpenedChatRef = useRef(false);
@@ -152,43 +145,9 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
     return () => window.clearInterval(intervalId);
   }, [open, fondoId, cargarObservaciones]);
 
-  const cargarTyping = useCallback(async () => {
-    if (!fondoId) return;
-    try {
-      const response = await getTypingObservacionFondo(fondoId);
-      const siguienteEstado = Boolean(response.data?.alguien_escribiendo);
-      typingVisibleRef.current = siguienteEstado;
-      if (siguienteEstado) {
-        if (typingHideTimerRef.current) window.clearTimeout(typingHideTimerRef.current);
-        setTypingIndicadorVisible(true);
-      } else {
-        if (typingHideTimerRef.current) window.clearTimeout(typingHideTimerRef.current);
-        typingHideTimerRef.current = window.setTimeout(() => {
-          setTypingIndicadorVisible(false);
-        }, 180);
-      }
-    } catch {
-      typingVisibleRef.current = false;
-      if (typingHideTimerRef.current) window.clearTimeout(typingHideTimerRef.current);
-      typingHideTimerRef.current = window.setTimeout(() => {
-        setTypingIndicadorVisible(false);
-      }, 180);
-    }
-  }, [fondoId]);
-
-  useEffect(() => {
-    if (!open || !fondoId) return undefined;
-    cargarTyping();
-    const intervalId = window.setInterval(cargarTyping, 300);
-    return () => window.clearInterval(intervalId);
-  }, [open, fondoId, cargarTyping]);
-
   useEffect(() => () => {
-    if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
-    if (typingHideTimerRef.current) window.clearTimeout(typingHideTimerRef.current);
     if (newMessageTimerRef.current) window.clearTimeout(newMessageTimerRef.current);
     if (closeChatTimerRef.current) window.clearTimeout(closeChatTimerRef.current);
-    if (fondoId) setTypingObservacionFondo(fondoId, false).catch(() => {});
   }, [fondoId]);
 
   useEffect(() => {
@@ -216,7 +175,6 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
       setRespondiendoA(null);
       setMensajeFijado(null);
       setSwipeMensaje(null);
-      setTypingIndicadorVisible(false);
     }
   }, [open]);
 
@@ -581,10 +539,6 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
     shouldAutoScrollRef.current = true;
     try {
       await agregarMensajeObservacion(conversacionActiva.id, textoLimpio, respondiendoA?.id || null, esInterno);
-      localTypingRef.current = false;
-      window.setTimeout(() => {
-        setTypingObservacionFondo(fondoId, false).catch(() => {});
-      }, 650);
       setTexto('');
       setEsInterno(false);
       setRespondiendoA(null);
@@ -646,38 +600,9 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
     );
   }, [observacionPendientePrincipal]);
 
-  const handleTextoChange = (value) => {
-    setTexto(value);
-    if (!open || !fondoId || !hayConversacionActiva || !puedeResponder) return;
-
-    const escribiendo = String(value || '').trim().length > 0;
-
-    if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
-
-    if (escribiendo) {
-      localTypingRef.current = true;
-      setTypingObservacionFondo(fondoId, true).catch(() => {});
-      typingTimerRef.current = window.setTimeout(() => {
-        localTypingRef.current = false;
-        setTypingObservacionFondo(fondoId, false).catch(() => {});
-      }, 1800);
-      return;
-    }
-
-    if (localTypingRef.current) {
-      localTypingRef.current = false;
-      setTypingObservacionFondo(fondoId, false).catch(() => {});
-    }
-  };
-
   const cerrarChat = () => {
     if (isClosingChat) return;
     setIsClosingChat(true);
-    setTypingIndicadorVisible(false);
-    if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
-    if (typingHideTimerRef.current) window.clearTimeout(typingHideTimerRef.current);
-    localTypingRef.current = false;
-    if (fondoId) setTypingObservacionFondo(fondoId, false).catch(() => {});
     if (closeChatTimerRef.current) window.clearTimeout(closeChatTimerRef.current);
     closeChatTimerRef.current = window.setTimeout(() => {
       setOpen(false);
@@ -1039,16 +964,6 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
                   </div>
                 );
               })}
-
-              <div className={`ft-chat-typing-row ${typingIndicadorVisible && mensajesNuevosIds.length === 0 ? 'is-visible' : ''}`}>
-                <div className="flex justify-start">
-                  <div className="ft-chat-typing">
-                    <span />
-                    <span />
-                    <span />
-                  </div>
-                </div>
-              </div>
             </div>
             {mostrarBajarChat && (
               <button
@@ -1104,7 +1019,7 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
                 <input
                   ref={inputRef}
                   value={texto}
-                  onChange={(e) => handleTextoChange(e.target.value)}
+                  onChange={(e) => setTexto(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();

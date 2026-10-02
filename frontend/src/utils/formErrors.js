@@ -15,6 +15,9 @@ export const ERROR_MOTION_CLASS = 'animate-field-error-shake';
 /** Duración fija de la sacudida en milisegundos. De coincidir con index.css. */
 export const ERROR_SHAKE_DURATION_MS = 460;
 
+/** Toast común cuando la validación propia marca campos (los formularios usan noValidate). */
+export const MENSAJE_REVISA_CAMPOS = 'Revisa los campos marcados en rojo.';
+
 /** Mensaje limpio y estandarizado para errores de selección. */
 export const CHOICE_ERROR_MESSAGE = 'Por favor, seleccione una opción.';
 

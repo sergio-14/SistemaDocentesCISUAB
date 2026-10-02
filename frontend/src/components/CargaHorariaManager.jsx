@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api, { obtenerTodos } from '../apis/api';
 import toast from 'react-hot-toast';
+import { ERROR_FIELD_BORDER_CLASS } from '../utils/formErrors';
+import MensajeErrorCampo from './common/MensajeErrorCampo';
 
 const PencilIcon = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
@@ -643,6 +645,9 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
             && String(carga.materia || carga.materia_id || '') === String(formData.materia || '')
             && carga.paralelo === formData.paralelo;
     });
+    // Sin la validación nativa (noValidate): entero mayor a 0, con mensaje bajo el campo.
+    const horasInvalidas = String(formData.horas ?? '') !== ''
+        && (!Number.isInteger(Number(formData.horas)) || Number(formData.horas) < 1);
     const respaldoRequerido = false;
     const respaldoInvalido = respaldoRequerido && !formData.documento_respaldo?.trim();
     const submitDisabled = isSubmitting
@@ -655,6 +660,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
         || (!esAcademica && !formData.tipo_actividad)
         || !formData.horas
         || Number(formData.horas) <= 0
+        || horasInvalidas
         || duplicadoTipoSeleccionado
         || excedeObjetivoAnual
         || respaldoInvalido;
@@ -704,7 +710,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                 )}
 
                 {/* Formulario - flex-1 + flex-col + justify-between */}
-                <form onSubmit={handleSubmit} className="flex-1 flex flex-col justify-between gap-0">
+                <form onSubmit={handleSubmit} noValidate className="flex-1 flex flex-col justify-between gap-0">
 
                     {/* Campos superiores */}
                     <div className="space-y-4">
@@ -860,7 +866,8 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                                         type="number"
                                         min="1"
                                         step="1"
-                                        className="w-32 rounded-lg border border-blue-200 bg-white px-3 py-2 text-2xl font-black leading-none text-blue-600 outline-none focus:ring-2 focus:ring-blue-400 dark:border-blue-700 dark:bg-slate-800 dark:text-blue-400"
+                                        className={`w-32 rounded-lg border border-blue-200 bg-white px-3 py-2 text-2xl font-black leading-none text-blue-600 outline-none focus:ring-2 focus:ring-blue-400 dark:border-blue-700 dark:bg-slate-800 dark:text-blue-400 ${horasInvalidas ? ERROR_FIELD_BORDER_CLASS : ''}`}
+                                        aria-invalid={horasInvalidas || undefined}
                                         value={formData.horas}
                                         onChange={e => setFormData({ ...formData, horas: e.target.value })}
                                         disabled={isReadOnly}
@@ -870,6 +877,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                                     hrs/año
                                 </span>
                             </div>
+                            <MensajeErrorCampo error={horasInvalidas ? 'Ingrese un número entero de horas mayor a 0.' : ''} />
                             <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1.5 leading-tight">
                                 {esAcademica && !esSubactividadAcademica
                                     ? `Total horas anuales = (HT + HP) x ${semanasDeClase(formData.calendario) || '20 (semestre) o 40 (anual)'} semanas`

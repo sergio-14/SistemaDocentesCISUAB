@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import api, { obtenerTodos } from '../apis/api';
-import { getApiErrorMessage } from '../utils/formErrors';
+import { ERROR_FIELD_BORDER_CLASS, MENSAJE_REVISA_CAMPOS, getApiErrorMessage } from '../utils/formErrors';
+import { validarRangoHora24 } from '../utils/horas24';
 import ProgramaAnaliticoAccion from './fondos/ProgramaAnaliticoAccion';
+import CampoHora24 from './common/CampoHora24';
+import MensajeErrorCampo from './common/MensajeErrorCampo';
 
 // Doble carrera: el Jefe de Estudios asigna una materia de SU carrera a un docente de otra.
 // La carga va al Fondo de Tiempo del docente en su carrera, que este Jefe no ve: aquí solo
@@ -29,6 +32,8 @@ const AsignarMateriaOtraCarrera = () => {
   const [cargas, setCargas] = useState([]);
   const [form, setForm] = useState(FORM_VACIO);
   const [guardando, setGuardando] = useState(false);
+  const [errores, setErrores] = useState({});
+  const [pulso, setPulso] = useState(0);
 
   useEffect(() => {
     obtenerTodos('/calendarios/')
@@ -72,13 +77,16 @@ const AsignarMateriaOtraCarrera = () => {
     setResultados([]);
     setBusqueda('');
     setForm(FORM_VACIO);
+    setErrores({});
     cargarCargas(elegido.id);
   };
 
-  const cambiar = (campo) => (evento) => {
-    const valor = evento.target.value;
+  const cambiarValor = (campo, valor) => {
     setForm((previo) => ({ ...previo, [campo]: valor, ...(campo === 'calendario' ? { materia: '' } : {}) }));
+    setErrores((previos) => ({ ...previos, [campo]: undefined }));
   };
+  const cambiar = (campo) => (evento) => cambiarValor(campo, evento.target.value);
+  const claseCampo = (campo) => `${inputCls} ${errores[campo] ? ERROR_FIELD_BORDER_CLASS : ''}`;
 
   const materia = materias.find((m) => String(m.id) === String(form.materia));
   // Clases en aula: horas de la materia x 20 semanas (semestre) o x 40 (anual). El backend las recalcula.
@@ -86,8 +94,17 @@ const AsignarMateriaOtraCarrera = () => {
 
   const asignar = async (evento) => {
     evento.preventDefault();
-    if (!calendario || !materia || !form.hora_inicio || !form.hora_fin) {
-      toast.error('Complete calendario, materia y horario');
+    const rango = validarRangoHora24(form.hora_inicio, form.hora_fin);
+    const nuevosErrores = {
+      calendario: calendario ? undefined : 'Seleccione el calendario.',
+      materia: materia ? undefined : 'Seleccione la materia.',
+      hora_inicio: rango.inicio,
+      hora_fin: rango.fin,
+    };
+    if (Object.values(nuevosErrores).some(Boolean)) {
+      setErrores(nuevosErrores);
+      setPulso((valor) => valor + 1);
+      toast.error(MENSAJE_REVISA_CAMPOS);
       return;
     }
     setGuardando(true);
@@ -175,24 +192,26 @@ const AsignarMateriaOtraCarrera = () => {
             <span className="text-slate-500 dark:text-slate-400"> · C.I. …{docente.ci_ultimos || '----'}</span>
           </p>
 
-          <form onSubmit={asignar} className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <form onSubmit={asignar} noValidate className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div>
               <label className={labelCls} htmlFor="otra-carrera-calendario">Calendario</label>
-              <select id="otra-carrera-calendario" value={form.calendario} onChange={cambiar('calendario')} className={inputCls}>
+              <select id="otra-carrera-calendario" value={form.calendario} onChange={cambiar('calendario')} className={claseCampo('calendario')}>
                 <option value="">-- Calendario --</option>
                 {calendarios.map((cal) => (
                   <option key={cal.id} value={cal.id}>{nombreCalendario(cal.id)}</option>
                 ))}
               </select>
+              <MensajeErrorCampo error={errores.calendario} pulse={pulso} />
             </div>
             <div className="md:col-span-2">
               <label className={labelCls} htmlFor="otra-carrera-materia">Materia</label>
-              <select id="otra-carrera-materia" value={form.materia} onChange={cambiar('materia')} className={inputCls} disabled={!calendario}>
+              <select id="otra-carrera-materia" value={form.materia} onChange={cambiar('materia')} className={claseCampo('materia')} disabled={!calendario}>
                 <option value="">{calendario ? '-- Materia --' : 'Elija primero el calendario'}</option>
                 {materias.map((m) => (
                   <option key={m.id} value={m.id}>{`${m.sigla} - ${m.nombre} (${m.horas_totales} h/sem)`}</option>
                 ))}
               </select>
+              <MensajeErrorCampo error={errores.materia} pulse={pulso} />
             </div>
             <div>
               <label className={labelCls} htmlFor="otra-carrera-paralelo">Paralelo</label>
@@ -211,12 +230,26 @@ const AsignarMateriaOtraCarrera = () => {
               <input id="otra-carrera-aula" type="text" value={form.aula} onChange={cambiar('aula')} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls} htmlFor="otra-carrera-inicio">Hora de inicio</label>
-              <input id="otra-carrera-inicio" type="time" value={form.hora_inicio} onChange={cambiar('hora_inicio')} className={inputCls} />
+              <label className={labelCls} htmlFor="otra-carrera-inicio">Hora de inicio (24 h)</label>
+              <CampoHora24
+                id="otra-carrera-inicio"
+                value={form.hora_inicio}
+                onChange={(valor) => cambiarValor('hora_inicio', valor)}
+                invalido={Boolean(errores.hora_inicio)}
+                className={claseCampo('hora_inicio')}
+              />
+              <MensajeErrorCampo error={errores.hora_inicio} pulse={pulso} />
             </div>
             <div>
-              <label className={labelCls} htmlFor="otra-carrera-fin">Hora de fin</label>
-              <input id="otra-carrera-fin" type="time" value={form.hora_fin} onChange={cambiar('hora_fin')} className={inputCls} />
+              <label className={labelCls} htmlFor="otra-carrera-fin">Hora de fin (24 h)</label>
+              <CampoHora24
+                id="otra-carrera-fin"
+                value={form.hora_fin}
+                onChange={(valor) => cambiarValor('hora_fin', valor)}
+                invalido={Boolean(errores.hora_fin)}
+                className={claseCampo('hora_fin')}
+              />
+              <MensajeErrorCampo error={errores.hora_fin} pulse={pulso} />
             </div>
             <div className="flex items-end">
               <button

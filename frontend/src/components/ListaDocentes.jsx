@@ -2539,7 +2539,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
             </div>
 
             {/* Body */}
-            <form id="editar-docente-form" onSubmit={handleUpdateSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50 dark:bg-slate-900 transition-all duration-300 ease-out">
+            <form id="editar-docente-form" onSubmit={handleUpdateSubmit} noValidate className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50 dark:bg-slate-900 transition-all duration-300 ease-out">
               <fieldset disabled={fichaSoloLectura} className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <InputField
                   label="Nombre completo"

@@ -574,7 +574,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
           </h3>
         </div>
 
-        <form id="user-form" onSubmit={handleSubmit} className="flex-1 overflow-visible">
+        <form id="user-form" onSubmit={handleSubmit} noValidate className="flex-1 overflow-visible">
           <div className="p-6">
             {identidadBloqueada && (
               <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100">

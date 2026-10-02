@@ -125,7 +125,7 @@ function FormularioPresentarInforme({ fondoId, onInformePresentado, onCancelar }
 
         {/* Contenido scrolleable */}
         <div className="flex-1 overflow-y-auto p-6">
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} noValidate className="space-y-5">
             {/* Actividades Realizadas */}
             <div>
               <label className="block text-sm font-bold mb-2 text-slate-800 dark:text-slate-300">

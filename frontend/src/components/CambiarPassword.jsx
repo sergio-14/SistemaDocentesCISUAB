@@ -2,6 +2,10 @@
 import React, { useState } from 'react';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
+import { MENSAJE_REVISA_CAMPOS } from '../utils/formErrors';
+import MensajeErrorCampo from './common/MensajeErrorCampo';
+
+const TONO_ERROR = 'text-red-200 font-semibold';
 
 const CambiarPassword = ({ onPasswordChanged }) => {
   const [password, setPassword] = useState('');
@@ -9,17 +13,21 @@ const CambiarPassword = ({ onPasswordChanged }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [errores, setErrores] = useState({});
+  const [pulso, setPulso] = useState(0);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (password !== confirmPassword) {
-      toast.error('Las contraseñas no coinciden');
-      return;
-    }
 
-    if (password.length < 8) {
-      toast.error('La contraseña debe tener al menos 8 caracteres');
+    const nuevosErrores = {};
+    if (!password) nuevosErrores.password = 'Ingrese la nueva contraseña.';
+    else if (password.length < 8) nuevosErrores.password = 'La contraseña debe tener al menos 8 caracteres.';
+    if (!confirmPassword) nuevosErrores.confirmar = 'Confirme la contraseña.';
+    else if (password && password !== confirmPassword) nuevosErrores.confirmar = 'Las contraseñas no coinciden.';
+    if (Object.keys(nuevosErrores).length > 0) {
+      setErrores(nuevosErrores);
+      setPulso((valor) => valor + 1);
+      toast.error(MENSAJE_REVISA_CAMPOS);
       return;
     }
 
@@ -113,7 +121,7 @@ const CambiarPassword = ({ onPasswordChanged }) => {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} noValidate className="space-y-6">
           <div className="space-y-2">
             <label className="text-xs font-bold text-blue-100/85 ml-1 uppercase tracking-wider">Nueva contraseña</label>
             <div className="relative group">
@@ -125,8 +133,8 @@ const CambiarPassword = ({ onPasswordChanged }) => {
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
+                onChange={(e) => { setPassword(e.target.value); setErrores((prev) => ({ ...prev, password: undefined })); }}
+                aria-invalid={Boolean(errores.password) || undefined}
                 className={`login-fixed-input ${showPassword ? '' : 'login-password-masked'} block w-full pl-11 pr-14 py-4 bg-blue-500/20 border border-blue-400/40 rounded-xl text-white placeholder-blue-100/70 focus:outline-none focus:ring-4 focus:ring-blue-300/40 focus:border-blue-300/80 transition-all duration-200 hover:border-blue-300/60 hover:bg-blue-500/25 shadow-[0_10px_24px_rgba(8,15,40,0.35),inset_0_2px_4px_rgba(59,130,246,0.2)]`}
                 placeholder="***********"
                 autoComplete="new-password"
@@ -144,6 +152,7 @@ const CambiarPassword = ({ onPasswordChanged }) => {
                 </svg>
               </button>
             </div>
+            <MensajeErrorCampo error={errores.password} pulse={pulso} tono={TONO_ERROR} />
           </div>
 
           <div className="space-y-2">
@@ -157,8 +166,8 @@ const CambiarPassword = ({ onPasswordChanged }) => {
               <input
                 type={showConfirmPassword ? 'text' : 'password'}
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
+                onChange={(e) => { setConfirmPassword(e.target.value); setErrores((prev) => ({ ...prev, confirmar: undefined })); }}
+                aria-invalid={Boolean(errores.confirmar) || undefined}
                 className={`login-fixed-input ${showConfirmPassword ? '' : 'login-password-masked'} block w-full pl-11 pr-14 py-4 bg-blue-500/20 border border-blue-400/40 rounded-xl text-white placeholder-blue-100/70 focus:outline-none focus:ring-4 focus:ring-blue-300/40 focus:border-blue-300/80 transition-all duration-200 hover:border-blue-300/60 hover:bg-blue-500/25 shadow-[0_10px_24px_rgba(8,15,40,0.35),inset_0_2px_4px_rgba(59,130,246,0.2)]`}
                 placeholder="***********"
                 autoComplete="new-password"
@@ -176,6 +185,7 @@ const CambiarPassword = ({ onPasswordChanged }) => {
                 </svg>
               </button>
             </div>
+            <MensajeErrorCampo error={errores.confirmar} pulse={pulso} tono={TONO_ERROR} />
             <p className="text-[11px] text-blue-100/65 ml-1">Usa el icono para mostrar u ocultar la contraseña.</p>
           </div>
 

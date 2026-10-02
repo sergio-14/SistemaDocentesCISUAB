@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { observarFondo } from '../apis/api';
 import toast from 'react-hot-toast';
-import { getApiErrorMessage } from '../utils/formErrors';
+import { ERROR_FIELD_BORDER_CLASS, MENSAJE_REVISA_CAMPOS, getApiErrorMessage } from '../utils/formErrors';
+import MensajeErrorCampo from './common/MensajeErrorCampo';
 
 const PaperAirplaneIcon = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
@@ -19,17 +20,20 @@ const InfoIcon = (props) => (
 function FormularioObservar({ fondo, onObservar, onCancelar }) {
   const [observacion, setObservacion] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState('');
+  const [pulso, setPulso] = useState(0);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!observacion.trim()) {
-      toast.error('Debes escribir una observacion');
-      return;
-    }
-
-    if (observacion.trim().length < 10) {
-      toast.error('La observacion debe tener al menos 10 caracteres');
+    const texto = observacion.trim();
+    const mensaje = !texto
+      ? 'Escriba la observación.'
+      : texto.length < 10 ? 'La observación debe tener al menos 10 caracteres.' : '';
+    if (mensaje) {
+      setError(mensaje);
+      setPulso((valor) => valor + 1);
+      toast.error(MENSAJE_REVISA_CAMPOS);
       return;
     }
 
@@ -66,7 +70,7 @@ function FormularioObservar({ fondo, onObservar, onCancelar }) {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="observacion-modal-form">
+        <form onSubmit={handleSubmit} noValidate className="observacion-modal-form">
           <div className="observacion-modal-info">
             <div className="observacion-modal-info-grid">
               <div>
@@ -102,12 +106,13 @@ function FormularioObservar({ fondo, onObservar, onCancelar }) {
             </label>
             <textarea
               value={observacion}
-              onChange={(e) => setObservacion(e.target.value)}
+              onChange={(e) => { setObservacion(e.target.value); setError(''); }}
               rows={8}
               placeholder={'Ejemplo:\n\n1. Falta especificar las horas de tutoria en la funcion Docente.\n2. El porcentaje de Investigacion (5%) esta por debajo del minimo requerido (10%).\n3. Debe adjuntar el programa analitico actualizado.'}
-              className="observacion-modal-textarea"
-              required
+              className={`observacion-modal-textarea ${error ? ERROR_FIELD_BORDER_CLASS : ''}`}
+              aria-invalid={Boolean(error) || undefined}
             />
+            <MensajeErrorCampo error={error} pulse={pulso} />
             <p className="observacion-modal-help">
               Se especifico sobre que debe corregir el docente
             </p>

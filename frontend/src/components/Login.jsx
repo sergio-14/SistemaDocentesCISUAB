@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 import { API_URL } from '../apis/apiConfig';
+import { MENSAJE_REVISA_CAMPOS } from '../utils/formErrors';
+import MensajeErrorCampo from './common/MensajeErrorCampo';
+
+const TONO_ERROR = 'text-red-200 font-semibold';
 
 function Login({ onLogin }) {
   const LOGIN_EXIT_DURATION = 1400;
@@ -10,6 +15,8 @@ function Login({ onLogin }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
+  const [errores, setErrores] = useState({});
+  const [pulso, setPulso] = useState(0);
   const [loginError, setLoginError] = useState('');
   const loginErrorTimeoutRef = useRef(null);
   const navigate = useNavigate();
@@ -33,6 +40,15 @@ function Login({ onLogin }) {
   const handleSubmit = async (e) => {
   if (isExiting) return;
   e.preventDefault();
+  const nuevosErrores = {};
+  if (!username.trim()) nuevosErrores.username = 'Ingrese su usuario o correo.';
+  if (!password) nuevosErrores.password = 'Ingrese su contraseña.';
+  if (Object.keys(nuevosErrores).length > 0) {
+    setErrores(nuevosErrores);
+    setPulso((valor) => valor + 1);
+    toast.error(MENSAJE_REVISA_CAMPOS);
+    return;
+  }
   setLoading(true);
   setLoginError('');
   let nextRoute = null;
@@ -129,7 +145,7 @@ function Login({ onLogin }) {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} noValidate className="space-y-6">
           {loginError && (
             <div className="login-inline-error rounded-xl border border-red-300/80 bg-red-600/28 text-red-100 px-4 py-3 text-sm font-semibold shadow-[0_10px_26px_rgba(127,29,29,0.42)]">
               <div className="flex items-start gap-3">
@@ -155,13 +171,14 @@ function Login({ onLogin }) {
               <input
                 type="text"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
+                onChange={(e) => { setUsername(e.target.value); setErrores((prev) => ({ ...prev, username: undefined })); }}
+                aria-invalid={Boolean(errores.username) || undefined}
                 className="login-fixed-input block w-full pl-11 pr-4 py-4 bg-blue-500/20 border border-blue-400/40 rounded-xl text-white placeholder-blue-100/70 focus:outline-none focus:ring-4 focus:ring-blue-300/40 focus:border-blue-300/80 transition-all duration-200 hover:border-blue-300/60 hover:bg-blue-500/25 shadow-[0_10px_24px_rgba(8,15,40,0.35),inset_0_2px_4px_rgba(59,130,246,0.2)]"
                 placeholder="Ingrese su correo"
                 autoComplete="username"
               />
             </div>
+            <MensajeErrorCampo error={errores.username} pulse={pulso} tono={TONO_ERROR} />
           </div>
 
           {/* Password */}
@@ -176,8 +193,8 @@ function Login({ onLogin }) {
               <input
                 type="text"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
+                onChange={(e) => { setPassword(e.target.value); setErrores((prev) => ({ ...prev, password: undefined })); }}
+                aria-invalid={Boolean(errores.password) || undefined}
                 className={`login-fixed-input ${showPassword ? '' : 'login-password-masked'} block w-full pl-11 pr-14 py-4 bg-blue-500/20 border border-blue-400/40 rounded-xl text-white placeholder-blue-100/70 focus:outline-none focus:ring-4 focus:ring-blue-300/40 focus:border-blue-300/80 transition-all duration-200 hover:border-blue-300/60 hover:bg-blue-500/25 shadow-[0_10px_24px_rgba(8,15,40,0.35),inset_0_2px_4px_rgba(59,130,246,0.2)]`}
                 placeholder="Ingrese su contraseña"
                 autoComplete="current-password"
@@ -195,6 +212,7 @@ function Login({ onLogin }) {
                 </svg>
               </button>
             </div>
+            <MensajeErrorCampo error={errores.password} pulse={pulso} tono={TONO_ERROR} />
             <p className="text-[11px] text-blue-100/65 ml-1">Usa el icono para mostrar u ocultar la contraseña.</p>
           </div>
 

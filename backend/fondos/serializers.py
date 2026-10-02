@@ -6,7 +6,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import UNIDADES_FONDO, actualizar_con_historial, nombre_calendario_en_fondo, fondo_de_la_carga, mensaje_sin_fondo
+from .models import UNIDADES_FONDO, actualizar_con_historial, nombre_calendario_en_fondo, fondo_de_la_carga, mensaje_sin_fondo, roles_del_docente_en_carrera
 from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, PerfilUsuario, AsignacionCarrera, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, ProgramaAnalitico
 from .role_context import get_active_assignment, get_active_careers_for_user, get_effective_profile, serialize_assignment
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
@@ -77,6 +77,9 @@ CARGA_HORARIA_TIPOS_POR_CATEGORIA = {
         'examenes_mesa',
         'otras_comisiones_academicas',
         'logistica_carrera',
+        'ejercicio_cargo_direccion',
+        'ejercicio_cargo_jefatura',
+        'ejercicio_cargo_instituto',
         'difusion_perfil_profesional',
         'caac',
         'comision_innovacion_curricular',
@@ -100,6 +103,24 @@ CARGA_HORARIA_TIPOS_POR_CATEGORIA = {
         'orientacion_vocacional',
     ],
 }
+
+# Ejercicio del cargo (Art. 13, logística de la carrera): una variante por cargo.
+# Solo para el docente con ese cargo activo en la carrera del fondo, y una sola
+# vez por fondo (cualquiera de las tres).
+TIPOS_EJERCICIO_CARGO = {
+    'ejercicio_cargo_direccion': 'director',
+    'ejercicio_cargo_jefatura': 'jefe_estudios',
+    'ejercicio_cargo_instituto': 'iiisyp',
+}
+
+
+def tipos_ejercicio_cargo_del_fondo(fondo):
+    """Variantes de "Ejercicio del cargo" que corresponden al docente del fondo."""
+    if not (fondo and fondo.docente_id and fondo.carrera_id):
+        return []
+    roles = roles_del_docente_en_carrera(fondo.docente, fondo.carrera)
+    return [tipo for tipo, rol in TIPOS_EJERCICIO_CARGO.items() if rol in roles]
+
 
 CARGA_HORARIA_TIPOS_LABELS = {
     'cursos_verano': 'Cursos de verano',
@@ -146,6 +167,9 @@ CARGA_HORARIA_TIPOS_LABELS = {
     'examenes_mesa': 'Ex\u00e1menes de mesa',
     'otras_comisiones_academicas': 'Otras comisiones acad\u00e9micas',
     'logistica_carrera': 'Log\u00edstica carrera',
+    'ejercicio_cargo_direccion': 'Ejercicio del cargo: Direcci\u00f3n de Carrera',
+    'ejercicio_cargo_jefatura': 'Ejercicio del cargo: Jefatura de Estudios',
+    'ejercicio_cargo_instituto': 'Ejercicio del cargo: Instituto de Investigaci\u00f3n',
     'difusion_perfil_profesional': 'Difusi\u00f3n perfil profesional',
     'caac': 'CAAC',
     'comision_innovacion_curricular': 'Comisi\u00f3n Innovaci\u00f3n Curricular',
@@ -228,6 +252,9 @@ CARGA_HORARIA_EVIDENCIAS_ACADEMICA_ADMINISTRATIVA = {
     'examenes_mesa': 'Actas de examen de mesa, memor\u00e1ndum de designaci\u00f3n de tribunal',
     'otras_comisiones_academicas': 'Memor\u00e1ndum de designaci\u00f3n, informe de la comisi\u00f3n',
     'logistica_carrera': 'Informe de log\u00edstica, inventario o cronograma de actividades',
+    'ejercicio_cargo_direccion': 'Memor\u00e1ndum o resoluci\u00f3n de designaci\u00f3n',
+    'ejercicio_cargo_jefatura': 'Memor\u00e1ndum o resoluci\u00f3n de designaci\u00f3n',
+    'ejercicio_cargo_instituto': 'Memor\u00e1ndum o resoluci\u00f3n de designaci\u00f3n',
     'difusion_perfil_profesional': 'Material de difusi\u00f3n, fotograf\u00edas, lista de instituciones visitadas',
     'caac': 'Actas del CAAC, informe de sesi\u00f3n',
     'comision_innovacion_curricular': 'Acta de la comisi\u00f3n, documento de innovaci\u00f3n curricular',
@@ -1339,6 +1366,24 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
             if tipo_duplicado.exists():
                 raise serializers.ValidationError({
                     'tipo_actividad': 'Esta actividad ya está registrada en el Fondo de Tiempo.'
+                })
+
+        if tipo_actividad in TIPOS_EJERCICIO_CARGO and fondo:
+            # Solo la variante del cargo que el docente ejerce en la carrera del fondo,
+            # y una sola vez por fondo (cualquiera de las tres).
+            if tipo_actividad not in tipos_ejercicio_cargo_del_fondo(fondo):
+                raise serializers.ValidationError({
+                    'tipo_actividad': (
+                        f'{CARGA_HORARIA_TIPOS_LABELS[tipo_actividad]}: el docente no tiene ese cargo activo '
+                        f'en {fondo.carrera.nombre}.'
+                    )
+                })
+            otro_cargo = CargaHoraria.objects.filter(fondo=fondo, tipo_actividad__in=TIPOS_EJERCICIO_CARGO)
+            if self.instance:
+                otro_cargo = otro_cargo.exclude(pk=self.instance.pk)
+            if otro_cargo.exists():
+                raise serializers.ValidationError({
+                    'tipo_actividad': 'El Ejercicio del cargo ya está registrado en el Fondo de Tiempo.'
                 })
 
         if es_clase and fondo and calendario and materia:
@@ -4085,6 +4130,8 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     puede_editar = serializers.SerializerMethodField()
     # El editor del informe se abre en solo lectura si es False.
     puede_editar_informe = serializers.SerializerMethodField()
+    # Variantes de "Ejercicio del cargo" que el formulario de cargas ofrece.
+    tipos_ejercicio_cargo = serializers.SerializerMethodField()
     # Revisión: nadie revisa su propio fondo; el del Director lo revisa el superusuario.
     es_fondo_propio = serializers.SerializerMethodField()
     es_fondo_de_director = serializers.SerializerMethodField()
@@ -4109,7 +4156,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             'categorias', 'proyectos', 'informes', 'asignaturas_ejecutadas', 'observaciones_detalladas',
             'informe_actual',
             # Permisos
-            'puede_editar', 'puede_editar_informe',
+            'puede_editar', 'puede_editar_informe', 'tipos_ejercicio_cargo',
             'es_fondo_propio', 'es_fondo_de_director', 'documento_decanatura', 'documento_decanatura_informe',
         ]
         read_only_fields = [
@@ -4173,6 +4220,9 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             return False
         informe = obj.informes.filter(tipo='parcial').order_by('-fecha_elaboracion').first()
         return informe is None or informe.estado in ('borrador', 'observado')
+
+    def get_tipos_ejercicio_cargo(self, obj):
+        return tipos_ejercicio_cargo_del_fondo(obj)
 
     def get_es_fondo_propio(self, obj):
         request = self.context.get('request')

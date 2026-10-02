@@ -108,6 +108,9 @@ const SUBACTIVIDADES_POR_CATEGORIA = {
             { value: 'examenes_mesa', label: 'Exámenes de mesa' },
             { value: 'otras_comisiones_academicas', label: 'Otras comisiones académicas' },
             { value: 'logistica_carrera', label: 'Logística carrera' },
+            { value: 'ejercicio_cargo_direccion', label: 'Ejercicio del cargo: Dirección de Carrera' },
+            { value: 'ejercicio_cargo_jefatura', label: 'Ejercicio del cargo: Jefatura de Estudios' },
+            { value: 'ejercicio_cargo_instituto', label: 'Ejercicio del cargo: Instituto de Investigación' },
             { value: 'difusion_perfil_profesional', label: 'Difusión perfil profesional' },
             { value: 'caac', label: 'CAAC' },
             { value: 'comision_innovacion_curricular', label: 'Comisión Innovación Curricular' },
@@ -137,6 +140,11 @@ const SUBACTIVIDADES_POR_CATEGORIA = {
         ],
     },
 };
+
+// Ejercicio del cargo (Art. 13): solo la variante del cargo que el docente
+// tiene activo en la carrera del fondo (tipos_ejercicio_cargo del detalle) y
+// una sola vez por fondo. El backend aplica las mismas reglas.
+const TIPOS_EJERCICIO_CARGO = ['ejercicio_cargo_direccion', 'ejercicio_cargo_jefatura', 'ejercicio_cargo_instituto'];
 
 const HORAS_ANUALES_OFICIALES = {
     investigacion: {
@@ -578,7 +586,10 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
         setFormData((prev) => ({
             ...prev,
             tipo_actividad: tipoActividad,
-            titulo_actividad: prev.categoria === 'academica' && tipoActividad !== 'clases_aula' ? (opcion?.label || '') : prev.titulo_actividad,
+            titulo_actividad: (prev.categoria === 'academica' && tipoActividad !== 'clases_aula')
+                || (TIPOS_EJERCICIO_CARGO.includes(tipoActividad) && !prev.titulo_actividad?.trim())
+                ? (opcion?.label || '')
+                : prev.titulo_actividad,
             horas: prev.categoria === 'academica' || horasSugeridas === undefined
                 ? prev.horas
                 : horasSugeridas
@@ -601,7 +612,12 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
     const requiereMateriaAcademica = esAcademica;
     const esSubactividadAcademica = esAcademica && formData.tipo_actividad && formData.tipo_actividad !== 'clases_aula';
     const configCategoria = SUBACTIVIDADES_POR_CATEGORIA[formData.categoria] || null;
-    const tipoActividadOptions = configCategoria?.opciones || [];
+    const tiposCargoDelDocente = fondoDetalle?.tipos_ejercicio_cargo || [];
+    const tipoActividadOptions = (configCategoria?.opciones || []).filter((opt) => (
+        !TIPOS_EJERCICIO_CARGO.includes(opt.value)
+        || tiposCargoDelDocente.includes(opt.value)
+        || opt.value === cargaEdicion?.tipo_actividad
+    ));
     // La unidad suma sus ítems; el fondo, todas sus unidades (horas por año) hasta las horas efectivas.
     const totalUnidad = cargas
         .filter(carga => carga.categoria === formData.categoria && carga.id !== cargaEdicion?.id)
@@ -616,8 +632,11 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
     // Misma regla que el backend: clases en aula, una por calendario + materia + paralelo;
     // el resto (sub-actividades académicas y demás ítems), una por fondo.
     const esClaseAula = esAcademica && formData.tipo_actividad === 'clases_aula';
+    const esEjercicioCargo = TIPOS_EJERCICIO_CARGO.includes(formData.tipo_actividad);
     const duplicadoTipoSeleccionado = Boolean(formData.tipo_actividad) && cargas.some((carga) => {
-        if (carga.id === cargaEdicion?.id || carga.categoria !== formData.categoria
+        if (carga.id === cargaEdicion?.id) return false;
+        if (esEjercicioCargo) return TIPOS_EJERCICIO_CARGO.includes(carga.tipo_actividad);
+        if (carga.categoria !== formData.categoria
             || carga.tipo_actividad !== formData.tipo_actividad) return false;
         if (!esClaseAula) return true;
         return String(carga.calendario || '') === String(formData.calendario || '')

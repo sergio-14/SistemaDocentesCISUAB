@@ -8,8 +8,13 @@ datos y los backups, así que al guardar el informe se extraen a archivos:
 
 y en la BD solo queda la ruta canónica ``/media/<ruta>`` (sin firma ni dominio).
 
+- Solo se aceptan PNG, JPG y GIF reales (se comprueba el contenido, no el tipo
+  declarado), de hasta TAMANO_MAXIMO_IMAGEN_MB cada una y como mucho
+  MAXIMO_IMAGENES_INFORME por informe. Las imágenes con dirección externa y las
+  que apuntan a otros archivos de media se rechazan: validar_imagenes_informe
+  da el mensaje al guardar y, por si acaso, al extraerlas se descartan.
 - Al leer, la ruta se convierte en una URL firmada (ver config.media) para que
-  el navegador la pueda mostrar.
+  el navegador la pueda mostrar. Solo se firman rutas de imágenes de informe.
 - Al volver a guardar, las URLs firmadas se normalizan otra vez a la ruta
   canónica; el nombre por hash evita duplicar una imagen que se reenvía.
 - Las imágenes que ya no aparecen en ningún informe del docente en esa gestión
@@ -19,27 +24,39 @@ y en la BD solo queda la ruta canónica ``/media/<ruta>`` (sin firma ni dominio)
 import base64
 import binascii
 import hashlib
+import io
 import re
 from urllib.parse import unquote, urlsplit
 
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from PIL import Image
 
-from fondos.utils.informe_texto import CAMPOS_TEXTO_INFORME
+from fondos.utils.informe_html import CAMPOS_HTML_RICO_INFORME, sanitizar_html_informe
 
-# Campos del informe que el editor puede llenar con HTML (y por tanto con <img>).
-CAMPOS_HTML_INFORME = [
-    'seccion_academica', 'seccion_investigacion', 'seccion_extension_interaccion',
-    'seccion_asesorias_tutorias', 'seccion_academica_administrativa',
-    'seccion_social_cultural_deportiva', 'conclusiones_generales',
-    *CAMPOS_TEXTO_INFORME,
-]
+TAMANO_MAXIMO_IMAGEN_MB = 3
+MAXIMO_IMAGENES_INFORME = 20
 
+MENSAJE_IMAGEN_EXTERNA = (
+    'Las imágenes con dirección externa (copiadas de una página web o de otro documento) no se admiten: '
+    'guárdala en tu equipo e insértala con el botón Imagen.'
+)
+MENSAJE_IMAGEN_WEBP = 'Las imágenes WEBP no se admiten: guárdala como PNG o JPG e insértala de nuevo.'
+MENSAJE_IMAGEN_FORMATO = 'Solo se admiten imágenes PNG, JPG o GIF.'
+MENSAJE_IMAGEN_TAMANO = f'Cada imagen puede pesar como máximo {TAMANO_MAXIMO_IMAGEN_MB} MB.'
+MENSAJE_IMAGENES_CANTIDAD = f'El informe admite como máximo {MAXIMO_IMAGENES_INFORME} imágenes.'
+
+_IMG_TAG_RE = re.compile(r'<img\b[^>]*>', re.IGNORECASE)
 _IMG_SRC_RE = re.compile(r'(<img\b[^>]*?\bsrc\s*=\s*)(["\'])(.*?)\2', re.IGNORECASE | re.DOTALL)
 _DATA_URI_RE = re.compile(r'^data:image/(png|jpe?g|gif);base64,(?P<data>.+)$', re.IGNORECASE | re.DOTALL)
-_EXTENSIONES = {'png': 'png', 'jpeg': 'jpg', 'jpg': 'jpg', 'gif': 'gif'}
+_RUTA_IMAGEN_INFORME_RE = re.compile(r'^fondos/informes/(?:[^/]+/)+imagenes/img_[0-9a-f]+\.(?:png|jpg|gif)$')
+_EXTENSION_POR_FORMATO = {'PNG': 'png', 'JPEG': 'jpg', 'GIF': 'gif'}
 _PREFIJO_IMAGEN = 'img_'
+
+
+class ImagenInformeInvalida(ValueError):
+    """Imagen del informe que no se admite; el mensaje es para el docente."""
 
 
 def carpeta_imagenes(informe):
@@ -69,49 +86,114 @@ def _url_canonica(ruta):
     return f"{settings.MEDIA_URL}{ruta}"
 
 
-def _guardar_data_uri(carpeta, data_uri):
-    match = _DATA_URI_RE.match(data_uri)
-    if not match:
-        return None
+def _imagen_de_data_uri(data_uri):
+    """(contenido, extensión) de una imagen en base64, comprobando su formato real y su tamaño."""
+    cabecera, _, datos = data_uri.partition(',')
+    tipo = cabecera[len('data:'):].split(';')[0].strip().lower()
+    if tipo == 'image/webp':
+        raise ImagenInformeInvalida(MENSAJE_IMAGEN_WEBP)
+    if ';base64' not in cabecera.lower() or not datos:
+        raise ImagenInformeInvalida(MENSAJE_IMAGEN_FORMATO)
+    # Cada 4 caracteres base64 son 3 bytes: se rechaza antes de decodificar.
+    if len(datos) * 3 // 4 > TAMANO_MAXIMO_IMAGEN_MB * 1024 * 1024 + 2:
+        raise ImagenInformeInvalida(MENSAJE_IMAGEN_TAMANO)
     try:
-        contenido = base64.b64decode(match.group('data'), validate=False)
+        contenido = base64.b64decode(datos, validate=True)
     except (binascii.Error, ValueError):
-        return None
-    if not contenido:
-        return None
-    extension = _EXTENSIONES[match.group(1).lower()]
+        raise ImagenInformeInvalida(MENSAJE_IMAGEN_FORMATO)
+    if len(contenido) > TAMANO_MAXIMO_IMAGEN_MB * 1024 * 1024:
+        raise ImagenInformeInvalida(MENSAJE_IMAGEN_TAMANO)
+    try:
+        with Image.open(io.BytesIO(contenido)) as imagen:
+            formato = imagen.format
+            imagen.verify()
+    except Exception:
+        raise ImagenInformeInvalida(MENSAJE_IMAGEN_FORMATO)
+    if formato == 'WEBP':
+        raise ImagenInformeInvalida(MENSAJE_IMAGEN_WEBP)
+    if formato not in _EXTENSION_POR_FORMATO:
+        raise ImagenInformeInvalida(MENSAJE_IMAGEN_FORMATO)
+    return contenido, _EXTENSION_POR_FORMATO[formato]
+
+
+def _ruta_propia(src, carpeta):
+    """Ruta en media si ``src`` es una imagen ya guardada en la carpeta del informe."""
+    ruta = ruta_media(src)
+    return ruta if ruta and ruta.startswith(f'{carpeta}/') else None
+
+
+def _guardar_data_uri(carpeta, data_uri):
+    contenido, extension = _imagen_de_data_uri(data_uri)
     ruta = f'{carpeta}/{_PREFIJO_IMAGEN}{hashlib.sha256(contenido).hexdigest()[:24]}.{extension}'
     if not default_storage.exists(ruta):
         ruta = default_storage.save(ruta, ContentFile(contenido))
     return ruta
 
 
+def validar_imagenes_informe(campos, carpeta):
+    """Revisa las imágenes del HTML que envía el editor antes de guardarlo.
+
+    Lanza ImagenInformeInvalida con el mensaje para el docente si alguna no se
+    admite o si son demasiadas.
+    """
+    total = 0
+    for campo in CAMPOS_HTML_RICO_INFORME:
+        html = sanitizar_html_informe(campos.get(campo) or '')
+        for etiqueta in _IMG_TAG_RE.findall(html):
+            total += 1
+            match = _IMG_SRC_RE.search(etiqueta)
+            src = match.group(3) if match else ''
+            if src.startswith('data:'):
+                _imagen_de_data_uri(src)
+            elif not _ruta_propia(src, carpeta):
+                raise ImagenInformeInvalida(MENSAJE_IMAGEN_EXTERNA)
+    if total > MAXIMO_IMAGENES_INFORME:
+        raise ImagenInformeInvalida(MENSAJE_IMAGENES_CANTIDAD)
+
+
 def extraer_imagenes_html(html, carpeta):
-    """Pasa a archivos las imágenes base64 y deja rutas canónicas en el HTML."""
+    """Pasa a archivos las imágenes base64 y deja rutas canónicas en el HTML.
+
+    Descarta las imágenes que no se admiten (externas, de otra carpeta de
+    media, de formato o tamaño inválido): validar_imagenes_informe ya las
+    rechazó con un mensaje en el guardado normal.
+    """
     if not html or '<img' not in html.lower():
         return html
 
-    def reemplazar(match):
+    def reemplazar(match_etiqueta):
+        etiqueta = match_etiqueta.group(0)
+        match = _IMG_SRC_RE.search(etiqueta)
+        if not match:
+            return ''
         src = match.group(3)
         if src.startswith('data:'):
-            ruta = _guardar_data_uri(carpeta, src)
+            try:
+                ruta = _guardar_data_uri(carpeta, src)
+            except ImagenInformeInvalida:
+                return ''
         else:
-            ruta = ruta_media(src)
+            ruta = _ruta_propia(src, carpeta)
         if not ruta:
-            return match.group(0)
-        return f'{match.group(1)}{match.group(2)}{_url_canonica(ruta)}{match.group(2)}'
+            return ''
+        nuevo_src = f'{match.group(1)}{match.group(2)}{_url_canonica(ruta)}{match.group(2)}'
+        return etiqueta[:match.start()] + nuevo_src + etiqueta[match.end():]
 
-    return _IMG_SRC_RE.sub(reemplazar, html)
+    return _IMG_TAG_RE.sub(reemplazar, html)
 
 
 def firmar_imagenes_html(html, request=None):
-    """Convierte las rutas canónicas en URLs firmadas que el navegador puede cargar."""
+    """Convierte las rutas canónicas en URLs firmadas que el navegador puede cargar.
+
+    Solo firma imágenes de informe: una ruta a otro archivo de media escrita en
+    el HTML no debe convertirse en un enlace válido a ese archivo.
+    """
     if not html or '<img' not in html.lower():
         return html
 
     def reemplazar(match):
         ruta = ruta_media(match.group(3))
-        if not ruta:
+        if not ruta or not _RUTA_IMAGEN_INFORME_RE.match(ruta):
             return match.group(0)
         url = default_storage.url(ruta)
         if request is not None:
@@ -149,7 +231,7 @@ def extraer_imagenes_informe(informe):
     """Aplica extraer_imagenes_html a los campos del informe. Devuelve los campos cambiados."""
     carpeta = carpeta_imagenes(informe)
     cambiados = []
-    for campo in CAMPOS_HTML_INFORME:
+    for campo in CAMPOS_HTML_RICO_INFORME:
         valor = getattr(informe, campo, None)
         nuevo = extraer_imagenes_html(valor, carpeta)
         if nuevo != valor:
@@ -171,7 +253,7 @@ def limpiar_imagenes_huerfanas(informe):
     en_uso = set()
     informes = InformeFondo.objects.filter(
         fondo_tiempo__docente_id=fondo.docente_id, fondo_tiempo__gestion=fondo.gestion,
-    ).values_list(*CAMPOS_HTML_INFORME)
+    ).values_list(*CAMPOS_HTML_RICO_INFORME)
     for valores in informes:
         for html in valores:
             en_uso |= rutas_referenciadas(html)

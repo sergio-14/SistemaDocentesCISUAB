@@ -36,7 +36,8 @@ from django.core.management.base import BaseCommand
 from django.db.models import Q
 from cryptography.fernet import InvalidToken
 
-from fondos.utils.informe_imagenes import CAMPOS_HTML_INFORME, carpeta_imagenes, extraer_imagenes_informe
+from fondos.utils.informe_html import CAMPOS_HTML_RICO_INFORME
+from fondos.utils.informe_imagenes import carpeta_imagenes, extraer_imagenes_informe
 
 from fondos.models import (
     Carrera,
@@ -124,7 +125,7 @@ class Command(BaseCommand):
     def _extraer_imagenes_de_informes(self):
         """Imágenes base64 dentro del HTML de los informes -> archivos en media."""
         filtro = Q()
-        for campo in CAMPOS_HTML_INFORME:
+        for campo in CAMPOS_HTML_RICO_INFORME:
             filtro |= Q(**{f'{campo}__icontains': 'data:image/'})
         for informe in InformeFondo.objects.filter(filtro).select_related('fondo_tiempo'):
             if self.dry_run:

@@ -6,8 +6,10 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useInformeDocumento } from './InformeDocumentoContext';
-
-const TAMANO_MAXIMO_IMAGEN_MB = 3;
+import {
+  MAXIMO_IMAGENES_INFORME, MENSAJE_LIMITE_IMAGENES, TAMANO_MAXIMO_IMAGEN_MB,
+  ajustarImagenInsertada, contarImagenesInforme, prepararImagenInforme,
+} from '../utils/imagenesInforme';
 
 const TAMANOS_FUENTE = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48];
 const INTERLINEADOS = [
@@ -104,57 +106,25 @@ export default function InformeFormatToolbar() {
     emitirCambio();
   });
 
-  const handleSeleccionArchivo = (e) => {
+  const handleSeleccionArchivo = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file || deshabilitado) return;
 
-    if (!['image/png', 'image/jpeg'].includes(file.type)) {
-      toast.error('Solo se permiten imágenes JPG o PNG.');
+    if (contarImagenesInforme() >= MAXIMO_IMAGENES_INFORME) {
+      toast.error(MENSAJE_LIMITE_IMAGENES);
       return;
     }
-    if (file.size > TAMANO_MAXIMO_IMAGEN_MB * 1024 * 1024) {
-      toast.error(`La imagen supera el tamaño máximo de ${TAMANO_MAXIMO_IMAGEN_MB}MB.`);
+    let dataUrl;
+    try {
+      dataUrl = await prepararImagenInforme(file);
+    } catch (err) {
+      toast.error(err.message);
       return;
     }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result;
-      const editorNode = campoActivo?.node;
-      ejecutarComando('insertImage', dataUrl);
-
-      // Sin un ancho inicial, la imagen recién insertada llena el 100% del
-      // ancho del editor (ver [&_img]:max-w-full en InformeCampoRico) y no
-      // queda espacio libre para que se note la alineación izquierda/centro/
-      // derecha hasta que el docente la achique a mano con los handles. Se
-      // le da un ancho razonable de entrada, ya envuelta en el mismo
-      // contenedor alineable que usa "alinear imagen", para que los botones
-      // de alineación tengan un efecto visible desde el primer clic.
-      if (editorNode) {
-        const img = Array.from(editorNode.querySelectorAll('img')).find((i) => i.src === dataUrl);
-        if (img) {
-          const aplicarValoresIniciales = () => {
-            if (!img.isConnected) return;
-            const anchoDisponible = editorNode.clientWidth || 320;
-            const anchoInicial = Math.min(img.naturalWidth || 320, 320, anchoDisponible);
-            img.style.width = `${anchoInicial}px`;
-            img.style.height = 'auto';
-            if (!img.parentElement?.hasAttribute('data-img-wrap')) {
-              const contenedor = document.createElement('div');
-              contenedor.setAttribute('data-img-wrap', '1');
-              contenedor.style.textAlign = 'left';
-              img.replaceWith(contenedor);
-              contenedor.appendChild(img);
-            }
-            emitirCambio();
-          };
-          if (img.complete && img.naturalWidth > 0) aplicarValoresIniciales();
-          else img.onload = aplicarValoresIniciales;
-        }
-      }
-    };
-    reader.readAsDataURL(file);
+    const editorNode = campoActivo?.node;
+    ejecutarComando('insertImage', dataUrl);
+    if (editorNode) ajustarImagenInsertada(editorNode, dataUrl, emitirCambio);
   };
 
   // N/K/S: mismas letras que usa Google Docs/Word en español para
@@ -318,7 +288,7 @@ export default function InformeFormatToolbar() {
             </button>
             <button
               type="button"
-              title="Insertar imagen (JPG/PNG, máx. 3MB)"
+              title={`Insertar imagen (PNG, JPG o GIF, máx. ${TAMANO_MAXIMO_IMAGEN_MB} MB)`}
               disabled={deshabilitado}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => fileInputRef.current?.click()}
@@ -329,7 +299,7 @@ export default function InformeFormatToolbar() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/png,image/jpeg"
+              accept="image/png,image/jpeg,image/gif,image/webp"
               className="hidden"
               onChange={handleSeleccionArchivo}
             />

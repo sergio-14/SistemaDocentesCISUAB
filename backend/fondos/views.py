@@ -20,6 +20,7 @@ import io
 from .utils.carrera_pdf_generator import CarreraPDFGenerator
 from .utils.pdf_generator import FondoPDFGenerator, InformePDFGenerator
 from .utils.informe_texto import CAMPOS_TEXTO_INFORME
+from .utils.informe_imagenes import ImagenInformeInvalida, carpeta_imagenes, validar_imagenes_informe
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import (
@@ -1824,19 +1825,26 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
 
     # NUEVAS ACCIONES SEGÚN REGLAMENTO UAB
 
-    def _extraer_secciones_informe(self, request):
+    def _extraer_secciones_informe(self, request, fondo):
         """Lee las 7 secciones del informe MAS los 12 campos del documento
         tipo carta (encabezado, fecha, destinatario/remitente/referencia,
         saludo+intro, cierre, firma) desde request.data. El editor del
         frontend envia el documento completo en cada guardado, no solo las
-        secciones. Compartido por guardar-informe-borrador y presentar."""
+        secciones. Compartido por guardar-informe-borrador y presentar.
+
+        Rechaza (400) las imágenes que no se admiten, con el motivo."""
         campos = [
             'seccion_academica', 'seccion_investigacion', 'seccion_extension_interaccion',
             'seccion_asesorias_tutorias', 'seccion_academica_administrativa',
             'seccion_social_cultural_deportiva', 'conclusiones_generales',
             *CAMPOS_TEXTO_INFORME,
         ]
-        return {campo: (request.data.get(campo) or '').strip() for campo in campos}
+        secciones = {campo: (request.data.get(campo) or '').strip() for campo in campos}
+        try:
+            validar_imagenes_informe(secciones, carpeta_imagenes(InformeFondo(fondo_tiempo=fondo)))
+        except ImagenInformeInvalida as exc:
+            raise drf_serializers.ValidationError({'imagenes': str(exc)})
+        return secciones
 
     @action(detail=True, methods=['patch'], url_path='guardar-informe-borrador')
     def guardar_informe_borrador(self, request, pk=None):
@@ -1864,7 +1872,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        secciones = self._extraer_secciones_informe(request)
+        secciones = self._extraer_secciones_informe(request, fondo)
         informe, _creado = InformeFondo.objects.update_or_create(
             fondo_tiempo=fondo,
             tipo='parcial',
@@ -1959,7 +1967,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        secciones = self._extraer_secciones_informe(request)
+        secciones = self._extraer_secciones_informe(request, fondo)
 
         # Minimos exigibles: Academica (todo docente dicta materias) y
         # Conclusiones (cierre del informe). Las demas secciones quedan

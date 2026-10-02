@@ -11,7 +11,7 @@ from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia,
 from .role_context import get_active_assignment, get_active_careers_for_user, get_effective_profile, serialize_assignment
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from .utils.informe_html import CAMPOS_HTML_RICO_INFORME, sanitizar_html_informe
-from .utils.informe_imagenes import CAMPOS_HTML_INFORME, firmar_imagenes_html
+from .utils.informe_imagenes import firmar_imagenes_html
 from .utils.archivos import es_pdf
 from django.db.models import F, Q, Sum
 from django.db import transaction
@@ -3810,17 +3810,14 @@ class InformeFondoSerializer(serializers.ModelSerializer):
         for campo in CAMPOS_TEXTO_INFORME:
             if not (data.get(campo) or '').strip():
                 data[campo] = defaults.get(campo, '')
-        # El HTML se entrega limpio también al leer: cubre informes guardados
-        # antes de que se limpiara al guardar.
+        # El HTML se entrega limpio también al leer (cubre informes guardados
+        # antes de que se limpiara al guardar). Las imágenes del editor se
+        # guardan en media con su ruta canónica: se entregan como URL firmada
+        # para que el navegador las pueda cargar.
+        request = self.context.get('request')
         for campo in CAMPOS_HTML_RICO_INFORME:
             if data.get(campo):
-                data[campo] = sanitizar_html_informe(data[campo])
-        # Las imágenes del editor se guardan en media con su ruta canónica: se
-        # entregan como URL firmada para que el navegador las pueda cargar.
-        request = self.context.get('request')
-        for campo in CAMPOS_HTML_INFORME:
-            if data.get(campo):
-                data[campo] = firmar_imagenes_html(data[campo], request)
+                data[campo] = firmar_imagenes_html(sanitizar_html_informe(data[campo]), request)
         return data
 
 

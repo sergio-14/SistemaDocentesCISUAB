@@ -112,8 +112,7 @@ class InformeImagenesTests(TestCase):
         self.assertNotIn('base64', informe.seccion_academica)
         self.assertEqual(len(self._archivos()), 1)
 
-    def test_enlaces_externos_no_se_tocan(self):
-        html = '<img src="https://otro-sitio.com/imagen.png">'
-        informe = self._informe(seccion_academica=html)
+    def test_imagenes_externas_se_descartan(self):
+        informe = self._informe(seccion_academica='<p>Texto</p><img src="https://otro-sitio.com/imagen.png">')
         informe.refresh_from_db()
-        self.assertEqual(informe.seccion_academica, html)
+        self.assertEqual(informe.seccion_academica, '<p>Texto</p>')

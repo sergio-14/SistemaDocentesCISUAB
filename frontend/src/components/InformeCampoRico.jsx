@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useInformeDocumento } from './InformeDocumentoContext';
 import { sanitizarHtmlInforme } from '../utils/sanitizarHtmlInforme';
+import {
+  MAXIMO_IMAGENES_INFORME, MENSAJE_LIMITE_IMAGENES,
+  ajustarImagenInsertada, contarImagenesInforme, prepararImagenInforme, quitarImagenesNoAdmitidas,
+} from '../utils/imagenesInforme';
 
 const TAMANOS_IMAGEN_PRESET = [
   { etiqueta: 'S', titulo: 'Pequeña (200px)', ancho: 200 },
@@ -62,15 +67,47 @@ export default function InformeCampoRico({ value, onChange, placeholder = 'Escri
     if (editorRef.current) onChange(editorRef.current.innerHTML);
   };
 
+  // Imágenes pegadas como archivo (captura de pantalla, "copiar imagen"):
+  // mismas reglas que el botón Imagen de la barra.
+  const pegarImagenes = async (archivos) => {
+    for (const archivo of archivos) {
+      if (contarImagenesInforme() >= MAXIMO_IMAGENES_INFORME) {
+        toast.error(MENSAJE_LIMITE_IMAGENES);
+        return;
+      }
+      try {
+        const dataUrl = await prepararImagenInforme(archivo);
+        document.execCommand('insertImage', false, dataUrl);
+        ajustarImagenInsertada(editorRef.current, dataUrl, emitirCambio);
+      } catch (err) {
+        toast.error(err.message);
+      }
+    }
+    emitirCambio();
+  };
+
   // Lo pegado (de Word, de una web...) entra limpio: solo el formato que el
-  // editor admite, sin scripts, estilos ni atributos extraños.
+  // editor admite, sin scripts, estilos ni atributos extraños, y sin
+  // imágenes externas o en formato no admitido.
   const handlePaste = (e) => {
     e.preventDefault();
     const html = e.clipboardData.getData('text/html');
+    const texto = e.clipboardData.getData('text/plain');
+    const imagenes = Array.from(e.clipboardData.files || []).filter((f) => f.type.startsWith('image/'));
+    if (imagenes.length > 0 && !texto.trim()) {
+      pegarImagenes(imagenes);
+      return;
+    }
     if (html) {
-      document.execCommand('insertHTML', false, sanitizarHtmlInforme(html));
+      const { html: limpio, quitadas } = quitarImagenesNoAdmitidas(sanitizarHtmlInforme(html));
+      if (quitadas > 0) {
+        toast.error(
+          'Se quitaron imágenes con dirección externa o en formato no admitido: guárdalas en tu equipo e insértalas con el botón Imagen.'
+        );
+      }
+      document.execCommand('insertHTML', false, limpio);
     } else {
-      document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+      document.execCommand('insertText', false, texto);
     }
     emitirCambio();
   };

@@ -1,8 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { eliminarFondoTiempo, generarFondosTiempoMasivo, getFondosTiempo } from '../apis/api';
 import { puedeCrearFondoTiempo } from '../utils/fondoTiempoPermissions';
 import { useActiveRole } from '../contexts/ActiveRoleContext';
+import useConsultaPeriodica from '../utils/useConsultaPeriodica';
+
+const CONSULTA_FONDOS_MS = 30000;
 
 // --- ICONOS ---
 const EyeIcon = (props) => (
@@ -56,26 +59,11 @@ function ListaFondos() {
   const [user, setUser] = useState(null);
   const [showMassiveModal, setShowMassiveModal] = useState(false);
   const [generandoMasivo, setGenerandoMasivo] = useState(false);
-  const firmaEstadosRef = useRef(null);
-  
+
   useEffect(() => {
-    firmaEstadosRef.current = null;
     cargarFondos();
     setUser(effectiveUser || JSON.parse(localStorage.getItem('user') || 'null'));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- se recarga al cambiar de rol activo.
-  }, [activeAssignment?.id]);
-
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      if (document.visibilityState !== 'visible') return;
-      cargarFondos({ silencioso: true }).then((huboCambios) => {
-        if (huboCambios) {
-          window.clearInterval(intervalId);
-        }
-      });
-    }, 5000);
-
-    return () => window.clearInterval(intervalId);
   }, [activeAssignment?.id]);
 
   useEffect(() => {
@@ -90,28 +78,22 @@ function ListaFondos() {
         setLoading(true);
       }
       const data = await getFondosTiempo();
-      const fondosData = Array.isArray(data) ? data : [];
-      const firmaEstados = fondosData
-        .map((fondo) => `${fondo.id}:${fondo.estado}`)
-        .sort()
-        .join('|');
-      const huboCambios = firmaEstadosRef.current !== null && firmaEstadosRef.current !== firmaEstados;
-
-      firmaEstadosRef.current = firmaEstados;
-      setFondos(fondosData);
+      setFondos(Array.isArray(data) ? data : []);
       if (!silencioso) {
         setLoading(false);
       }
-      return huboCambios;
     } catch (err) {
       if (!silencioso) {
         setError('Error al cargar los fondos de tiempo');
         setLoading(false);
       }
       console.error(err);
-      return false;
     }
   };
+
+  // Mantiene la lista al día con lo que cambian otros usuarios (estados de los
+  // fondos). Cada 30 s y pausada con la pestaña oculta.
+  useConsultaPeriodica(() => cargarFondos({ silencioso: true }), CONSULTA_FONDOS_MS);
 
   const archivarFondo = async (fondoId) => {
     if (!confirm('¿Está seguro de archivar este fondo? Podrá restaurarlo después.')) {

@@ -2456,7 +2456,6 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
     carrera_nombre = serializers.CharField(source='carrera.nombre', read_only=True)
     categorias = serializers.SerializerMethodField()
     porcentaje_completado = serializers.SerializerMethodField()
-    proyectos = serializers.SerializerMethodField()
     horas_disponibles = serializers.SerializerMethodField()
     total_asignado = serializers.SerializerMethodField()
     informe_actual = serializers.SerializerMethodField()
@@ -2468,19 +2467,29 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
         fields = '__all__'
         # La unicidad (docente, gestión) se valida en validate() con un mensaje claro.
         validators = []
+        # El estado y todo lo del flujo cambian solo por sus acciones (presentar,
+        # aprobar, archivar, iniciar, finalizar...), nunca editando el fondo.
         read_only_fields = [
-            'estado', 'horas_efectivas', 'fecha_aprobacion', 
-            'fecha_validacion', 'fecha_inicio_ejecucion', 'fecha_informe', 'fecha_finalizacion'
+            'estado', 'horas_efectivas', 'archivado',
+            'aprobado_por', 'validado_por', 'documento_decanatura', 'documento_decanatura_informe',
+            'fecha_presentacion', 'fecha_aprobacion', 'fecha_validacion',
+            'fecha_inicio_ejecucion', 'fecha_informe', 'fecha_finalizacion',
         ]
+
+    # Docente, carrera y gestión se eligen al crear el fondo; después no cambian.
+    CAMPOS_FIJOS_AL_EDITAR = ('docente', 'carrera', 'gestion')
+
+    def get_fields(self):
+        fields = super().get_fields()
+        if self.instance is not None:
+            for nombre in self.CAMPOS_FIJOS_AL_EDITAR:
+                fields[nombre].read_only = True
+        return fields
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
         return _filtrar_categorias_investigacion_para_iisyp(data, self.context)
     
-    def get_proyectos(self, obj):
-        """Devuelve los proyectos asociados usando el serializer de lista definido más abajo."""
-        return ProyectoListSerializer(obj.proyectos.all(), many=True).data
-
     def get_total_asignado(self, obj):
         if not hasattr(obj, '_total_asignado_calculado'):
             obj._total_asignado_calculado = obj.total_asignado
@@ -3606,7 +3615,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
 # SERIALIZERS PARA MODELOS NUEVOS (Reglamento UAB)
 # ============================================
 
-from .models import CalendarioAcademico, Proyecto
+from .models import CalendarioAcademico
 
 
 # =====================================================
@@ -3753,50 +3762,6 @@ class CalendarioAcademicoSerializer(serializers.ModelSerializer):
                 })
 
         return attrs
-
-
-# =====================================================
-# PROYECTO SERIALIZER
-# =====================================================
-
-class ProyectoSerializer(serializers.ModelSerializer):
-    tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
-    estado_display = serializers.CharField(source='get_estado_display', read_only=True)
-    modalidad_display = serializers.CharField(source='get_modalidad_display', read_only=True)
-    fondo_descripcion = serializers.CharField(source='fondo_tiempo.descripcion', read_only=True)
-    categoria_nombre = serializers.CharField(source='get_categoria_display', read_only=True)
-    
-    class Meta:
-        model = Proyecto
-        fields = [
-            'id', 'fondo_tiempo', 'fondo_descripcion', 'categoria', 'categoria_nombre',
-            'titulo', 'tipo', 'tipo_display',
-            # Campos obligatorios Art. 16
-            'antecedentes', 'justificacion', 'objetivos', 'problema', 'cronograma',
-            # Campos Art. 17 (cursos/seminarios)
-            'es_curso_seminario', 'bibliografia', 'grupo_objetivo',
-            'requisitos_asistencia', 'modalidad', 'modalidad_display',
-            'frecuencia', 'horas_diarias', 'material_didactico',
-            # Control
-            'estado', 'estado_display', 'fecha_presentacion', 'fecha_aprobacion',
-            'fecha_inicio', 'fecha_fin',
-            'fecha_creacion', 'fecha_modificacion'
-        ]
-        read_only_fields = ['fecha_creacion', 'fecha_modificacion']
-
-
-class ProyectoListSerializer(serializers.ModelSerializer):
-    """Serializer simplificado para listados"""
-    tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
-    estado_display = serializers.CharField(source='get_estado_display', read_only=True)
-    fondo_descripcion = serializers.CharField(source='fondo_tiempo.descripcion', read_only=True)
-    
-    class Meta:
-        model = Proyecto
-        fields = [
-            'id', 'titulo', 'tipo', 'tipo_display', 'estado', 'estado_display',
-            'fondo_tiempo', 'fondo_descripcion', 'fecha_inicio', 'fecha_fin'
-        ]
 
 
 # =====================================================
@@ -4119,7 +4084,6 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     
     # Relaciones
     categorias = serializers.SerializerMethodField()
-    proyectos = ProyectoListSerializer(many=True, read_only=True)
     informes = InformeFondoListSerializer(many=True, read_only=True)
     asignaturas_ejecutadas = InformeAsignaturaEjecutadaSerializer(many=True, read_only=True)
     observaciones_detalladas = ObservacionFondoSerializer(many=True, read_only=True)
@@ -4153,7 +4117,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             # Calculados
             'porcentaje_completado', 'horas_disponibles',
             'antiguedad', # Relaciones
-            'categorias', 'proyectos', 'informes', 'asignaturas_ejecutadas', 'observaciones_detalladas',
+            'categorias', 'informes', 'asignaturas_ejecutadas', 'observaciones_detalladas',
             'informe_actual',
             # Permisos
             'puede_editar', 'puede_editar_informe', 'tipos_ejercicio_cargo',

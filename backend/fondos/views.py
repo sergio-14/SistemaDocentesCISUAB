@@ -23,7 +23,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import (
     Docente, Carrera, Materia, FondoTiempo, PerfilUsuario, CargaHoraria,
-    CalendarioAcademico, Proyecto, InformeFondo, ObservacionFondo, MensajeObservacion, HistorialFondo,
+    CalendarioAcademico, InformeFondo, ObservacionFondo, MensajeObservacion, HistorialFondo,
     SaldoVacacionesGestion, FacultadCatalogo, DatosLaborales, DocenteCarrera, ProgramaAnalitico,
     AsignacionCarrera,
 )
@@ -32,7 +32,7 @@ from .serializers import (
     FondoTiempoListSerializer, CargaHorariaSerializer,
     UsuarioSerializer, CrearUsuarioSerializer, ActualizarUsuarioSerializer,
     FotoPerfilSerializer, PerfilUsuarioSerializer,
-    CalendarioAcademicoSerializer, ProyectoSerializer, ProyectoListSerializer,
+    CalendarioAcademicoSerializer,
     InformeFondoSerializer,
     ObservacionFondoSerializer, HiloObservacionSerializer, MensajeObservacionSerializer,
     _usuario_puede_ver_mensajes_internos,
@@ -1376,7 +1376,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
     """
     queryset = FondoTiempo.objects.select_related(
         'docente', 'carrera', 'aprobado_por', 'validado_por'
-    ).prefetch_related('proyectos', 'observaciones_detalladas')
+    ).prefetch_related('observaciones_detalladas')
     serializer_class = FondoTiempoSerializer
     permission_classes = [IsAuthenticated]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
@@ -1481,7 +1481,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
 
         # Prefetch manual de las relaciones del detalle
         prefetch_related_objects([obj],
-            'proyectos', 'informes', 'observaciones_detalladas'
+            'informes', 'observaciones_detalladas'
         )
         
         return obj
@@ -1587,6 +1587,9 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         docente = serializer.validated_data.get('docente')
         carrera = serializer.validated_data.get('carrera')
         gestion = serializer.validated_data.get('gestion')
+        # Solo en la carrera propia: un Jefe de otra carrera no crea fondos aquí.
+        if not _usuario_tiene_acceso_a_carrera(self.request.user, carrera, self.request):
+            raise PermissionDenied('Solo puedes crear Fondos de Tiempo en tu carrera.')
         self._validar_docente_no_exclusivo(docente, carrera)
         if not CalendarioAcademico.objects.filter(carrera=carrera, gestion=gestion).exists():
             raise drf_serializers.ValidationError({
@@ -2599,81 +2602,6 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         return Response(checklist, status=status.HTTP_200_OK)
         
 # =====================================================
-# PROYECTO VIEWSET
-# =====================================================
-
-class ProyectoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
-    """ViewSet para gestionar proyectos (Art. 14-17)"""
-    queryset = Proyecto.objects.select_related(
-        'fondo_tiempo', 'categoria', 'fondo_tiempo__docente'
-    ).all()
-    serializer_class = ProyectoSerializer
-    permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['tipo', 'estado', 'fondo_tiempo', 'categoria']
-    search_fields = ['titulo', 'antecedentes', 'objetivos']
-    ordering_fields = ['fecha_creacion', 'fecha_inicio']
-    ordering = ['-fecha_creacion']
-    
-    def get_queryset(self):
-        """Filtrar proyectos según el usuario"""
-        queryset = super().get_queryset()
-        
-        # Si no es admin, solo ver sus proyectos
-        if not self.request.user.is_staff:
-            if hasattr(self.request.user, 'perfil') and self.request.user.perfil.docente:
-                queryset = queryset.filter(fondo_tiempo__docente=self.request.user.perfil.docente)
-            else:
-                queryset = queryset.none()
-        
-        return queryset
-    
-    def get_serializer_class(self):
-        if self.action == 'list':
-            return ProyectoListSerializer
-        return ProyectoSerializer
-    
-    def perform_create(self, serializer):
-        """Validar que el fondo pertenece al docente"""
-        fondo = serializer.validated_data.get('fondo_tiempo')
-        
-        if not self.request.user.is_staff:
-            if hasattr(self.request.user, 'perfil') and self.request.user.perfil.docente:
-                if fondo.docente != self.request.user.perfil.docente:
-                    raise PermissionDenied("No puede crear proyectos para otros docentes")
-            else:
-                raise PermissionDenied("Usuario no tiene docente asignado")
-        
-        serializer.save()
-    
-    @action(detail=True, methods=['post'])
-    def cambiar_estado(self, request, pk=None):
-        """Cambiar estado del proyecto"""
-        proyecto = self.get_object()
-        nuevo_estado = request.data.get('estado')
-        
-        estados_validos = ['borrador', 'presentado', 'aprobado', 'en_ejecucion', 'finalizado', 'observado']
-        if nuevo_estado not in estados_validos:
-            return Response(
-                {'error': f'Estado inválido. Válidos: {estados_validos}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        proyecto.estado = nuevo_estado
-        
-        # Registrar fechas automáticamente
-        if nuevo_estado == 'presentado' and not proyecto.fecha_presentacion:
-            proyecto.fecha_presentacion = timezone.localdate()
-        elif nuevo_estado == 'aprobado' and not proyecto.fecha_aprobacion:
-            proyecto.fecha_aprobacion = timezone.localdate()
-        
-        proyecto.save()
-        
-        serializer = self.get_serializer(proyecto)
-        return Response(serializer.data)
-
-
-# =====================================================
 # OBSERVACIÓN FONDO VIEWSET
 # =====================================================
 
@@ -3052,6 +2980,45 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
             )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    CARGOS = {'director', 'jefe_estudios', 'iiisyp'}
+
+    @classmethod
+    def _cargos_del_usuario(cls, user):
+        """Cargos (Director, Jefe de Estudios, Instituto) del usuario. Desactivar libera
+        sus asignaciones: de un usuario inactivo cuentan también las inactivas."""
+        asignaciones = AsignacionCarrera.objects.filter(user=user)
+        if user.is_active:
+            asignaciones = asignaciones.filter(activo=True)
+        roles = set(asignaciones.values_list('rol', flat=True))
+        perfil = PerfilUsuario.objects.filter(user=user).first()
+        if perfil and perfil.rol:
+            roles.add(perfil.rol)
+        return roles & cls.CARGOS
+
+    def _validar_gestion_por_director(self, user, accion):
+        """Lo que el Director (no el superusuario) puede hacer con otro usuario de su carrera.
+
+        - Contraseña: solo de docentes sin cargo (no de Jefe, Instituto ni Director).
+        - Activar o desactivar: docentes sin cargo y el Instituto; nunca al Jefe de
+          Estudios (lo designa el Consejo de Carrera) ni a un Director.
+        """
+        editor = self.request.user
+        if editor.is_superuser:
+            return
+        if user.is_superuser:
+            raise PermissionDenied('Solo el superusuario gestiona la cuenta del superusuario.')
+        cargos = self._cargos_del_usuario(user)
+        if accion == 'password' and user.pk != editor.pk and cargos:
+            raise PermissionDenied(
+                'Solo el superusuario cambia la contraseña de un usuario con cargo '
+                '(Director, Jefe de Estudios o Instituto).'
+            )
+        if accion == 'estado' and cargos & {'director', 'jefe_estudios'}:
+            raise PermissionDenied(
+                'No puedes activar ni desactivar a un Director ni al Jefe de Estudios: '
+                'el Jefe lo designa el Consejo de Carrera.'
+            )
+
     def _validar_eliminacion_por_director(self, director, user):
         """El Director elimina solo usuarios de su carrera; nunca a sí mismo ni a otro Director.
 
@@ -3060,11 +3027,11 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         if user.pk == director.pk:
             return 'No puedes eliminar tu propia cuenta.'
         perfil = PerfilUsuario.objects.filter(user=user).first()
-        es_director = (perfil is not None and perfil.rol == 'director') or AsignacionCarrera.objects.filter(
-            user=user, rol='director', activo=True,
-        ).exists()
-        if es_director:
+        cargos = self._cargos_del_usuario(user)
+        if 'director' in cargos:
             return 'No puedes eliminar a un Director de Carrera.'
+        if 'jefe_estudios' in cargos:
+            return 'No puedes eliminar al Jefe de Estudios: lo designa el Consejo de Carrera.'
         propias = set(_obtener_carreras_activas_usuario(director, self.request).values_list('id', flat=True))
         carreras_usuario = set(AsignacionCarrera.objects.filter(user=user).values_list('carrera_id', flat=True))
         if perfil and perfil.carrera_id:
@@ -3107,6 +3074,7 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     def cambiar_password(self, request, pk=None):
         """Cambiar contraseña de un usuario"""
         user = self.get_object()
+        self._validar_gestion_por_director(user, 'password')
         password = request.data.get('password')
         password_confirm = request.data.get('password_confirm')
         
@@ -3138,13 +3106,14 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsFullAdminOrDirectorCarrera])
     def resetear_password(self, request, pk=None):
-        """Restablece la contraseña del usuario a la contraseña por defecto (username + UABJB)"""
+        """Restablece la contraseña del usuario a la inicial (usuario + UABJB). La respuesta
+        no la incluye: ninguna respuesta de la API devuelve contraseñas."""
         user = self.get_object()
-        nueva_password = f"{user.username}UABJB"
-        user.set_password(nueva_password)
+        self._validar_gestion_por_director(user, 'password')
+        user.set_password(f"{user.username}UABJB")
         user.save()
         actualizar_con_historial(PerfilUsuario.objects.filter(user=user), debe_cambiar_password=not user.is_superuser)
-        return Response({'success': f'Contraseña restablecida correctamente a: {nueva_password}'})
+        return Response({'success': 'Contraseña restablecida a la contraseña inicial. Deberá cambiarla al ingresar.'})
 
     @action(detail=True, methods=['post'], permission_classes=[IsFullAdminOrDirectorCarrera])
     def toggle_activo(self, request, pk=None):
@@ -3158,6 +3127,7 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         Si alguna validación falla, el estado NO se modifica y se retorna HTTP 400.
         """
         user = self.get_object()
+        self._validar_gestion_por_director(user, 'estado')
 
         # Proteger al superusuario administrador
         if user.is_superuser:

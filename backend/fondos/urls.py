@@ -16,7 +16,6 @@ router.register(r'cargas-horarias', views.CargaHorariaViewSet, basename='cargaho
 router.register(r'programas-analiticos', views.ProgramaAnaliticoViewSet, basename='programaanalitico')
 router.register(r'calendarios', views.CalendarioAcademicoViewSet)
 router.register(r'fondos-tiempo', views.FondoTiempoViewSet)
-router.register(r'proyectos', views.ProyectoViewSet)
 router.register(r'observaciones', views.ObservacionFondoViewSet)
 router.register(r'historial', views.HistorialFondoViewSet)
 router.register(r'usuarios', views.UsuarioViewSet)

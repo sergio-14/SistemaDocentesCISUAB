@@ -4,7 +4,7 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from .models import (
     Docente, DocenteCarrera, Carrera, CalendarioAcademico, FondoTiempo,
-    Proyecto, InformeFondo,
+    InformeFondo,
     ObservacionFondo, HistorialFondo, PerfilUsuario,
     MensajeObservacion, DatosLaborales,
 )
@@ -253,73 +253,6 @@ class FondoTiempoAdmin(admin.ModelAdmin):
             return mark_safe('<span style="color: green; font-weight: bold;">✓ Completos</span>')
         return mark_safe(f'<span style="color: red;">✗ Faltan {faltantes}</span>')
     programa_badge.short_description = 'Programas analíticos'
-
-
-# =====================================================
-# PROYECTO ADMIN (NUEVO)
-# =====================================================
-
-@admin.register(Proyecto)
-class ProyectoAdmin(admin.ModelAdmin):
-    list_display = [
-        'titulo', 'fondo_tiempo', 'tipo_display',
-        'estado_badge', 'es_curso_seminario', 'fecha_presentacion'
-    ]
-    list_filter = ['tipo', 'estado', 'es_curso_seminario', 'modalidad']
-    search_fields = [
-        'titulo', 'fondo_tiempo__carrera__nombre',
-        'fondo_tiempo__docente__apellido_paterno'
-    ]
-    ordering = ['-fecha_creacion']
-    
-    fieldsets = (
-        ('Información Básica', {
-            'fields': ('fondo_tiempo', 'categoria', 'titulo', 'tipo')
-        }),
-        ('Campos Obligatorios (Art. 16)', {
-            'fields': ('antecedentes', 'justificacion', 'objetivos', 'problema'),
-            'description': 'Campos requeridos según Artículo 16 del reglamento'
-        }),
-        ('Cronograma', {
-            'fields': ('cronograma',),
-            'description': 'Lugar, fecha, hora de realización'
-        }),
-        ('Para Cursos/Seminarios (Art. 17)', {
-            'fields': (
-                'es_curso_seminario', 'bibliografia', 'grupo_objetivo',
-                'requisitos_asistencia', 'modalidad', 'frecuencia',
-                'horas_diarias', 'material_didactico'
-            ),
-            'classes': ('collapse',),
-            'description': 'Campos adicionales si es curso, seminario o capacitación'
-        }),
-        ('Control', {
-            'fields': (
-                'estado', 'fecha_presentacion', 'fecha_aprobacion',
-                'fecha_inicio', 'fecha_fin'
-            )
-        }),
-    )
-    
-    def tipo_display(self, obj):
-        return obj.get_tipo_display()
-    tipo_display.short_description = 'Tipo'
-    
-    def estado_badge(self, obj):
-        colores = {
-            'borrador': '#6b7280',
-            'presentado': '#3b82f6',
-            'aprobado': '#10b981',
-            'en_ejecucion': '#8b5cf6',
-            'finalizado': '#059669',
-            'observado': '#ef4444',
-        }
-        color = colores.get(obj.estado, '#6b7280')
-        return format_html(
-            '<span style="color: white; background: {}; padding: 3px 8px; border-radius: 3px;">{}</span>',
-            color, obj.get_estado_display()
-        )
-    estado_badge.short_description = 'Estado'
 
 
 # =====================================================

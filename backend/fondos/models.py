@@ -1563,69 +1563,6 @@ def quitar_programas_analiticos_sin_clases(sender, instance, **kwargs):
         programa.delete()
 
 
-class Proyecto(models.Model):
-    """Proyectos obligatorios según Art. 14-17 del reglamento"""
-    
-    TIPO_CHOICES = [
-        ('investigacion', 'Investigación'),
-        ('extension', 'Extensión Universitaria'),
-        ('interaccion', 'Interacción Social'),
-    ]
-    
-    MODALIDAD_CHOICES = [
-        ('presencial', 'Presencial'),
-        ('virtual', 'Virtual'),
-        ('hibrida', 'Híbrida'),
-    ]
-    
-    ESTADO_CHOICES = [
-        ('borrador', 'Borrador'),
-        ('presentado', 'Presentado'),
-        ('aprobado', 'Aprobado'),
-        ('en_ejecucion', 'En Ejecución'),
-        ('finalizado', 'Finalizado'),
-        ('observado', 'Con Observaciones'),
-    ]
-    
-    fondo_tiempo = models.ForeignKey(FondoTiempo, on_delete=models.CASCADE, related_name='proyectos')
-    categoria = models.CharField(max_length=30, choices=UNIDADES_FONDO)
-    titulo = models.CharField(max_length=200)
-    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
-    
-    # Campos obligatorios según Art. 16
-    antecedentes = models.TextField(help_text="Antecedentes del proyecto (Art. 16)")
-    justificacion = models.TextField(help_text="Justificación del proyecto (Art. 16)")
-    objetivos = models.TextField(help_text="Objetivos del proyecto (Art. 16)")
-    problema = models.TextField(blank=True, help_text="Problema que aborda el proyecto (Art. 16)")
-    cronograma = models.JSONField(default=dict, blank=True, help_text="Cronograma: lugar, fecha, hora")
-    
-    # Para cursos/seminarios (Art. 17)
-    es_curso_seminario = models.BooleanField(default=False)
-    bibliografia = models.TextField(blank=True)
-    grupo_objetivo = models.CharField(max_length=200, blank=True)
-    requisitos_asistencia = models.TextField(blank=True)
-    modalidad = models.CharField(max_length=20, choices=MODALIDAD_CHOICES, default='presencial')
-    frecuencia = models.CharField(max_length=100, blank=True)
-    horas_diarias = models.IntegerField(null=True, blank=True)
-    material_didactico = models.TextField(blank=True)
-    
-    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='borrador')
-    fecha_presentacion = models.DateField(null=True, blank=True)
-    fecha_aprobacion = models.DateField(null=True, blank=True)
-    fecha_inicio = models.DateField(null=True, blank=True)
-    fecha_fin = models.DateField(null=True, blank=True)
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
-    fecha_modificacion = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        verbose_name = "Proyecto"
-        verbose_name_plural = "Proyectos"
-        ordering = ['-fecha_creacion']
-    
-    def __str__(self):
-        return f"{self.titulo} ({self.get_tipo_display()})"
-
-
 class InformeFondo(models.Model):
     """Informes según Art. 28 del reglamento"""
     

@@ -176,19 +176,6 @@ export const actualizarCalendario = (id, data) => api.put(`/calendarios/${id}/`,
 export const eliminarCalendario = (id) => api.delete(`/calendarios/${id}/`);
 
 // ===================================
-// ENDPOINTS - PROYECTOS
-// ===================================
-export const getProyectos = () => api.get('/proyectos/');
-export const getProyectoDetalle = (id) => api.get(`/proyectos/${id}/`);
-export const getProyectosPorFondo = (fondoId) => 
-  api.get('/proyectos/', { params: { fondo_tiempo: fondoId } });
-export const crearProyecto = (data) => api.post('/proyectos/', data);
-export const actualizarProyecto = (id, data) => api.put(`/proyectos/${id}/`, data);
-export const eliminarProyecto = (id) => api.delete(`/proyectos/${id}/`);
-export const cambiarEstadoProyecto = (id, estado) => 
-  api.post(`/proyectos/${id}/cambiar_estado/`, { estado });
-
-// ===================================
 // ENDPOINTS - OBSERVACIONES
 // ===================================
 export const getObservacionesPorFondo = (fondoId) => obtenerTodos('/observaciones/', { fondo_tiempo: fondoId });

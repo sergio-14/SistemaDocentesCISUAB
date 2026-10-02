@@ -34,7 +34,7 @@ from .serializers import (
     UsuarioSerializer, CrearUsuarioSerializer, ActualizarUsuarioSerializer,
     FotoPerfilSerializer, PerfilUsuarioSerializer,
     CalendarioAcademicoSerializer, ProyectoSerializer, ProyectoListSerializer,
-    InformeFondoSerializer, InformeFondoListSerializer,
+    InformeFondoSerializer,
     ObservacionFondoSerializer,
     HistorialFondoSerializer,
     FondoTiempoDetalleSerializer,
@@ -2777,69 +2777,6 @@ class ProyectoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         proyecto.save()
         
         serializer = self.get_serializer(proyecto)
-        return Response(serializer.data)
-
-
-# =====================================================
-# INFORME FONDO VIEWSET
-# =====================================================
-
-class InformeFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
-    """ViewSet para gestionar informes (Art. 28)"""
-    queryset = InformeFondo.objects.select_related(
-        'fondo_tiempo', 'elaborado_por', 'evaluado_por',
-        'fondo_tiempo__docente'
-    ).all()
-    serializer_class = InformeFondoSerializer
-    permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['tipo', 'cumplimiento', 'fondo_tiempo']
-    ordering_fields = ['fecha_elaboracion', 'fecha_evaluacion']
-    ordering = ['-fecha_elaboracion']
-    
-    def get_queryset(self):
-        """Filtrar informes según el usuario"""
-        queryset = super().get_queryset()
-        
-        # Si no es admin, solo ver sus informes
-        if not self.request.user.is_staff:
-            if hasattr(self.request.user, 'perfil') and self.request.user.perfil.docente:
-                queryset = queryset.filter(fondo_tiempo__docente=self.request.user.perfil.docente)
-            else:
-                queryset = queryset.none()
-        
-        return queryset
-    
-    def get_serializer_class(self):
-        if self.action == 'list':
-            return InformeFondoListSerializer
-        return InformeFondoSerializer
-    
-    def perform_create(self, serializer):
-        """Asociar informe al usuario que lo crea"""
-        serializer.save(elaborado_por=self.request.user)
-    
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
-    def evaluar(self, request, pk=None):
-        """Evaluar informe (Director)"""
-        informe = self.get_object()
-        cumplimiento = request.data.get('cumplimiento')
-        evaluacion = request.data.get('evaluacion_director', '')
-        
-        cumplimientos_validos = ['cumplido', 'parcial', 'incumplido']
-        if cumplimiento not in cumplimientos_validos:
-            return Response(
-                {'error': f'Cumplimiento inválido. Válidos: {cumplimientos_validos}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        informe.cumplimiento = cumplimiento
-        informe.evaluacion_director = evaluacion
-        informe.fecha_evaluacion = timezone.localdate()
-        informe.evaluado_por = request.user
-        informe.save()
-        
-        serializer = self.get_serializer(informe)
         return Response(serializer.data)
 
 

@@ -231,17 +231,4 @@ export const getHistorialDetalle = (id) => api.get(`/historial/${id}/`);
 export const getHistorialPorFondo = (fondoId) => 
   api.get('/historial/', { params: { fondo_tiempo: fondoId } });
 
-// ===================================
-// ENDPOINTS - INFORMES
-// ===================================
-export const getInformes = () => api.get('/informes/');
-export const getInformeDetalle = (id) => api.get(`/informes/${id}/`);
-export const getInformesPorFondo = (fondoId) => 
-  api.get('/informes/', { params: { fondo_tiempo: fondoId } });
-export const crearInforme = (data) => api.post('/informes/', data);
-export const actualizarInforme = (id, data) => api.put(`/informes/${id}/`, data);
-export const eliminarInforme = (id) => api.delete(`/informes/${id}/`);
-export const evaluarInforme = (id, cumplimiento, evaluacion) => 
-  api.post(`/informes/${id}/evaluar/`, { cumplimiento, evaluacion_director: evaluacion });
-
 export default api;

@@ -15,7 +15,7 @@ import re
 import base64
 from html import escape
 from html.parser import HTMLParser
-from fondos.models import UNIDADES_FONDO, nombre_calendario_en_fondo
+from fondos.models import SECCIONES_INFORME, UNIDADES_FONDO, nombre_calendario_en_fondo
 from fondos.utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from fondos.utils.informe_imagenes import leer_imagen as leer_imagen_informe
 
@@ -1421,7 +1421,7 @@ _ABREVIATURA_DEDICACION = {
 class InformePDFGenerator:
     """
     Genera la carta institucional narrativa del Informe de Fondo de Tiempo
-    (las 7 secciones que redacta el docente en RichTextEditor), como un
+    (las secciones que redacta el docente: las 7 unidades y conclusiones), como un
     documento de carta formal en tamaño carta vertical -distinto del reporte
     de horas de FondoPDFGenerator, que es una tabla en tamaño oficio
     horizontal-. Reutiliza _InformeHTMLParser para que negrita, cursiva,
@@ -1598,18 +1598,16 @@ class InformePDFGenerator:
         elementos.extend(parser_intro.obtener_flowables())
         elementos.append(Spacer(1, 0.5*cm))
 
-        # --- 4. Las 7 secciones narrativas ---
+        # --- 4. Las secciones narrativas (7 unidades + conclusiones) ---
         # Las opcionales se omiten por completo si el docente no escribió
         # nada (la carta debe leerse como prosa continua, no como un
         # formulario con campos vacios marcados "No aplica").
+        # Art. 28: las 7 unidades + conclusiones; un informe presentado antes del cambio se
+        # imprime con sus secciones de entonces (InformeFondo.secciones).
+        definicion = informe_data.secciones() if informe_data else SECCIONES_INFORME
         secciones = [
-            ('1. ACADÉMICA', getattr(informe_data, 'seccion_academica', ''), True),
-            ('2. INVESTIGACIÓN', getattr(informe_data, 'seccion_investigacion', ''), False),
-            ('3. EXTENSIÓN UNIVERSITARIA E INTERACCIÓN SOCIAL', getattr(informe_data, 'seccion_extension_interaccion', ''), False),
-            ('4. ASESORÍAS Y TUTORÍAS', getattr(informe_data, 'seccion_asesorias_tutorias', ''), False),
-            ('5. ACADÉMICA ADMINISTRATIVA', getattr(informe_data, 'seccion_academica_administrativa', ''), False),
-            ('6. SOCIAL, CULTURAL Y DEPORTIVA', getattr(informe_data, 'seccion_social_cultural_deportiva', ''), False),
-            ('7. CONCLUSIONES GENERALES', getattr(informe_data, 'conclusiones_generales', ''), True),
+            (f'{numero}. {titulo.upper()}', getattr(informe_data, campo, ''), obligatoria)
+            for numero, (campo, titulo, obligatoria) in enumerate(definicion, start=1)
         ]
         for titulo, contenido_html, obligatoria in secciones:
             contenido_html = (contenido_html or '').strip()

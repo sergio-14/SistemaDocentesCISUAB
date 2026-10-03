@@ -15,9 +15,11 @@ import nh3
 # Campos del informe que el editor llena con HTML. Los demás campos del
 # documento (encabezado, fecha, destinatario, firma...) son texto plano.
 CAMPOS_HTML_RICO_INFORME = [
-    'seccion_academica', 'seccion_investigacion', 'seccion_extension_interaccion',
-    'seccion_asesorias_tutorias', 'seccion_academica_administrativa',
+    'seccion_academica', 'seccion_investigacion', 'seccion_extension_universitaria',
+    'seccion_interaccion_social', 'seccion_gestion', 'seccion_academica_administrativa',
     'seccion_social_cultural_deportiva', 'conclusiones_generales',
+    # Formato anterior (informes ya presentados): se limpian igual al leerlos.
+    'seccion_extension_interaccion', 'seccion_asesorias_tutorias',
     'saludo_intro_html', 'cierre_html',
 ]
 

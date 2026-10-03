@@ -279,8 +279,8 @@ class InformeFondoAdmin(admin.ModelAdmin):
         }),
         ('Contenido del Informe', {
             'fields': (
-                'seccion_academica', 'seccion_investigacion', 'seccion_extension_interaccion',
-                'seccion_asesorias_tutorias', 'seccion_academica_administrativa',
+                'seccion_academica', 'seccion_investigacion', 'seccion_extension_universitaria',
+                'seccion_interaccion_social', 'seccion_gestion', 'seccion_academica_administrativa',
                 'seccion_social_cultural_deportiva', 'conclusiones_generales',
             )
         }),

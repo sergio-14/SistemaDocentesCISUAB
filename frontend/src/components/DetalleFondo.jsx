@@ -1860,7 +1860,8 @@ function DetalleFondo() {
                 <div className="max-w-3xl mx-auto space-y-5">
 
                   {/* Secciones del informe por categoria */}
-                  {[
+                  {(fondo.informe_actual.formato_secciones === 'anterior' ? [
+                    // Formato anterior: informes presentados antes del cambio a las 7 unidades.
                     { campo: 'seccion_academica', titulo: 'Académica', header: 'bg-gradient-to-r from-blue-500/10 to-blue-500/5 dark:from-blue-900/30 dark:to-blue-900/10' },
                     { campo: 'seccion_investigacion', titulo: 'Investigación', header: 'bg-gradient-to-r from-purple-500/10 to-purple-500/5 dark:from-purple-900/30 dark:to-purple-900/10' },
                     { campo: 'seccion_extension_interaccion', titulo: 'Extensión Universitaria e Interacción Social', header: 'bg-gradient-to-r from-teal-500/10 to-teal-500/5 dark:from-teal-900/30 dark:to-teal-900/10' },
@@ -1868,7 +1869,17 @@ function DetalleFondo() {
                     { campo: 'seccion_academica_administrativa', titulo: 'Académica-Administrativa', header: 'bg-gradient-to-r from-cyan-500/10 to-cyan-500/5 dark:from-cyan-900/30 dark:to-cyan-900/10' },
                     { campo: 'seccion_social_cultural_deportiva', titulo: 'Social, Cultural y Deportiva', header: 'bg-gradient-to-r from-pink-500/10 to-pink-500/5 dark:from-pink-900/30 dark:to-pink-900/10' },
                     { campo: 'conclusiones_generales', titulo: 'Conclusiones Generales', header: 'bg-gradient-to-r from-green-500/10 to-green-500/5 dark:from-green-900/30 dark:to-green-900/10' },
-                  ].map(({ campo, titulo, header }) => (
+                  ] : [
+                    // Art. 28: las 7 unidades del reglamento y conclusiones.
+                    { campo: 'seccion_academica', titulo: 'Académica', header: 'bg-gradient-to-r from-blue-500/10 to-blue-500/5 dark:from-blue-900/30 dark:to-blue-900/10' },
+                    { campo: 'seccion_investigacion', titulo: 'Investigación', header: 'bg-gradient-to-r from-purple-500/10 to-purple-500/5 dark:from-purple-900/30 dark:to-purple-900/10' },
+                    { campo: 'seccion_extension_universitaria', titulo: 'Extensión Universitaria', header: 'bg-gradient-to-r from-teal-500/10 to-teal-500/5 dark:from-teal-900/30 dark:to-teal-900/10' },
+                    { campo: 'seccion_interaccion_social', titulo: 'Interacción Social', header: 'bg-gradient-to-r from-emerald-500/10 to-emerald-500/5 dark:from-emerald-900/30 dark:to-emerald-900/10' },
+                    { campo: 'seccion_gestion', titulo: 'Gestión', header: 'bg-gradient-to-r from-indigo-500/10 to-indigo-500/5 dark:from-indigo-900/30 dark:to-indigo-900/10' },
+                    { campo: 'seccion_academica_administrativa', titulo: 'Académica-Administrativa', header: 'bg-gradient-to-r from-cyan-500/10 to-cyan-500/5 dark:from-cyan-900/30 dark:to-cyan-900/10' },
+                    { campo: 'seccion_social_cultural_deportiva', titulo: 'Social, Cultural y Deportiva', header: 'bg-gradient-to-r from-pink-500/10 to-pink-500/5 dark:from-pink-900/30 dark:to-pink-900/10' },
+                    { campo: 'conclusiones_generales', titulo: 'Conclusiones Generales', header: 'bg-gradient-to-r from-green-500/10 to-green-500/5 dark:from-green-900/30 dark:to-green-900/10' },
+                  ]).map(({ campo, titulo, header }) => (
                     fondo.informe_actual[campo] && (
                       <div key={campo} className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                         <div className={`${header} px-4 py-3 border-b border-slate-200 dark:border-slate-700`}>

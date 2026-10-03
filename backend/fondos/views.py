@@ -54,7 +54,9 @@ from .serializers import (
 )
 from .role_context import get_effective_profile, get_active_careers_for_user
 from .solo_lectura import CarreraInactivaSoloLecturaMixin as CarreraInactivaSoloLecturaBase
-from .models import DocumentoActividad, actualizar_con_historial, clase_documento_actividad
+from .models import (
+    CAMPOS_SECCIONES_INFORME, DocumentoActividad, actualizar_con_historial, clase_documento_actividad,
+)
 from .utils.archivos import es_pdf
 
 
@@ -1892,19 +1894,14 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
     # NUEVAS ACCIONES SEGÚN REGLAMENTO UAB
 
     def _extraer_secciones_informe(self, request, fondo):
-        """Lee las 7 secciones del informe MAS los 12 campos del documento
+        """Lee las secciones del informe (7 unidades + conclusiones) MAS los 12 campos del documento
         tipo carta (encabezado, fecha, destinatario/remitente/referencia,
         saludo+intro, cierre, firma) desde request.data. El editor del
         frontend envia el documento completo en cada guardado, no solo las
         secciones. Compartido por guardar-informe-borrador y presentar.
 
         Rechaza (400) las imágenes que no se admiten, con el motivo."""
-        campos = [
-            'seccion_academica', 'seccion_investigacion', 'seccion_extension_interaccion',
-            'seccion_asesorias_tutorias', 'seccion_academica_administrativa',
-            'seccion_social_cultural_deportiva', 'conclusiones_generales',
-            *CAMPOS_TEXTO_INFORME,
-        ]
+        campos = [*CAMPOS_SECCIONES_INFORME, *CAMPOS_TEXTO_INFORME]
         secciones = {campo: (request.data.get(campo) or '').strip() for campo in campos}
         try:
             validar_imagenes_informe(secciones, carpeta_imagenes(InformeFondo(fondo_tiempo=fondo)))
@@ -1985,6 +1982,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             )
 
         informe.estado = 'observado'
+        # Vuelve a ser editable: si era del formato anterior, pasa a las 7 unidades (Art. 28).
+        informe.pasar_a_secciones_del_reglamento()
         informe.evaluacion_director = comentario
         informe.evaluado_por = user
         informe.fecha_evaluacion = timezone.localdate()

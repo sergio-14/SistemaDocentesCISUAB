@@ -1646,6 +1646,32 @@ def quitar_programas_analiticos_sin_clases(sender, instance, **kwargs):
         programa.delete()
 
 
+# Art. 28: secciones del informe del docente = las 7 unidades del Art. 12 + conclusiones.
+# (campo, título, obligatoria)
+SECCIONES_INFORME = [
+    ('seccion_academica', 'Académica', True),
+    ('seccion_investigacion', 'Investigación', False),
+    ('seccion_extension_universitaria', 'Extensión universitaria', False),
+    ('seccion_interaccion_social', 'Interacción social', False),
+    ('seccion_gestion', 'Gestión', False),
+    ('seccion_academica_administrativa', 'Académica-administrativa', False),
+    ('seccion_social_cultural_deportiva', 'Social, cultural y deportiva', False),
+    ('conclusiones_generales', 'Conclusiones generales', True),
+]
+# Formato anterior: solo para mostrar los informes presentados antes del cambio.
+SECCIONES_INFORME_ANTERIOR = [
+    ('seccion_academica', 'Académica', True),
+    ('seccion_investigacion', 'Investigación', False),
+    ('seccion_extension_interaccion', 'Extensión universitaria e interacción social', False),
+    ('seccion_asesorias_tutorias', 'Asesorías y tutorías', False),
+    ('seccion_academica_administrativa', 'Académica administrativa', False),
+    ('seccion_social_cultural_deportiva', 'Social, cultural y deportiva', False),
+    ('conclusiones_generales', 'Conclusiones generales', True),
+]
+CAMPOS_SECCIONES_INFORME = [campo for campo, _titulo, _obligatoria in SECCIONES_INFORME]
+CAMPOS_SECCIONES_ANTERIORES = ['seccion_extension_interaccion', 'seccion_asesorias_tutorias']
+
+
 class InformeFondo(models.Model):
     """Informes según Art. 28 del reglamento"""
     
@@ -1692,14 +1718,23 @@ class InformeFondo(models.Model):
         blank=True, default='',
         help_text='Proyectos de investigacion realizados, colaboraciones, resultados concretos.'
     )
-    seccion_extension_interaccion = models.TextField(
+    # Art. 28: una sección por unidad del Art. 12 (más académica, arriba, y conclusiones).
+    seccion_extension_universitaria = models.TextField(
         blank=True, default='',
-        help_text='Extension universitaria e interaccion social: ferias, consultorias, cursos de actualizacion.'
+        help_text='Cursos, seminarios, talleres, conferencias, asistencia técnica, voluntariado.'
     )
-    seccion_asesorias_tutorias = models.TextField(
+    seccion_interaccion_social = models.TextField(
         blank=True, default='',
-        help_text='Tribunales de graduacion, tutorias de proyectos.'
+        help_text='Programas y proyectos de proyección social, ferias, campañas, consultorías.'
     )
+    seccion_gestion = models.TextField(
+        blank=True, default='',
+        help_text='Convenios, reuniones, coordinación, modalidades de graduación, políticas académicas.'
+    )
+    # Formato anterior de secciones: solo lo tienen los informes presentados antes del
+    # cambio a las 7 unidades, que no se modifican (ver InformeFondo.secciones). No se editan.
+    seccion_extension_interaccion = models.TextField(blank=True, default='')
+    seccion_asesorias_tutorias = models.TextField(blank=True, default='')
     seccion_academica_administrativa = models.TextField(
         blank=True, default='',
         help_text='Actividades de gestion, POA, comisiones.'
@@ -1755,6 +1790,35 @@ class InformeFondo(models.Model):
     
     def __str__(self):
         return f"Informe {self.get_tipo_display()} - {self.fondo_tiempo.docente.nombre_completo}"
+
+    @property
+    def formato_secciones(self):
+        """'anterior' si el informe guarda contenido en las secciones del formato anterior
+        (presentado antes del cambio a las 7 unidades); si no, 'reglamento'."""
+        return 'anterior' if any((getattr(self, c) or '').strip() for c in CAMPOS_SECCIONES_ANTERIORES) else 'reglamento'
+
+    def secciones(self):
+        """[(campo, título, obligatoria)] con que se muestra el informe."""
+        return SECCIONES_INFORME_ANTERIOR if self.formato_secciones == 'anterior' else SECCIONES_INFORME
+
+    def pasar_a_secciones_del_reglamento(self):
+        """Pasa un informe del formato anterior a las 7 unidades (cuando vuelve a ser editable):
+        extensión e interacción -> Extensión universitaria; asesorías y tutorías -> Académica
+        (Art. 13). La misma regla aplica la migración 0122 a los borradores."""
+        if self.formato_secciones != 'anterior':
+            return
+        extension = self.seccion_extension_interaccion.strip()
+        if extension:
+            self.seccion_extension_universitaria = '\n'.join(
+                t for t in (self.seccion_extension_universitaria.strip(), extension) if t
+            )
+        asesorias = self.seccion_asesorias_tutorias.strip()
+        if asesorias:
+            self.seccion_academica = '\n'.join(
+                t for t in (self.seccion_academica.strip(), '<p><b>Asesorías y tutorías</b></p>', asesorias) if t
+            )
+        self.seccion_extension_interaccion = ''
+        self.seccion_asesorias_tutorias = ''
 
     def save(self, *args, **kwargs):
         # El HTML del editor se limpia contra XSS (ver informe_html). Las imágenes

@@ -10,14 +10,28 @@ import InformeCampoPlano from './InformeCampoPlano';
 import InformeFormatToolbar from './InformeFormatToolbar';
 import { InformeDocumentoContext } from './InformeDocumentoContext';
 
+// Art. 28: las 7 unidades del reglamento (Art. 12) y conclusiones; igual que SECCIONES_INFORME del backend.
 const SECCIONES_INFORME = [
-  { campo: 'seccion_academica', numero: 1, titulo: 'Académica', requerido: true, placeholder: 'Cumplimiento de objetivos, resultados por materia (estudiantes inscritos, aprobados, reprobados), metodología de evaluación...' },
+  { campo: 'seccion_academica', numero: 1, titulo: 'Académica', requerido: true, placeholder: 'Cumplimiento de objetivos, resultados por materia (estudiantes inscritos, aprobados, reprobados), metodología de evaluación, asesorías y tutorías...' },
   { campo: 'seccion_investigacion', numero: 2, titulo: 'Investigación', requerido: false, placeholder: 'Proyectos de investigación realizados, colaboraciones, resultados concretos...' },
-  { campo: 'seccion_extension_interaccion', numero: 3, titulo: 'Extensión Universitaria e Interacción Social', requerido: false, placeholder: 'Participación en ferias, consultorías, cursos de actualización...' },
-  { campo: 'seccion_asesorias_tutorias', numero: 4, titulo: 'Asesorías y Tutorías', requerido: false, placeholder: 'Tribunales de graduación, tutorías de proyectos...' },
-  { campo: 'seccion_academica_administrativa', numero: 5, titulo: 'Académica Administrativa', requerido: false, placeholder: 'Actividades de gestión, POA, comisiones...' },
-  { campo: 'seccion_social_cultural_deportiva', numero: 6, titulo: 'Social, Cultural y Deportiva', requerido: false, placeholder: 'Participación en eventos universitarios...' },
-  { campo: 'conclusiones_generales', numero: 7, titulo: 'Conclusiones Generales', requerido: true, placeholder: 'Resumen final y recomendaciones para futuras gestiones...' },
+  { campo: 'seccion_extension_universitaria', numero: 3, titulo: 'Extensión Universitaria', requerido: false, placeholder: 'Cursos, seminarios, talleres, conferencias, asistencia técnica, voluntariado...' },
+  { campo: 'seccion_interaccion_social', numero: 4, titulo: 'Interacción Social', requerido: false, placeholder: 'Programas y proyectos de proyección social, ferias, campañas, consultorías...' },
+  { campo: 'seccion_gestion', numero: 5, titulo: 'Gestión', requerido: false, placeholder: 'Convenios, reuniones, coordinación, modalidades de graduación, políticas académicas...' },
+  { campo: 'seccion_academica_administrativa', numero: 6, titulo: 'Académica Administrativa', requerido: false, placeholder: 'Logística de la carrera, CAAC, comisiones, POA, programas analíticos...' },
+  { campo: 'seccion_social_cultural_deportiva', numero: 7, titulo: 'Social, Cultural y Deportiva', requerido: false, placeholder: 'Participación en eventos universitarios...' },
+  { campo: 'conclusiones_generales', numero: 8, titulo: 'Conclusiones Generales', requerido: true, placeholder: 'Resumen final y recomendaciones para futuras gestiones...' },
+];
+
+// Formato anterior: solo para ver los informes presentados antes del cambio (formato_secciones
+// 'anterior'), que no se modifican.
+const SECCIONES_INFORME_ANTERIOR = [
+  { campo: 'seccion_academica', numero: 1, titulo: 'Académica', requerido: true },
+  { campo: 'seccion_investigacion', numero: 2, titulo: 'Investigación', requerido: false },
+  { campo: 'seccion_extension_interaccion', numero: 3, titulo: 'Extensión Universitaria e Interacción Social', requerido: false },
+  { campo: 'seccion_asesorias_tutorias', numero: 4, titulo: 'Asesorías y Tutorías', requerido: false },
+  { campo: 'seccion_academica_administrativa', numero: 5, titulo: 'Académica Administrativa', requerido: false },
+  { campo: 'seccion_social_cultural_deportiva', numero: 6, titulo: 'Social, Cultural y Deportiva', requerido: false },
+  { campo: 'conclusiones_generales', numero: 7, titulo: 'Conclusiones Generales', requerido: true },
 ];
 
 const CAMPOS_DOCUMENTO = [
@@ -28,7 +42,10 @@ const CAMPOS_DOCUMENTO = [
   'firma_nombre', 'firma_cargo', 'firma_email',
 ];
 
-const TODOS_LOS_CAMPOS = [...CAMPOS_DOCUMENTO, ...SECCIONES_INFORME.map((s) => s.campo)];
+const TODOS_LOS_CAMPOS = [
+  ...CAMPOS_DOCUMENTO,
+  ...new Set([...SECCIONES_INFORME, ...SECCIONES_INFORME_ANTERIOR].map((s) => s.campo)),
+];
 
 const AUTOGUARDADO_MS = 30000;
 const FUENTE_DOCUMENTO = { fontFamily: 'Verdana, Geneva, Tahoma, sans-serif' };
@@ -65,6 +82,7 @@ export default function EditorInformePage() {
   informeDataRef.current = informeData;
 
   const informe = fondo?.informe_actual || null;
+  const seccionesInforme = informe?.formato_secciones === 'anterior' ? SECCIONES_INFORME_ANTERIOR : SECCIONES_INFORME;
   const estadoInforme = informe?.estado || null;
   const informeEnviado = estadoInforme === 'enviado' || estadoInforme === 'aprobado';
   // Lo decide el backend (docente dueño, fondo en ejecución, informe sin
@@ -418,7 +436,7 @@ export default function EditorInformePage() {
             />
 
             {/* 5. Las 7 categorías del Art. 12° */}
-            {SECCIONES_INFORME.map(({ campo, numero, titulo, requerido, placeholder }) => (
+            {seccionesInforme.map(({ campo, numero, titulo, requerido, placeholder }) => (
               <div key={campo} className="mb-6">
                 <h3 className="font-bold uppercase text-[13.5px] mb-2">
                   {numero}. {titulo}

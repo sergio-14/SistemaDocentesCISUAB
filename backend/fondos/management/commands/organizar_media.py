@@ -7,7 +7,7 @@ Organiza la carpeta MEDIA con la estructura actual del sistema:
   ├── usuarios/usuario_<id>/foto_perfil.<ext>
   ├── fondos/
   │   ├── evidencias_actividades/docente_<id>/gestion_<año>/<categoria>/
-  │   └── informes/docente_<id>/gestion_<año>/{adjuntos,evidencias}/
+  │   └── informes/docente_<id>/gestion_<año>/imagenes/
   └── poa/
       ├── compras/<año>/<mes>/   recepciones/...   entregas/...
       └── evidencias/<año>/<mes>/
@@ -17,7 +17,7 @@ Hace tres cosas, y se puede ejecutar varias veces sin efectos repetidos:
 1. Pasa a archivos en media las fotos de perfil y logos de carrera que
    estaban guardados cifrados dentro de la base de datos.
 2. Mueve los archivos subidos con la estructura anterior (uploads/,
-   informes_evidencia/, evidencias/, perfiles/, carreras/)
+   evidencias/, perfiles/, carreras/)
    a su carpeta nueva y actualiza la ruta en la base de datos.
 3. Extrae las imágenes que el editor de informes guardaba en base64 dentro
    del HTML y las deja en fondos/informes/.../imagenes/.
@@ -53,8 +53,6 @@ from poa_document.models import EvidenciaArchivo
 CAMPOS_REUBICABLES = [
     (Carrera, 'logo_carrera', 'carreras/carrera_'),
     (PerfilUsuario, 'foto_perfil', 'usuarios/usuario_'),
-    (InformeFondo, 'archivo_adjunto', 'fondos/informes/'),
-    (InformeFondo, 'evidencia', 'fondos/informes/'),
 ]
 
 # Campos con carpetas por fecha: se conserva el año/mes original.

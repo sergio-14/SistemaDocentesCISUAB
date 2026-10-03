@@ -1520,6 +1520,7 @@ def _carpeta_informe(instance):
         return 'fondos/informes/sin_clasificar'
 
 
+# Ya no las usa ningún campo, pero las importan las migraciones antiguas (0073, 0090).
 def informe_adjunto_upload_path(instance, filename):
     return f'{_carpeta_informe(instance)}/adjuntos/{filename}'
 
@@ -1574,18 +1575,6 @@ class InformeFondo(models.Model):
                    'vuelve a ser editable) -> aprobado (cierre del fondo).'
     )
     fecha_elaboracion = models.DateField(auto_now_add=True)
-    
-    # Campos legados (pre 2026-09-13): el formulario ya no los pide de forma
-    # individual, quedaron blank=True para no romper filas ya guardadas ni
-    # el guardado desde el nuevo formulario por secciones. El contenido real
-    # del informe vive ahora en las 7 secciones de abajo.
-    resumen_ejecutivo = models.TextField(blank=True, default='', help_text="Resumen de las actividades realizadas (legado)")
-    actividades_realizadas = models.TextField(blank=True, default='', help_text="Detalle de actividades ejecutadas (legado)")
-    resultados = models.TextField(blank=True, default='', help_text="Resultados obtenidos (legado)")
-    logros = models.TextField(blank=True, default='', help_text="Logros alcanzados (legado)")
-    dificultades = models.TextField(blank=True, help_text="Dificultades encontradas (legado)")
-    evidencias = models.TextField(blank=True, help_text="Evidencias de cumplimiento")
-    observaciones = models.TextField(blank=True)
 
     # Secciones del informe por categoria del Fondo de Tiempo (Art. 28):
     # el docente redacta libremente cada una; ninguna es obligatoria a nivel
@@ -1655,18 +1644,6 @@ class InformeFondo(models.Model):
     evaluacion_director = models.TextField(blank=True)
     fecha_evaluacion = models.DateField(null=True, blank=True)
     evaluado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='informes_evaluados')
-    archivo_adjunto = models.FileField(
-        upload_to=informe_adjunto_upload_path,
-        null=True,
-        blank=True,
-        help_text="Archivo de evidencia adjunto al informe (PDF, ZIP, etc.)"
-    )
-    evidencia = models.FileField(
-        upload_to=informe_evidencia_upload_path,
-        null=True,
-        blank=True,
-        help_text="Evidencia digital del informe final (PDF/Imagen)"
-    )
     fecha_modificacion = models.DateTimeField(auto_now=True)
     
     class Meta:
@@ -1703,26 +1680,6 @@ def limpiar_imagenes_de_informe_borrado(sender, instance, **kwargs):
             'No se pudieron limpiar las imágenes del informe %s (fondo %s).',
             instance.pk, instance.fondo_tiempo_id,
         )
-
-
-class InformeAsignaturaEjecutada(models.Model):
-    """Materias ejecutadas reportadas dinámicamente en el informe final."""
-
-    fondo_tiempo = models.ForeignKey(FondoTiempo, on_delete=models.CASCADE, related_name='asignaturas_ejecutadas')
-    nombre_materia = models.CharField(max_length=200)
-    inscritos = models.PositiveIntegerField(default=0)
-    aprobados = models.PositiveIntegerField(default=0)
-    reprobados = models.PositiveIntegerField(default=0)
-    habilitados = models.PositiveIntegerField(default=0)
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        verbose_name = "Asignatura Ejecutada en Informe"
-        verbose_name_plural = "Asignaturas Ejecutadas en Informes"
-        ordering = ['nombre_materia']
-
-    def __str__(self):
-        return f"{self.nombre_materia} - {self.fondo_tiempo.docente.nombre_completo}"
 
 
 class ObservacionFondo(models.Model):

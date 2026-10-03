@@ -14,7 +14,6 @@ from django.db.models import Max, ProtectedError, prefetch_related_objects, Q
 from django.core.exceptions import ValidationError as DjangoValidationError
 from datetime import datetime, date
 from decimal import Decimal
-import io
 from .utils.carrera_pdf_generator import CarreraPDFGenerator
 from .utils.pdf_generator import FondoPDFGenerator, InformePDFGenerator
 from .utils.informe_texto import CAMPOS_TEXTO_INFORME
@@ -3317,24 +3316,6 @@ def usuario_actual(request):
     user = request.user
     serializer = UsuarioSerializer(user, context={'request': request})
     return Response(serializer.data)
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def test_pdf_hola_mundo(request):
-    """
-    Endpoint de diagnostico (auditoria PDF 2026-09-13): genera un PDF minimo
-    con ReportLab para aislar si un fallo de generacion de PDF es de la
-    libreria/configuracion (este endpoint tambien fallaria) o de la logica
-    especifica de FondoPDFGenerator (este endpoint funciona, el otro no).
-    """
-    from reportlab.pdfgen import canvas
-    buffer = io.BytesIO()
-    pdf = canvas.Canvas(buffer)
-    pdf.drawString(100, 750, "Hola Mundo")
-    pdf.save()
-    buffer.seek(0)
-    return FileResponse(buffer, as_attachment=False, filename='prueba.pdf', content_type='application/pdf')
 
 
 @api_view(['GET'])

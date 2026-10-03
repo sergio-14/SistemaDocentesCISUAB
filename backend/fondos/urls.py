@@ -40,9 +40,6 @@ urlpatterns = [
     # Endpoint para actualizar la foto de perfil
     path('perfil/foto/', views.FotoPerfilUpdateView.as_view(), name='foto-perfil-update'),
 
-    # Endpoint de diagnostico: PDF minimo para aislar problemas de libreria vs. logica
-    path('test-pdf-hola-mundo/', views.test_pdf_hola_mundo, name='test-pdf-hola-mundo'),
-
     # Endpoint para cambio de contraseña inicial obligatorio
     path('auth/cambiar-password-inicial/', views.cambiar_password_inicial, name='cambiar-password-inicial'),
     

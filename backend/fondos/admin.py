@@ -279,8 +279,9 @@ class InformeFondoAdmin(admin.ModelAdmin):
         }),
         ('Contenido del Informe', {
             'fields': (
-                'resumen_ejecutivo', 'actividades_realizadas',
-                'resultados', 'evidencias', 'observaciones'
+                'seccion_academica', 'seccion_investigacion', 'seccion_extension_interaccion',
+                'seccion_asesorias_tutorias', 'seccion_academica_administrativa',
+                'seccion_social_cultural_deportiva', 'conclusiones_generales',
             )
         }),
         ('Evaluación (Director)', {
@@ -289,10 +290,6 @@ class InformeFondoAdmin(admin.ModelAdmin):
                 'fecha_evaluacion', 'evaluado_por'
             ),
             'description': 'Evaluación realizada por el Director de Carrera'
-        }),
-        ('Archivo Adjunto', {
-            'fields': ('archivo_adjunto',),
-            'classes': ('collapse',)
         }),
     )
     

@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import UNIDADES_FONDO, actualizar_con_historial, nombre_calendario_en_fondo, fondo_de_la_carga, mensaje_sin_fondo, roles_del_docente_en_carrera
-from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, PerfilUsuario, AsignacionCarrera, InformeFondo, InformeAsignaturaEjecutada, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, ProgramaAnalitico
+from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, PerfilUsuario, AsignacionCarrera, InformeFondo, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, ProgramaAnalitico
 from .role_context import get_active_assignment, get_active_careers_for_user, get_effective_profile, serialize_assignment
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from .utils.informe_html import CAMPOS_HTML_RICO_INFORME, sanitizar_html_informe
@@ -3777,9 +3777,6 @@ class InformeFondoSerializer(serializers.ModelSerializer):
             'id', 'fondo_tiempo', 'fondo_descripcion',
             'tipo', 'tipo_display', 'estado', 'estado_display', 'fecha_elaboracion',
             'elaborado_por', 'elaborado_por_nombre',
-            'resumen_ejecutivo', 'actividades_realizadas', 'resultados',
-            'logros' , 'dificultades',
-            'evidencias', 'observaciones',
             'encabezado_texto', 'fecha_texto',
             'destinatario_nombre', 'destinatario_cargo',
             'remitente_nombre', 'remitente_cargo', 'referencia_texto',
@@ -3791,7 +3788,7 @@ class InformeFondoSerializer(serializers.ModelSerializer):
             'cumplimiento', 'cumplimiento_display',
             'evaluacion_director', 'fecha_evaluacion',
             'evaluado_por', 'evaluado_por_nombre',
-            'archivo_adjunto', 'evidencia', 'fecha_modificacion'
+            'fecha_modificacion'
         ]
         read_only_fields = ['fecha_elaboracion', 'fecha_modificacion']
 
@@ -3864,18 +3861,7 @@ class InformeFondoListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'fondo_tiempo', 'fondo_descripcion', 'tipo', 'tipo_display',
             'cumplimiento', 'cumplimiento_display', 'fecha_elaboracion',
-            'archivo_adjunto', 'evidencia'
         ]
-
-
-class InformeAsignaturaEjecutadaSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = InformeAsignaturaEjecutada
-        fields = [
-            'id', 'fondo_tiempo', 'nombre_materia', 'inscritos',
-            'aprobados', 'reprobados', 'habilitados', 'fecha_creacion'
-        ]
-        read_only_fields = ['fecha_creacion']
 
 
 # =====================================================
@@ -4080,7 +4066,6 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     # Relaciones
     categorias = serializers.SerializerMethodField()
     informes = InformeFondoListSerializer(many=True, read_only=True)
-    asignaturas_ejecutadas = InformeAsignaturaEjecutadaSerializer(many=True, read_only=True)
     observaciones_detalladas = ObservacionFondoSerializer(many=True, read_only=True)
     informe_actual = serializers.SerializerMethodField()
     
@@ -4114,7 +4099,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             # Calculados
             'porcentaje_completado', 'horas_disponibles',
             'antiguedad', # Relaciones
-            'categorias', 'informes', 'asignaturas_ejecutadas', 'observaciones_detalladas',
+            'categorias', 'informes', 'observaciones_detalladas',
             'informe_actual',
             # Permisos
             'puede_editar', 'puede_editar_informe', 'tipos_ejercicio_cargo', 'puede_iniciar_ejecucion',

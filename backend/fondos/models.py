@@ -995,6 +995,9 @@ class FondoTiempo(models.Model):
     fecha_inicio_ejecucion = models.DateTimeField(null=True, blank=True)
     fecha_informe = models.DateTimeField(null=True, blank=True)
     fecha_finalizacion = models.DateTimeField(null=True, blank=True)
+    # Arts. 15 y 18: plazos del calendario que la presentación superó (no la bloquea).
+    # Lista de {plazo, calendario, fecha_limite, fecha_presentacion}; ver plazos_vencidos.
+    fuera_de_plazo = models.JSONField(default=list, blank=True)
 
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_modificacion = models.DateTimeField(auto_now=True)
@@ -1074,6 +1077,37 @@ class FondoTiempo(models.Model):
     def calendarios_de_la_gestion(self):
         """Calendarios académicos de la carrera del fondo en su gestión."""
         return CalendarioAcademico.objects.filter(carrera_id=self.carrera_id, gestion=self.gestion)
+
+    PLAZOS_PRESENTACION = (
+        ('fecha_limite_programas_analiticos', 'programas analíticos'),
+        ('fecha_limite_presentacion_proyectos', 'proyectos'),
+    )
+
+    def plazos_vencidos(self, fecha):
+        """Arts. 15 y 18: plazos de los calendarios de la gestión que `fecha` (la de
+        presentación) supera."""
+        vencidos = []
+        for calendario in self.calendarios_de_la_gestion().order_by('fecha_inicio'):
+            for campo, plazo in self.PLAZOS_PRESENTACION:
+                limite = getattr(calendario, campo)
+                if limite and fecha > limite:
+                    vencidos.append({
+                        'plazo': plazo,
+                        'calendario': nombre_calendario_en_fondo(calendario, self),
+                        'fecha_limite': limite.isoformat(),
+                        'fecha_presentacion': fecha.isoformat(),
+                    })
+        return vencidos
+
+    def textos_fuera_de_plazo(self):
+        """'Presentado fuera de plazo (proyectos, Anual 2026): límite 31/03/2026, presentado 05/04/2026'."""
+        def dd_mm_aaaa(iso):
+            return date.fromisoformat(iso).strftime('%d/%m/%Y')
+        return [
+            f"Presentado fuera de plazo ({v['plazo']}, {v['calendario']}): "
+            f"límite {dd_mm_aaaa(v['fecha_limite'])}, presentado {dd_mm_aaaa(v['fecha_presentacion'])}"
+            for v in self.fuera_de_plazo or []
+        ]
 
     def fecha_referencia_antiguedad(self):
         """Inicio de la gestión (ver inicio_de_gestion): ahí se mide la antigüedad."""

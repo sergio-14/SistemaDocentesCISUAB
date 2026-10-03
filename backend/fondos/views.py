@@ -2102,6 +2102,11 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
 
         fondo.estado = 'presentado_director'
         fondo.fecha_presentacion = timezone.now()
+        # Arts. 15 y 18: se registra (sin bloquear) si se presentó después de los plazos del
+        # calendario. Se mide en la presentación desde borrador; el reenvío tras una
+        # observación conserva lo registrado.
+        if estado_anterior == 'borrador':
+            fondo.fuera_de_plazo = fondo.plazos_vencidos(timezone.localdate())
         try:
             fondo.save()
         except DjangoValidationError as exc:
@@ -2112,7 +2117,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             fondo_tiempo=fondo,
             usuario=user,
             tipo_cambio='presentacion',
-            descripcion='Fondo presentado por Jefatura de Estudios al Director.',
+            descripcion='Fondo presentado por Jefatura de Estudios al Director.'
+            + (' ' + '. '.join(fondo.textos_fuera_de_plazo()) + '.' if fondo.fuera_de_plazo else ''),
             estado_anterior=estado_anterior,
             estado_nuevo='presentado_director'
         )

@@ -1359,7 +1359,17 @@ class FondoPDFGenerator:
         tabla_actividades.setStyle(TableStyle(estilos_tabla))
         tabla_actividades.hAlign = 'CENTER'
         elementos.append(tabla_actividades)
-        
+
+        # Arts. 15 y 18: presentado después de los plazos del calendario.
+        if fondo.fuera_de_plazo:
+            estilo_plazo = ParagraphStyle(
+                'FueraDePlazo', parent=estilo_celda_center, alignment=0, fontSize=8, leading=10,
+                textColor=colors.Color(0.7, 0.1, 0.1),
+            )
+            elementos.append(Spacer(1, 0.25*cm))
+            for texto in fondo.textos_fuera_de_plazo():
+                elementos.append(Paragraph(f'<b>{escape(texto)}</b>', estilo_plazo))
+
         # --- 4. FIRMA DEL DOCENTE ---
         # Solo el docente firma este documento (ya no el Director). Se
         # agrega como flowable alineado a la derecha -no dibujado por canvas

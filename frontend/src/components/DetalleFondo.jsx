@@ -1193,8 +1193,17 @@ function DetalleFondo() {
                     Acciones
                   </h3>
 
+                  {/* Arts. 15 y 18: presentado después de los plazos del calendario (no bloquea). */}
+                  {fondo.fuera_de_plazo?.length > 0 && (
+                    <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-800/60 dark:bg-red-950/30 dark:text-red-200">
+                      {fondo.fuera_de_plazo.map((texto) => (
+                        <p key={texto} className="font-semibold">{texto}</p>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="flex-1 flex flex-col">
-                    <EstadoTimeline 
+                    <EstadoTimeline
                       estado={fondo.estado}
                       tieneObservaciones={observacionesPendientes > 0}
                       observacionesPendientes={observacionesPendientes}

@@ -2571,7 +2571,7 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
             'estado', 'horas_efectivas', 'archivado',
             'aprobado_por', 'validado_por', 'documento_decanatura', 'documento_decanatura_informe',
             'fecha_presentacion', 'fecha_aprobacion', 'fecha_validacion',
-            'fecha_inicio_ejecucion', 'fecha_informe', 'fecha_finalizacion',
+            'fecha_inicio_ejecucion', 'fecha_informe', 'fecha_finalizacion', 'fuera_de_plazo',
         ]
 
     # Docente, carrera y gestión se eligen al crear el fondo; después no cambian.
@@ -4230,7 +4230,9 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     # Revisión: nadie revisa su propio fondo; el del Director lo revisa el superusuario.
     es_fondo_propio = serializers.SerializerMethodField()
     es_fondo_de_director = serializers.SerializerMethodField()
-    
+    # Arts. 15 y 18: presentado después de los plazos del calendario.
+    fuera_de_plazo = serializers.SerializerMethodField()
+
     class Meta:
         model = FondoTiempo
         fields = [
@@ -4240,7 +4242,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             'contrato_horas',
             'horas_efectivas', 'total_asignado',
             'estado', 'estado_display', 'observaciones',
-            'programas_analiticos_faltantes', 'documentos_actividad_faltantes',
+            'programas_analiticos_faltantes', 'documentos_actividad_faltantes', 'fuera_de_plazo',
             'fecha_presentacion', 'fecha_aprobacion', 'fecha_validacion',
             'aprobado_por', 'validado_por',
             'archivado', 'comentarios_admin',
@@ -4287,6 +4289,9 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
 
     def get_documentos_actividad_faltantes(self, obj):
         return obj.documentos_actividad_faltantes()
+
+    def get_fuera_de_plazo(self, obj):
+        return obj.textos_fuera_de_plazo()
 
     def get_calendarios(self, obj):
         return CalendarioAcademicoSerializer(

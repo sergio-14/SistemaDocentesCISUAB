@@ -24,7 +24,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import (
     Docente, Carrera, Materia, FondoTiempo, PerfilUsuario, CargaHoraria,
     CalendarioAcademico, InformeFondo, ObservacionFondo, MensajeObservacion, HistorialFondo,
-    SaldoVacacionesGestion, FacultadCatalogo, DatosLaborales, DocenteCarrera, ProgramaAnalitico,
+    FacultadCatalogo, DatosLaborales, DocenteCarrera, ProgramaAnalitico,
     AsignacionCarrera,
 )
 from .serializers import (
@@ -39,7 +39,7 @@ from .serializers import (
     HistorialFondoSerializer,
     FondoTiempoDetalleSerializer,
     AprobarFondoSerializer, ObservarFondoSerializer,
-    SaldoVacacionesGestionSerializer, DatosLaboralesSerializer,
+    DatosLaboralesSerializer,
     CustomTokenObtainPairSerializer, DocumentoActividadSerializer, ProgramaAnaliticoSerializer,
     # Validadores estructurales de asignación (blindaje de reactivación, normativa UABJB)
     validar_unicidad_cargo_por_carrera,
@@ -339,17 +339,6 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        saldos_count = SaldoVacacionesGestion.objects.filter(docente=docente).count()
-        if saldos_count > 0:
-            mensaje = (
-                f'No se puede eliminar al docente porque tiene {saldos_count} '
-                f'registro(s) de saldo de vacaciones asociados.'
-            )
-            return Response(
-                {'error': mensaje, 'detail': mensaje},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         cargas_qs = CargaHoraria.objects.filter(docente=docente)
         cargas_count = cargas_qs.count()
         if cargas_count > 0:
@@ -444,80 +433,6 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
                 {'error': mensaje, 'detail': mensaje},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
-
-class SaldoVacacionesGestionViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para gestionar saldos de vacaciones por docente y gestión.
-    Permite cargar masivamente los saldos del PDF de 'Vacaciones 2024'.
-    """
-    queryset = SaldoVacacionesGestion.objects.all()
-    serializer_class = SaldoVacacionesGestionSerializer
-    permission_classes = [IsFullAdmin]
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['docente__nombres', 'docente__apellido_paterno', 'docente__apellido_materno', 'gestion']
-    ordering_fields = ['gestion', 'docente']
-    ordering = ['-gestion', 'docente']
-
-    def get_queryset(self):
-        """Solo admin puede acceder a los saldos de vacaciones."""
-        return SaldoVacacionesGestion.objects.all()
-
-    @action(detail=False, methods=['post'], permission_classes=[IsFullAdmin])
-    def cargar_masivo(self, request):
-        """
-        Endpoint para cargar masivamente saldos de vacaciones.
-        
-        Esperado (JSON):
-        [
-            {"docente_id": 5, "gestion": 2024, "dias_disponibles": 15},
-            {"docente_id": 7, "gestion": 2024, "dias_disponibles": 20},
-            ...
-        ]
-        
-        Retorna: Cantidad de registros creados/actualizados y errores (si los hay)
-        """
-        data = request.data
-        
-        if not isinstance(data, list):
-            return Response(
-                {'error': 'Se esperaba una lista de registros'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        resultado = {
-            'creados': 0,
-            'actualizados': 0,
-            'errores': []
-        }
-        
-        for idx, item in enumerate(data):
-            serializer = SaldoVacacionesGestionSerializer(data=item)
-            if serializer.is_valid():
-                try:
-                    obj, created = SaldoVacacionesGestion.objects.update_or_create(
-                        docente_id=item.get('docente_id'),
-                        gestion=item.get('gestion'),
-                        defaults={'dias_disponibles': item.get('dias_disponibles')}
-                    )
-                    if created:
-                        resultado['creados'] += 1
-                    else:
-                        resultado['actualizados'] += 1
-                except Exception as e:
-                    resultado['errores'].append({
-                        'fila': idx + 1,
-                        'docente_id': item.get('docente_id'),
-                        'gestion': item.get('gestion'),
-                        'error': str(e)
-                    })
-            else:
-                resultado['errores'].append({
-                    'fila': idx + 1,
-                    'validacion': serializer.errors
-                })
-        
-        return Response(resultado, status=status.HTTP_201_CREATED if resultado['errores'] == [] else status.HTTP_207_MULTI_STATUS)
 
 
 class DatosLaboralesViewSet(viewsets.ModelViewSet):
@@ -3006,7 +2921,7 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         """
         BORRADO CONTROLADO DE USUARIO (misma regla que Carrera)
-        - Con datos registrados (fondos, informes, cargas, saldos, POA...): no se
+        - Con datos registrados (fondos, informes, cargas, POA...): no se
           elimina, solo se desactiva.
         - Sin datos: se borra el usuario junto con sus asignaciones, su perfil y su
           ficha de docente, sin dejar registros huérfanos.

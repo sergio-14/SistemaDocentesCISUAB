@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import UNIDADES_FONDO, DocumentoActividad, actualizar_con_historial, clase_documento_actividad, nombre_calendario_en_fondo, fondo_de_la_carga, mensaje_sin_fondo, roles_del_docente_en_carrera
-from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, PerfilUsuario, AsignacionCarrera, InformeFondo, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, ProgramaAnalitico
+from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, PerfilUsuario, AsignacionCarrera, InformeFondo, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, DatosLaborales, ProgramaAnalitico
 from .role_context import get_active_assignment, get_active_careers_for_user, get_effective_profile, serialize_assignment
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from .utils.informe_html import CAMPOS_HTML_RICO_INFORME, sanitizar_html_informe
@@ -602,8 +602,6 @@ def datos_registrados_usuario(user):
         ('fondos', 'Fondos de tiempo', FondoTiempo.objects.filter(docente=docente).count() if docente else 0),
         ('informes', 'Informes', InformeFondo.objects.filter(Q(elaborado_por=user) | Q(evaluado_por=user)).count()),
         ('cargas_horarias', 'Cargas horarias', CargaHoraria.objects.filter(cargas).count()),
-        ('saldos_vacaciones', 'Saldos de vacaciones',
-         SaldoVacacionesGestion.objects.filter(docente=docente).count() if docente else 0),
         ('historial_poa', 'Historial POA', sum((
             HistorialDocumentoPOA.objects.filter(usuario=user).count(),
             VersionDocumentoPOA.objects.filter(creado_por=user).count(),
@@ -659,13 +657,12 @@ def docente_tiene_historial_operativo(docente):
 
 
 def docente_tiene_registros(docente):
-    """Cualquier fondo, carga o saldo: el docente no se elimina ni cambia de carrera (sus
+    """Cualquier fondo o carga: el docente no se elimina ni cambia de carrera (sus
     fondos quedarían en otra carrera) y su perfil no se reutiliza por C.I."""
     if not docente:
         return False
     return (
         FondoTiempo.objects.filter(docente=docente).exists()
-        or SaldoVacacionesGestion.objects.filter(docente=docente).exists()
         or CargaHoraria.objects.filter(docente=docente).exists()
     )
 
@@ -1840,7 +1837,7 @@ class DocenteSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'carrera': MENSAJE_FICHA_EN_CARRERA_DEL_USUARIO})
         if actual and docente_tiene_registros(self.instance):
             raise serializers.ValidationError({
-                'carrera': f'No se puede cambiar la carrera: el docente tiene fondos, cargas o saldos en {actual.carrera.nombre}.',
+                'carrera': f'No se puede cambiar la carrera: el docente tiene fondos o cargas en {actual.carrera.nombre}.',
             })
 
     def _validar_reglas_ficha(self, data, dedicacion, user):
@@ -2206,26 +2203,6 @@ class DocenteSerializer(serializers.ModelSerializer):
                     perfil_vinculado.save(update_fields=['activo'])
 
         return docente
-
-
-class SaldoVacacionesGestionSerializer(serializers.ModelSerializer):
-    docente_nombre = serializers.CharField(source='docente.nombre_completo', read_only=True)
-    docente_id = serializers.IntegerField(write_only=False)
-
-    class Meta:
-        model = SaldoVacacionesGestion
-        fields = ['id', 'docente_id', 'docente_nombre', 'gestion', 'dias_disponibles']
-
-    def validate_docente_id(self, value):
-        """Valida que el docente exista."""
-        if not Docente.objects.filter(id=value).exists():
-            raise serializers.ValidationError("El docente especificado no existe.")
-        return value
-
-    def create(self, validated_data):
-        docente_id = validated_data.pop('docente_id')
-        validated_data['docente_id'] = docente_id
-        return super().create(validated_data)
 
 
 class DatosLaboralesSerializer(serializers.ModelSerializer):
@@ -3333,7 +3310,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'carrera': (
                         f'No se puede cambiar la carrera: el docente tiene fondos, cargas '
-                        f'horarias o saldos en {vinculo.carrera.nombre}.'
+                        f'horarias en {vinculo.carrera.nombre}.'
                     ),
                 })
             self._mover_vinculo_a = next(iter(carreras))

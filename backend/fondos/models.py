@@ -533,65 +533,6 @@ class DocenteCarrera(models.Model):
         return super().save(*args, **kwargs)
 
 
-class SaldoVacacionesGestion(models.Model):
-    """
-    Saldo de vacaciones por docente y gestión académica.
-    Permite especificar de forma granular los días de vacación disponibles
-    para cada docente en cada año/gestión.
-    """
-    docente = models.ForeignKey(Docente, on_delete=models.PROTECT, related_name='saldos_vacaciones')
-    gestion = models.IntegerField(
-        validators=[MinValueValidator(2020), MaxValueValidator(2100)],
-        help_text="Año/Gestión académica"
-    )
-    dias_disponibles = models.IntegerField(
-        help_text="Días de vacación disponibles para esta gestión"
-    )
-    
-    class Meta:
-        verbose_name = "Saldo de Vacaciones"
-        verbose_name_plural = "Saldos de Vacaciones"
-        unique_together = ['docente', 'gestion']
-        ordering = ['-gestion', 'docente']
-    
-    def __str__(self):
-        return f"{self.docente.nombre_completo} - {self.gestion}: {self.dias_disponibles} días"
-    
-    def clean(self):
-        """
-        Validar que si hay FondoDeTiempo aprobados para este docente en esta gestión,
-        NO se permita cambiar el saldo de vacaciones (consistencia regulatoria).
-        """
-        super().clean()
-        
-        # Solo validar si el objeto ya existe (está siendo actualizado)
-        if self.pk:
-            saldo_anterior = SaldoVacacionesGestion.objects.get(pk=self.pk)
-            
-            # Si los días cambiaron
-            if saldo_anterior.dias_disponibles != self.dias_disponibles:
-                # Verificar si hay fondos aprobados
-                fondos_aprobados = FondoTiempo.objects.filter(
-                    docente=self.docente,
-                    gestion=self.gestion,
-                    estado='aprobado_director'
-                ).count()
-                
-                if fondos_aprobados > 0:
-                    raise ValidationError({
-                        'dias_disponibles': (
-                            f'⚠️ NO SE PUEDE MODIFICAR: Hay {fondos_aprobados} Fondo(s) de Tiempo '
-                            f'aprobado(s) para este docente en la gestión {self.gestion}. '
-                            f'Cambiar el saldo de vacaciones desalinearía las horas_efectivas '
-                            f'legalmente aprobadas. Contacte al administrador si necesita corregir.'
-                        )
-                    })
-    
-    def save(self, *args, **kwargs):
-        self.full_clean()
-        super().save(*args, **kwargs)
-
-
 class FacultadCatalogo(models.Model):
     """Catálogo editable de facultades para formularios de carrera."""
 

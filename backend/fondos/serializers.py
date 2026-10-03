@@ -36,11 +36,23 @@ CARGA_HORARIA_TIPOS_POR_CATEGORIA = {
         'planificacion_gestion_practica_extra_aula',
         'ejecucion_practica_extra_aula',
         'informe_descargo_viaje_practicas_extra_aula',
+        'asesorias_tutorias',
+        'gabinetes',
+        'modulos_productivos',
+        'aulas_tic',
+        'practicas_preprofesionales',
+        'otros',
     ],
     'investigacion': [
         'participacion_iic_cis',
         'organizacion_eventos_cientificos',
         'elaboracion_trabajos_investigacion',
+        'complementaciones_curriculares',
+        'nuevas_tecnologias',
+        'nuevas_metodologias',
+        'relacion_teoria_practica',
+        'reingenieria',
+        'otros',
     ],
     'extension_universitaria': [
         'proyectos_extension',
@@ -53,6 +65,8 @@ CARGA_HORARIA_TIPOS_POR_CATEGORIA = {
         'videoconferencias',
         'asistencia_tecnica',
         'voluntariado',
+
+        'otros',
     ],
     'interaccion_social': [
         'proyectos_interaccion',
@@ -64,6 +78,8 @@ CARGA_HORARIA_TIPOS_POR_CATEGORIA = {
         'jornadas',
         'tribunal_externo',
         'capacitacion_externa',
+
+        'otros',
     ],
     'gestion': [
         'modalidad_graduacion',
@@ -71,6 +87,8 @@ CARGA_HORARIA_TIPOS_POR_CATEGORIA = {
         'coordinacion',
         'convenios',
         'politicas_academicas',
+
+        'otros',
     ],
     'academica_administrativa': [
         'auxiliares_docencia',
@@ -85,6 +103,8 @@ CARGA_HORARIA_TIPOS_POR_CATEGORIA = {
         'comision_innovacion_curricular',
         'poa',
         'programas_analiticos',
+
+        'otros',
     ],
     'social_cultural_deportiva': [
         'acto_academico_facultativo',
@@ -101,6 +121,8 @@ CARGA_HORARIA_TIPOS_POR_CATEGORIA = {
         'asociacion_docente',
         'capacitacion_complementaria',
         'orientacion_vocacional',
+
+        'otros',
     ],
 }
 
@@ -189,7 +211,24 @@ CARGA_HORARIA_TIPOS_LABELS = {
     'asociacion_docente': 'Asociaci\u00f3n Docente',
     'capacitacion_complementaria': 'Capacitaci\u00f3n complementaria',
     'orientacion_vocacional': 'Orientaci\u00f3n Vocacional',
+    # Art. 13: ítems de Académica e Investigación que faltaban.
+    'asesorias_tutorias': 'Asesor\u00edas y tutor\u00edas',
+    'gabinetes': 'Gabinetes',
+    'modulos_productivos': 'M\u00f3dulos productivos',
+    'aulas_tic': 'Aulas TIC',
+    'practicas_preprofesionales': 'Pr\u00e1cticas preprofesionales y/o laborales',
+    'complementaciones_curriculares': 'Complementaciones curriculares',
+    'nuevas_tecnologias': 'Interrelaci\u00f3n con nuevas tecnolog\u00edas',
+    'nuevas_metodologias': 'Nuevas metodolog\u00edas de trabajo',
+    'relacion_teoria_practica': 'Perfeccionamiento de la relaci\u00f3n teor\u00eda y pr\u00e1ctica',
+    'reingenieria': 'Reingenier\u00eda',
+    # En cada unidad (Art. 12 g, "y Otros"): exige describir la actividad.
+    'otros': 'Otros',
 }
+
+# "Otros": la descripción (titulo_actividad) es obligatoria y no puede ser solo "Otros".
+TIPO_ACTIVIDAD_OTROS = 'otros'
+EVIDENCIA_OTROS = 'Documento de respaldo de la actividad descrita'
 
 CARGA_HORARIA_EVIDENCIAS_ACADEMICAS = {
     'preparacion_temas': 'Plan de clases, material de apoyo',
@@ -207,12 +246,24 @@ CARGA_HORARIA_EVIDENCIAS_ACADEMICAS = {
     'clases_aula': 'Programa anal\u00edtico, plan de clases, actas de notas, registros de asistencia',
     'elaboracion_planillas_introduccion_notas_moxos': 'Capturas de pantalla del sistema, actas de notas',
     'informe_descargo_viaje_practicas_extra_aula': 'Informe de descargo, boletas o facturas de viaje',
+    'asesorias_tutorias': 'Registro de asesor\u00edas y tutor\u00edas, lista de estudiantes atendidos',
+    'gabinetes': 'Gu\u00edas de gabinete, registros de asistencia',
+    'modulos_productivos': 'Plan del m\u00f3dulo productivo, informe de resultados',
+    'aulas_tic': 'Plan de uso del aula TIC, registros de asistencia',
+    'practicas_preprofesionales': 'Convenio o carta de la instituci\u00f3n, informe de pr\u00e1ctica',
+    'otros': EVIDENCIA_OTROS,
 }
 
 CARGA_HORARIA_EVIDENCIAS_INVESTIGACION = {
     'participacion_iic_cis': 'Memor\u00e1ndum o certificado de participaci\u00f3n en el IIC-CIS, informe de actividades',
     'organizacion_eventos_cientificos': 'Programa del evento cient\u00edfico, fotograf\u00edas, lista de asistentes',
     'elaboracion_trabajos_investigacion': 'Productos de investigaci\u00f3n, informes de avance, art\u00edculos publicados',
+    'complementaciones_curriculares': 'Propuesta de complementaci\u00f3n curricular, acta de aprobaci\u00f3n',
+    'nuevas_tecnologias': 'Informe de la interrelaci\u00f3n con nuevas tecnolog\u00edas, productos',
+    'nuevas_metodologias': 'Documento de la metodolog\u00eda, informe de aplicaci\u00f3n',
+    'relacion_teoria_practica': 'Informe de actividades, productos de la pr\u00e1ctica',
+    'reingenieria': 'Propuesta de reingenier\u00eda, informe de resultados',
+    'otros': EVIDENCIA_OTROS,
 }
 
 CARGA_HORARIA_EVIDENCIAS_EXTENSION_UNIVERSITARIA = {
@@ -226,6 +277,7 @@ CARGA_HORARIA_EVIDENCIAS_EXTENSION_UNIVERSITARIA = {
     'videoconferencias': 'Grabaci\u00f3n o enlace de la videoconferencia, lista de participantes',
     'asistencia_tecnica': 'Informe de asistencia t\u00e9cnica, solicitud atendida',
     'voluntariado': 'Certificado de voluntariado, informe de actividades realizadas',
+    'otros': EVIDENCIA_OTROS,
 }
 
 CARGA_HORARIA_EVIDENCIAS_INTERACCION_SOCIAL = {
@@ -237,6 +289,7 @@ CARGA_HORARIA_EVIDENCIAS_INTERACCION_SOCIAL = {
     'campanas': 'Material de la campa\u00f1a, fotograf\u00edas, informe de resultados',
     'tribunal_externo': 'Memor\u00e1ndum de designaci\u00f3n, acta de calificaci\u00f3n',
     'capacitacion_externa': 'Certificado de capacitaci\u00f3n, programa del curso',
+    'otros': EVIDENCIA_OTROS,
 }
 
 CARGA_HORARIA_EVIDENCIAS_GESTION = {
@@ -245,6 +298,7 @@ CARGA_HORARIA_EVIDENCIAS_GESTION = {
     'coordinacion': 'Memor\u00e1ndums de coordinaci\u00f3n, informes de seguimiento',
     'convenios': 'Documento del convenio firmado, resoluci\u00f3n de aprobaci\u00f3n',
     'politicas_academicas': 'Documento de pol\u00edtica acad\u00e9mica, resoluci\u00f3n de aprobaci\u00f3n',
+    'otros': EVIDENCIA_OTROS,
 }
 
 CARGA_HORARIA_EVIDENCIAS_ACADEMICA_ADMINISTRATIVA = {
@@ -260,6 +314,7 @@ CARGA_HORARIA_EVIDENCIAS_ACADEMICA_ADMINISTRATIVA = {
     'comision_innovacion_curricular': 'Acta de la comisi\u00f3n, documento de innovaci\u00f3n curricular',
     'poa': 'POA aprobado, informe de seguimiento del POA',
     'programas_analiticos': 'Programas anal\u00edticos elaborados o revisados, acta de aprobaci\u00f3n',
+    'otros': EVIDENCIA_OTROS,
 }
 
 CARGA_HORARIA_EVIDENCIAS_SOCIAL_CULTURAL_DEPORTIVA = {
@@ -277,6 +332,7 @@ CARGA_HORARIA_EVIDENCIAS_SOCIAL_CULTURAL_DEPORTIVA = {
     'asociacion_docente': 'Acta o certificado de participaci\u00f3n en la Asociaci\u00f3n de Docentes',
     'capacitacion_complementaria': 'Certificado de capacitaci\u00f3n complementaria',
     'orientacion_vocacional': 'Informe o registro de orientaci\u00f3n vocacional, fotograf\u00edas',
+    'otros': EVIDENCIA_OTROS,
 }
 
 CARGA_HORARIA_EVIDENCIAS_POR_CATEGORIA = {
@@ -288,6 +344,16 @@ CARGA_HORARIA_EVIDENCIAS_POR_CATEGORIA = {
     'academica_administrativa': CARGA_HORARIA_EVIDENCIAS_ACADEMICA_ADMINISTRATIVA,
     'social_cultural_deportiva': CARGA_HORARIA_EVIDENCIAS_SOCIAL_CULTURAL_DEPORTIVA,
 }
+
+
+def _descripcion_otros(titulo_actividad):
+    """Descripción obligatoria del ítem "Otros" de una unidad."""
+    descripcion = str(titulo_actividad or '').strip()
+    if not descripcion or descripcion.lower() == CARGA_HORARIA_TIPOS_LABELS[TIPO_ACTIVIDAD_OTROS].lower():
+        raise serializers.ValidationError({
+            'titulo_actividad': 'Describa la actividad: en "Otros" la descripción es obligatoria.'
+        })
+    return descripcion
 
 
 def _usuario_es_iisyp_solo_lectura(context):
@@ -1302,6 +1368,8 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
                 data['titulo_actividad'] = materia.nombre
                 data['horas'] = (materia.horas_totales or 0) * calendario.semanas_de_clase
                 horas_nuevas = data['horas']
+            elif tipo_actividad == TIPO_ACTIVIDAD_OTROS:
+                data['titulo_actividad'] = _descripcion_otros(titulo_actividad)
             else:
                 data['titulo_actividad'] = str(titulo_actividad or CARGA_HORARIA_TIPOS_LABELS.get(tipo_actividad, tipo_actividad)).strip()
             if not str(evidencias or '').strip():
@@ -1323,6 +1391,8 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'tipo_actividad': 'Debe seleccionar un tipo de actividad valido para esta categoria.'
                 })
+            if tipo_actividad == TIPO_ACTIVIDAD_OTROS:
+                titulo_actividad = _descripcion_otros(titulo_actividad)
             if not str(evidencias or '').strip():
                 evidencias = CARGA_HORARIA_EVIDENCIAS_POR_CATEGORIA.get(categoria, {}).get(tipo_actividad, '')
             data['titulo_actividad'] = str(titulo_actividad).strip()

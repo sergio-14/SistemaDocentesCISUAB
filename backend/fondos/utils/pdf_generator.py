@@ -78,11 +78,21 @@ ETIQUETAS_TIPO_ACTIVIDAD = {
         'planificacion_gestion_practica_extra_aula': 'Planificación y gestión de práctica extra aula',
         'ejecucion_practica_extra_aula': 'Ejecución de práctica extra aula',
         'informe_descargo_viaje_practicas_extra_aula': 'Informe de descargo de viaje en las prácticas extra aula',
+        'asesorias_tutorias': 'Asesorías y tutorías',
+        'gabinetes': 'Gabinetes',
+        'modulos_productivos': 'Módulos productivos',
+        'aulas_tic': 'Aulas TIC',
+        'practicas_preprofesionales': 'Prácticas preprofesionales y/o laborales',
     },
     'investigacion': {
         'participacion_iic_cis': 'Participación IIC-CIS',
         'organizacion_eventos_cientificos': 'Organización eventos científicos',
         'elaboracion_trabajos_investigacion': 'Elaboración trabajos investigación',
+        'complementaciones_curriculares': 'Complementaciones curriculares',
+        'nuevas_tecnologias': 'Interrelación con nuevas tecnologías',
+        'nuevas_metodologias': 'Nuevas metodologías de trabajo',
+        'relacion_teoria_practica': 'Perfeccionamiento de la relación teoría y práctica',
+        'reingenieria': 'Reingeniería',
     },
     'extension_universitaria': {
         'proyectos_extension': 'Proyectos de extensión',
@@ -149,6 +159,9 @@ ETIQUETAS_TIPO_ACTIVIDAD = {
 
 def _etiqueta_tipo_actividad(categoria, carga):
     codigo = (carga.tipo_actividad or '').strip()
+    if codigo == 'otros':
+        # "Otros" se muestra con su descripción (obligatoria).
+        return f'Otros: {(carga.titulo_actividad or "").strip()}'
     etiqueta = ETIQUETAS_TIPO_ACTIVIDAD.get(categoria, {}).get(codigo)
     if etiqueta:
         return etiqueta

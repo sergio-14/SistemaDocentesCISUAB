@@ -44,6 +44,12 @@ const SUBACTIVIDADES_POR_CATEGORIA = {
             { value: 'planificacion_gestion_practica_extra_aula', label: 'Planificación y gestión de práctica extra aula' },
             { value: 'ejecucion_practica_extra_aula', label: 'Ejecución de práctica extra aula' },
             { value: 'informe_descargo_viaje_practicas_extra_aula', label: 'Informe de descargo de viaje en las prácticas extra aula' },
+            { value: 'asesorias_tutorias', label: 'Asesorías y tutorías' },
+            { value: 'gabinetes', label: 'Gabinetes' },
+            { value: 'modulos_productivos', label: 'Módulos productivos' },
+            { value: 'aulas_tic', label: 'Aulas TIC' },
+            { value: 'practicas_preprofesionales', label: 'Prácticas preprofesionales y/o laborales' },
+            { value: 'otros', label: 'Otros' },
         ],
     },
     investigacion: {
@@ -54,6 +60,12 @@ const SUBACTIVIDADES_POR_CATEGORIA = {
             { value: 'participacion_iic_cis', label: 'Participacion IIC-CIS' },
             { value: 'organizacion_eventos_cientificos', label: 'Organizacion eventos cientificos' },
             { value: 'elaboracion_trabajos_investigacion', label: 'Elaboracion trabajos investigacion' },
+            { value: 'complementaciones_curriculares', label: 'Complementaciones curriculares' },
+            { value: 'nuevas_tecnologias', label: 'Interrelación con nuevas tecnologías' },
+            { value: 'nuevas_metodologias', label: 'Nuevas metodologías de trabajo' },
+            { value: 'relacion_teoria_practica', label: 'Perfeccionamiento de la relación teoría y práctica' },
+            { value: 'reingenieria', label: 'Reingeniería' },
+            { value: 'otros', label: 'Otros' },
         ],
     },
     extension_universitaria: {
@@ -71,6 +83,7 @@ const SUBACTIVIDADES_POR_CATEGORIA = {
             { value: 'videoconferencias', label: 'Videoconferencias' },
             { value: 'asistencia_tecnica', label: 'Asistencia técnica' },
             { value: 'voluntariado', label: 'Voluntariado' },
+            { value: 'otros', label: 'Otros' },
         ],
     },
     interaccion_social: {
@@ -87,6 +100,7 @@ const SUBACTIVIDADES_POR_CATEGORIA = {
             { value: 'jornadas', label: 'Jornadas' },
             { value: 'tribunal_externo', label: 'Tribunal externo' },
             { value: 'capacitacion_externa', label: 'Capacitación externa' },
+            { value: 'otros', label: 'Otros' },
         ],
     },
     gestion: {
@@ -99,6 +113,7 @@ const SUBACTIVIDADES_POR_CATEGORIA = {
             { value: 'coordinacion', label: 'Coordinación' },
             { value: 'convenios', label: 'Convenios' },
             { value: 'politicas_academicas', label: 'Políticas académicas' },
+            { value: 'otros', label: 'Otros' },
         ],
     },
     academica_administrativa: {
@@ -118,6 +133,7 @@ const SUBACTIVIDADES_POR_CATEGORIA = {
             { value: 'comision_innovacion_curricular', label: 'Comisión Innovación Curricular' },
             { value: 'poa', label: 'POA' },
             { value: 'programas_analiticos', label: 'Programas analíticos' },
+            { value: 'otros', label: 'Otros' },
         ],
     },
     social_cultural_deportiva: {
@@ -139,6 +155,7 @@ const SUBACTIVIDADES_POR_CATEGORIA = {
             { value: 'asociacion_docente', label: 'Asociación Docente' },
             { value: 'capacitacion_complementaria', label: 'Capacitación complementaria' },
             { value: 'orientacion_vocacional', label: 'Orientación Vocacional' },
+            { value: 'otros', label: 'Otros' },
         ],
     },
 };
@@ -147,6 +164,13 @@ const SUBACTIVIDADES_POR_CATEGORIA = {
 // tiene activo en la carrera del fondo (tipos_ejercicio_cargo del detalle) y
 // una sola vez por fondo. El backend aplica las mismas reglas.
 const TIPOS_EJERCICIO_CARGO = ['ejercicio_cargo_direccion', 'ejercicio_cargo_jefatura', 'ejercicio_cargo_instituto'];
+
+// "Otros" (en cada unidad): la descripción es obligatoria y no puede ser solo "Otros"; igual que el backend.
+const TIPO_OTROS = 'otros';
+const descripcionOtrosValida = (titulo) => {
+    const texto = String(titulo || '').trim();
+    return Boolean(texto) && texto.toLowerCase() !== 'otros';
+};
 
 const HORAS_ANUALES_OFICIALES = {
     investigacion: {
@@ -493,6 +517,10 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
             toast.error("Seleccione el tipo de actividad");
             return;
         }
+        if (formData.tipo_actividad === TIPO_OTROS && !descripcionOtrosValida(formData.titulo_actividad)) {
+            toast.error('Describa la actividad: en "Otros" la descripción es obligatoria');
+            return;
+        }
         if (!formData.horas || Number(formData.horas) <= 0) {
             toast.error("Verifique las horas anuales");
             return;
@@ -588,10 +616,12 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
         setFormData((prev) => ({
             ...prev,
             tipo_actividad: tipoActividad,
-            titulo_actividad: (prev.categoria === 'academica' && tipoActividad !== 'clases_aula')
+            titulo_actividad: tipoActividad === TIPO_OTROS && prev.categoria === 'academica'
+                ? ''
+                : (prev.categoria === 'academica' && tipoActividad !== 'clases_aula')
                 || (TIPOS_EJERCICIO_CARGO.includes(tipoActividad) && !prev.titulo_actividad?.trim())
-                ? (opcion?.label || '')
-                : prev.titulo_actividad,
+                    ? (opcion?.label || '')
+                    : prev.titulo_actividad,
             horas: prev.categoria === 'academica' || horasSugeridas === undefined
                 ? prev.horas
                 : horasSugeridas
@@ -658,6 +688,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
         || (!esAcademica && !formData.titulo_actividad?.trim())
         || (esAcademica && !formData.tipo_actividad)
         || (!esAcademica && !formData.tipo_actividad)
+        || (formData.tipo_actividad === TIPO_OTROS && !descripcionOtrosValida(formData.titulo_actividad))
         || !formData.horas
         || Number(formData.horas) <= 0
         || horasInvalidas
@@ -788,6 +819,19 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                                             disabled={!semestre || isReadOnly}
                                             emptyText={!semestre ? 'Selecciona primero un nivel' : 'No hay materias en este nivel'}
                                             menuMaxHeight="max-h-64"
+                                        />
+                                    </div>
+                                )}
+                                {formData.tipo_actividad === TIPO_OTROS && (
+                                    <div className="mt-3">
+                                        <label className={labelCls}>Descripción de la actividad</label>
+                                        <input
+                                            type="text"
+                                            className={inputCls}
+                                            placeholder="Describa la actividad académica"
+                                            value={formData.titulo_actividad}
+                                            onChange={e => setFormData({ ...formData, titulo_actividad: e.target.value })}
+                                            disabled={isReadOnly}
                                         />
                                     </div>
                                 )}

@@ -217,6 +217,7 @@ const VidaUniversitariaIcon = (props) => (
 import toast from 'react-hot-toast';
 import EstadoTimeline from './fondos/EstadoTimeline';
 import ProgramaAnaliticoAccion from './fondos/ProgramaAnaliticoAccion';
+import DocumentoActividadAccion from './fondos/DocumentoActividadAccion';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
 const CATEGORIAS_BLOQUEADAS = [];
@@ -464,7 +465,7 @@ function DetalleFondo() {
         toast.error(`La suma de las unidades debe ser exactamente ${horasEfectivasAnuales} horas (horas efectivas).`);
         return;
       }
-      if (programasFaltantes.length > 0) {
+      if (documentosFaltantes.length > 0) {
         toast.error(motivoPresentacionBloqueada);
         return;
       }
@@ -744,11 +745,15 @@ function DetalleFondo() {
   const totalUnidades = Math.round(Number(fondo.total_asignado || 0));
   const unidadesCompletas = horasEfectivasAnuales > 0 && totalUnidades === horasEfectivasAnuales;
   // Art. 15 y 18: cada materia de clases en aula (por calendario) necesita su programa analítico.
-  const programasFaltantes = fondo.programas_analiticos_faltantes || [];
-  const puedeConfirmarPresentacion = unidadesCompletas && programasFaltantes.length === 0;
+  // Arts. 14, 16, 17 y 20: cada proyecto o curso necesita su documento (PDF).
+  const documentosFaltantes = [
+    ...(fondo.programas_analiticos_faltantes || []),
+    ...(fondo.documentos_actividad_faltantes || []),
+  ];
+  const puedeConfirmarPresentacion = unidadesCompletas && documentosFaltantes.length === 0;
   const motivoPresentacionBloqueada = !unidadesCompletas
     ? `Unidades: ${totalUnidades} de ${horasEfectivasAnuales} h/año (deben sumar exactamente las horas efectivas)`
-    : programasFaltantes.join('. ');
+    : documentosFaltantes.join('. ');
   // Lo suben el superusuario y el Jefe de Estudios de la carrera de la materia (las de
   // otra carrera, desde la pantalla de esa Jefatura) mientras el fondo se puede corregir.
   const puedeSubirPrograma = (detalle) => (
@@ -1466,6 +1471,15 @@ function DetalleFondo() {
                                                 onSubido={() => cargarDetalle({ silencioso: true })}
                                               />
                                             )}
+                                            {detalle.requiere_documento && (
+                                              <DocumentoActividadAccion
+                                                cargaId={detalle.id}
+                                                clase={detalle.requiere_documento}
+                                                url={detalle.documento_url}
+                                                puedeSubir={puedeSubirPrograma(detalle)}
+                                                onSubido={() => cargarDetalle({ silencioso: true })}
+                                              />
+                                            )}
                                           </td>
                                           <td className="px-6 py-3.5 text-sm text-slate-600 dark:text-slate-400">{detalle.tipo_actividad_display || '-'}</td>
                                           <td className="px-6 py-3.5 text-sm font-bold text-slate-800 dark:text-white text-right">{detalle.horas}</td>
@@ -1544,6 +1558,15 @@ function DetalleFondo() {
                                                     materiaId={detalle.materia_id}
                                                     calendarioId={detalle.calendario_id}
                                                     url={detalle.programa_analitico_url}
+                                                    puedeSubir={puedeSubirPrograma(detalle)}
+                                                    onSubido={() => cargarDetalle({ silencioso: true })}
+                                                  />
+                                                )}
+                                                {detalle.requiere_documento && (
+                                                  <DocumentoActividadAccion
+                                                    cargaId={detalle.id}
+                                                    clase={detalle.requiere_documento}
+                                                    url={detalle.documento_url}
                                                     puedeSubir={puedeSubirPrograma(detalle)}
                                                     onSubido={() => cargarDetalle({ silencioso: true })}
                                                   />

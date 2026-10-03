@@ -6,7 +6,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import UNIDADES_FONDO, actualizar_con_historial, nombre_calendario_en_fondo, fondo_de_la_carga, mensaje_sin_fondo, roles_del_docente_en_carrera
+from .models import UNIDADES_FONDO, DocumentoActividad, actualizar_con_historial, clase_documento_actividad, nombre_calendario_en_fondo, fondo_de_la_carga, mensaje_sin_fondo, roles_del_docente_en_carrera
 from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, PerfilUsuario, AsignacionCarrera, InformeFondo, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, SaldoVacacionesGestion, DatosLaborales, ProgramaAnalitico
 from .role_context import get_active_assignment, get_active_careers_for_user, get_effective_profile, serialize_assignment
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
@@ -1602,6 +1602,32 @@ class ProgramaAnaliticoSerializer(serializers.ModelSerializer):
         return data
 
 
+class DocumentoActividadSerializer(serializers.ModelSerializer):
+    """Sube o reemplaza el documento (PDF) del proyecto o curso de un ítem del fondo."""
+    # Sin el validador de unicidad del OneToOne: subir de nuevo reemplaza el documento.
+    carga = serializers.PrimaryKeyRelatedField(queryset=CargaHoraria.objects.all())
+
+    class Meta:
+        model = DocumentoActividad
+        fields = ['id', 'carga', 'archivo', 'fecha_subida']
+        read_only_fields = ['fecha_subida']
+        validators = []
+
+    def validate_archivo(self, archivo):
+        if not es_pdf(archivo):
+            raise serializers.ValidationError('El documento debe ser un archivo PDF válido.')
+        if archivo.size > DocumentoActividad.TAMANO_MAXIMO_MB * 1024 * 1024:
+            raise serializers.ValidationError(
+                f'El archivo supera el tamaño máximo de {DocumentoActividad.TAMANO_MAXIMO_MB} MB.'
+            )
+        return archivo
+
+    def validate_carga(self, carga):
+        if not clase_documento_actividad(carga.tipo_actividad):
+            raise serializers.ValidationError('Esta actividad no es un proyecto ni un curso: no lleva documento.')
+        return carga
+
+
 class DocenteCarreraSerializer(serializers.ModelSerializer):
     docente_nombre = serializers.CharField(source='docente.nombre_completo', read_only=True)
     carrera_nombre = serializers.CharField(source='carrera.nombre', read_only=True)
@@ -2456,7 +2482,7 @@ class MateriaSerializer(serializers.ModelSerializer):
         return instance
 
 
-def _detalle_de_carga(carga, fondo, programas):
+def _detalle_de_carga(carga, fondo, programas, documentos):
     return {
         "id": carga.id,
         "materia_id": carga.materia_id,
@@ -2484,6 +2510,9 @@ def _detalle_de_carga(carga, fondo, programas):
             programas.get((carga.materia_id, carga.calendario_id))
             if carga.tipo_actividad == 'clases_aula' else None
         ),
+        # Proyecto o curso (Arts. 14, 16, 17 y 20): su documento (PDF).
+        "requiere_documento": clase_documento_actividad(carga.tipo_actividad),
+        "documento_url": documentos.get(carga.id),
     }
 
 
@@ -2495,13 +2524,17 @@ def unidades_del_fondo(fondo):
         (programa.materia_id, programa.calendario_id): programa.archivo.url
         for programa in fondo.programas_analiticos.all()
     }
+    documentos = {
+        documento.carga_id: documento.archivo.url
+        for documento in DocumentoActividad.objects.filter(carga__fondo=fondo)
+    }
     totales = dict.fromkeys(detalles, 0)
     # Orden fijo: por inicio del calendario (los ítems sin calendario al final) y por alta.
     cargas = fondo.cargas.select_related('materia', 'calendario__carrera').order_by(
         F('calendario__fecha_inicio').asc(nulls_last=True), 'id',
     )
     for carga in cargas:
-        detalles[carga.categoria].append(_detalle_de_carga(carga, fondo, programas))
+        detalles[carga.categoria].append(_detalle_de_carga(carga, fondo, programas, documentos))
         totales[carga.categoria] += carga.horas
     horas_efectivas = Decimal(str(fondo.horas_efectivas or 0))
     return [
@@ -4169,6 +4202,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     # Calendarios de la carrera en la gestión del fondo (para asignar materias).
     calendarios = serializers.SerializerMethodField()
     programas_analiticos_faltantes = serializers.SerializerMethodField()
+    documentos_actividad_faltantes = serializers.SerializerMethodField()
     
     estado_display = serializers.CharField(source='get_estado_display', read_only=True)
     # Aseguramos que se devuelva la URL como string explícito
@@ -4206,7 +4240,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             'contrato_horas',
             'horas_efectivas', 'total_asignado',
             'estado', 'estado_display', 'observaciones',
-            'programas_analiticos_faltantes',
+            'programas_analiticos_faltantes', 'documentos_actividad_faltantes',
             'fecha_presentacion', 'fecha_aprobacion', 'fecha_validacion',
             'aprobado_por', 'validado_por',
             'archivado', 'comentarios_admin',
@@ -4250,6 +4284,9 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
 
     def get_programas_analiticos_faltantes(self, obj):
         return obj.programas_analiticos_faltantes()
+
+    def get_documentos_actividad_faltantes(self, obj):
+        return obj.documentos_actividad_faltantes()
 
     def get_calendarios(self, obj):
         return CalendarioAcademicoSerializer(

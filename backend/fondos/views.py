@@ -39,7 +39,7 @@ from .serializers import (
     FondoTiempoDetalleSerializer,
     AprobarFondoSerializer, ObservarFondoSerializer,
     SaldoVacacionesGestionSerializer, DatosLaboralesSerializer,
-    CustomTokenObtainPairSerializer, ProgramaAnaliticoSerializer,
+    CustomTokenObtainPairSerializer, DocumentoActividadSerializer, ProgramaAnaliticoSerializer,
     # Validadores estructurales de asignación (blindaje de reactivación, normativa UABJB)
     validar_unicidad_cargo_por_carrera,
     ROLES_UNICOS_POR_CARRERA,
@@ -53,7 +53,7 @@ from .serializers import (
 )
 from .role_context import get_effective_profile, get_active_careers_for_user
 from .solo_lectura import CarreraInactivaSoloLecturaMixin as CarreraInactivaSoloLecturaBase
-from .models import actualizar_con_historial
+from .models import DocumentoActividad, actualizar_con_historial, clase_documento_actividad
 from .utils.archivos import es_pdf
 
 
@@ -1150,7 +1150,10 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
         self._validar_carrera_responsable(datos['fondo'], datos.get('calendario'))
         self._validar_estado_fondo(instance.fondo)
         self._validar_estado_fondo(datos['fondo'])
-        serializer.save()
+        carga = serializer.save()
+        # Si el ítem deja de ser proyecto o curso, su documento ya no corresponde.
+        if not clase_documento_actividad(carga.tipo_actividad):
+            DocumentoActividad.objects.filter(carga=carga).delete()
 
     def perform_destroy(self, instance):
         self._validar_carrera_responsable(instance.fondo, instance.calendario)
@@ -1198,6 +1201,50 @@ class ProgramaAnaliticoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Generic
         programa.save()
         return Response(
             self.get_serializer(programa).data,
+            status=status.HTTP_200_OK if anterior else status.HTTP_201_CREATED,
+        )
+
+# =====================================================
+# DOCUMENTO DE PROYECTO O CURSO (Arts. 14, 16, 17 y 20)
+# =====================================================
+
+class DocumentoActividadViewSet(CarreraInactivaSoloLecturaMixin, viewsets.GenericViewSet):
+    """POST /api/documentos-actividad/: sube o reemplaza el PDF del proyecto o curso de un
+    ítem del fondo. Como el programa analítico: el superusuario o el Jefe de Estudios de la
+    carrera del fondo, con el fondo en borrador u observado."""
+    queryset = DocumentoActividad.objects.all()
+    serializer_class = DocumentoActividadSerializer
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        carga = serializer.validated_data['carga']
+        fondo = carga.fondo
+
+        if not request.user.is_superuser:
+            perfil = _obtener_perfil_efectivo(request.user, request)
+            if not (perfil and perfil.rol == 'jefe_estudios'
+                    and _usuario_tiene_acceso_a_carrera(request.user, fondo.carrera, request)):
+                raise PermissionDenied(
+                    f'Solo el Jefe de Estudios de {fondo.carrera.nombre} sube el documento de esta actividad.'
+                )
+        if fondo.archivado or fondo.estado not in ['borrador', 'observado']:
+            raise PermissionDenied('El documento solo se sube con el fondo en borrador u observado.')
+
+        documento = DocumentoActividad.objects.filter(carga=carga).first()
+        anterior = documento.archivo.name if documento and documento.archivo else None
+        if documento is None:
+            documento = DocumentoActividad(carga=carga)
+        if anterior:
+            # Reemplazo: se borra el PDF anterior para que el nuevo quede con el mismo nombre.
+            documento.archivo.storage.delete(anterior)
+        documento.archivo = serializer.validated_data['archivo']
+        documento.subido_por = request.user
+        documento.save()
+        return Response(
+            self.get_serializer(documento).data,
             status=status.HTTP_200_OK if anterior else status.HTTP_201_CREATED,
         )
 
@@ -2031,7 +2078,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             )
 
         # Art. 15 y 18: un programa analítico por materia y calendario de clases en aula.
-        faltantes = fondo.programas_analiticos_faltantes()
+        # Arts. 14, 16, 17 y 20: el documento de cada proyecto o curso.
+        faltantes = fondo.programas_analiticos_faltantes() + fondo.documentos_actividad_faltantes()
         if faltantes:
             return Response({'error': '. '.join(faltantes) + '.'}, status=status.HTTP_400_BAD_REQUEST)
 

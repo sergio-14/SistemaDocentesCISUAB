@@ -1295,6 +1295,16 @@ class FondoTiempo(models.Model):
             for fila in self.cargas.values('categoria').annotate(total=models.Sum('horas'))
         }
 
+    def documentos_actividad_faltantes(self):
+        """Mensajes de los ítems de tipo proyecto o curso (Arts. 14, 16, 17 y 20) sin su documento."""
+        cargas = self.cargas.filter(
+            tipo_actividad__in=TIPOS_ACTIVIDAD_PROYECTO | TIPOS_ACTIVIDAD_CURSO, documento__isnull=True,
+        ).order_by('id')
+        return [
+            f'Falta el documento del {clase_documento_actividad(carga.tipo_actividad)} de {carga.titulo_actividad}'
+            for carga in cargas
+        ]
+
     def programas_analiticos_faltantes(self):
         """Mensajes de las materias de clases en aula (por calendario) sin programa analítico."""
         subidos = set(self.programas_analiticos.values_list('materia_id', 'calendario_id'))
@@ -1509,6 +1519,64 @@ class CargaHoraria(models.Model):
             f"{self.docente.nombre_completo} - {materia_txt} {self.paralelo} "
             f"({self.dia_semana} {self.hora_inicio}-{self.hora_fin})"
         )
+
+
+# Arts. 14, 16, 17 y 20: ítems de tipo proyecto (investigación, extensión, interacción) y
+# de tipo curso (cursos, seminarios, talleres, capacitaciones). Cada uno lleva el
+# documento del proyecto o curso (PDF), como el programa analítico de una materia.
+TIPOS_ACTIVIDAD_PROYECTO = {
+    'elaboracion_trabajos_investigacion',
+    'proyectos_extension',
+    'proyectos_interaccion',
+    'proyectos_sociales',
+}
+TIPOS_ACTIVIDAD_CURSO = {'cursos', 'seminarios', 'talleres', 'capacitacion_externa'}
+
+
+def clase_documento_actividad(tipo_actividad):
+    """'proyecto', 'curso' o None: si el ítem exige documento y de qué tipo."""
+    if tipo_actividad in TIPOS_ACTIVIDAD_PROYECTO:
+        return 'proyecto'
+    if tipo_actividad in TIPOS_ACTIVIDAD_CURSO:
+        return 'curso'
+    return None
+
+
+def documento_actividad_upload_path(instance, filename):
+    """Ruta: fondos/documentos_actividades/docente_<id>/gestion_<año>/<tipo>_carga_<id>.pdf"""
+    carga = instance.carga
+    return (
+        f'fondos/documentos_actividades/docente_{carga.fondo.docente_id}/gestion_{carga.fondo.gestion}/'
+        f'{carga.tipo_actividad}_carga_{carga.pk}.pdf'
+    )
+
+
+class DocumentoActividad(models.Model):
+    """Documento (PDF) del proyecto (Arts. 14 y 16: antecedentes, justificación, objetivos,
+    problema y cronograma) o del curso (Arts. 17 y 20: bibliografía, lugar, fecha, grupo,
+    asistencia, modalidad, periodo y material) de un ítem del fondo."""
+
+    TAMANO_MAXIMO_MB = 10
+
+    carga = models.OneToOneField(CargaHoraria, on_delete=models.CASCADE, related_name='documento')
+    archivo = models.FileField(upload_to=documento_actividad_upload_path, validators=[FileExtensionValidator(['pdf'])])
+    subido_por = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='documentos_actividad_subidos',
+    )
+    fecha_subida = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Documento de proyecto o curso'
+        verbose_name_plural = 'Documentos de proyectos y cursos'
+
+    def __str__(self):
+        return f'{self.carga.titulo_actividad} - {self.carga.fondo}'
+
+
+@receiver(post_delete, sender=DocumentoActividad)
+def borrar_archivo_de_documento_actividad(sender, instance, **kwargs):
+    if instance.archivo:
+        instance.archivo.storage.delete(instance.archivo.name)
 
 
 def _carpeta_informe(instance):

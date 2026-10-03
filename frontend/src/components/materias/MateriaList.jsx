@@ -189,13 +189,13 @@ const MateriaList = () => {
     const [materias, setMaterias] = useState([]);
     const [carreras, setCarreras] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [user, setUser] = useState(null);
     const [semestreSeleccionado, setSemestreSeleccionado] = useState('todos');
     const [carreraSeleccionada, setCarreraSeleccionada] = useState('todas');
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [materiaToDelete, setMateriaToDelete] = useState(null);
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
-    const [perfil, setPerfil] = useState(null);
+    // Rol y carrera ACTIVOS (contexto de rol), no el perfil base ni localStorage('user').
+    const { activeRole, activeCareerId, effectiveUser } = useActiveRole();
 
     const obtenerId = (valor) => {
         if (valor === null || valor === undefined || valor === '') return '';
@@ -203,33 +203,13 @@ const MateriaList = () => {
         return valor.toString();
     };
 
-    const obtenerCarreraPerfil = (perfilData, userData) => (
-        obtenerId(perfilData?.carrera)
-        || obtenerId(userData?.perfil?.carrera)
-        || obtenerId(userData?.carrera)
-        || obtenerId(localStorage.getItem('carrera_activa_id'))
-    );
+    const isSuperAdmin = effectiveUser?.is_superuser === true;
+    const carreraPerfilId = obtenerId(activeCareerId);
 
     useEffect(() => {
         const fetchDatos = async () => {
             try {
-                const localUser = JSON.parse(localStorage.getItem('user') || 'null');
-                const [usuarioRes, perfilRes, resCarreras] = await Promise.all([
-                    api.get('/usuario/').catch(() => ({ data: localUser })),
-                    api.get('/perfil/').catch(() => null),
-                    getCarreras(),
-                ]);
-
-                const userData = usuarioRes?.data || localUser;
-                const perfilData = perfilRes?.data || userData?.perfil || null;
-                const isSuperAdmin = userData?.is_superuser === true;
-                const carreraPerfilId = obtenerCarreraPerfil(perfilData, userData);
-
-                setUser(userData);
-                setPerfil(perfilData);
-
-                const carrerasData = resCarreras;
-                setCarreras(carrerasData);
+                setCarreras(await getCarreras());
 
                 if (!isSuperAdmin && carreraPerfilId) {
                     setCarreraSeleccionada(carreraPerfilId);
@@ -262,8 +242,7 @@ const MateriaList = () => {
             }
         };
         fetchDatos();
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- carga inicial, una sola vez.
-    }, []);
+    }, [isSuperAdmin, carreraPerfilId]);
 
     const handleDelete = (materia) => {
         setMateriaToDelete(materia);
@@ -307,13 +286,9 @@ const MateriaList = () => {
         }
     };
 
-    const { activeRole } = useActiveRole();
-    const isSuperAdmin = user?.is_superuser === true;
-    // Rol activo (contexto de rol), no el del perfil base.
     const rolActual = activeRole;
     // iiisyp es solo lectura: solo superuser, director y jefe de estudios gestionan materias.
     const canEdit = isSuperAdmin || ['director', 'jefe_estudios'].includes(rolActual);
-    const carreraPerfilId = obtenerCarreraPerfil(perfil, user);
     const debeOcultarFiltroCarrera = !isSuperAdmin && (['director', 'jefe_estudios'].includes(rolActual) || Boolean(carreraPerfilId));
 
     const carreraOptions = [...carreras]

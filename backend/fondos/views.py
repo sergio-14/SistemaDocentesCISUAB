@@ -2245,14 +2245,13 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
     def iniciar_ejecucion(self, request, pk=None):
         """
         Iniciar ejecución del fondo (cuando comienza el semestre)
-        Solo admin/director puede hacerlo
+        El Director de la carrera; el fondo del Director, el superusuario.
         Estado: aprobado_director → en_ejecucion
         """
         fondo = self.get_object()
         perfil = _obtener_perfil_efectivo(request.user, request)
-        _validar_revisor_del_fondo(request, fondo, 'iniciar la ejecución de')
-
-        if not request.user.is_superuser:
+        # Como aprobar, observar y evaluar: el superusuario solo inicia el fondo del Director.
+        if not _validar_revisor_del_fondo(request, fondo, 'iniciar la ejecución de'):
             if not perfil or perfil.rol != 'director':
                 raise PermissionDenied("Solo el Director de Carrera puede iniciar la ejecucion del Fondo de Tiempo.")
             if not _usuario_tiene_acceso_a_carrera(request.user, fondo.carrera, request):

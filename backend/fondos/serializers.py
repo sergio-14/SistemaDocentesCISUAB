@@ -13,7 +13,7 @@ from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORM
 from .utils.informe_html import CAMPOS_HTML_RICO_INFORME, sanitizar_html_informe
 from .utils.informe_imagenes import firmar_imagenes_html
 from .utils.archivos import es_pdf
-from django.db.models import F, Q, Sum
+from django.db.models import F, FileField, Q, Sum
 from django.db import transaction
 from decimal import Decimal
 from django.utils import timezone
@@ -2481,6 +2481,35 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
                 fields[nombre].read_only = True
         return fields
 
+    def _mismo_valor(self, nombre, valor):
+        """True si `valor` (tal como llega en la petición) es el que ya tiene el fondo."""
+        campo = FondoTiempo._meta.get_field(nombre)
+        if campo.is_relation:
+            actual = getattr(self.instance, campo.attname)
+            nuevo = valor.get('id') if isinstance(valor, dict) else valor
+            return str(actual if actual is not None else '') == str(nuevo if nuevo is not None else '')
+        if isinstance(campo, FileField):
+            return not valor and not getattr(self.instance, nombre)
+        try:
+            return campo.to_python(valor) == getattr(self.instance, nombre)
+        except (DjangoValidationError, TypeError, ValueError):
+            return False
+
+    def to_internal_value(self, data):
+        # Editando, los campos protegidos no se ignoran en silencio: si piden otro
+        # valor, 400 con cada campo. El mismo valor se acepta (el formulario los reenvía).
+        if self.instance is not None and hasattr(data, 'keys'):
+            protegidos = (*self.CAMPOS_FIJOS_AL_EDITAR, *self.Meta.read_only_fields)
+            cambiados = [n for n in protegidos if n in data and not self._mismo_valor(n, data[n])]
+            if cambiados:
+                raise serializers.ValidationError({
+                    n: f'«{n}» no se puede modificar editando el fondo: '
+                    + ('cambia solo con su acción del flujo.' if n in self.Meta.read_only_fields
+                       else 'se elige al crear el fondo.')
+                    for n in cambiados
+                })
+        return super().to_internal_value(data)
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         return _filtrar_categorias_investigacion_para_iisyp(data, self.context)
@@ -4174,18 +4203,16 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     def get_puede_iniciar_ejecucion(self, obj):
         """Mismas condiciones que FondoTiempoViewSet.iniciar_ejecucion: fondo aprobado,
         nadie inicia su propio fondo, el del Director lo inicia el superusuario y el resto
-        el superusuario o el Director (rol activo) de la carrera."""
+        el Director (rol activo) de la carrera."""
         request = self.context.get('request')
         user = getattr(request, 'user', None)
         if not user or obj.estado != 'aprobado_director' or obj.pertenece_a(user):
             return False
         if obj.es_de_director_de_su_carrera():
             return user.is_superuser
-        if user.is_superuser:
-            return True
         perfil = get_effective_profile(user, request)
         return bool(
-            perfil and perfil.rol == 'director'
+            not user.is_superuser and perfil and perfil.rol == 'director'
             and get_active_careers_for_user(user, request).filter(pk=obj.carrera_id).exists()
         )
 

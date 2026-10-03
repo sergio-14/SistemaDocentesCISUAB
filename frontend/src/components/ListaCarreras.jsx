@@ -1067,6 +1067,8 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
   const [showModal, setShowModal] = useState(false);
   const [carreraSeleccionada, setCarreraSeleccionada] = useState(null);
   const [isViewMode, setIsViewMode] = useState(false);
+  // Informe de gestión de la carrera (Arts. 19 y 28): gestión a descargar.
+  const [gestionInforme, setGestionInforme] = useState(String(new Date().getFullYear()));
 
   // Formulario
   const [formData, setFormData] = useState({
@@ -1675,6 +1677,35 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
     }
   };
 
+  // Arts. 19 y 28: informe de gestión de la carrera (PDF) para la Decanatura.
+  const puedeDescargarInformeGestion = () => esSuperusuario() || esDirectorCarrera();
+  const handleDescargarInformeGestion = async () => {
+    if (!carreraSeleccionada?.id) return;
+    const gestion = Number(gestionInforme);
+    if (!Number.isInteger(gestion) || gestion < 2020 || gestion > 2100) {
+      toast.error('Indique una gestión válida (año).');
+      return;
+    }
+    try {
+      const response = await api.get(`/carreras/${carreraSeleccionada.id}/informe-gestion/`, {
+        params: { gestion },
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Informe_gestion_${carreraSeleccionada.codigo || carreraSeleccionada.id}_${gestion}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success(`Informe de gestión ${gestion} descargado`);
+    } catch (error) {
+      console.error('Error al descargar el informe de gestión:', error);
+      toast.error('No se pudo descargar el informe de gestión.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-slate-900">
@@ -2189,7 +2220,28 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
             </div>
 
             {/* Footer */}
-            <div className="carrera-view-footer border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-6 py-4 flex gap-3 justify-end">
+            <div className="carrera-view-footer border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-6 py-4 flex flex-wrap gap-3 justify-end">
+              {puedeDescargarInformeGestion() && (
+                <div className="flex items-center gap-2 mr-auto">
+                  <label htmlFor="gestion-informe" className="text-sm font-semibold text-slate-600 dark:text-slate-300">Gestión</label>
+                  <input
+                    id="gestion-informe"
+                    type="number"
+                    min="2020"
+                    max="2100"
+                    value={gestionInforme}
+                    onChange={(e) => setGestionInforme(e.target.value)}
+                    className="w-24 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleDescargarInformeGestion}
+                    className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all"
+                  >
+                    ⬇️ Informe de gestión
+                  </button>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={handleDescargarFichaPdf}

@@ -15,6 +15,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from datetime import datetime, date
 from decimal import Decimal
 from .utils.carrera_pdf_generator import CarreraPDFGenerator
+from .utils.informe_gestion_pdf import InformeGestionCarreraPDF
 from .utils.pdf_generator import FondoPDFGenerator, InformePDFGenerator
 from .utils.informe_texto import CAMPOS_TEXTO_INFORME
 from .utils.informe_imagenes import ImagenInformeInvalida, carpeta_imagenes, validar_imagenes_informe
@@ -742,6 +743,25 @@ class CarreraViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         ).strip('_')
         nombre_archivo = f"Carrera_{nombre or carrera.pk}.pdf"
         return FileResponse(buffer, as_attachment=True, filename=nombre_archivo)
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated], url_path='informe-gestion')
+    def informe_gestion(self, request, pk=None):
+        """Arts. 19 y 28: informe de gestión de la carrera (PDF) de una gestión, para la
+        Decanatura. Lo descargan el Director de la carrera (rol activo) y el superusuario."""
+        carrera = self.get_object()
+        if not request.user.is_superuser and not (
+            self._rol_usuario(request.user) == 'director' and self._user_can_access_carrera(request.user, carrera)
+        ):
+            raise PermissionDenied('Solo el Director de la carrera descarga el informe de gestión.')
+        try:
+            gestion = int(request.query_params.get('gestion', ''))
+        except ValueError:
+            return Response({'gestion': 'Indique la gestión (año).'}, status=status.HTTP_400_BAD_REQUEST)
+
+        buffer = InformeGestionCarreraPDF.generar(carrera, gestion)
+        return FileResponse(
+            buffer, as_attachment=True, filename=f'Informe_gestion_{carrera.codigo}_{gestion}.pdf',
+        )
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def facultades(self, request):

@@ -2031,6 +2031,22 @@ function ListaCalendarios() {
       return;
     }
 
+    // Art. 9: en una gestión, la carrera tiene solo calendarios anuales o solo semestrales (como el backend).
+    const regimenMezclado = calendarios.some((cal) => (
+      Number(cal.carrera) === Number(payload.carrera)
+      && Number(cal.gestion) === Number(payload.gestion)
+      && Number(cal.id) !== Number(calendarioSeleccionado?.id || 0)
+      && (String(cal.periodo) === 'anual') !== (String(payload.periodo) === 'anual')
+    ));
+
+    if (regimenMezclado) {
+      const regimenMsg = `La carrera ya tiene un calendario ${payload.periodo === 'anual' ? 'semestral' : 'anual'} en la gestión ${payload.gestion}: en una gestión, todos sus calendarios son anuales o todos semestrales (Art. 9).`;
+      applyErrors({ ...errors, periodo: regimenMsg });
+      toast.error(regimenMsg);
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       if (calendarioSeleccionado) {
         const response = await api.put(`/calendarios/${calendarioSeleccionado.id}/`, payload);

@@ -3780,6 +3780,22 @@ class CalendarioAcademicoSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'non_field_errors': ['Ya existe un calendario para esta carrera, gestion y periodo.']
                 })
+            # Art. 9: la carrera es anual o semestralizada; en una gestión no se mezclan.
+            otros = CalendarioAcademico.objects.filter(carrera=carrera, gestion=gestion)
+            if instance:
+                otros = otros.exclude(pk=instance.pk)
+            if periodo == 'anual':
+                otros = otros.exclude(periodo='anual')
+            else:
+                otros = otros.filter(periodo='anual')
+            if otros.exists():
+                regimen = 'anual' if periodo != 'anual' else 'semestral'
+                raise serializers.ValidationError({
+                    'periodo': (
+                        f'La carrera ya tiene un calendario {regimen} en la gestión {gestion}: '
+                        'en una gestión, todos sus calendarios son anuales o todos semestrales (Art. 9).'
+                    )
+                })
 
         # Los feriados son de la gestión: todos sus calendarios en la carrera tienen el mismo
         # valor. Al editar uno sin cambiar de gestión, el valor se copia a los demás (vista).

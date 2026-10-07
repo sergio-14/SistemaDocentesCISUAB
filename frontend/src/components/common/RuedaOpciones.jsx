@@ -106,9 +106,9 @@ const RuedaOpciones = ({
   // Arrastre con el dedo o el mouse: { id, inicioY, indiceInicio, movido, ultimoY, ultimoT, velocidad }.
   const arrastreRef = useRef(null);
   const suprimirClicRef = useRef(false);
-  // La compacta (semestre) lleva letra más chica en el centro y a los lados.
+  // La compacta (semestre y año del calendario) lleva letra más chica en el centro y a los lados.
   const claseCentro = compacta ? 'text-sm' : 'text-lg';
-  const escalaCentro = compacta ? 0.18 : 0.48;
+  const escalaCentro = compacta ? 0.34 : 0.48;
   const claseLateral = compacta ? 'text-xs' : 'text-sm';
 
   const clampIndex = (idx) => Math.max(0, Math.min(valores.length - 1, idx));

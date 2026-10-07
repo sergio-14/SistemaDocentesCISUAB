@@ -405,7 +405,8 @@ const YearPickerField = ({ value, onChange, currentYear, error, errorPulse = 0, 
                 onConfirm={commitDraftAndClose}
                 resetToken={pickerOpenToken}
                 visibleCount={5}
-                itemHeight={44}
+                itemHeight={40}
+                compacta
               />
 
               <div className="mt-3 flex justify-center">

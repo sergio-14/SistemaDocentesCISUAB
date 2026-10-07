@@ -30,7 +30,7 @@ const getVinculoCarrera = (docente, carreraId) => {
 // Materia asignada por el Jefe de otra carrera (doble carrera): la gestiona esa Jefatura.
 const EtiquetaOtraCarrera = ({ detalle }) => (
   detalle?.es_de_otra_carrera ? (
-    <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+    <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">
       {detalle.carrera_calendario}
     </span>
   ) : null
@@ -43,7 +43,7 @@ const ActividadAsignadaCell = ({ detalle }) => {
     return (
       <>
         {detalle.titulo_actividad || '-'}
-        <span className="text-slate-500"> · {detalle.calendario_nombre}</span>
+        <span className="font-medium text-slate-600"> · {detalle.calendario_nombre}</span>
       </>
     );
   }
@@ -462,22 +462,6 @@ function DetalleFondo() {
     };
   };
 
-  const obtenerTextoDiasEnEtapa = () => {
-    const { activo, vencido } = verificarEstadoCronometro();
-    
-    // Si está vencido, mostrar "Vencido"
-    if (vencido) {
-      return 'Vencido';
-    }
-    
-    // Si está activo, mostrar días desde creación
-    if (activo) {
-      return `${calcularDiasEnEtapa()} días`;
-    }
-    
-    return '0 días';
-  };
-
   const iniciarEdicionCarga = (detalle) => {
     setEdicionCarga({
       id: detalle.id,
@@ -626,7 +610,7 @@ function DetalleFondo() {
   const mostrarAccionesCarga = puedeGestionarCarga && fondoEditable;
 
   const ocultarDetallePorBorradorDirector = esDirector && !esSuperAdmin && fondo.estado === 'borrador';
-  const { activo: etapaActiva } = verificarEstadoCronometro();
+  const { activo: etapaActiva, vencido: etapaVencida } = verificarEstadoCronometro();
   const categoriasVisibles = [...(fondo.categorias || [])]
     .sort((a, b) => ORDEN_UNIDADES.indexOf(a.tipo) - ORDEN_UNIDADES.indexOf(b.tipo))
     .filter((categoria) => Number(categoria.total_horas || 0) > 0);
@@ -636,72 +620,64 @@ function DetalleFondo() {
     : 'lg:grid-cols-[minmax(0,2.4fr)_minmax(0,1.4fr)_7.5rem_minmax(0,1.8fr)]';
 
   return (
-    <div className="min-h-full px-3 sm:px-5 md:px-8 py-5 md:py-8 space-y-6 text-slate-800">
+    <div className="min-h-full w-full max-w-[92rem] mx-auto px-3 sm:px-4 md:px-8 py-4 md:py-6 space-y-4 text-slate-800">
 
-      {/* Encabezado: docente | categoría y dedicación | tiempo en etapa y gestión */}
-      <div className={`${BLOQUE} relative p-6 sm:p-7`}>
-        <button
-          onClick={cerrarPanel}
-          title="Volver al listado"
-          aria-label="Volver al listado"
-          className="absolute top-3 right-3 rounded-full p-2 text-slate-500 hover:text-blue-900 hover:bg-azulado-200 transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-
-        <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-8">
-          {/* Docente */}
-          <div className="flex items-center gap-4 flex-1 min-w-0 pr-8 lg:pr-0">
-            <Avatar nombre={fondo.docente?.nombre_completo} size="w-16 h-16 text-xl" />
+      {/* Encabezado como en el dashboard: docente y sus datos, y al lado el tiempo en etapa */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
+        <div className={`${BLOQUE} p-5 sm:p-6`}>
+          <div className="flex items-center gap-4 min-w-0">
+            <Avatar nombre={fondo.docente?.nombre_completo} size="w-14 h-14 text-lg" />
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <h2 className="text-xl sm:text-2xl font-bold text-blue-900 leading-tight">
                   {fondo.docente?.nombre_completo || 'Docente'}
                 </h2>
                 <EstadoPill estado={fondo.estado} />
               </div>
-              <p className="mt-0.5 text-sm text-slate-600">{fondo.carrera?.nombre || 'Carrera'}</p>
-              {fondo.descripcion && (
-                <div className="mt-2"><Etiqueta>{fondo.descripcion}</Etiqueta></div>
-              )}
-            </div>
-          </div>
-
-          <div className="hidden lg:block w-px self-stretch bg-azulado-300" />
-
-          {/* Categoría y dedicación */}
-          <div className="grid grid-cols-2 lg:grid-cols-1 gap-3 lg:w-52 shrink-0">
-            <div className="rounded-2xl bg-azulado-100 px-4 py-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Categoría</p>
-              <p className="text-sm font-bold text-slate-800 capitalize">{categoriaDocente || '—'}</p>
-            </div>
-            <div className="rounded-2xl bg-azulado-100 px-4 py-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Dedicación</p>
-              <p className="text-sm font-bold text-slate-800">
-                {dedicacionDocente ? (ABREVIATURA_DEDICACION[dedicacionDocente] || 'TH') : '—'}
-                {dedicacionDocente && <span className="font-medium text-slate-500"> · {fondo.antiguedad} años</span>}
+              <p className="mt-1 text-sm font-medium text-slate-700">
+                {fondo.carrera?.nombre || 'Carrera'}
+                {fondo.descripcion && <> · {fondo.descripcion}</>}
               </p>
             </div>
           </div>
 
-          <div className="hidden lg:block w-px self-stretch bg-azulado-300" />
+          <dl className="mt-5 pt-4 flex flex-wrap gap-y-3 [border-top:1px_solid_#B8C9E1]">
+            {[
+              { label: 'Categoría', valor: <span className="capitalize">{categoriaDocente || '—'}</span> },
+              {
+                label: 'Dedicación',
+                valor: dedicacionDocente
+                  ? `${ABREVIATURA_DEDICACION[dedicacionDocente] || 'TH'} · ${fondo.antiguedad} años`
+                  : '—',
+              },
+              { label: 'Gestión', valor: <span className="tabular-nums">{fondo.gestion}</span> },
+            ].map((dato, indice) => (
+              <div key={dato.label} className={`pr-6 sm:pr-8 ${indice > 0 ? 'pl-6 sm:pl-8 [border-left:1px_solid_#B8C9E1]' : ''}`}>
+                <dt className="text-xs font-semibold text-blue-800">{dato.label}</dt>
+                <dd className="mt-0.5 text-sm font-bold text-slate-900 whitespace-nowrap">{dato.valor}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
 
-          {/* Tiempo en etapa y gestión */}
-          <div className="grid grid-cols-2 lg:grid-cols-1 gap-3 lg:w-52 shrink-0">
-            <div className="rounded-2xl bg-gradient-to-br from-blue-900 to-blue-950 px-4 py-2.5 text-white">
-              <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-blue-200">
-                <span className={`h-2 w-2 rounded-full ${etapaActiva ? 'bg-emerald-400' : 'bg-red-400'} animate-pulse`} />
-                Tiempo en etapa
-              </p>
-              <p className="text-lg font-bold leading-tight tabular-nums">{obtenerTextoDiasEnEtapa()}</p>
-            </div>
-            <div className="rounded-2xl bg-azulado-100 px-4 py-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Gestión</p>
-              <p className="text-sm font-bold text-slate-800 tabular-nums">{fondo.gestion}</p>
-            </div>
+        <div className="rounded-3xl bg-gradient-to-br from-blue-900 to-blue-950 text-white p-5 sm:p-6 flex items-center justify-between gap-4 shadow-[0_4px_14px_rgba(30,58,138,0.25)]">
+          <div>
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-200">
+              <span className={`h-2 w-2 rounded-full ${etapaActiva ? 'bg-emerald-400' : 'bg-red-400'} animate-pulse`} />
+              Tiempo en etapa
+            </p>
+            <p className="mt-1 text-sm text-blue-100">
+              {etapaVencida ? 'plazo de la etapa cumplido' : 'desde la creación del fondo'}
+            </p>
           </div>
+          {etapaVencida ? (
+            <span className="text-2xl font-bold leading-none">Vencido</span>
+          ) : (
+            <span className="text-right leading-none">
+              <span className="block text-5xl font-bold tabular-nums">{etapaActiva ? calcularDiasEnEtapa() : 0}</span>
+              <span className="text-sm font-medium text-blue-100">días</span>
+            </span>
+          )}
         </div>
       </div>
 
@@ -715,12 +691,12 @@ function DetalleFondo() {
       ) : (
         <>
           {/* Tres columnas simétricas (misma altura): balance | carga | acciones */}
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-12 items-stretch">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-12 items-stretch">
 
             {/* Izquierda: balance de horas, distribución y ejecución */}
-            <div className="xl:col-span-3 flex flex-col gap-6">
+            <div className="xl:col-span-3 flex flex-col gap-4">
               <div className={`${BLOQUE} p-6`}>
-                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4">Balance de horas</h3>
+                <h3 className="text-base font-bold text-blue-900 mb-4">Balance de horas</h3>
                 <div className="divide-y divide-azulado-300 text-sm">
                   <div className="flex justify-between gap-3 pb-2.5">
                     <span className="text-slate-600">Horas efectivas</span>
@@ -761,7 +737,7 @@ function DetalleFondo() {
 
                 return (
                   <div className={`${BLOQUE} p-6 flex-1 flex flex-col`}>
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-2">Distribución</h3>
+                    <h3 className="text-base font-bold text-blue-900 mb-2">Distribución</h3>
 
                     <div className="relative overflow-hidden flex-1 min-h-[11rem]">
                       <div
@@ -799,7 +775,7 @@ function DetalleFondo() {
                             const pct = maxVal > 0 ? (entry.value / maxVal) * 100 : 0;
                             return (
                               <div key={entry.tipo} className="flex items-center gap-2" title={`${entry.name}: ${Math.round(entry.value)} h`}>
-                                <span className="w-16 truncate text-[11px] font-medium text-slate-600">
+                                <span className="w-16 truncate text-xs font-medium text-slate-600">
                                   {entry.name?.split(' ')[0]}
                                 </span>
                                 <div className="flex-1 h-2 bg-azulado-200 rounded-full overflow-hidden">
@@ -808,7 +784,7 @@ function DetalleFondo() {
                                     style={{ width: `${pct}%`, backgroundColor: colorUnidad(entry.tipo) }}
                                   />
                                 </div>
-                                <span className="w-9 text-right text-[11px] font-bold text-slate-700 tabular-nums">
+                                <span className="w-9 text-right text-xs font-bold text-slate-700 tabular-nums">
                                   {Math.round(entry.value)} h
                                 </span>
                               </div>
@@ -839,7 +815,7 @@ function DetalleFondo() {
               {/* Resumen de ejecución */}
               {fondo.estado_ejecutor && (
                 <div className={`${BLOQUE} p-6`}>
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4">Ejecución</h3>
+                  <h3 className="text-base font-bold text-blue-900 mb-4">Ejecución</h3>
                   <div className="space-y-2 text-sm">
                     {fondo.fecha_inicio_ejecucion && (
                       <div className="flex justify-between gap-3">
@@ -867,12 +843,12 @@ function DetalleFondo() {
             </div>
 
             {/* Centro: carga del fondo (en tablet va primero, a todo el ancho) */}
-            <div className={`${BLOQUE} p-6 sm:p-7 md:col-span-2 md:order-first xl:order-none xl:col-span-6 flex flex-col`}>
-              <div className="mb-5 text-center">
+            <div className={`${BLOQUE} p-6 md:col-span-2 md:order-first xl:order-none xl:col-span-6 flex flex-col`}>
+              <div className="mb-5">
                 <h3 className="text-base font-bold text-blue-900">
                   {puedeGestionarCarga ? 'Carga del Fondo de Tiempo' : 'Horas por unidad'}
                 </h3>
-                <p className="mt-0.5 text-xs text-slate-500">
+                <p className="mt-0.5 text-xs text-slate-600">
                   Cada unidad suma sus ítems en horas por año; las clases en aula salen de la materia y su calendario.
                 </p>
               </div>
@@ -889,7 +865,7 @@ function DetalleFondo() {
                 />
               ) : (
                 <div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_5.5rem_4.5rem] gap-3 px-3 pb-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 [border-bottom:1px_solid_#B8C9E1]">
+                  <div className="grid grid-cols-[minmax(0,1fr)_5.5rem_4.5rem] gap-3 px-3 pb-2.5 text-xs font-semibold text-blue-800 [border-bottom:1px_solid_#B8C9E1]">
                     <span>Unidad</span>
                     <span className="text-right">Horas/año</span>
                     <span className="text-right">%</span>
@@ -922,7 +898,7 @@ function DetalleFondo() {
 
             {/* Derecha: estado y acciones */}
             <div className={`${BLOQUE} p-6 xl:col-span-3 flex flex-col`}>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4">Estado y acciones</h3>
+              <h3 className="text-base font-bold text-blue-900 mb-4">Estado y acciones</h3>
 
               {/* Arts. 15 y 18: presentado después de los plazos del calendario (no bloquea). */}
               {fondo.fuera_de_plazo?.length > 0 && (
@@ -1078,10 +1054,10 @@ function DetalleFondo() {
 
           {/* Actividades planificadas, una sección por unidad */}
           {fondo.categorias && (
-            <div className="space-y-5">
+            <div className="space-y-4">
               <div className="flex items-baseline justify-between gap-3 px-1 pt-2">
                 <h3 className="text-xl font-bold text-blue-900">Actividades planificadas</h3>
-                <span className="text-sm font-medium text-slate-500">
+                <span className="text-sm font-medium text-slate-600">
                   {categoriasVisibles.length} {categoriasVisibles.length === 1 ? 'unidad' : 'unidades'} con carga
                 </span>
               </div>
@@ -1106,7 +1082,7 @@ function DetalleFondo() {
                         <span className="h-3.5 w-3.5 flex-shrink-0 rounded-full" style={{ backgroundColor: color }} />
                         <div className="min-w-0">
                           <h4 className="text-lg font-bold text-slate-800 leading-tight">{categoria.tipo_display}</h4>
-                          <p className="text-sm text-slate-500">
+                          <p className="text-sm text-slate-600">
                             {detalles.length} {detalles.length === 1 ? 'actividad' : 'actividades'}
                           </p>
                         </div>
@@ -1114,7 +1090,7 @@ function DetalleFondo() {
                       <div className="flex items-center gap-4">
                         <div className="text-right">
                           <p className="text-lg font-bold text-blue-900 tabular-nums leading-tight">{Math.round(totalActual)} h/año</p>
-                          <p className="text-xs text-slate-500">{porcentajeUnidad.toFixed(1)}% de las horas efectivas</p>
+                          <p className="text-xs text-slate-600">{porcentajeUnidad.toFixed(1)}% de las horas efectivas</p>
                         </div>
                         <div className="hidden sm:block w-32">
                           <div className="h-2 w-full rounded-full bg-azulado-200 overflow-hidden">
@@ -1127,7 +1103,7 @@ function DetalleFondo() {
                     {/* Tabla de actividades (cuadrícula: el CSS del POA da estilo a todas las <table>) */}
                     {detalles.length > 0 ? (
                       <div className="rounded-2xl bg-white ring-1 ring-azulado-300 overflow-hidden">
-                        <div className={`hidden lg:grid ${columnasActividades} divide-x divide-azulado-300 bg-azulado-100 text-xs font-bold uppercase tracking-wider text-blue-900 [border-bottom:1px_solid_#B8C9E1]`}>
+                        <div className={`hidden lg:grid ${columnasActividades} bg-azulado-50 text-xs font-semibold text-blue-800 [border-bottom:1px_solid_#D2DDEE]`}>
                           <span className="px-5 py-3">Actividad asignada</span>
                           <span className="px-5 py-3">Tipo</span>
                           <span className="px-5 py-3 text-center">Horas/año</span>
@@ -1145,7 +1121,7 @@ function DetalleFondo() {
                             return (
                             <div
                               key={detalle.id ?? dIdx}
-                              className={`grid grid-cols-1 ${columnasActividades} lg:divide-x lg:divide-azulado-200 transition-colors ${editando ? 'bg-azulado-50' : 'hover:bg-azulado-50'}`}
+                              className={`grid grid-cols-1 ${columnasActividades} transition-colors ${editando ? 'bg-azulado-50' : 'hover:bg-azulado-50'}`}
                             >
                               <div className="px-5 pt-4 pb-1 lg:py-4 text-sm font-semibold text-slate-800 min-w-0">
                                 {editando && edicionCarga.esOtros ? (
@@ -1182,11 +1158,11 @@ function DetalleFondo() {
                                 )}
                               </div>
                               <div className="px-5 py-1 lg:py-4 text-sm text-slate-600">
-                                <span className="lg:hidden font-semibold text-slate-500">Tipo: </span>
+                                <span className="lg:hidden font-semibold text-blue-800">Tipo: </span>
                                 {detalle.tipo_actividad_display || '-'}
                               </div>
                               <div className="px-5 py-1 lg:py-4 text-sm font-bold text-blue-900 lg:text-center tabular-nums">
-                                <span className="lg:hidden font-semibold text-slate-500">Horas/año: </span>
+                                <span className="lg:hidden font-semibold text-blue-800">Horas/año: </span>
                                 {editando ? (
                                   <input
                                     type="number"
@@ -1203,7 +1179,7 @@ function DetalleFondo() {
                                 ) : detalle.horas}
                               </div>
                               <div className="px-5 py-1 lg:py-4 text-sm text-slate-600 break-words">
-                                <span className="lg:hidden font-semibold text-slate-500">Evidencias: </span>
+                                <span className="lg:hidden font-semibold text-blue-800">Evidencias: </span>
                                 {detalle.evidencias || '-'}
                               </div>
                               {mostrarAccionesCarga && (
@@ -1269,7 +1245,7 @@ function DetalleFondo() {
                         </div>
                       </div>
                     ) : (
-                      <p className="rounded-2xl bg-azulado-100 py-8 text-center text-sm text-slate-500">Sin actividades registradas</p>
+                      <p className="rounded-2xl bg-azulado-100 py-8 text-center text-sm text-slate-600">Sin actividades registradas</p>
                     )}
                   </div>
                 );

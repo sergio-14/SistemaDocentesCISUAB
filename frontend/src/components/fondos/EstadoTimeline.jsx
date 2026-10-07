@@ -38,7 +38,7 @@ const EstadoTimeline = ({ estado, tieneObservaciones = false, observacionesPendi
     <div className="space-y-4">
       {/* Estado actual */}
       <div className={`rounded-2xl px-4 py-3 ring-1 ring-inset ${info.pill}`}>
-        <p className="text-[11px] font-semibold uppercase tracking-wider opacity-70">Estado actual</p>
+        <p className="text-xs font-semibold opacity-80">Estado actual</p>
         <p className="mt-0.5 flex items-center gap-2 text-base font-bold">
           <span className={`h-2 w-2 rounded-full ${info.dot}`} />
           {info.label}
@@ -77,7 +77,7 @@ const EstadoTimeline = ({ estado, tieneObservaciones = false, observacionesPendi
                 {actual && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
               </span>
               <span className={`text-sm leading-6 ${
-                actual ? 'font-bold text-blue-900' : completa ? 'font-medium text-slate-700' : 'text-slate-400'
+                actual ? 'font-bold text-blue-900' : completa ? 'font-medium text-slate-800' : 'text-slate-500'
               }`}>
                 {etapa.label}
               </span>

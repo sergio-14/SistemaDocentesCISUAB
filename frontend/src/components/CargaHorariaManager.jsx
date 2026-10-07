@@ -902,7 +902,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                     </div>
                 </div>
                 <MensajeErrorCampo error={horasInvalidas ? 'Ingrese un número entero de horas mayor a 0.' : ''} />
-                <p className="pl-1 text-[11px] leading-tight text-slate-500">
+                <p className="pl-1 text-xs leading-tight text-slate-500">
                     {horasAutomaticas
                         ? `Horas anuales = (HT + HP) x ${semanasDeClase(formData.calendario) || '20 (semestre) o 40 (anual)'} semanas`
                         : 'Horas por año del ítem: se suman al total de su unidad'}
@@ -914,20 +914,29 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                 )}
 
                 {!isReadOnly && (
-                    <button data-escritura type="submit"
-                        disabled={submitDisabled}
-                        className={`inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-2.5 text-sm font-semibold transition-colors ${
-                            submitDisabled
-                                ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
-                                : 'bg-blue-900 hover:bg-blue-950 text-white shadow-sm'
-                        }`}>
-                        {isSubmitting ? (
-                            <>
-                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                                Guardando...
-                            </>
-                        ) : 'Agregar asignación'}
-                    </button>
+                    <div className="flex justify-end pt-1">
+                        <button data-escritura type="submit"
+                            disabled={submitDisabled}
+                            className={`inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-full px-6 py-2.5 text-sm font-semibold transition-colors ${
+                                submitDisabled
+                                    ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                                    : 'bg-blue-900 hover:bg-blue-950 text-white shadow-sm'
+                            }`}>
+                            {isSubmitting ? (
+                                <>
+                                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                    Guardando...
+                                </>
+                            ) : (
+                                <>
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                    </svg>
+                                    Agregar asignación
+                                </>
+                            )}
+                        </button>
+                    </div>
                 )}
             </form>
         </div>

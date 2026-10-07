@@ -544,6 +544,35 @@ const ListIcon = (props) => (
 const ETIQUETAS_CATEGORIA = { catedratico: 'Catedrático', adjunto: 'Adjunto', asistente: 'Asistente' };
 const VISTA_DOCENTES_KEY = 'docentes_vista';
 
+// Número que, al cambiar, cuenta desde el valor anterior hasta el nuevo (~0,4 s). Con
+// singular/plural, la palabra sigue al número que se está mostrando.
+function NumeroAnimado({ valor, singular, plural }) {
+  const [mostrado, setMostrado] = useState(valor);
+  const anteriorRef = React.useRef(valor);
+
+  useEffect(() => {
+    const desde = anteriorRef.current;
+    anteriorRef.current = valor;
+    if (desde === valor || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setMostrado(valor);
+      return undefined;
+    }
+    const inicio = performance.now();
+    let frame;
+    const paso = (ahora) => {
+      const t = Math.min(1, (ahora - inicio) / 400);
+      const suave = 1 - (1 - t) ** 3;
+      setMostrado(Math.round(desde + (valor - desde) * suave));
+      if (t < 1) frame = requestAnimationFrame(paso);
+    };
+    frame = requestAnimationFrame(paso);
+    return () => cancelAnimationFrame(frame);
+  }, [valor]);
+
+  if (!singular) return mostrado;
+  return `${mostrado} ${mostrado === 1 ? singular : plural}`;
+}
+
 const PildoraInactivo = () => (
   <span className="inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-800 ring-1 ring-inset ring-red-200">
     <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
@@ -1927,17 +1956,35 @@ function ListaDocentes() {
             </div>
           </div>
 
-          <div className="rounded-3xl bg-gradient-to-br from-blue-900 to-blue-950 text-white p-5 sm:p-6 flex items-center justify-between gap-4 shadow-[0_4px_14px_rgba(30,58,138,0.25)]">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wider text-blue-200">Total docentes</p>
-              <p className="mt-1 text-sm text-blue-100 truncate" title={nombreCarreraElegida || 'Todas las carreras'}>
-                {nombreCarreraElegida || 'Todas las carreras'}
-              </p>
-              <p className="text-sm text-blue-100">
-                {totalActivos} {totalActivos === 1 ? 'activo' : 'activos'}
-              </p>
+          {/* Total de la carrera elegida: rótulo y carrera arriba, el número a la derecha y
+              activos / inactivos abajo. Al cambiar de carrera la carrera entra con un fundido
+              y los números cuentan hasta el nuevo valor. */}
+          <div className="rounded-3xl bg-gradient-to-br from-blue-900 to-blue-950 text-white p-5 sm:p-6 flex flex-col justify-between gap-4 shadow-[0_4px_14px_rgba(30,58,138,0.25)]">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wider text-blue-200">Total docentes</p>
+                <p
+                  key={selectedCarrera || 'todas'}
+                  className="animate-campo-entrada mt-1.5 text-sm font-semibold text-white leading-snug line-clamp-2"
+                  title={nombreCarreraElegida || 'Todas las carreras'}
+                >
+                  {nombreCarreraElegida || 'Todas las carreras'}
+                </p>
+              </div>
+              <span className="text-5xl font-bold tabular-nums leading-none">
+                <NumeroAnimado valor={docentesDeCarrera.length} />
+              </span>
             </div>
-            <span className="text-5xl font-bold tabular-nums leading-none">{docentesDeCarrera.length}</span>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <NumeroAnimado valor={totalActivos} singular="activo" plural="activos" />
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                <NumeroAnimado valor={docentesDeCarrera.length - totalActivos} singular="inactivo" plural="inactivos" />
+              </span>
+            </div>
           </div>
         </div>
 
@@ -2315,7 +2362,7 @@ function ListaDocentes() {
         {docentesFiltrados.length > 0 ? (
           vista === 'lista' ? (
             // Cuadrícula en vez de <table>: el CSS del módulo POA da estilo a todas las tablas.
-            <div key="lista" className={`${BLOQUE} p-2 sm:p-3`}>
+            <div key={`lista-${selectedCarrera}`} className={`${BLOQUE} p-2 sm:p-3`}>
               <div className={`hidden xl:grid ${columnasLista} gap-4 px-3 pt-3 pb-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 [border-bottom:1px_solid_#B8C9E1]`}>
                 <span>Docente</span>
                 <span>Contacto</span>
@@ -2362,7 +2409,7 @@ function ListaDocentes() {
               </div>
             </div>
           ) : (
-            <div key="tarjetas" className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+            <div key={`tarjetas-${selectedCarrera}`} className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
               {docentesFiltrados.map((docente, indice) => {
                 const info = infoDocente(docente);
                 return (

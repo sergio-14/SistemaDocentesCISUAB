@@ -204,7 +204,8 @@ const normalizar = (texto) => String(texto || '').normalize('NFD').replace(/[̀-
 
 // Selector con el diseño del dashboard: campo azulado, cuadrito azul con la flecha que
 // gira y menú flotante (en <body>, para que no lo recorte el panel). Las listas largas
-// (más de 8 opciones) traen un buscador arriba.
+// (más de 8 opciones) traen un buscador arriba; con "escribible" el propio campo es el
+// buscador: al pulsarlo se despliega la lista y lo que se escribe la filtra.
 const CustomSelect = ({
     value,
     options,
@@ -212,6 +213,7 @@ const CustomSelect = ({
     placeholder,
     disabled = false,
     emptyText = 'Sin opciones disponibles',
+    escribible = false,
 }) => {
     const [open, setOpen] = useState(false);
     const [busqueda, setBusqueda] = useState('');
@@ -220,7 +222,7 @@ const CustomSelect = ({
     const menuRef = useRef(null);
     const busquedaRef = useRef(null);
     const selected = options.find(opt => opt.value?.toString() === value?.toString());
-    const conBusqueda = options.length > 8;
+    const conBusqueda = !escribible && options.length > 8;
 
     const cerrar = () => {
         setOpen(false);
@@ -293,36 +295,73 @@ const CustomSelect = ({
         ? options.filter((opt) => normalizar(opt.label).includes(normalizar(busqueda.trim())))
         : options;
 
+    const claseCampo = `relative w-full h-11 text-left pl-4 pr-11 rounded-full text-[13px] ring-inset transition-colors ${
+        disabled
+            ? 'bg-slate-100 ring-1 ring-azulado-300 text-slate-400 cursor-not-allowed'
+            : open
+                ? 'bg-azulado-100 ring-2 ring-blue-900/40 text-slate-900'
+                : 'bg-azulado-100 ring-1 ring-azulado-300 text-slate-800'
+    }`;
+    const flecha = (
+        <span className={`pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-md ${
+            disabled ? 'bg-slate-400' : 'bg-[#2C4AAE]'
+        }`}>
+            <svg
+                className={`w-3.5 h-3.5 text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+            >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+            </svg>
+        </span>
+    );
+
     return (
         <div ref={containerRef} className="relative">
-            <button
-                type="button"
-                onClick={() => !disabled && (open ? cerrar() : setOpen(true))}
-                disabled={disabled}
-                className={`relative w-full h-11 text-left pl-4 pr-11 rounded-full text-[13px] ring-inset transition-colors ${
-                    disabled
-                        ? 'bg-slate-100 ring-1 ring-azulado-300 text-slate-400 cursor-not-allowed'
-                        : open
-                            ? 'bg-azulado-100 ring-2 ring-blue-900/40 text-slate-900'
-                            : 'bg-azulado-100 ring-1 ring-azulado-300 text-slate-800'
-                }`}
-            >
-                <span className={`block truncate ${selected ? 'font-semibold' : 'text-slate-500'}`}>
-                    {selected ? selected.label : placeholder}
-                </span>
-                <span className={`pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-md ${
-                    disabled ? 'bg-slate-400' : 'bg-[#2C4AAE]'
-                }`}>
-                    <svg
-                        className={`w-3.5 h-3.5 text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                    </svg>
-                </span>
-            </button>
+            {escribible ? (
+                <>
+                    {/* Cerrado muestra la opción elegida; abierto, lo que se escribe para buscar. */}
+                    <input
+                        type="text"
+                        role="combobox"
+                        aria-expanded={open}
+                        value={open ? busqueda : (selected?.label || '')}
+                        onChange={(e) => {
+                            setBusqueda(e.target.value);
+                            setOpen(true);
+                        }}
+                        onFocus={() => !disabled && setOpen(true)}
+                        onClick={() => !disabled && setOpen(true)}
+                        onKeyDown={(e) => {
+                            // Enter elige la primera coincidencia y no envía el formulario.
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                if (open && filtradas.length > 0) handlePick(filtradas[0].value);
+                            }
+                            if (e.key === 'Tab') cerrar();
+                        }}
+                        disabled={disabled}
+                        placeholder={open ? (selected?.label || 'Escribe para buscar...') : placeholder}
+                        className={`${claseCampo} outline-none !bg-azulado-100 disabled:!bg-slate-100 placeholder:text-slate-500 ${
+                            !open && selected ? 'font-semibold' : ''
+                        }`}
+                    />
+                    {flecha}
+                </>
+            ) : (
+                <button
+                    type="button"
+                    onClick={() => !disabled && (open ? cerrar() : setOpen(true))}
+                    disabled={disabled}
+                    className={claseCampo}
+                >
+                    <span className={`block truncate ${selected ? 'font-semibold' : 'text-slate-500'}`}>
+                        {selected ? selected.label : placeholder}
+                    </span>
+                    {flecha}
+                </button>
+            )}
 
             {open && !disabled && menuStyle && createPortal(
                 <div ref={menuRef} style={menuStyle} className="rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl overflow-hidden">
@@ -887,6 +926,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                                 onChange={handleTipoActividadChange}
                                 placeholder="Seleccionar sub-actividad"
                                 disabled={isReadOnly}
+                                escribible
                                 emptyText="No hay sub-actividades configuradas"
                             />
                         </div>

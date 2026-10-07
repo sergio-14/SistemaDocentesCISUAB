@@ -76,7 +76,7 @@ const MateriaList = () => {
     const [pagina, setPagina] = useState(1);
     const listaRef = useRef(null);
     // Rol y carrera ACTIVOS (contexto de rol), no el perfil base ni localStorage('user').
-    const { activeRole, activeCareerId, activeCareerName, effectiveUser } = useActiveRole();
+    const { activeRole, activeCareerId, effectiveUser } = useActiveRole();
 
     const obtenerId = (valor) => {
         if (valor === null || valor === undefined || valor === '') return '';
@@ -223,12 +223,12 @@ const MateriaList = () => {
     const totalActivas = materiasFiltradas.filter((m) => m.activo !== false).length;
     const nombreCarrera = carreraOptions.find((opt) => String(opt.value) === String(carreraSeleccionada))?.label;
     const subtituloTotal = [
-        // "Todas las carreras" es solo del superusuario; los demás roles ven su carrera.
-        isSuperAdmin ? (nombreCarrera || 'Todas las carreras') : (activeCareerName || materias[0]?.carrera_nombre || 'Tu carrera'),
+        // La carrera solo la ve el superusuario; los demás roles solo ven las materias de la suya.
+        isSuperAdmin ? (nombreCarrera || 'Todas las carreras') : null,
         semestreSeleccionado ? getSemestreLabel(semestreSeleccionado) : null,
     ].filter(Boolean).join(' · ');
 
-    const { paginaActual, totalPaginas, inicio, itemsPagina: materiasPagina } = paginar(materiasFiltradas, pagina, vista);
+    const { paginaActual, totalPaginas, itemsPagina: materiasPagina } = paginar(materiasFiltradas, pagina, vista);
     const irAPagina = (nuevaPagina) => {
         setPagina(nuevaPagina);
         listaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -310,13 +310,15 @@ const MateriaList = () => {
                         <div className="flex items-start justify-between gap-4">
                             <div className="min-w-0">
                                 <p className="text-xs font-semibold uppercase tracking-wider text-blue-200">Materias</p>
-                                <p
-                                    key={subtituloTotal}
-                                    className="animate-campo-entrada mt-1.5 text-sm font-semibold text-white leading-snug line-clamp-2"
-                                    title={subtituloTotal}
-                                >
-                                    {subtituloTotal}
-                                </p>
+                                {subtituloTotal && (
+                                    <p
+                                        key={subtituloTotal}
+                                        className="animate-campo-entrada mt-1.5 text-sm font-semibold text-white leading-snug line-clamp-2"
+                                        title={subtituloTotal}
+                                    >
+                                        {subtituloTotal}
+                                    </p>
+                                )}
                             </div>
                             <span className="text-5xl font-bold tabular-nums leading-none">
                                 <NumeroAnimado valor={materiasFiltradas.length} />
@@ -404,7 +406,7 @@ const MateriaList = () => {
                                                 </div>
                                                 <div className="min-w-0">
                                                     <div className="font-bold text-blue-900 truncate" title={materia.nombre}>{materia.nombre}</div>
-                                                    <div className="text-sm text-slate-600 truncate">{materia.carrera_nombre || materia.carrera}</div>
+                                                    {isSuperAdmin && <div className="text-sm text-slate-600 truncate">{materia.carrera_nombre || materia.carrera}</div>}
                                                 </div>
                                             </div>
                                             {datos.map((dato) => (
@@ -435,7 +437,7 @@ const MateriaList = () => {
                                             </div>
                                             <div className="min-w-0">
                                                 <h3 className="text-lg font-bold text-blue-900 leading-tight line-clamp-2" title={materia.nombre}>{materia.nombre}</h3>
-                                                <p className="text-sm text-slate-600 truncate">{materia.carrera_nombre || materia.carrera}</p>
+                                                {isSuperAdmin && <p className="text-sm text-slate-600 truncate">{materia.carrera_nombre || materia.carrera}</p>}
                                             </div>
                                         </div>
                                         <PildoraEstado activa={materia.activo !== false} />
@@ -488,10 +490,6 @@ const MateriaList = () => {
                 <Paginacion
                     paginaActual={paginaActual}
                     totalPaginas={totalPaginas}
-                    inicio={inicio}
-                    cantidad={materiasPagina.length}
-                    total={materiasFiltradas.length}
-                    nombre="materias"
                     onCambiar={irAPagina}
                 />
             </div>

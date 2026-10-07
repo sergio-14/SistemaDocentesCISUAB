@@ -330,7 +330,7 @@ function ListaFondos() {
       .some((campo) => (campo || '').toLowerCase().includes(texto));
   });
 
-  const { paginaActual, totalPaginas, inicio, itemsPagina: fondosPagina } = paginar(fondosFiltrados, pagina, vista);
+  const { paginaActual, totalPaginas, itemsPagina: fondosPagina } = paginar(fondosFiltrados, pagina, vista);
 
   const irAPagina = (nuevaPagina) => {
     setPagina(nuevaPagina);
@@ -580,10 +580,6 @@ function ListaFondos() {
       <Paginacion
         paginaActual={paginaActual}
         totalPaginas={totalPaginas}
-        inicio={inicio}
-        cantidad={fondosPagina.length}
-        total={fondosFiltrados.length}
-        nombre="fondos"
         onCambiar={irAPagina}
       />
 

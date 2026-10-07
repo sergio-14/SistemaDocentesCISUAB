@@ -745,7 +745,7 @@ function ListaCalendarios() {
     { value: '2', label: 'Segundo Semestre' },
     { value: 'anual', label: 'Anual' },
   ];
-  const { effectiveUser, activeRole, activeCareerName } = useActiveRole();
+  const { effectiveUser, activeRole } = useActiveRole();
   const esSuperAdmin = effectiveUser?.is_superuser === true;
   // Crean, editan, activan y eliminan: superusuario, Director y Jefe de Estudios (rol
   // activo, en su carrera; el backend lo exige). El resto solo consulta.
@@ -1412,11 +1412,9 @@ function ListaCalendarios() {
   const totalActivos = calendariosFiltrados.filter((cal) => cal.activo).length;
   const nombreCarreraFiltro = carreraOptions.find((opt) => String(opt.value) === String(carreraFiltro))?.label;
   const hayFiltroCarrera = esSuperAdmin && carreraFiltro && carreraFiltro !== 'todas';
-  // "Todas las carreras" es solo del superusuario; los demás roles ven el nombre de su carrera.
-  const tituloCarreraTotal = esSuperAdmin
-    ? (hayFiltroCarrera ? nombreCarreraFiltro : 'Todas las carreras')
-    : (activeCareerName || calendarios[0]?.carrera_nombre || 'Tu carrera');
-  const { paginaActual, totalPaginas, inicio, itemsPagina: calendariosPagina } = paginar(calendariosFiltrados, pagina, vista);
+  // La carrera solo la ve el superusuario; los demás roles solo ven los calendarios de su carrera.
+  const tituloCarreraTotal = esSuperAdmin ? (hayFiltroCarrera ? nombreCarreraFiltro : 'Todas las carreras') : null;
+  const { paginaActual, totalPaginas, itemsPagina: calendariosPagina } = paginar(calendariosFiltrados, pagina, vista);
   const irAPagina = (nuevaPagina) => {
     setPagina(nuevaPagina);
     listaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1507,13 +1505,15 @@ function ListaCalendarios() {
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-wider text-blue-200">Calendarios</p>
-                <p
-                  key={carreraFiltro || 'todas'}
-                  className="animate-campo-entrada mt-1.5 text-sm font-semibold text-white leading-snug line-clamp-2"
-                  title={tituloCarreraTotal}
-                >
-                  {tituloCarreraTotal}
-                </p>
+                {tituloCarreraTotal && (
+                  <p
+                    key={carreraFiltro || 'todas'}
+                    className="animate-campo-entrada mt-1.5 text-sm font-semibold text-white leading-snug line-clamp-2"
+                    title={tituloCarreraTotal}
+                  >
+                    {tituloCarreraTotal}
+                  </p>
+                )}
               </div>
               <span className="text-5xl font-bold tabular-nums leading-none">
                 <NumeroAnimado valor={calendariosFiltrados.length} />
@@ -1580,7 +1580,7 @@ function ListaCalendarios() {
                         </div>
                         <div className="min-w-0">
                           <div className="font-bold text-blue-900 truncate">{cal.periodo_display}</div>
-                          <div className="text-sm text-slate-600 truncate">{cal.carrera_nombre || 'Sin carrera'}</div>
+                          {esSuperAdmin && <div className="text-sm text-slate-600 truncate">{cal.carrera_nombre || 'Sin carrera'}</div>}
                         </div>
                       </div>
                       {[periodo, proyectos, receso].map((dato) => (
@@ -1611,7 +1611,7 @@ function ListaCalendarios() {
                       </div>
                       <div className="min-w-0">
                         <h3 className="text-lg font-bold text-blue-900 truncate">{cal.periodo_display}</h3>
-                        <p className="text-sm text-slate-600 truncate">{cal.carrera_nombre || 'Sin carrera'}</p>
+                        {esSuperAdmin && <p className="text-sm text-slate-600 truncate">{cal.carrera_nombre || 'Sin carrera'}</p>}
                       </div>
                     </div>
                     {pildoraEstado(cal)}
@@ -1655,10 +1655,6 @@ function ListaCalendarios() {
         <Paginacion
           paginaActual={paginaActual}
           totalPaginas={totalPaginas}
-          inicio={inicio}
-          cantidad={calendariosPagina.length}
-          total={calendariosFiltrados.length}
-          nombre="calendarios"
           onCambiar={irAPagina}
         />
       </div>

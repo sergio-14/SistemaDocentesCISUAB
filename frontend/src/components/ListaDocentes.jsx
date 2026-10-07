@@ -557,7 +557,7 @@ function ListaDocentes() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   // Usuario con su rol activo (contexto de rol).
-  const { effectiveUser: user, activeRole, activeCareerName } = useActiveRole();
+  const { effectiveUser: user, activeRole } = useActiveRole();
 
   // Modal de crear/editar
   const [showModal, setShowModal] = useState(false);
@@ -1707,12 +1707,11 @@ function ListaDocentes() {
     : docentes;
   const totalActivos = docentesDeCarrera.filter((docente) => docente.activo).length;
   const nombreCarreraElegida = carreras.find((carrera) => String(carrera.id) === String(selectedCarrera))?.nombre;
-  // "Todas las carreras" es solo del superusuario; los demás roles ven el nombre de su carrera.
-  const tituloCarreraTotal = esSuperusuario
-    ? (nombreCarreraElegida || 'Todas las carreras')
-    : (activeCareerName || carreras[0]?.nombre || 'Tu carrera');
+  // La carrera solo la ve el superusuario (con "Todas las carreras"); los demás roles solo
+  // ven los docentes de su carrera, así que repetirla es información de más.
+  const tituloCarreraTotal = esSuperusuario ? (nombreCarreraElegida || 'Todas las carreras') : null;
 
-  const { paginaActual, totalPaginas, inicio, itemsPagina: docentesPagina } = paginar(docentesFiltrados, pagina, vista);
+  const { paginaActual, totalPaginas, itemsPagina: docentesPagina } = paginar(docentesFiltrados, pagina, vista);
   const irAPagina = (nuevaPagina) => {
     setPagina(nuevaPagina);
     listaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1822,13 +1821,15 @@ function ListaDocentes() {
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-wider text-blue-200">Total docentes</p>
-                <p
-                  key={selectedCarrera || 'todas'}
-                  className="animate-campo-entrada mt-1.5 text-sm font-semibold text-white leading-snug line-clamp-2"
-                  title={tituloCarreraTotal}
-                >
-                  {tituloCarreraTotal}
-                </p>
+                {tituloCarreraTotal && (
+                  <p
+                    key={selectedCarrera || 'todas'}
+                    className="animate-campo-entrada mt-1.5 text-sm font-semibold text-white leading-snug line-clamp-2"
+                    title={tituloCarreraTotal}
+                  >
+                    {tituloCarreraTotal}
+                  </p>
+                )}
               </div>
               <span className="text-5xl font-bold tabular-nums leading-none">
                 <NumeroAnimado valor={docentesDeCarrera.length} />
@@ -2233,10 +2234,12 @@ function ListaDocentes() {
                         <Avatar nombre={info.nombre} size={`w-10 h-10 text-sm ${docente.activo ? '' : '!bg-red-700'}`} />
                         <div className="min-w-0 flex-1">
                           <div className="font-bold text-blue-900 truncate" title={info.nombre}>{info.nombre}</div>
-                          <div className="text-sm text-slate-600 truncate">
-                            {!docente.activo && <span className="font-semibold text-red-700">Inactivo · </span>}
-                            {docente.carrera_nombre || 'Sin carrera'}
-                          </div>
+                          {(esSuperusuario || !docente.activo) && (
+                            <div className="text-sm text-slate-600 truncate">
+                              {!docente.activo && <span className="font-semibold text-red-700">Inactivo{esSuperusuario ? ' · ' : ''}</span>}
+                              {esSuperusuario && (docente.carrera_nombre || 'Sin carrera')}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="min-w-0 text-tabla text-slate-700">
@@ -2270,7 +2273,7 @@ function ListaDocentes() {
                         <Avatar nombre={info.nombre} size={`w-12 h-12 ${docente.activo ? '' : '!bg-red-700'}`} />
                         <div className="min-w-0">
                           <h3 className="text-lg font-bold text-blue-900 truncate" title={info.nombre}>{info.nombre}</h3>
-                          <p className="text-sm text-slate-600 truncate">{docente.carrera_nombre || 'Sin carrera'}</p>
+                          {esSuperusuario && <p className="text-sm text-slate-600 truncate">{docente.carrera_nombre || 'Sin carrera'}</p>}
                         </div>
                       </div>
                       {!docente.activo && <PildoraInactivo />}
@@ -2326,10 +2329,6 @@ function ListaDocentes() {
         <Paginacion
           paginaActual={paginaActual}
           totalPaginas={totalPaginas}
-          inicio={inicio}
-          cantidad={docentesPagina.length}
-          total={docentesFiltrados.length}
-          nombre="docentes"
           onCambiar={irAPagina}
         />
       </div>

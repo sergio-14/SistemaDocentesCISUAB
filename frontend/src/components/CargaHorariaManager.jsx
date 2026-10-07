@@ -299,7 +299,7 @@ const CustomSelect = ({
                 type="button"
                 onClick={() => !disabled && (open ? cerrar() : setOpen(true))}
                 disabled={disabled}
-                className={`relative w-full h-11 text-left pl-4 pr-11 rounded-full text-sm ring-inset transition-colors ${
+                className={`relative w-full h-11 text-left pl-4 pr-11 rounded-full text-[13px] ring-inset transition-colors ${
                     disabled
                         ? 'bg-slate-100 ring-1 ring-azulado-300 text-slate-400 cursor-not-allowed'
                         : open
@@ -334,7 +334,7 @@ const CustomSelect = ({
                                 value={busqueda}
                                 onChange={(e) => setBusqueda(e.target.value)}
                                 placeholder="Buscar..."
-                                className="w-full h-9 px-3 rounded-lg text-sm text-slate-800 placeholder:text-slate-500 outline-none !bg-azulado-100"
+                                className="w-full h-9 px-3 rounded-lg text-[13px] text-slate-800 placeholder:text-slate-500 outline-none !bg-azulado-100"
                             />
                         </div>
                     )}
@@ -351,7 +351,7 @@ const CustomSelect = ({
                                         key={opt.value}
                                         type="button"
                                         onClick={() => handlePick(opt.value)}
-                                        className={`w-full text-left px-3 py-2 text-sm rounded-lg ${
+                                        className={`w-full text-left px-3 py-2 text-[13px] rounded-lg ${
                                             active
                                                 ? 'bg-sky-600 text-white font-semibold hover:bg-sky-700'
                                                 : 'bg-transparent text-slate-700 hover:bg-[#2C4AAE] hover:text-white'
@@ -399,7 +399,7 @@ const SelectorRueda = ({ value, options, onChange, placeholder, titulo, disabled
                 type="button"
                 onClick={abrir}
                 disabled={deshabilitado}
-                className={`relative w-full h-11 text-left pl-4 pr-11 rounded-full text-sm ring-inset transition-colors ${
+                className={`relative w-full h-11 text-left pl-4 pr-11 rounded-full text-[13px] ring-inset transition-colors ${
                     deshabilitado
                         ? 'bg-slate-100 ring-1 ring-azulado-300 text-slate-400 cursor-not-allowed'
                         : abierto
@@ -432,11 +432,12 @@ const SelectorRueda = ({ value, options, onChange, placeholder, titulo, disabled
                             onConfirm={confirmar}
                             resetToken={token}
                             visibleCount={5}
-                            itemHeight={44}
+                            itemHeight={40}
                             clicEnLaterales
+                            compacta
                         />
                         <p className="mt-3 px-1 text-xs text-slate-600">
-                            Usa la rueda del mouse, las flechas o toca una opción; confirma con un clic en la del centro.
+                            Desliza con el dedo, usa la rueda del mouse o toca una opción; confirma con un clic en la del centro.
                         </p>
                         <div className="mt-3 flex justify-end">
                             <button

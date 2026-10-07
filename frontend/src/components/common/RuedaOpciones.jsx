@@ -3,12 +3,12 @@ import { motion } from 'framer-motion';
 
 // Ruleta vertical (estilo iOS) para elegir una opción: la del año del calendario académico
 // y la del semestre en la carga del fondo. Se mueve con la rueda del mouse, las flechas
-// (o W/S) y, si se pide, con un clic en las opciones de los lados; el clic en la del
-// centro (o Enter) confirma.
+// (o W/S), arrastrando con el dedo o el mouse y, si se pide, con un clic en las opciones
+// de los lados; el clic en la del centro (o Enter) confirma.
 
 const mismoValor = (a, b) => String(a) === String(b);
 
-const ItemRueda = ({ opcion, distance, itemHeight, onCenterClick, onSideClick }) => {
+const ItemRueda = ({ opcion, distance, itemHeight, onCenterClick, onSideClick, claseLateral }) => {
   const isCenter = Math.abs(distance) < 0.35;
   const isSpacer = opcion === null;
   const clamped = Math.max(-4, Math.min(4, distance));
@@ -16,7 +16,9 @@ const ItemRueda = ({ opcion, distance, itemHeight, onCenterClick, onSideClick })
   const curvedDistance = Math.sign(clamped) * Math.pow(abs, 1.08);
   const rotationX = Math.max(-62, Math.min(62, curvedDistance * 16));
   const stepScale = abs < 0.35 ? 1 : 0.97;
-  const opacity = abs < 0.35 ? 1 : Math.max(0.4, 1 - abs * 0.2);
+  // Cerca del centro la opción se desvanece: ahí la dibuja la franja (plana) y, si se
+  // vieran las dos, la girada en 3D asomaría desfasada detrás de la de la franja.
+  const opacity = abs < 0.35 ? 1 : abs < 1 ? ((abs - 0.35) / 0.65) * 0.8 : Math.max(0.4, 1 - abs * 0.2);
   const translateZ = -Math.min(58, abs * 16);
 
   return (
@@ -45,13 +47,13 @@ const ItemRueda = ({ opcion, distance, itemHeight, onCenterClick, onSideClick })
         <button
           type="button"
           onClick={onSideClick}
-          className="w-full h-full tracking-wide font-semibold text-slate-700 dark:text-slate-300 text-sm select-none"
+          className={`w-full h-full tracking-wide font-semibold text-slate-700 dark:text-slate-300 select-none ${claseLateral}`}
           aria-label={`Ir a ${opcion.label}`}
         >
           {opcion.label}
         </button>
       ) : (
-        <span className="tracking-wide font-semibold text-slate-700 dark:text-slate-300 text-sm" style={{ opacity: 1 }}>
+        <span className={`tracking-wide font-semibold text-slate-700 dark:text-slate-300 ${claseLateral}`} style={{ opacity: 1 }}>
           {opcion.label}
         </span>
       )}
@@ -70,6 +72,7 @@ const RuedaOpciones = ({
   visibleCount = 5,
   itemHeight = 52,
   clicEnLaterales = false,
+  compacta = false,
 }) => {
   const iosWheelTransition = {
     type: 'spring',
@@ -100,6 +103,13 @@ const RuedaOpciones = ({
   const wheelLastStepAtRef = useRef(0);
   const wheelIdleResetTimerRef = useRef(null);
   const wheelIgnoreUntilRef = useRef(0);
+  // Arrastre con el dedo o el mouse: { id, inicioY, indiceInicio, movido, ultimoY, ultimoT, velocidad }.
+  const arrastreRef = useRef(null);
+  const suprimirClicRef = useRef(false);
+  // La compacta (semestre) lleva letra más chica en el centro y a los lados.
+  const claseCentro = compacta ? 'text-sm' : 'text-lg';
+  const escalaCentro = compacta ? 0.18 : 0.48;
+  const claseLateral = compacta ? 'text-xs' : 'text-sm';
 
   const clampIndex = (idx) => Math.max(0, Math.min(valores.length - 1, idx));
   const wheelHeight = visibleCount * itemHeight;
@@ -122,7 +132,7 @@ const RuedaOpciones = ({
   const getOverlayStyle = (offsetY) => {
     const ratio = Math.max(0, 1 - Math.abs(offsetY) / itemHeight);
     const eased = ratio * ratio;
-    const scale = 0.92 + 0.48 * eased;
+    const scale = 0.92 + escalaCentro * eased;
     const opacity = 0.22 + 0.78 * ratio;
     const brightness = 0.85 + 0.25 * eased;
     return {
@@ -284,8 +294,8 @@ const RuedaOpciones = ({
           <div className="relative h-full w-full flex items-center justify-center">
             {opciones[lowerFloatIndex] !== undefined && (
               <span
-                className="absolute tracking-wide font-extrabold text-[#1F3274] dark:text-white text-lg drop-shadow-[0_1px_2px_rgba(255,255,255,0.35)] dark:drop-shadow-lg"
-                style={getOverlayStyle(-centerProgress * itemHeight)}
+                className={`absolute whitespace-nowrap tracking-wide text-[#1F3274] dark:text-white ${claseCentro} drop-shadow-[0_1px_2px_rgba(255,255,255,0.35)] dark:drop-shadow-lg`}
+                style={{ ...getOverlayStyle(-centerProgress * itemHeight), fontWeight: 700 }}
               >
                 {opciones[lowerFloatIndex].label}
               </span>
@@ -293,8 +303,8 @@ const RuedaOpciones = ({
 
             {upperFloatIndex !== lowerFloatIndex && opciones[upperFloatIndex] !== undefined && (
               <span
-                className="absolute tracking-wide font-extrabold text-[#1F3274] dark:text-white text-lg drop-shadow-[0_1px_2px_rgba(255,255,255,0.35)] dark:drop-shadow-lg"
-                style={getOverlayStyle((1 - centerProgress) * itemHeight)}
+                className={`absolute whitespace-nowrap tracking-wide text-[#1F3274] dark:text-white ${claseCentro} drop-shadow-[0_1px_2px_rgba(255,255,255,0.35)] dark:drop-shadow-lg`}
+                style={{ ...getOverlayStyle((1 - centerProgress) * itemHeight), fontWeight: 700 }}
               >
                 {opciones[upperFloatIndex].label}
               </span>
@@ -313,7 +323,8 @@ const RuedaOpciones = ({
           height: '100%',
           scrollSnapType: 'y mandatory',
           scrollSnapStop: 'always',
-          touchAction: 'auto',
+          // El gesto vertical lo maneja la ruleta, no el desplazamiento de la página.
+          touchAction: 'none',
         }}
         tabIndex={0}
         onKeyDown={(event) => {
@@ -333,6 +344,55 @@ const RuedaOpciones = ({
         }}
         onPointerDown={(event) => {
           event.currentTarget.focus();
+          if (event.pointerType === 'mouse' && event.button !== 0) return;
+          arrastreRef.current = {
+            id: event.pointerId,
+            inicioY: event.clientY,
+            indiceInicio: targetIndex,
+            movido: false,
+            ultimoY: event.clientY,
+            ultimoT: event.timeStamp,
+            velocidad: 0,
+          };
+        }}
+        onPointerMove={(event) => {
+          const arrastre = arrastreRef.current;
+          if (!arrastre || arrastre.id !== event.pointerId) return;
+          const dy = event.clientY - arrastre.inicioY;
+          // Unos píxeles de tolerancia para que un toque siga siendo un clic.
+          if (!arrastre.movido && Math.abs(dy) < 6) return;
+          if (!arrastre.movido) {
+            arrastre.movido = true;
+            event.currentTarget.setPointerCapture?.(event.pointerId);
+          }
+          const dt = event.timeStamp - arrastre.ultimoT;
+          if (dt > 0) arrastre.velocidad = (event.clientY - arrastre.ultimoY) / dt;
+          arrastre.ultimoY = event.clientY;
+          arrastre.ultimoT = event.timeStamp;
+          // Subir el dedo trae las opciones de abajo, como en una ruleta de iOS.
+          setTargetIndex(clampIndex(arrastre.indiceInicio - Math.round(dy / itemHeight)));
+        }}
+        onPointerUp={(event) => {
+          const arrastre = arrastreRef.current;
+          arrastreRef.current = null;
+          if (!arrastre || arrastre.id !== event.pointerId || !arrastre.movido) return;
+          // Un deslizamiento rápido sigue girando unas opciones más (inercia).
+          if (Math.abs(arrastre.velocidad) > 0.4) {
+            const extra = Math.max(-4, Math.min(4, Math.round((-arrastre.velocidad * 120) / itemHeight)));
+            setTargetIndex((prev) => clampIndex(prev + extra));
+          }
+          // El clic que llega al soltar no debe confirmar la opción que quedó al centro.
+          suprimirClicRef.current = true;
+          setTimeout(() => { suprimirClicRef.current = false; }, 0);
+        }}
+        onPointerCancel={() => {
+          arrastreRef.current = null;
+        }}
+        onClickCapture={(event) => {
+          if (!suprimirClicRef.current) return;
+          suprimirClicRef.current = false;
+          event.preventDefault();
+          event.stopPropagation();
         }}
       >
         <motion.div
@@ -371,9 +431,15 @@ const RuedaOpciones = ({
             setCenteredIndex(idx);
           }}
           onAnimationComplete={() => {
-            if (!isIntroAnimatingRef.current) return;
+            // Al detenerse la ruleta está en el destino: se sincroniza la opción del centro
+            // aunque se haya movido durante la entrada o el rebote la haya dejado atrás.
             isIntroAnimatingRef.current = false;
-            setCenterFloatIndex(centeredIndexRef.current);
+            if (centeredIndexRef.current !== targetIndex) {
+              centeredIndexRef.current = targetIndex;
+              setCenteredIndex(targetIndex);
+            }
+            centerFloatRef.current = targetIndex;
+            setCenterFloatIndex(targetIndex);
           }}
         >
           {displayOpciones.map((opcion, idx) => (
@@ -382,6 +448,7 @@ const RuedaOpciones = ({
               opcion={opcion}
               distance={idx - visualDisplayIndex}
               itemHeight={itemHeight}
+              claseLateral={claseLateral}
               onCenterClick={(valor) => {
                 if (idx === centeredDisplayIndex) onConfirm?.(valor);
               }}

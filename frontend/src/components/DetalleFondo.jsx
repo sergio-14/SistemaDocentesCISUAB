@@ -639,10 +639,14 @@ function DetalleFondo() {
                 </h2>
                 <EstadoPill estado={fondo.estado} />
               </div>
-              <p className="mt-1 text-sm font-medium text-slate-700">
-                {fondo.carrera?.nombre || 'Carrera'}
-                {fondo.descripcion && <> · {fondo.descripcion}</>}
-              </p>
+              {/* La carrera solo la ve el superusuario; los demás roles tienen una sola. */}
+              {(esSuperAdmin || fondo.descripcion) && (
+                <p className="mt-1 text-sm font-medium text-slate-700">
+                  {esSuperAdmin && (fondo.carrera?.nombre || 'Carrera')}
+                  {esSuperAdmin && fondo.descripcion && ' · '}
+                  {fondo.descripcion}
+                </p>
+              )}
             </div>
           </div>
 

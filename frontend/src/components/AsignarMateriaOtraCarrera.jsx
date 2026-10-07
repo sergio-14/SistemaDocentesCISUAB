@@ -150,7 +150,8 @@ const AsignarMateriaOtraCarrera = () => {
 
   const nombreCalendario = (id) => {
     const cal = calendarios.find((c) => c.id === id);
-    return cal ? `${cal.periodo_display} ${cal.gestion} · ${cal.carrera_nombre}` : '';
+    // Son los calendarios de la carrera del Jefe: no hace falta repetir la carrera.
+    return cal ? `${cal.periodo_display} ${cal.gestion}` : '';
   };
 
   const opcionesCalendario = calendarios.map((cal) => ({ value: String(cal.id), label: nombreCalendario(cal.id) }));

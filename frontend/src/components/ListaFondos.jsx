@@ -522,7 +522,7 @@ function ListaFondos() {
                   <Avatar nombre={fondo.docente_nombre} size="w-10 h-10 text-sm" />
                   <div className="min-w-0 flex-1">
                     <div className="font-bold text-blue-900 truncate">{fondo.docente_nombre}</div>
-                    <div className="text-sm text-slate-600 truncate">{fondo.carrera_nombre}</div>
+                    {esSuperusuario && <div className="text-sm text-slate-600 truncate">{fondo.carrera_nombre}</div>}
                   </div>
                   <div className="xl:hidden"><EstadoPill estado={fondo.estado} /></div>
                 </div>
@@ -550,7 +550,7 @@ function ListaFondos() {
                   <Avatar nombre={fondo.docente_nombre} />
                   <div className="min-w-0">
                     <h3 className="text-lg font-bold text-blue-900 truncate">{fondo.docente_nombre}</h3>
-                    <p className="text-sm text-slate-600 truncate">{fondo.carrera_nombre}</p>
+                    {esSuperusuario && <p className="text-sm text-slate-600 truncate">{fondo.carrera_nombre}</p>}
                   </div>
                 </div>
                 <EstadoPill estado={fondo.estado} />

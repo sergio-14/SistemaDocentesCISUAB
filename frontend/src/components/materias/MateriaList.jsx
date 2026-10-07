@@ -4,6 +4,7 @@ import api, { getCarreras } from '../../apis/api';
 import { Link, Outlet } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useActiveRole } from '../../contexts/activeRole';
+import CampoBusqueda from '../common/CampoBusqueda';
 import FiltroDesplegable from '../common/FiltroDesplegable';
 import Interruptor from '../common/Interruptor';
 import ModalCentrado from '../common/ModalCentrado';
@@ -60,6 +61,7 @@ const MateriaList = () => {
     // '' = todos los semestres / todas las carreras.
     const [semestreSeleccionado, setSemestreSeleccionado] = useState('');
     const [carreraSeleccionada, setCarreraSeleccionada] = useState('');
+    const [busqueda, setBusqueda] = useState('');
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [materiaToDelete, setMateriaToDelete] = useState(null);
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -97,7 +99,7 @@ const MateriaList = () => {
 
     useEffect(() => {
         setPagina(1);
-    }, [semestreSeleccionado, carreraSeleccionada]);
+    }, [semestreSeleccionado, carreraSeleccionada, busqueda]);
 
     useEffect(() => {
         const fetchDatos = async () => {
@@ -193,9 +195,13 @@ const MateriaList = () => {
         return { value: semestre.toString(), label: getSemestreLabel(semestre) };
     });
 
-    // Filtrar materias por semestre y carrera seleccionada
+    // Filtrar materias por búsqueda (nombre o sigla, sin importar mayúsculas ni tildes),
+    // semestre y carrera seleccionada
+    const normalizar = (texto) => String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const textoBusqueda = normalizar(busqueda.trim());
     const carreraFiltro = debeOcultarFiltroCarrera ? carreraPerfilId : carreraSeleccionada;
     const materiasFiltradas = materias.filter(m => {
+        if (textoBusqueda && !normalizar(`${m.nombre} ${m.sigla}`).includes(textoBusqueda)) return false;
         const coincideSemestre = !semestreSeleccionado || m.semestre.toString() === semestreSeleccionado;
         const coincideCarrera = !carreraFiltro ||
                                 obtenerId(m.carrera) === carreraFiltro ||
@@ -267,7 +273,7 @@ const MateriaList = () => {
         : 'xl:grid-cols-[minmax(0,2.4fr)_8rem_5rem_5rem_5rem_7.5rem]';
 
     return (
-        <div className="min-h-full px-3 sm:px-4 md:px-8 py-4 md:py-6 text-slate-800">
+        <div className="min-h-full w-full max-w-[92rem] mx-auto px-3 sm:px-4 md:px-8 py-4 md:py-6 text-slate-800">
             <div className="space-y-4">
                 {/* Bloque 1: encabezado con la acción y, al lado, el total (como el dashboard de fondos) */}
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
@@ -328,8 +334,14 @@ const MateriaList = () => {
                     </div>
                 </div>
 
-                {/* Bloque 2: filtros (carrera solo para el superusuario) y vista */}
+                {/* Bloque 2: búsqueda, filtros (carrera solo para el superusuario) y vista */}
                 <div className={`${BLOQUE} p-3 flex flex-wrap items-center gap-2 sm:gap-3`}>
+                    <CampoBusqueda
+                        value={busqueda}
+                        onChange={setBusqueda}
+                        placeholder="Buscar materia o sigla"
+                        className="w-full lg:w-auto lg:flex-1 lg:max-w-sm"
+                    />
                     {isSuperAdmin && (
                         <div className="min-w-0 w-full sm:w-72">
                             <FiltroDesplegable
@@ -458,7 +470,7 @@ const MateriaList = () => {
                             {materias.length > 0 ? 'No hay materias con estos filtros' : 'No hay materias registradas'}
                         </h3>
                         <p className="text-slate-600">
-                            {materias.length > 0 ? 'Prueba con otro semestre o carrera.' : 'Comienza agregando la primera materia.'}
+                            {materias.length > 0 ? 'Prueba con otra búsqueda, semestre o carrera.' : 'Comienza agregando la primera materia.'}
                         </p>
                         {canEdit && materias.length === 0 && (
                             <Link data-escritura

@@ -15,6 +15,7 @@ import { hoyBolivia } from '../utils/fechas';
 import { CalendarioFlotante } from './common/CalendarioFecha';
 import NumeroAnimado from './common/NumeroAnimado';
 import FiltroDesplegable from './common/FiltroDesplegable';
+import CampoBusqueda from './common/CampoBusqueda';
 import Paginacion from './common/Paginacion';
 import SelectorVista from './common/SelectorVista';
 import { paginar } from '../utils/paginacion';
@@ -399,23 +400,6 @@ const InputField = ({
   </div>
   );
 };
-
-// Buscador con el estilo del dashboard: siempre visible, con la lupa dentro del campo.
-const SearchInput = ({ value, onChange, placeholder = 'Buscar por nombre o C.I.' }) => (
-  <label className="flex items-center gap-2 w-full sm:w-auto sm:flex-1 sm:max-w-md h-11 px-4 rounded-full bg-azulado-100 ring-1 ring-inset ring-azulado-300 focus-within:ring-blue-900/40">
-    <svg className="w-[18px] h-[18px] text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-    </svg>
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className="w-full text-sm text-slate-800 placeholder:text-slate-500 outline-none"
-      style={{ background: 'transparent', border: 'none', boxShadow: 'none', padding: 0 }}
-    />
-  </label>
-);
 
 const UsersIcon = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
@@ -1861,7 +1845,7 @@ function ListaDocentes() {
 
         {/* Bloque 2: búsqueda y carrera */}
         <div className={`${BLOQUE} p-3 flex flex-wrap items-center gap-2 sm:gap-3`}>
-          <SearchInput value={searchTerm} onChange={setSearchTerm} />
+          <CampoBusqueda value={searchTerm} onChange={setSearchTerm} placeholder="Buscar por nombre o C.I." />
           <div className="min-w-0 flex-1 sm:flex-none sm:w-64">
             <FiltroDesplegable
               value={selectedCarrera}

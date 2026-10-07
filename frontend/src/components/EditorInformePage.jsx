@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Save, Eye, Send, Loader2, FileWarning, Lock, Download } from 'lucide-react';
 import api, { getFondoTiempoDetalle, guardarInformeBorrador } from '../apis/api';
-import { getApiErrorMessage } from '../utils/formErrors';
+import { getApiErrorMessage, getDownloadErrorMessage } from '../utils/formErrors';
 import useConsultaPeriodica from '../utils/useConsultaPeriodica';
 import InformeCampoRico from './InformeCampoRico';
 import InformeCampoPlano from './InformeCampoPlano';
@@ -177,7 +177,7 @@ export default function EditorInformePage() {
       window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
     } catch (err) {
       console.error('Error al generar el PDF del informe:', err);
-      toast.error('No se pudo generar el PDF del informe.');
+      toast.error(await getDownloadErrorMessage(err, 'No se pudo generar el PDF del informe'));
     } finally {
       setPrevisualizando(false);
     }

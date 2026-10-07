@@ -12,6 +12,7 @@ import {
   ERROR_MOTION_CLASS,
   ERROR_SHAKE_DURATION_MS,
   sanitizeApiErrors,
+  getDownloadErrorMessage,
 } from '../utils/formErrors';
 
 const InputField = ({ label, name, type = 'text', value, onChange, onFocus, required, error }) => (
@@ -1673,7 +1674,7 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
       toast.success('Carrera descargada en PDF');
     } catch (error) {
       console.error('Error al descargar PDF:', error);
-      toast.error('No se pudo descargar el PDF de carrera.');
+      toast.error(await getDownloadErrorMessage(error, 'No se pudo descargar el PDF de la carrera'));
     }
   };
 
@@ -1702,7 +1703,7 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
       toast.success(`Informe de gestión ${gestion} descargado`);
     } catch (error) {
       console.error('Error al descargar el informe de gestión:', error);
-      toast.error('No se pudo descargar el informe de gestión.');
+      toast.error(await getDownloadErrorMessage(error, 'No se pudo descargar el informe de gestión'));
     }
   };
 

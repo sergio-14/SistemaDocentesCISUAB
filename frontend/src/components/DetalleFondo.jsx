@@ -17,7 +17,7 @@ import ProgramaAnaliticoAccion from './fondos/ProgramaAnaliticoAccion';
 import DocumentoActividadAccion from './fondos/DocumentoActividadAccion';
 import { BLOQUE, BOTON } from './fondos/estilosFondo';
 import { Avatar, BarraProgreso, EstadoPill, Etiqueta } from './fondos/ElementosFondo';
-import { getApiErrorMessage } from '../utils/formErrors';
+import { getApiErrorMessage, getDownloadErrorMessage } from '../utils/formErrors';
 import { sanitizarHtmlInforme } from '../utils/sanitizarHtmlInforme';
 import useConsultaPeriodica from '../utils/useConsultaPeriodica';
 
@@ -391,10 +391,11 @@ function DetalleFondo() {
         window.setTimeout(() => window.URL.revokeObjectURL(url), 60000);
         toast.dismiss('pdf-oficial');
       })
-      .catch((error) => {
+      .catch(async (error) => {
         console.error('Error al generar PDF:', error);
         toast.dismiss('pdf-oficial');
-        toast.error('Error al generar el PDF');
+        // El motivo del backend (checklist de salud, permisos...) aunque la respuesta sea un blob.
+        toast.error(await getDownloadErrorMessage(error, 'No se pudo generar el PDF del fondo'));
       });
   };
 

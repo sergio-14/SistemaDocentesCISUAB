@@ -89,6 +89,35 @@ export const getApiErrorMessage = (error, fallback = 'Ocurrio un error inesperad
 };
 
 /**
+ * Mensaje de error de una descarga pedida con `responseType: 'blob'` (PDF, Excel).
+ * Si el backend responde con error, axios entrega el cuerpo como Blob: se lee como
+ * texto y se saca el motivo (JSON de DRF o texto plano). Sin cuerpo legible, el
+ * mensaje incluye el código HTTP para que nunca quede un "error" sin motivo.
+ */
+export const getDownloadErrorMessage = async (error, fallback = 'No se pudo generar el archivo') => {
+  const data = error?.response?.data;
+  const status = error?.response?.status;
+  if (data instanceof Blob) {
+    let texto = '';
+    try {
+      texto = (await data.text()).trim();
+    } catch {
+      texto = '';
+    }
+    if (texto) {
+      try {
+        return getBackendErrorMessage(JSON.parse(texto), `${fallback} (error ${status}).`);
+      } catch {
+        // Texto plano (p. ej. "Error crítico: ..."); una página HTML no sirve como mensaje.
+        if (!/^<(!doctype|html)/i.test(texto)) return texto.slice(0, 300);
+      }
+    }
+    return status ? `${fallback} (error ${status}).` : fallback;
+  }
+  return getApiErrorMessage(error, status ? `${fallback} (error ${status}).` : fallback);
+};
+
+/**
  * Recorre un objeto de errores del backend y sanitiza cada mensaje,
  * reemplazando los textos confusos de "opción no válida" por el mensaje
  * estandarizado. Conserva la estructura original (campo → mensaje/array).

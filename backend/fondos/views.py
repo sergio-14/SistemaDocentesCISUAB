@@ -2423,9 +2423,10 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         try:
             checklist = self._build_checklist_salud_pdf(fondo)
             if not checklist['ok']:
+                # El motivo concreto va en 'error': es lo que muestra el aviso del frontend.
                 return Response(
                     {
-                        'error': 'No se puede generar el PDF: el checklist de salud tiene observaciones críticas.',
+                        'error': 'No se puede generar el PDF: ' + ' '.join(checklist['errores']),
                         'checklist': checklist,
                     },
                     status=status.HTTP_400_BAD_REQUEST,
@@ -2560,18 +2561,11 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
 
         dedicacion_esperada = float(horas_semanales) if horas_semanales else 0.0
         diferencia = abs(total_horas_semanales_horario - dedicacion_esperada)
-        # BUGFIX 2026-09-13: este chequeo bloqueaba la generación del PDF para
-        # cualquier fondo cuya CargaHoraria se cargó por horas anuales totales
-        # (el flujo real y mayoritario) en lugar de bloques semanales con
-        # hora_inicio/hora_fin (usados solo para armar la grilla de horario
-        # L-S). Sin bloques cargados, total_horas_semanales_horario da 0 y
-        # esto se reportaba como "0.00h vs 40.00h", bloqueando el PDF aunque
-        # el fondo estuviera correctamente cargado. Ahora solo es un error
-        # bloqueante si SÍ hay bloques horarios cargados y no cuadran; si no
-        # hay ninguno, es solo una advertencia (no hay grilla de horario que
-        # mostrar, pero el resto del PDF se genera igual).
+        # Los bloques de horario (hora_inicio/hora_fin) solo arman la grilla L-S de las
+        # clases; la dedicación incluye además las horas por año de las demás unidades.
+        # Que no coincidan no bloquea el PDF: solo se advierte (igual que si no hay bloques).
         if total_horas_semanales_horario > 0 and diferencia > 0.01:
-            errores.append(
+            advertencias.append(
                 'La suma semanal de bloques horarios no coincide con la dedicación del docente '
                 f'({total_horas_semanales_horario:.2f}h vs {dedicacion_esperada:.2f}h).'
             )

@@ -831,7 +831,7 @@ const YearPickerField = ({ value, onChange, currentYear, error, errorPulse = 0, 
               </div>
 
               <p
-                className={`mt-3 text-[11px] ${
+                className={`mt-3 text-xs ${
                   popupHasError ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-slate-500 dark:text-slate-400'
                 }`}
               >
@@ -1479,7 +1479,7 @@ const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse =
                         <span className="flex items-center justify-between gap-2">
                           <span className="block truncate">{y}</span>
                           {isCurrentSystemYear && !active && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-200/80 dark:bg-blue-800/50 text-blue-900 dark:text-blue-100">
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-blue-200/80 dark:bg-blue-800/50 text-blue-900 dark:text-blue-100">
                               Actual
                             </span>
                           )}
@@ -1494,7 +1494,7 @@ const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse =
 
           <div className="grid grid-cols-7 gap-0.5 mb-1">
             {weekDays.map((wd) => (
-              <div key={wd} className="text-center text-[10px] font-semibold text-slate-200/85 py-0.5">
+              <div key={wd} className="text-center text-xs font-semibold text-slate-200/85 py-0.5">
                 {wd}
               </div>
             ))}

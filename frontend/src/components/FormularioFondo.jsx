@@ -174,7 +174,7 @@ const SelectConDropdown = ({
         <div ref={menuRef} className="rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl max-h-60 overflow-auto" style={menuStyle}>
           <div className="p-2">
           {!buscando && tituloSinBusqueda && filteredOptions.length > 0 && (
-            <div className="px-3 pt-1 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            <div className="px-3 pt-1 pb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
               {tituloSinBusqueda}
             </div>
           )}

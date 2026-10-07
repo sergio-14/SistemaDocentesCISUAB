@@ -431,7 +431,7 @@ const SelectConDropdown = ({ label, name, value, onChange, options, error, disab
                 {markers.length > 0 && (
                   <span className="inline-flex items-center gap-1">
                     {markers.map((marker) => (
-                      <span key={marker} className="inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full bg-white text-[#2C4AAE] text-[11px] font-bold leading-none">
+                      <span key={marker} className="inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full bg-white text-[#2C4AAE] text-xs font-bold leading-none">
                         {marker}
                       </span>
                     ))}
@@ -2328,7 +2328,7 @@ const initialData = {
                                   >
                                     <span>{rol.label}</span>
                                     {yaAsignado && (
-                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
                                         selectedRoleLeft === rol.value
                                           ? 'bg-white/25 text-white'
                                           : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
@@ -2433,7 +2433,7 @@ const initialData = {
                           </div>
                         </div>
                       </div>
-                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                         Todos los roles son de la carrera del contrato del usuario (ej. Director + Docente de la misma carrera). Máximo 2 asignaciones. {esSuperuserActual
                           ? <>Expanda <span className="text-[#2C4AAE] dark:text-blue-400 font-bold">Carrera</span> para asignar.</>
                           : 'La carrera es la tuya: se asigna sola.'}
@@ -2619,7 +2619,7 @@ const initialData = {
                         <div className={`flex items-center gap-2 ${textoPrincipal}`}>
                           <span>{usuario.username}</span>
                           {filaInactiva && (
-                            <span className="inline-flex items-center rounded-md border border-red-700 bg-red-200 px-2 py-0.5 text-[11px] font-bold text-red-900 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300">
+                            <span className="inline-flex items-center rounded-md border border-red-700 bg-red-200 px-2 py-0.5 text-xs font-bold text-red-900 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300">
                               (inactivo)
                             </span>
                           )}
@@ -2827,7 +2827,7 @@ const initialData = {
                     <div className="mt-4 md:mt-6 grid grid-cols-2 md:grid-cols-3 gap-3 pb-4 border-b border-slate-200">
                       {filasDetalle.slice(2, 6).map(([label, value]) => (
                         <div key={label} className={label === 'Correo' ? 'col-span-2 md:col-span-1' : ''}>
-                          <h5 className="text-[0.64rem] md:text-xs font-bold tracking-widest text-slate-600 uppercase dark:text-slate-300">{label}</h5>
+                          <h5 className="text-xs md:text-xs font-bold tracking-widest text-slate-600 uppercase dark:text-slate-300">{label}</h5>
                           <p className="mt-1 text-xs md:text-sm font-semibold text-slate-800 break-words leading-snug dark:text-white">{value}</p>
                         </div>
                       ))}
@@ -2838,10 +2838,10 @@ const initialData = {
                       <div className="mt-2 rounded-md border border-blue-200 bg-white/70 p-3 md:p-4 min-h-[58px] md:min-h-[86px] dark:border-slate-600 dark:bg-slate-900/45">
                         <div className="flex flex-wrap gap-2">
                           {usuarioDetalle.is_superuser ? (
-                            <span className="inline-flex items-center rounded-lg border-2 border-amber-500 bg-amber-100 px-2.5 py-1 text-[0.68rem] md:px-3 md:py-1.5 md:text-xs font-bold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">Super Admin</span>
+                            <span className="inline-flex items-center rounded-lg border-2 border-amber-500 bg-amber-100 px-2.5 py-1 text-xs md:px-3 md:py-1.5 md:text-xs font-bold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">Super Admin</span>
                           ) : rolesDetalle.length > 0 ? (
                             rolesDetalle.map((rol) => (
-                              <span key={rol} className={`inline-flex items-center rounded-lg border-2 px-2.5 py-1 text-[0.68rem] md:px-3 md:py-1.5 md:text-xs font-bold ${ROL_STYLES[rol] || 'bg-green-100 text-green-700 border-green-500'}`}>
+                              <span key={rol} className={`inline-flex items-center rounded-lg border-2 px-2.5 py-1 text-xs md:px-3 md:py-1.5 md:text-xs font-bold ${ROL_STYLES[rol] || 'bg-green-100 text-green-700 border-green-500'}`}>
                                 {ROL_LABELS[rol] || rol}
                                 {docenteInactivoDetalle && rol === 'docente' ? ' (inactivo)' : ''}
                               </span>

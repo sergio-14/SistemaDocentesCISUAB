@@ -14,6 +14,86 @@ body {
   background-color: #f8fafc;
 }
 
+/* ============================================================
+   Tipografía (todo el sistema menos el POA). Única fuente de
+   verdad: tailwind.config.js lee estas variables (text-*,
+   font-bold, font-sans) y las reglas de abajo fijan la base.
+   - Inter (Google Fonts, index.html) con respaldo system-ui.
+   - Base 14 px; título de página 24 px (text-2xl/3xl); títulos
+     de sección 18 px (text-lg/xl); etiquetas y ayudas 12 px (text-xs).
+   - Interlineado 1.5 en texto y 1.25 en títulos.
+   - Negrita (bold y mayores) = semibold 600; botones medium 500.
+   ============================================================ */
+:root {
+  --fuente-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --texto-xs: 0.75rem;
+  --interlineado-xs: 1.5;
+  --texto-sm: 0.875rem;
+  --interlineado-sm: 1.5;
+  --texto-base: 0.875rem;
+  --interlineado-base: 1.5;
+  --texto-lg: 1.125rem;
+  --interlineado-lg: 1.25;
+  --texto-xl: 1.125rem;
+  --interlineado-xl: 1.25;
+  --texto-2xl: 1.5rem;
+  --interlineado-2xl: 1.25;
+  --texto-3xl: 1.5rem;
+  --interlineado-3xl: 1.25;
+  --peso-bold: 600;
+  --peso-extrabold: 600;
+  --peso-black: 600;
+}
+
+/* El POA (y sus modales, que se abren fuera de .poa-app) conserva la escala de Tailwind y Poppins. */
+body:has(.poa-app) {
+  --fuente-sans: ui-sans-serif, system-ui, -apple-system;
+  --texto-xs: 0.75rem;
+  --interlineado-xs: 1rem;
+  --texto-sm: 0.875rem;
+  --interlineado-sm: 1.25rem;
+  --texto-base: 1rem;
+  --interlineado-base: 1.5rem;
+  --texto-lg: 1.125rem;
+  --interlineado-lg: 1.75rem;
+  --texto-xl: 1.25rem;
+  --interlineado-xl: 1.75rem;
+  --texto-2xl: 1.5rem;
+  --interlineado-2xl: 2rem;
+  --texto-3xl: 1.875rem;
+  --interlineado-3xl: 2.25rem;
+  --peso-bold: 700;
+  --peso-extrabold: 800;
+  --peso-black: 900;
+}
+
+html body {
+  font-family: var(--fuente-sans);
+  font-size: var(--texto-sm);
+  line-height: 1.5;
+}
+
+html body:has(.poa-app) {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1rem;
+}
+
+body:not(:has(.poa-app)) :is(h1, h2, h3, h4, h5, h6) {
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+body:not(:has(.poa-app)) button {
+  font-weight: 500;
+}
+
+/* En el celular los campos van a 16 px (evita el zoom automático de iOS al enfocarlos). */
+@media (max-width: 639px) {
+  body:not(:has(.poa-app)) :is(input, select, textarea) {
+    font-size: 16px;
+  }
+}
+
 /* Mejora global de contraste en modo claro */
 html:not(.dark) input[type='text'],
 html:not(.dark) input[type='email'],

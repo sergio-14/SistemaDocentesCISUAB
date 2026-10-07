@@ -851,7 +851,7 @@ const DatePickerField = ({ label, name, value, onDateChange, error, maxIsoDate, 
                         <span className="flex items-center justify-between gap-2">
                           <span className="block truncate">{y}</span>
                           {isCurrentSystemYear && !active && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-200/80 dark:bg-blue-800/50 text-blue-900 dark:text-blue-100">Actual</span>
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-blue-200/80 dark:bg-blue-800/50 text-blue-900 dark:text-blue-100">Actual</span>
                           )}
                         </span>
                       </button>
@@ -864,7 +864,7 @@ const DatePickerField = ({ label, name, value, onDateChange, error, maxIsoDate, 
 
           <div className="grid grid-cols-7 gap-0.5 mb-1">
             {weekDays.map((wd) => (
-              <div key={wd} className="text-center text-[10px] font-semibold text-slate-200/85 py-0.5">{wd}</div>
+              <div key={wd} className="text-center text-xs font-semibold text-slate-200/85 py-0.5">{wd}</div>
             ))}
           </div>
 
@@ -1902,7 +1902,7 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
                                       className="w-1/2 h-full bg-black/45 hover:bg-black/65 backdrop-blur-md flex flex-col items-center justify-center cursor-pointer text-white"
                                       title="Cambiar logo"
                                     >
-                                      <span className="text-[10px] font-bold">CAMBIAR</span>
+                                      <span className="text-xs font-bold">CAMBIAR</span>
                                     </div>
                                     <div className="w-px h-full bg-white/20" />
                                     <div
@@ -1910,7 +1910,7 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
                                       className="w-1/2 h-full bg-red-600/65 hover:bg-red-600/85 backdrop-blur-md flex flex-col items-center justify-center cursor-pointer text-white"
                                       title="Eliminar logo"
                                     >
-                                      <span className="text-[10px] font-bold">BORRAR</span>
+                                      <span className="text-xs font-bold">BORRAR</span>
                                     </div>
                                   </>
                                 ) : (
@@ -2023,7 +2023,7 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
                     <div className="order-2 md:order-1 flex min-w-0 flex-col items-center md:items-start md:flex-1">
                       <div className="flex flex-col items-center gap-1 md:items-start">
                         <div className="flex flex-col items-center md:items-start gap-1 md:gap-2 md:flex-wrap">
-                          <h3 className={`text-center md:text-left text-[10px] md:text-base font-bold leading-tight break-words line-clamp-2 md:line-clamp-none ${carrera.activo ? 'text-blue-700 dark:text-blue-300' : 'text-red-900 dark:text-red-100'}`}>
+                          <h3 className={`text-center md:text-left text-xs md:text-base font-bold leading-tight break-words line-clamp-2 md:line-clamp-none ${carrera.activo ? 'text-blue-700 dark:text-blue-300' : 'text-red-900 dark:text-red-100'}`}>
                             {carrera.nombre}
                           </h3>
                           <p className={`text-center md:text-left text-[8px] md:text-sm italic leading-tight break-words line-clamp-2 md:line-clamp-none ${carrera.activo ? 'text-slate-600 dark:text-slate-400' : 'text-red-800 dark:text-red-200'}`}>
@@ -2115,7 +2115,7 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
                   {logoPreview ? (
                     <img src={logoPreview} alt="Logo carrera" className="h-20 w-20 md:h-52 md:w-52 shrink-0 object-contain rounded-2xl md:rounded-none border border-blue-100 bg-white shadow-sm md:border-0 md:bg-transparent md:shadow-none" />
                   ) : (
-                    <div className="h-20 w-20 md:h-36 md:w-36 shrink-0 flex items-center justify-center rounded-2xl border border-blue-100 bg-white text-[10px] md:text-xs text-slate-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                    <div className="h-20 w-20 md:h-36 md:w-36 shrink-0 flex items-center justify-center rounded-2xl border border-blue-100 bg-white text-xs md:text-xs text-slate-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300">
                       Sin logo
                     </div>
                   )}
@@ -2132,18 +2132,18 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
 
                 <div className="mt-4 md:mt-6 grid grid-cols-2 md:grid-cols-3 gap-3 pb-4 border-b border-slate-200 dark:border-slate-700">
                   <div>
-                    <h5 className="text-[0.64rem] md:text-xs font-bold tracking-widest text-slate-600 uppercase dark:text-slate-300">Facultad</h5>
+                    <h5 className="text-xs md:text-xs font-bold tracking-widest text-slate-600 uppercase dark:text-slate-300">Facultad</h5>
                     <p className="mt-1 text-xs md:text-sm font-semibold text-slate-800 break-words leading-snug dark:text-white">{formData.facultad || 'N/A'}</p>
                   </div>
                   {formData.responsable && (
                     <div>
-                      <h5 className="text-[0.64rem] md:text-xs font-bold tracking-widest text-slate-600 uppercase dark:text-slate-300">Responsable</h5>
+                      <h5 className="text-xs md:text-xs font-bold tracking-widest text-slate-600 uppercase dark:text-slate-300">Responsable</h5>
                       <p className="mt-1 text-xs md:text-sm font-semibold text-slate-800 break-words leading-snug dark:text-white">{formData.responsable}</p>
                     </div>
                   )}
                   {formData.fecha_actualizacion && (
                     <div>
-                      <h5 className="text-[0.64rem] md:text-xs font-bold tracking-widest text-slate-600 uppercase dark:text-slate-300">Actualizado</h5>
+                      <h5 className="text-xs md:text-xs font-bold tracking-widest text-slate-600 uppercase dark:text-slate-300">Actualizado</h5>
                       <p className="mt-1 text-xs md:text-sm font-semibold text-slate-800 break-words leading-snug dark:text-white">
                         {new Date(formData.fecha_actualizacion).toLocaleDateString('es-ES', { 
                           year: 'numeric', 
@@ -2339,7 +2339,7 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
                       <input type="text" name="codigo" value={formData.codigo} onChange={handleChange} onFocus={() => setErrors(prev => prev.codigo ? ({ ...prev, codigo: undefined }) : prev)} required disabled={!puedeEditarEstructura() || Boolean(identidadBloqueada)} placeholder="Ej: IS" className={`w-full px-4 py-2.5 rounded-xl border-2 ${errors.codigo ? ERROR_FIELD_BORDER_CLASS : 'border-slate-300 dark:border-slate-600'} bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 placeholder:text-xs placeholder:italic transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:shadow-md disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-400`} />
                       {errors.codigo && <p className="text-xs text-red-600 mt-1">{getErrorMessage(errors.codigo)}</p>}
                       {!puedeEditarEstructura() && (
-                        <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
                           Solo el Superusuario puede cambiar el código de carrera.
                         </p>
                       )}
@@ -2406,11 +2406,11 @@ function ListaCarreras({ sidebarCollapsed = false, hasSidebar = true }) {
                           {logoPreview ? (
                             <>
                               <label htmlFor="editar-logo-carrera-file" className="w-1/2 h-full bg-black/45 hover:bg-black/65 backdrop-blur-md flex flex-col items-center justify-center cursor-pointer text-white">
-                                <span className="text-[10px] font-bold">CAMBIAR</span>
+                                <span className="text-xs font-bold">CAMBIAR</span>
                               </label>
                               <div className="w-px h-full bg-white/20" />
                               <button type="button" onClick={handleRemoveLogo} disabled={reactivandoCarrera} className="w-1/2 h-full bg-red-600/65 hover:bg-red-600/85 backdrop-blur-md flex flex-col items-center justify-center cursor-pointer text-white">
-                                <span className="text-[10px] font-bold">BORRAR</span>
+                                <span className="text-xs font-bold">BORRAR</span>
                               </button>
                             </>
                           ) : (

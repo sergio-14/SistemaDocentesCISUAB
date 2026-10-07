@@ -276,7 +276,7 @@ export default function InformeCampoRico({ value, onChange, placeholder = 'Escri
                 title={titulo}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => aplicarTamanoPreset(ancho)}
-                className="px-1.5 py-1 rounded text-[10px] font-bold text-white hover:bg-slate-600 transition-colors whitespace-nowrap"
+                className="px-1.5 py-1 rounded text-xs font-bold text-white hover:bg-slate-600 transition-colors whitespace-nowrap"
               >
                 {etiqueta}
               </button>

@@ -312,7 +312,7 @@ function FechaIngresoPicker({ value, onChange, error }) {
                         <span className="flex items-center justify-between gap-2">
                           <span className="block truncate">{y}</span>
                           {isCurrentSystemYear && !active && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-200/80 dark:bg-blue-800/50 text-blue-900 dark:text-blue-100">Actual</span>
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-blue-200/80 dark:bg-blue-800/50 text-blue-900 dark:text-blue-100">Actual</span>
                           )}
                         </span>
                       </button>
@@ -324,7 +324,7 @@ function FechaIngresoPicker({ value, onChange, error }) {
           </div>
           <div className="grid grid-cols-7 gap-0.5 mb-1">
             {weekDays.map((wd) => (
-              <div key={wd} className="text-center text-[10px] font-semibold text-slate-200/85 py-0.5">{wd}</div>
+              <div key={wd} className="text-center text-xs font-semibold text-slate-200/85 py-0.5">{wd}</div>
             ))}
           </div>
           <div className="grid grid-cols-7 gap-0.5">

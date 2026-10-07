@@ -2,7 +2,7 @@
 
 // Cada sección es un bloque blanco azulado sobre el fondo azulado del panel.
 export const BLOQUE = 'bg-azulado-50 rounded-3xl ring-1 ring-azulado-300 shadow-[0_2px_6px_rgba(30,58,138,0.08)]';
-export const BOTON = 'inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-semibold transition-colors';
+export const BOTON = 'inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium transition-colors';
 
 // Etiqueta, color de la píldora y del punto de cada estado del fondo.
 export const ESTADOS_FONDO = {

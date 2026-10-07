@@ -68,8 +68,24 @@ export default {
         'btn-info': '#10b981',
         'btn-info-dark': '#059669',
       },
+      // Tipografía: los valores son variables CSS definidas en src/index.css (sección
+      // "Tipografía"). El sistema usa la escala nueva y el POA conserva la de Tailwind.
       fontFamily: {
-        'sans': ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system'],
+        'sans': ['var(--fuente-sans)'],
+      },
+      fontSize: {
+        'xs': ['var(--texto-xs)', { lineHeight: 'var(--interlineado-xs)' }],
+        'sm': ['var(--texto-sm)', { lineHeight: 'var(--interlineado-sm)' }],
+        'base': ['var(--texto-base)', { lineHeight: 'var(--interlineado-base)' }],
+        'lg': ['var(--texto-lg)', { lineHeight: 'var(--interlineado-lg)' }],
+        'xl': ['var(--texto-xl)', { lineHeight: 'var(--interlineado-xl)' }],
+        '2xl': ['var(--texto-2xl)', { lineHeight: 'var(--interlineado-2xl)' }],
+        '3xl': ['var(--texto-3xl)', { lineHeight: 'var(--interlineado-3xl)' }],
+      },
+      fontWeight: {
+        'bold': 'var(--peso-bold)',
+        'extrabold': 'var(--peso-extrabold)',
+        'black': 'var(--peso-black)',
       },
       boxShadow: {
         'uab': '0 4px 6px -1px rgba(0, 102, 230, 0.1), 0 2px 4px -1px rgba(0, 102, 230, 0.06)',

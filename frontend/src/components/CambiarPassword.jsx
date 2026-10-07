@@ -186,7 +186,7 @@ const CambiarPassword = ({ onPasswordChanged }) => {
               </button>
             </div>
             <MensajeErrorCampo error={errores.confirmar} pulse={pulso} tono={TONO_ERROR} />
-            <p className="text-[11px] text-blue-100/65 ml-1">Usa el icono para mostrar u ocultar la contraseña.</p>
+            <p className="text-xs text-blue-100/65 ml-1">Usa el icono para mostrar u ocultar la contraseña.</p>
           </div>
 
           <button

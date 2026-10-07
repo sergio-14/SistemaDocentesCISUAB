@@ -184,7 +184,7 @@ function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil =
           {/* Sección Principal */}
           <div className="mb-6">
             {!collapsed && (
-              <h3 className="px-7 text-[11px] font-semibold uppercase tracking-wider mb-2 text-blue-400">
+              <h3 className="px-7 text-xs font-semibold uppercase tracking-wider mb-2 text-blue-400">
                 Principal
               </h3>
             )}
@@ -213,7 +213,7 @@ function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil =
               {visibleAdmin.length > 0 && (
                 <>
                   {!collapsed && (
-                    <div className="text-[11px] font-semibold text-blue-400 mt-5 mb-2 px-4 uppercase tracking-wider">
+                    <div className="text-xs font-semibold text-blue-400 mt-5 mb-2 px-4 uppercase tracking-wider">
                       Administración
                     </div>
                   )}

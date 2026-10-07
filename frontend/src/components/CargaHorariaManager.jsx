@@ -4,6 +4,8 @@ import api, { obtenerTodos } from '../apis/api';
 import toast from 'react-hot-toast';
 import { ERROR_FIELD_BORDER_CLASS, getApiErrorMessage } from '../utils/formErrors';
 import MensajeErrorCampo from './common/MensajeErrorCampo';
+import ModalCentrado from './common/ModalCentrado';
+import RuedaOpciones from './common/RuedaOpciones';
 
 const PARALELOS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
@@ -366,6 +368,89 @@ const CustomSelect = ({
                 document.body
             )}
         </div>
+    );
+};
+
+// Semestre / nivel con la ruleta del año del Calendario Académico: el campo se ve como los
+// demás selectores y al pulsarlo abre la rueda. Se confirma con un clic en la opción del
+// centro, Enter, "Listo" o al cerrar la ventana.
+const SelectorRueda = ({ value, options, onChange, placeholder, titulo, disabled = false }) => {
+    const [abierto, setAbierto] = useState(false);
+    const [borrador, setBorrador] = useState(value);
+    const [token, setToken] = useState(0);
+    const selected = options.find(opt => String(opt.value) === String(value));
+    const deshabilitado = disabled || options.length === 0;
+
+    const abrir = () => {
+        if (deshabilitado) return;
+        setBorrador(selected ? selected.value : options[0].value);
+        setToken((prev) => prev + 1);
+        setAbierto(true);
+    };
+
+    const confirmar = (valor = borrador) => {
+        if (valor !== undefined && valor !== '' && String(valor) !== String(value)) onChange(String(valor));
+        setAbierto(false);
+    };
+
+    return (
+        <>
+            <button
+                type="button"
+                onClick={abrir}
+                disabled={deshabilitado}
+                className={`relative w-full h-11 text-left pl-4 pr-11 rounded-full text-sm ring-inset transition-colors ${
+                    deshabilitado
+                        ? 'bg-slate-100 ring-1 ring-azulado-300 text-slate-400 cursor-not-allowed'
+                        : abierto
+                            ? 'bg-azulado-100 ring-2 ring-blue-900/40 text-slate-900'
+                            : 'bg-azulado-100 ring-1 ring-azulado-300 text-slate-800'
+                }`}
+            >
+                <span className={`block truncate ${selected ? 'font-semibold' : 'text-slate-500'}`}>
+                    {selected ? selected.label : placeholder}
+                </span>
+                <span className={`pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-md ${
+                    deshabilitado ? 'bg-slate-400' : 'bg-[#2C4AAE]'
+                }`}>
+                    <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 9l4-4 4 4M16 15l-4 4-4-4" />
+                    </svg>
+                </span>
+            </button>
+
+            {abierto && (
+                <ModalCentrado onClose={() => confirmar()}>
+                    <div className="animate-campo-entrada w-full max-w-xs rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl p-4">
+                        <h3 className="px-1 pb-3 text-base text-blue-900">{titulo}</h3>
+                        <RuedaOpciones
+                            key={`rueda-${token}`}
+                            opciones={options}
+                            value={borrador}
+                            valorInicial={borrador}
+                            onChange={setBorrador}
+                            onConfirm={confirmar}
+                            resetToken={token}
+                            visibleCount={5}
+                            itemHeight={44}
+                            clicEnLaterales
+                        />
+                        <p className="mt-3 px-1 text-xs text-slate-600">
+                            Usa la rueda del mouse, las flechas o toca una opción; confirma con un clic en la del centro.
+                        </p>
+                        <div className="mt-3 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => confirmar()}
+                                className="inline-flex items-center justify-center rounded-full px-5 py-2 text-sm bg-blue-900 hover:bg-blue-950 text-white transition-colors"
+                            >
+                                Listo
+                            </button>
+                        </div>
+                    </div>
+                </ModalCentrado>
+            )}
+        </>
     );
 };
 
@@ -770,16 +855,16 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                             </div>
                             <div>
                                 <label className={labelCls}>Semestre / Nivel</label>
-                                <CustomSelect
+                                <SelectorRueda
                                     value={semestre}
                                     options={semestreOptions}
                                     onChange={(newValue) => {
                                         setSemestre(newValue);
                                         setFormData(prev => ({ ...prev, materia: '', titulo_actividad: '', horas: '' }));
                                     }}
-                                    placeholder={loadingMaterias ? 'Cargando...' : 'Nivel'}
+                                    titulo="Semestre / Nivel"
+                                    placeholder={loadingMaterias ? 'Cargando...' : (semestreOptions.length ? 'Nivel' : 'Sin niveles')}
                                     disabled={loadingMaterias || isReadOnly}
-                                    emptyText={loadingMaterias ? 'Cargando niveles...' : 'No hay niveles disponibles'}
                                 />
                             </div>
                         </div>

@@ -22,7 +22,8 @@ body {
    - Base 14 px; título de página 24 px (text-2xl/3xl); títulos
      de sección 18 px (text-lg/xl); etiquetas y ayudas 12 px (text-xs).
    - Interlineado 1.5 en texto y 1.25 en títulos.
-   - Negrita (bold y mayores) = semibold 600; botones medium 500.
+   - Títulos (h1-h6) en negrita 700; en el resto, bold y mayores
+     = semibold 600; botones medium 500.
    ============================================================ */
 :root {
   --fuente-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -78,8 +79,9 @@ html body:has(.poa-app) {
   font-size: 1rem;
 }
 
+/* Títulos de página y de los contenedores en negrita (700), aunque lleven otra clase de peso. */
 body:not(:has(.poa-app)) :is(h1, h2, h3, h4, h5, h6) {
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.25;
 }
 

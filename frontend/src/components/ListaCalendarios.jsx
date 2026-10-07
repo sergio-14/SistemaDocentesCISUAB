@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { FaEdit, FaTrash } from 'react-icons/fa';
-import { X } from 'lucide-react';
 import api, { getCalendarios, getCarreras } from '../apis/api';
 import { finAnteriorAInicio, hoyBolivia } from '../utils/fechas';
 import toast from 'react-hot-toast';
@@ -11,6 +10,9 @@ import RuedaOpciones from './common/RuedaOpciones';
 import { CalendarioFlotante } from './common/CalendarioFecha';
 import ModalCentrado from './common/ModalCentrado';
 import NumeroAnimado from './common/NumeroAnimado';
+import Paginacion from './common/Paginacion';
+import SelectorVista from './common/SelectorVista';
+import { paginar } from '../utils/paginacion';
 import { BLOQUE, BOTON } from './fondos/estilosFondo';
 import { Etiqueta } from './fondos/ElementosFondo';
 import {
@@ -21,6 +23,7 @@ import {
 } from '../utils/formErrors';
 
 // Campos con el estilo del módulo (píldora azulada, etiqueta chica arriba).
+const VISTA_CALENDARIOS_KEY = 'calendarios_vista';
 const LABEL_CAMPO = 'block text-xs font-semibold text-slate-700 mb-1.5 pl-1';
 const CAMPO = 'w-full h-11 px-4 rounded-full text-sm text-slate-800 placeholder:text-slate-500 outline-none ring-inset';
 const CAMPO_NORMAL = 'ring-1 ring-azulado-300 focus:ring-2 focus:ring-blue-900/40';
@@ -58,7 +61,6 @@ const SelectConDropdown = ({
   error,
   errorPulse = 0,
   onClearError,
-  clearValue = 'todas',
 }) => {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -98,15 +100,6 @@ const SelectConDropdown = ({
     setOpen(false);
   };
 
-  const clearSelection = (event) => {
-    event.stopPropagation();
-    if (disabled) return;
-    onClearError?.();
-    onChange({ target: { name, value: clearValue } });
-    setSearchTerm('');
-    setOpen(false);
-  };
-
   return (
     <div ref={containerRef} className="relative">
       {label && (
@@ -139,16 +132,6 @@ const SelectConDropdown = ({
             className="w-full !bg-transparent text-sm text-slate-800 placeholder:text-slate-500 outline-none disabled:cursor-not-allowed"
             style={{ border: 'none', boxShadow: 'none', padding: 0 }}
           />
-          {selectedLabel && !disabled && (
-            <button
-              type="button"
-              onClick={clearSelection}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-azulado-200 hover:text-blue-900"
-              title="Limpiar filtro"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
           <button
             type="button"
             disabled={disabled}
@@ -726,6 +709,29 @@ function ListaCalendarios() {
   const [calendarios, setCalendarios] = useState([]);
   const [carreras, setCarreras] = useState([]);
   const [carreraFiltro, setCarreraFiltro] = useState('todas');
+  // Tarjetas o lista, como en el dashboard; se recuerda en este navegador. 15 por página en
+  // lista y 9 en tarjetas; al cambiar de vista o de carrera se vuelve a la primera página.
+  const [vista, setVista] = useState(() => {
+    try {
+      return localStorage.getItem(VISTA_CALENDARIOS_KEY) === 'lista' ? 'lista' : 'tarjetas';
+    } catch {
+      return 'tarjetas';
+    }
+  });
+  const [pagina, setPagina] = useState(1);
+  const listaRef = useRef(null);
+  const cambiarVista = (nuevaVista) => {
+    setVista(nuevaVista);
+    setPagina(1);
+    try {
+      localStorage.setItem(VISTA_CALENDARIOS_KEY, nuevaVista);
+    } catch {
+      // Sin almacenamiento disponible la vista simplemente no se recuerda.
+    }
+  };
+  useEffect(() => {
+    setPagina(1);
+  }, [carreraFiltro]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -1423,6 +1429,59 @@ function ListaCalendarios() {
   const totalActivos = calendariosFiltrados.filter((cal) => cal.activo).length;
   const nombreCarreraFiltro = carreraOptions.find((opt) => String(opt.value) === String(carreraFiltro))?.label;
   const hayFiltroCarrera = esSuperAdmin && carreraFiltro && carreraFiltro !== 'todas';
+  const { paginaActual, totalPaginas, inicio, itemsPagina: calendariosPagina } = paginar(calendariosFiltrados, pagina, vista);
+  const irAPagina = (nuevaPagina) => {
+    setPagina(nuevaPagina);
+    listaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  // Datos que muestran las dos vistas de cada calendario.
+  const datosCalendario = (cal) => [
+    { label: 'Periodo', valor: rangoFechas(cal.fecha_inicio, cal.fecha_fin) },
+    { label: 'Presentación de proyectos', valor: rangoFechas(cal.fecha_inicio_presentacion_proyectos, cal.fecha_limite_presentacion_proyectos) },
+    { label: 'Programas analíticos', valor: cal.fecha_limite_programas_analiticos ? `Hasta ${formatoFecha(cal.fecha_limite_programas_analiticos)}` : '—' },
+    { label: 'Receso', valor: rangoFechas(cal.fecha_inicio_receso, cal.fecha_fin_receso) },
+  ];
+  const pildoraEstado = (cal) => (
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${
+      cal.activo ? 'bg-emerald-50 text-emerald-800 ring-emerald-200' : 'bg-slate-100 text-slate-600 ring-slate-300'
+    }`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${cal.activo ? 'bg-emerald-600' : 'bg-slate-400'}`} />
+      {cal.activo ? 'Activo' : 'Inactivo'}
+    </span>
+  );
+  const interruptorEstado = (cal) => (
+    <span data-escritura className="flex items-center gap-2.5">
+      <ToggleSwitch
+        isActive={cal.activo}
+        onChange={() => handleToggleActivo(cal)}
+      />
+      <span className="text-sm text-slate-700">{cal.activo ? 'Activo' : 'Inactivo'}</span>
+    </span>
+  );
+  const botonesCalendario = (cal) => (
+    <div className="flex flex-wrap gap-2">
+      <button data-escritura
+        type="button"
+        onClick={() => abrirModal(cal)}
+        className={`${BOTON} bg-emerald-500 hover:bg-emerald-600 text-white`}
+      >
+        <FaEdit size={14} />
+        <span>Editar</span>
+      </button>
+      <button data-escritura
+        type="button"
+        onClick={() => eliminarCalendario(cal)}
+        className={`${BOTON} bg-red-400 hover:bg-red-500 text-white`}
+      >
+        <FaTrash size={13} />
+        <span>Eliminar</span>
+      </button>
+    </div>
+  );
+  const columnasLista = puedeGestionar
+    ? 'xl:grid-cols-[minmax(0,1.9fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1fr)_8.5rem_13rem]'
+    : 'xl:grid-cols-[minmax(0,1.9fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1fr)_8.5rem]';
 
   return (
     <div className="min-h-full px-3 sm:px-4 md:px-8 py-4 md:py-6 text-slate-800">
@@ -1486,10 +1545,10 @@ function ListaCalendarios() {
           </div>
         </div>
 
-        {/* Bloque 2: filtro de carrera (solo el superusuario ve todas las carreras) */}
-        {esSuperAdmin && (
-          <div className={`${BLOQUE} p-3`}>
-            <div className="w-full sm:w-80">
+        {/* Bloque 2: filtro de carrera (solo el superusuario ve todas las carreras) y vista */}
+        <div className={`${BLOQUE} p-3 flex flex-wrap items-center gap-2 sm:gap-3`}>
+          {esSuperAdmin && (
+            <div className="min-w-0 flex-1 sm:flex-none sm:w-80">
               <SelectConDropdown
                 name="carrera"
                 value={carreraFiltro}
@@ -1500,20 +1559,59 @@ function ListaCalendarios() {
                 hideSelectedOption
               />
             </div>
-          </div>
-        )}
+          )}
+          <SelectorVista vista={vista} onCambiar={cambiarVista} className="ml-auto" />
+        </div>
 
-        {/* Bloque 3: calendarios en tarjetas de la misma altura */}
+        {/* Bloque 3: calendarios en tarjetas o en lista; al cambiar de vista, de carrera o de
+            página entran escalonados */}
+        <div ref={listaRef} className="scroll-mt-4" />
         {calendariosFiltrados.length > 0 ? (
-          <div key={`calendarios-${carreraFiltro}`} className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-            {calendariosFiltrados.map((cal, indice) => {
-              const datos = [
-                { label: 'Periodo', valor: rangoFechas(cal.fecha_inicio, cal.fecha_fin) },
-                { label: 'Presentación de proyectos', valor: rangoFechas(cal.fecha_inicio_presentacion_proyectos, cal.fecha_limite_presentacion_proyectos) },
-                { label: 'Programas analíticos', valor: cal.fecha_limite_programas_analiticos ? `Hasta ${formatoFecha(cal.fecha_limite_programas_analiticos)}` : '—' },
-                { label: 'Receso', valor: rangoFechas(cal.fecha_inicio_receso, cal.fecha_fin_receso) },
-              ];
-              return (
+          vista === 'lista' ? (
+            // Cuadrícula en vez de <table>: el CSS del módulo POA da estilo a todas las tablas.
+            <div key={`lista-${carreraFiltro}-${paginaActual}`} className={`${BLOQUE} p-2 sm:p-3`}>
+              <div className={`hidden xl:grid ${columnasLista} gap-4 px-3 pt-3 pb-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 [border-bottom:1px_solid_#B8C9E1]`}>
+                <span>Calendario</span>
+                <span>Periodo</span>
+                <span>Presentación de proyectos</span>
+                <span>Receso</span>
+                <span>Estado</span>
+                {puedeGestionar && <span>Acciones</span>}
+              </div>
+              <div className="divide-y divide-azulado-300">
+                {calendariosPagina.map((cal, indice) => {
+                  const [periodo, proyectos, , receso] = datosCalendario(cal);
+                  return (
+                    <div
+                      key={cal.id}
+                      style={{ animationDelay: `${Math.min(indice, 8) * 35}ms` }}
+                      className={`animate-fondo-entrada grid grid-cols-1 ${columnasLista} items-center gap-x-4 gap-y-3 px-3 py-4 rounded-2xl hover:bg-azulado-100/70 transition-colors`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-blue-900 text-white text-xs font-bold tabular-nums">
+                          {cal.gestion}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-blue-900 truncate">{cal.periodo_display}</div>
+                          <div className="text-sm text-slate-600 truncate">{cal.carrera_nombre || 'Sin carrera'}</div>
+                        </div>
+                      </div>
+                      {[periodo, proyectos, receso].map((dato) => (
+                        <div key={dato.label} className="min-w-0 flex items-baseline justify-between gap-3 xl:block">
+                          <span className="xl:hidden text-xs font-semibold text-blue-800">{dato.label}</span>
+                          <span className="block text-tabla font-semibold text-slate-800 tabular-nums">{dato.valor}</span>
+                        </div>
+                      ))}
+                      <div>{puedeGestionar ? interruptorEstado(cal) : pildoraEstado(cal)}</div>
+                      {puedeGestionar && botonesCalendario(cal)}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+          <div key={`tarjetas-${carreraFiltro}-${paginaActual}`} className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+            {calendariosPagina.map((cal, indice) => (
                 <div
                   key={cal.id}
                   style={{ animationDelay: `${Math.min(indice, 8) * 35}ms` }}
@@ -1529,16 +1627,11 @@ function ListaCalendarios() {
                         <p className="text-sm text-slate-600 truncate">{cal.carrera_nombre || 'Sin carrera'}</p>
                       </div>
                     </div>
-                    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${
-                      cal.activo ? 'bg-emerald-50 text-emerald-800 ring-emerald-200' : 'bg-slate-100 text-slate-600 ring-slate-300'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${cal.activo ? 'bg-emerald-600' : 'bg-slate-400'}`} />
-                      {cal.activo ? 'Activo' : 'Inactivo'}
-                    </span>
+                    {pildoraEstado(cal)}
                   </div>
 
                   <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 px-4 py-3">
-                    {datos.map((dato) => (
+                    {datosCalendario(cal).map((dato) => (
                       <div key={dato.label} className="min-w-0">
                         <dt className="text-xs font-semibold text-blue-800">{dato.label}</dt>
                         <dd className="mt-0.5 text-[13px] font-semibold text-slate-800 tabular-nums">{dato.valor}</dd>
@@ -1553,37 +1646,14 @@ function ListaCalendarios() {
 
                   {puedeGestionar && (
                     <div className="mt-auto pt-3 flex flex-wrap items-center justify-between gap-2 [border-top:1px_solid_#B8C9E1]">
-                      <span data-escritura className="flex items-center gap-2.5">
-                        <ToggleSwitch
-                          isActive={cal.activo}
-                          onChange={() => handleToggleActivo(cal)}
-                        />
-                        <span className="text-sm text-slate-700">{cal.activo ? 'Activo' : 'Inactivo'}</span>
-                      </span>
-                      <div className="flex flex-wrap gap-2">
-                        <button data-escritura
-                          type="button"
-                          onClick={() => abrirModal(cal)}
-                          className={`${BOTON} bg-emerald-500 hover:bg-emerald-600 text-white`}
-                        >
-                          <FaEdit size={14} />
-                          <span>Editar</span>
-                        </button>
-                        <button data-escritura
-                          type="button"
-                          onClick={() => eliminarCalendario(cal)}
-                          className={`${BOTON} bg-red-400 hover:bg-red-500 text-white`}
-                        >
-                          <FaTrash size={13} />
-                          <span>Eliminar</span>
-                        </button>
-                      </div>
+                      {interruptorEstado(cal)}
+                      {botonesCalendario(cal)}
                     </div>
                   )}
                 </div>
-              );
-            })}
+            ))}
           </div>
+          )
         ) : (
           <div className={`${BLOQUE} p-10 sm:p-12 text-center`}>
             <h3 className="text-xl font-bold text-slate-800 mb-2">
@@ -1594,6 +1664,16 @@ function ListaCalendarios() {
             </p>
           </div>
         )}
+
+        <Paginacion
+          paginaActual={paginaActual}
+          totalPaginas={totalPaginas}
+          inicio={inicio}
+          cantidad={calendariosPagina.length}
+          total={calendariosFiltrados.length}
+          nombre="calendarios"
+          onCambiar={irAPagina}
+        />
       </div>
 
       {showModal && createPortal(
@@ -1631,7 +1711,6 @@ function ListaCalendarios() {
                     error={errors.carrera}
                     errorPulse={errorPulse}
                     onClearError={() => clearFieldError('carrera')}
-                    clearValue=""
                   />
                 </div>
                 )}

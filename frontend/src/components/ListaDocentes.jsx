@@ -14,6 +14,9 @@ import { DEDICACIONES_HORARIO, ETIQUETAS_DEDICACION, describirDedicacion, horasS
 import { hoyBolivia } from '../utils/fechas';
 import { CalendarioFlotante } from './common/CalendarioFecha';
 import NumeroAnimado from './common/NumeroAnimado';
+import Paginacion from './common/Paginacion';
+import SelectorVista from './common/SelectorVista';
+import { paginar } from '../utils/paginacion';
 import { useActiveRole } from '../contexts/activeRole';
 import { BLOQUE, BOTON } from './fondos/estilosFondo';
 import { Avatar, Etiqueta } from './fondos/ElementosFondo';
@@ -530,18 +533,6 @@ const PlusIcon = (props) => (
   </svg>
 );
 
-const GridIcon = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" />
-  </svg>
-);
-
-const ListIcon = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
-  </svg>
-);
-
 const ETIQUETAS_CATEGORIA = { catedratico: 'Catedrático', adjunto: 'Adjunto', asistente: 'Asistente' };
 const VISTA_DOCENTES_KEY = 'docentes_vista';
 
@@ -770,8 +761,11 @@ function ListaDocentes() {
       return 'tarjetas';
     }
   });
+  const [pagina, setPagina] = useState(1);
+  const listaRef = React.useRef(null);
   const cambiarVista = (nuevaVista) => {
     setVista(nuevaVista);
+    setPagina(1);
     try {
       localStorage.setItem(VISTA_DOCENTES_KEY, nuevaVista);
     } catch {
@@ -779,6 +773,9 @@ function ListaDocentes() {
     }
   };
   const [selectedCarrera, setSelectedCarrera] = useState('');
+  useEffect(() => {
+    setPagina(1);
+  }, [searchTerm, selectedCarrera]);
   const [showUserInfo, setShowUserInfo] = useState(false);
   const [userInfoKey, setUserInfoKey] = useState(null);
   const gestionWarningTimeoutRef = React.useRef(null);
@@ -1831,6 +1828,12 @@ function ListaDocentes() {
   const totalActivos = docentesDeCarrera.filter((docente) => docente.activo).length;
   const nombreCarreraElegida = carreras.find((carrera) => String(carrera.id) === String(selectedCarrera))?.nombre;
 
+  const { paginaActual, totalPaginas, inicio, itemsPagina: docentesPagina } = paginar(docentesFiltrados, pagina, vista);
+  const irAPagina = (nuevaPagina) => {
+    setPagina(nuevaPagina);
+    listaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   // Columnas de la vista de lista (con o sin la de acciones).
   const columnasLista = esAdmin()
     ? 'xl:grid-cols-[minmax(0,2.3fr)_minmax(0,1.6fr)_6.5rem_8.5rem_minmax(0,1.1fr)_13rem]'
@@ -1970,27 +1973,7 @@ function ListaDocentes() {
               options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
             />
           </div>
-          <div className="ml-auto">
-            <div className="flex items-center gap-1 p-1 rounded-full bg-azulado-100 ring-1 ring-inset ring-azulado-300">
-              {[
-                { id: 'tarjetas', label: 'Tarjetas', icon: GridIcon },
-                { id: 'lista', label: 'Lista', icon: ListIcon },
-              ].map((opcion) => (
-                <button
-                  key={opcion.id}
-                  type="button"
-                  title={opcion.label}
-                  onClick={() => cambiarVista(opcion.id)}
-                  className={`inline-flex items-center gap-2 px-3 sm:px-4 h-9 rounded-full text-sm font-medium transition-colors ${
-                    vista === opcion.id ? 'bg-blue-900 text-white shadow-sm' : 'text-slate-600 hover:text-blue-900'
-                  }`}
-                >
-                  <opcion.icon className="w-4 h-4" />
-                  <span className="hidden sm:inline">{opcion.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <SelectorVista vista={vista} onCambiar={cambiarVista} className="ml-auto" />
         </div>
 
         {/* MODAL DE CREACION DE DOCENTE */}
@@ -2330,11 +2313,13 @@ function ListaDocentes() {
           </div>
         ), document.body)}
 
-        {/* Bloque 3: docentes en tarjetas o en lista; al cambiar de vista entran escalonados */}
+        {/* Bloque 3: docentes en tarjetas o en lista (15 por página en lista y 9 en tarjetas);
+            al cambiar de vista, de carrera o de página entran escalonados */}
+        <div ref={listaRef} className="scroll-mt-4" />
         {docentesFiltrados.length > 0 ? (
           vista === 'lista' ? (
             // Cuadrícula en vez de <table>: el CSS del módulo POA da estilo a todas las tablas.
-            <div key={`lista-${selectedCarrera}`} className={`${BLOQUE} p-2 sm:p-3`}>
+            <div key={`lista-${selectedCarrera}-${paginaActual}`} className={`${BLOQUE} p-2 sm:p-3`}>
               <div className={`hidden xl:grid ${columnasLista} gap-4 px-3 pt-3 pb-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 [border-bottom:1px_solid_#B8C9E1]`}>
                 <span>Docente</span>
                 <span>Contacto</span>
@@ -2344,7 +2329,7 @@ function ListaDocentes() {
                 {esAdmin() && <span>Acciones</span>}
               </div>
               <div className="divide-y divide-azulado-300">
-                {docentesFiltrados.map((docente, indice) => {
+                {docentesPagina.map((docente, indice) => {
                   const info = infoDocente(docente);
                   return (
                     <div
@@ -2381,8 +2366,8 @@ function ListaDocentes() {
               </div>
             </div>
           ) : (
-            <div key={`tarjetas-${selectedCarrera}`} className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-              {docentesFiltrados.map((docente, indice) => {
+            <div key={`tarjetas-${selectedCarrera}-${paginaActual}`} className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+              {docentesPagina.map((docente, indice) => {
                 const info = infoDocente(docente);
                 return (
                   <div
@@ -2447,6 +2432,16 @@ function ListaDocentes() {
             )}
           </div>
         )}
+
+        <Paginacion
+          paginaActual={paginaActual}
+          totalPaginas={totalPaginas}
+          inicio={inicio}
+          cantidad={docentesPagina.length}
+          total={docentesFiltrados.length}
+          nombre="docentes"
+          onCambiar={irAPagina}
+        />
       </div>
 
       {/* Modal Crear/Editar */}

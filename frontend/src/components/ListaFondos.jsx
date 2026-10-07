@@ -8,6 +8,9 @@ import { useActiveRole } from '../contexts/activeRole';
 import { getApiErrorMessage } from '../utils/formErrors';
 import useConsultaPeriodica from '../utils/useConsultaPeriodica';
 import ModalCentrado from './common/ModalCentrado';
+import Paginacion from './common/Paginacion';
+import SelectorVista from './common/SelectorVista';
+import { paginar } from '../utils/paginacion';
 import { BLOQUE, BOTON } from './fondos/estilosFondo';
 import { Avatar, BarraProgreso, EstadoPill, Etiqueta } from './fondos/ElementosFondo';
 
@@ -51,22 +54,9 @@ const SearchIcon = (props) => (
   </svg>
 );
 
-const GridIcon = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" />
-  </svg>
-);
-
-const ListIcon = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
-  </svg>
-);
-
 const ESTADOS_ARCHIVABLES = ['aprobado_director', 'finalizado', 'rechazado', 'archivado'];
 
 const VISTA_STORAGE_KEY = 'fondos_vista_dashboard';
-const FONDOS_POR_PAGINA = { lista: 15, tarjetas: 9 };
 
 const porcentaje = (fondo) => Math.min(100, Math.max(0, Math.round(fondo.porcentaje_completado || 0)));
 
@@ -170,15 +160,6 @@ function SelectorGestion({ value, onChange, options, placeholder }) {
     </div>
   );
 }
-
-const paginasVisibles = (actual, total) => {
-  const paginas = [...new Set([1, actual - 1, actual, actual + 1, total])]
-    .filter((pagina) => pagina >= 1 && pagina <= total)
-    .sort((a, b) => a - b);
-  return paginas.flatMap((pagina, i) => (
-    i > 0 && pagina - paginas[i - 1] > 1 ? ['…', pagina] : [pagina]
-  ));
-};
 
 function ListaFondos() {
   const { effectiveUser, activeAssignment } = useActiveRole();
@@ -347,12 +328,7 @@ function ListaFondos() {
       .some((campo) => (campo || '').toLowerCase().includes(texto));
   });
 
-  const porPagina = FONDOS_POR_PAGINA[vista];
-  const totalPaginas = Math.max(1, Math.ceil(fondosFiltrados.length / porPagina));
-  // Si la lista se achica (filtro, archivado) la página guardada puede quedar fuera de rango.
-  const paginaActual = Math.min(pagina, totalPaginas);
-  const inicio = (paginaActual - 1) * porPagina;
-  const fondosPagina = fondosFiltrados.slice(inicio, inicio + porPagina);
+  const { paginaActual, totalPaginas, inicio, itemsPagina: fondosPagina } = paginar(fondosFiltrados, pagina, vista);
 
   const irAPagina = (nuevaPagina) => {
     setPagina(nuevaPagina);
@@ -503,25 +479,7 @@ function ListaFondos() {
           options={gestiones.map((gestion) => ({ value: String(gestion), label: `Gestión ${gestion}` }))}
         />
 
-        <div className="ml-auto flex items-center gap-1 p-1 rounded-full bg-azulado-100 ring-1 ring-inset ring-azulado-300">
-          {[
-            { id: 'tarjetas', label: 'Tarjetas', icon: GridIcon },
-            { id: 'lista', label: 'Lista', icon: ListIcon },
-          ].map((opcion) => (
-            <button
-              key={opcion.id}
-              type="button"
-              title={opcion.label}
-              onClick={() => cambiarVista(opcion.id)}
-              className={`inline-flex items-center gap-2 px-3 sm:px-4 h-9 rounded-full text-sm font-medium transition-colors ${
-                vista === opcion.id ? 'bg-blue-900 text-white shadow-sm' : 'text-slate-600 hover:text-blue-900'
-              }`}
-            >
-              <opcion.icon className="w-4 h-4" />
-              <span className="hidden sm:inline">{opcion.label}</span>
-            </button>
-          ))}
-        </div>
+        <SelectorVista vista={vista} onCambiar={cambiarVista} className="ml-auto" />
       </div>
 
       {/* Bloque 3: fondos */}
@@ -617,55 +575,15 @@ function ListaFondos() {
       )}
 
       {/* Paginación: 15 fondos por página en lista y 9 en tarjetas */}
-      {totalPaginas > 1 && (
-        <div className={`${BLOQUE} px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3`}>
-          <p className="text-sm text-slate-600">
-            Mostrando <span className="font-semibold text-slate-800 tabular-nums">{inicio + 1}–{inicio + fondosPagina.length}</span> de{' '}
-            <span className="font-semibold text-slate-800 tabular-nums">{fondosFiltrados.length}</span> fondos
-          </p>
-          <nav className="flex items-center gap-1" aria-label="Paginación">
-            <button
-              type="button"
-              onClick={() => irAPagina(paginaActual - 1)}
-              disabled={paginaActual === 1}
-              aria-label="Página anterior"
-              className="flex h-9 w-9 items-center justify-center rounded-full text-blue-900 hover:bg-azulado-200 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-              </svg>
-            </button>
-            {paginasVisibles(paginaActual, totalPaginas).map((numero, i) => (
-              numero === '…' ? (
-                <span key={`salto-${i}`} className="w-6 text-center text-sm text-slate-400">…</span>
-              ) : (
-                <button
-                  key={numero}
-                  type="button"
-                  onClick={() => irAPagina(numero)}
-                  aria-current={numero === paginaActual ? 'page' : undefined}
-                  className={`h-9 min-w-9 px-3 rounded-full text-sm font-semibold tabular-nums transition-colors ${
-                    numero === paginaActual ? 'bg-blue-900 text-white shadow-sm' : 'text-slate-700 hover:bg-azulado-200'
-                  }`}
-                >
-                  {numero}
-                </button>
-              )
-            ))}
-            <button
-              type="button"
-              onClick={() => irAPagina(paginaActual + 1)}
-              disabled={paginaActual === totalPaginas}
-              aria-label="Página siguiente"
-              className="flex h-9 w-9 items-center justify-center rounded-full text-blue-900 hover:bg-azulado-200 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-              </svg>
-            </button>
-          </nav>
-        </div>
-      )}
+      <Paginacion
+        paginaActual={paginaActual}
+        totalPaginas={totalPaginas}
+        inicio={inicio}
+        cantidad={fondosPagina.length}
+        total={fondosFiltrados.length}
+        nombre="fondos"
+        onCambiar={irAPagina}
+      />
 
       {showMassiveModal && (
         <ModalCentrado onClose={generandoMasivo ? undefined : () => setShowMassiveModal(false)}>

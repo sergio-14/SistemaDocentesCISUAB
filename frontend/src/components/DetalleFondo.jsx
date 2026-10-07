@@ -646,7 +646,8 @@ function DetalleFondo() {
             </div>
           </div>
 
-          <dl className="mt-5 pt-4 flex flex-wrap gap-y-3 [border-top:1px_solid_#B8C9E1]">
+          {/* En el celular, un dato por fila (etiqueta a la izquierda); desde sm, en una fila con divisores. */}
+          <dl className="mt-5 pt-4 grid gap-2 sm:flex sm:flex-wrap sm:gap-y-3 [border-top:1px_solid_#B8C9E1]">
             {[
               { label: 'Categoría', valor: <span className="capitalize">{categoriaDocente || '—'}</span> },
               {
@@ -657,9 +658,9 @@ function DetalleFondo() {
               },
               { label: 'Gestión', valor: <span className="tabular-nums">{fondo.gestion}</span> },
             ].map((dato, indice) => (
-              <div key={dato.label} className={`pr-6 sm:pr-8 ${indice > 0 ? 'pl-6 sm:pl-8 [border-left:1px_solid_#B8C9E1]' : ''}`}>
+              <div key={dato.label} className={`flex items-baseline justify-between gap-3 sm:block sm:pr-8 ${indice > 0 ? 'sm:pl-8 sm:[border-left:1px_solid_#B8C9E1]' : ''}`}>
                 <dt className="text-xs font-semibold text-blue-800">{dato.label}</dt>
-                <dd className="mt-0.5 text-sm font-bold text-slate-900 whitespace-nowrap">{dato.valor}</dd>
+                <dd className="sm:mt-0.5 text-sm font-bold text-slate-900 whitespace-nowrap">{dato.valor}</dd>
               </div>
             ))}
           </dl>

@@ -306,7 +306,7 @@ function App() {
               <Route path="archivados" element={<AnimatedRoute><FondosArchivados isDark={isDark} /></AnimatedRoute>} />
 
               {/* Rutas de Administración (Integradas en el Sidebar) */}
-              <Route path="docentes" element={<AnimatedRoute><ListaDocentes isDark={isDark} sidebarCollapsed={sidebarCollapsed} /></AnimatedRoute>} />
+              <Route path="docentes" element={<AnimatedRoute><ListaDocentes isDark={isDark} /></AnimatedRoute>} />
               <Route path="calendarios" element={<AnimatedRoute><ListaCalendarios /></AnimatedRoute>} />
               <Route path="materias" element={<MateriaList isDark={isDark} sidebarCollapsed={sidebarCollapsed} />}>
                 <Route path="nueva" element={<MateriaForm sidebarCollapsed={sidebarCollapsed} />} />

@@ -147,8 +147,8 @@ export function PanelCalendario({ value, min, max, onElegir, onNoPermitido, onBo
                             visible
                               ? 'bg-blue-900 text-white font-semibold'
                               : actual
-                                ? 'ring-1 ring-inset ring-blue-900/40 font-semibold text-blue-900 hover:bg-azulado-100'
-                                : 'text-slate-700 hover:bg-azulado-100'
+                                ? 'bg-sky-600 text-white font-semibold hover:bg-blue-900'
+                                : 'text-slate-700 hover:bg-blue-900 hover:text-white'
                           }`}
                         >
                           {nombre}
@@ -185,8 +185,10 @@ export function PanelCalendario({ value, min, max, onElegir, onNoPermitido, onBo
                       ? 'bg-blue-900 text-white font-semibold'
                       : bloqueada
                         ? 'text-slate-300 cursor-not-allowed'
-                        : `${delMes ? 'text-slate-800' : 'text-slate-400'} hover:bg-azulado-100`
-                  } ${esHoy && !seleccionada ? 'ring-1 ring-inset ring-blue-900/50 font-semibold' : ''}`}
+                        : esHoy
+                          ? 'bg-sky-600 text-white font-semibold hover:bg-blue-900'
+                          : `${delMes ? 'text-slate-800' : 'text-slate-400'} hover:bg-blue-900 hover:text-white`
+                  }`}
                 >
                   {fecha.getDate()}
                 </button>

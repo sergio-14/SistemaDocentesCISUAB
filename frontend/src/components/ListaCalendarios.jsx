@@ -723,7 +723,7 @@ const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse =
 
   return (
     <div className="relative">
-      <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">{label} {errorMessage && <span className="text-red-500">*</span>}</label>
+      <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">{label}</label>
       <div ref={campoRef} className={`relative w-full rounded-xl bg-slate-50 dark:bg-slate-700 shadow-sm ${
         errorMessage ? `${ERROR_FIELD_BORDER_CLASS} ${motionClass}` : 'border-2 border-slate-300 dark:border-slate-600'
       } focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent`}>

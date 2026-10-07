@@ -144,7 +144,7 @@ function FechaIngresoPicker({ value, onChange, error }) {
 
   return (
     <div className="relative">
-      <label className={LABEL_CAMPO}>Fecha de Ingreso <span className="text-red-500">*</span></label>
+      <label className={LABEL_CAMPO}>Fecha de Ingreso</label>
       <div ref={campoRef} className={`relative w-full rounded-full !bg-azulado-100 ring-inset ${error ? CAMPO_ERROR : 'ring-1 ring-azulado-300 focus-within:ring-2 focus-within:ring-blue-900/40'} ${isPulsing ? 'animate-field-error-shake' : ''}`}>
         <input
           type="text"
@@ -372,7 +372,7 @@ const InputField = ({
   <div>
     <label className={LABEL_CAMPO}>
       <span className="inline-flex items-center gap-1.5">
-        <span>{label} {required && <span className="text-red-500">*</span>}</span>
+        <span>{label}</span>
         {showLock && (
           <span title={lockTooltip || 'No editable'} className="text-slate-400"><LockIcon /></span>
         )}
@@ -612,7 +612,7 @@ const dedicacionStyles = {
   },
 };
 
-function ListaDocentes({ sidebarCollapsed = false }) {
+function ListaDocentes() {
   const splitNombreCompleto = (nombreCompleto) => {
     const partes = (nombreCompleto || '').trim().split(/\s+/).filter(Boolean);
 
@@ -1978,7 +1978,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
         {isCreating && createPortal((
           <div
             className="fixed top-0 right-0 bottom-0 z-50 flex items-center justify-center bg-blue-950/30 backdrop-blur-sm p-4"
-            style={{ left: sidebarCollapsed ? '5rem' : '18rem' }}
+            style={{ left: 'var(--fondo-sidebar-width, 0px)' }}
           >
             <div className="bg-azulado-50 rounded-3xl ring-1 ring-azulado-300 shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
               {/* Header */}
@@ -1995,7 +1995,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                 </div>
               </div>
               {/* Body */}
-              <form id="crear-docente-form" onSubmit={handleCreateSubmit} noValidate className="flex-1 overflow-hidden p-6 space-y-6 transition-all duration-300 ease-out">
+              <form id="crear-docente-form" onSubmit={handleCreateSubmit} noValidate className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 transition-all duration-300 ease-out">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="md:col-span-2">
                     <label className={LABEL_CAMPO}>
@@ -2434,7 +2434,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       {showModal && docenteSeleccionado && createPortal((
         <div
           className="fixed top-0 right-0 bottom-0 z-50 flex items-center justify-center bg-blue-950/30 backdrop-blur-sm p-4 animate-fade-in"
-          style={{ left: sidebarCollapsed ? '5rem' : '18rem' }}
+          style={{ left: 'var(--fondo-sidebar-width, 0px)' }}
         >
           <div className="bg-azulado-50 rounded-3xl ring-1 ring-azulado-300 shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
             {/* Header */}
@@ -2475,7 +2475,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
             </div>
 
             {/* Body */}
-            <form id="editar-docente-form" onSubmit={handleUpdateSubmit} noValidate className="flex-1 overflow-y-auto p-6 space-y-6 transition-all duration-300 ease-out">
+            <form id="editar-docente-form" onSubmit={handleUpdateSubmit} noValidate className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 transition-all duration-300 ease-out">
               <fieldset disabled={fichaSoloLectura} className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <InputField
                   label="Nombre completo"
@@ -2714,7 +2714,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       {confirmacionDesactivarDocente && createPortal((
         <div
           className="fixed top-0 right-0 bottom-0 z-[75] flex items-center justify-center p-4"
-          style={{ left: sidebarCollapsed ? '5rem' : '18rem' }}
+          style={{ left: 'var(--fondo-sidebar-width, 0px)' }}
         >
           <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={() => setConfirmacionDesactivarDocente(null)} />
           <div className="relative w-full max-w-lg rounded-2xl border border-amber-500/80 dark:border-amber-700/60 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden animate-slide-up" style={{ animationDuration: '160ms' }}>
@@ -2766,7 +2766,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       {confirmacionCambioPendiente && createPortal((
         <div
           className="fixed top-0 right-0 bottom-0 z-[75] flex items-center justify-center p-4"
-          style={{ left: sidebarCollapsed ? '5rem' : '18rem' }}
+          style={{ left: 'var(--fondo-sidebar-width, 0px)' }}
         >
           <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={() => setConfirmacionCambioPendiente(null)} />
           <div className="relative w-full max-w-lg rounded-2xl border border-amber-500/80 dark:border-amber-700/60 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden animate-slide-up" style={{ animationDuration: '160ms' }}>
@@ -2807,7 +2807,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       {showDeleteModal && createPortal((
         <div
           className="fixed top-0 right-0 bottom-0 z-[70] flex items-center justify-center p-4"
-          style={{ left: sidebarCollapsed ? '5rem' : '18rem' }}
+          style={{ left: 'var(--fondo-sidebar-width, 0px)' }}
         >
           <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={closeDeleteModal} />
           <div className="relative w-full max-w-lg rounded-2xl border border-red-600/80 dark:border-red-700/50 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden animate-slide-up" style={{ animationDuration: '160ms' }}>

@@ -5,6 +5,7 @@ import { useActiveRole } from '../contexts/activeRole';
 import AvisoCarreraInactiva from './common/AvisoCarreraInactiva';
 import AvisoFichaDocentePendiente from './common/AvisoFichaDocentePendiente';
 import useSinElevacionPoa from '../utils/useSinElevacionPoa';
+import useModoClaro from '../utils/useModoClaro';
 
 const FondoTiempoLayout = ({ 
     user, 
@@ -51,27 +52,8 @@ const FondoTiempoLayout = ({
         && !hasValidStoredAssignment
     );
 
-    // El módulo de Fondo de Tiempo solo se ve en modo claro (fondo blanco azulado). Mientras
-    // está montado se quita la clase 'dark' aunque el tema global la vuelva a poner,
-    // y al salir se restaura el tema guardado para el resto del sistema.
-    useEffect(() => {
-        const root = document.documentElement;
-        const forzarClaro = () => {
-            if (root.classList.contains('dark')) root.classList.remove('dark');
-            if (root.getAttribute('data-theme') !== 'light') root.setAttribute('data-theme', 'light');
-        };
-        forzarClaro();
-        const observer = new MutationObserver(forzarClaro);
-        observer.observe(root, { attributes: true, attributeFilter: ['class', 'data-theme'] });
-        return () => {
-            observer.disconnect();
-            const saved = localStorage.getItem('theme');
-            const oscuro = saved === 'dark'
-                || ((!saved || saved === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-            root.classList.toggle('dark', oscuro);
-            root.setAttribute('data-theme', oscuro ? 'dark' : 'light');
-        };
-    }, []);
+    // El módulo de Fondo de Tiempo solo se ve en modo claro (fondo blanco azulado).
+    useModoClaro();
 
     useEffect(() => {
         document.documentElement.style.setProperty('--fondo-sidebar-width', anchoSidebar);

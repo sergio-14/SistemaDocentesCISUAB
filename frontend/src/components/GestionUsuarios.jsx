@@ -7,6 +7,16 @@ import ModalUsuario from './ModalUsuario';
 import { MENSAJE_RESOLUCION_JEFE, MENSAJE_UNA_SOLA_CARRERA, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf } from '../utils/asignacionesUsuario';
 import { useActiveRole } from '../contexts/activeRole';
 import CampoResolucionJefe from './common/CampoResolucionJefe';
+import CampoBusqueda from './common/CampoBusqueda';
+import FiltroDesplegable from './common/FiltroDesplegable';
+import Interruptor from './common/Interruptor';
+import ModalCentrado from './common/ModalCentrado';
+import NumeroAnimado from './common/NumeroAnimado';
+import Paginacion from './common/Paginacion';
+import SelectorVista from './common/SelectorVista';
+import { paginar } from '../utils/paginacion';
+import { BLOQUE, BOTON, BOTON_CHICO } from './fondos/estilosFondo';
+import { Avatar } from './fondos/ElementosFondo';
 import toast from 'react-hot-toast';
 import {
   ERROR_MOTION_CLASS,
@@ -16,22 +26,9 @@ import {
   getBackendErrorMessage,
 } from '../utils/formErrors';
 
-// Animación para el search input
+// Animaciones del aviso que brinca y del panel para elegir la carrera de un rol.
 const style = document.createElement('style');
 style.textContent = `
-  @keyframes slideIn {
-    from {
-      width: 0;
-      opacity: 0;
-      transform: translateX(10px);
-    }
-    to {
-      width: 100%;
-      opacity: 1;
-      transform: translateX(0);
-    }
-  }
-
   @keyframes toastPop {
     0% {
       transform: translateY(0) scale(1);
@@ -51,18 +48,6 @@ style.textContent = `
     animation: toastPop 240ms ease-out;
   }
   
-  @keyframes fieldErrorPop {
-    0% { transform: translateY(0) scale(1); }
-    35% { transform: translateY(-3px) scale(1.008); }
-    70% { transform: translateY(0.5px) scale(0.996); }
-    100% { transform: translateY(0) scale(1); }
-  }
-  
-  .animate-field-error-pop {
-    animation: fieldErrorPop 300ms ease-out;
-    transform-origin: center;
-  }
-
   @keyframes panelAsignacionSlideDown {
     from {
       opacity: 0;
@@ -83,37 +68,20 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-const InfoIcon = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
+const UsuariosIcon = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+  </svg>
 );
 
-const PencilIcon = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
-    </svg>
+const MasIcon = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+  </svg>
 );
 
-const PauseIcon = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
-    </svg>
-);
+const VISTA_USUARIOS_KEY = 'usuarios_vista';
 
-const PlayIcon = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
-    </svg>
-);
-
-const TrashIcon = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-    </svg>
-);
-
-// Mensajes descriptivos para validación en caliente (Normativa UABJB)
 const MENSAJE_DUPLICADO = 'Esta combinación de Rol y Carrera ya se encuentra asignada.';
 const MENSAJE_LIMITE_ASIGNACIONES = 'Un usuario no puede tener más de 2 asignaciones en el sistema (Normativa de Fondo de Tiempo).';
 const MENSAJE_CONFLICTO_AUTORIDAD = 'Conflicto de Autoridad: Un usuario no puede tener dos cargos de mando (Director, Jefe de Estudios o Instituto) en la misma carrera.';
@@ -123,36 +91,18 @@ const MENSAJE_CARRERA_PENDIENTE = 'Debe seleccionar una carrera para la asignaci
 const ROLES_MANDO_UABJB = ['director', 'jefe_estudios', 'iiisyp'];
 
 const ROL_LABELS = {
-  iiisyp: '🔬 Instituto de investigación',
-  director: '🏛️ Director de Carrera',
-  jefe_estudios: '📚 Jefe de Estudios',
-  docente: '👨‍🏫 Docente',
+  iiisyp: 'Instituto de investigación',
+  director: 'Director de Carrera',
+  jefe_estudios: 'Jefe de Estudios',
+  docente: 'Docente',
 };
 
+const CHIP_ROL = 'inline-flex items-center whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset';
 const ROL_STYLES = {
-  iiisyp: 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border-sky-500 dark:border-sky-700',
-  director: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-500 dark:border-blue-700',
-  jefe_estudios: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 border-cyan-500 dark:border-cyan-700',
-  docente: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-500 dark:border-green-700',
-};
-
-const obtenerTextoRolUsuario = (usuario) => {
-  // El superusuario no tiene rol de carrera.
-  if (usuario?.is_superuser) return 'Super Admin';
-  if (!usuario?.perfil) return 'Sin rol';
-
-  const rolPrincipal = String(usuario.perfil.rol || '').trim();
-  const rolesExtra = Array.isArray(usuario.asignaciones)
-    ? usuario.asignaciones
-        .filter((item) => item?.rol)
-        .map((item) => String(item.rol).trim())
-    : [];
-
-  const rolesUnicos = [...new Set([rolPrincipal, ...rolesExtra].filter(Boolean))];
-
-  if (rolesUnicos.length === 0) return 'Sin rol';
-
-  return rolesUnicos.map((rol) => ROL_LABELS[rol] || rol).join(' / ');
+  iiisyp: 'bg-sky-50 text-sky-800 ring-sky-200',
+  director: 'bg-blue-50 text-blue-900 ring-blue-200',
+  jefe_estudios: 'bg-cyan-50 text-cyan-800 ring-cyan-200',
+  docente: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
 };
 
 const obtenerRolesUsuario = (usuario) => {
@@ -265,763 +215,32 @@ const InputField = ({ label, name, type = 'text', value, onChange, onFocus, requ
   };
 
   return (
-  <div className={error && isPulsing ? ERROR_MOTION_CLASS : ''}>
-    <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
-      {label}
-      {error && <span className="ml-1 text-red-500">*</span>}
-    </label>
-    <input
-      type={type}
-      name={name}
-      value={value}
-      onChange={onChange}
-      onFocus={handleFocusClear}
-      onClick={handleFocusClear}
-      disabled={disabled}
-      placeholder={required ? '' : ' '}
-      {...rest}
-      className={`w-full px-4 py-3 rounded-xl border-2 bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 transition-all shadow-sm ${error ? `${ERROR_FIELD_BORDER_CLASS} focus:ring-red-500/60` : 'border-slate-400 dark:border-slate-600 focus:ring-blue-500'}`}
-    />
-    <AnimatedInlineMessage
-      show={Boolean(errorMessage)}
-      message={errorMessage}
-      wrapperClassName="mt-1"
-      messageClassName="text-xs text-red-600 dark:text-red-400"
-    />
-  </div>
-  );
-};
-
-// Componente Select con Dropdown animado (igual que en ListaDocentes)
-const SELECT_INPUT_BASE_CLASS = 'border-2 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700';
-
-const STATIC_CONTROL_STYLE = { transition: 'none', transform: 'none', animation: 'none' };
-
-const SelectConDropdown = ({ label, name, value, onChange, options, error, disabled = false, placeholder = 'Seleccione...', standardStyle = false, onInteract = null, selectedIndex = null, selectedIndexesByValue = null, forwardedRef = null, pulse = 0 }) => {
-  const [open, setOpen] = useState(false);
-  const [isPulsing, setIsPulsing] = useState(false);
-  const containerRef = useRef(null);
-  const errorMessage = Array.isArray(error) ? (error[0] || '') : (typeof error === 'string' ? error : '');
-
-  useEffect(() => {
-    if (forwardedRef) {
-      forwardedRef.current = { open: () => setOpen(true), close: () => setOpen(false) };
-    }
-  }, [forwardedRef]);
-
-  useEffect(() => {
-    const handleOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-    if (open) {
-      document.addEventListener('mousedown', handleOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, [open]);
-
-  useEffect(() => {
-    if (!error) {
-      setIsPulsing(false);
-      return;
-    }
-
-    setIsPulsing(false);
-    const frameId = requestAnimationFrame(() => setIsPulsing(true));
-    const timeoutId = setTimeout(() => setIsPulsing(false), ERROR_SHAKE_DURATION_MS);
-
-    return () => {
-      cancelAnimationFrame(frameId);
-      clearTimeout(timeoutId);
-    };
-  }, [error, pulse]);
-
-  // REGLA GLOBAL: limpiar el error de inmediato al abrir el dropdown (clic/focus).
-  const handleButtonFocus = () => {
-    if (!disabled && typeof onInteract === 'function') {
-      onInteract();
-    }
-  };
-
-  const selectedLabel = options.find(opt => opt.value === value)?.label;
-
-  return (
-    <div ref={containerRef} className={`relative ${error && isPulsing ? ERROR_MOTION_CLASS : ''}`}>
-      {label && (
-        <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
-          {label}
-          {error && <span className="ml-1 text-red-500">*</span>}
-        </label>
-      )}
-      <button
-        type="button"
-        onClick={() => {
-          handleButtonFocus();
-          setOpen(!open);
-        }}
-        onFocus={handleButtonFocus}
+    <div className={error && isPulsing ? ERROR_MOTION_CLASS : ''}>
+      <label htmlFor={`usuario-${name}`} className="block text-xs font-semibold text-slate-700 mb-1.5 pl-1">{label}</label>
+      <input
+        id={`usuario-${name}`}
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        onFocus={handleFocusClear}
+        onClick={handleFocusClear}
         disabled={disabled}
-        style={STATIC_CONTROL_STYLE}
-        className={standardStyle
-          ? `w-full h-[52px] px-4 py-3 rounded-2xl text-left flex items-center justify-between shadow-sm transition-none transform-none hover:shadow-none ${
-              disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-            } ${
-              error
-                ? `${ERROR_FIELD_BORDER_CLASS} bg-slate-50 dark:bg-slate-700 focus:ring-red-500/60 ${error && isPulsing ? ERROR_MOTION_CLASS : ''}`
-                : SELECT_INPUT_BASE_CLASS
-            }`
-          : `w-full h-[52px] px-4 py-3 rounded-xl text-left flex items-center justify-between shadow-sm transition-none transform-none hover:shadow-none ${
-              disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-            } ${
-              error 
-                ? `${ERROR_FIELD_BORDER_CLASS} bg-slate-50 dark:bg-slate-700 focus:ring-red-500/60 ${error && isPulsing ? ERROR_MOTION_CLASS : ''}` 
-                : SELECT_INPUT_BASE_CLASS
-            }`
-        }
-      >
-        <span className={standardStyle
-          ? `${selectedLabel ? 'text-slate-800 dark:text-white font-semibold text-sm leading-tight' : 'text-slate-400 dark:text-slate-500'}`
-          : `${selectedLabel ? 'text-slate-800 dark:text-white font-semibold text-sm leading-tight' : 'text-slate-400 dark:text-slate-500'}`
-        }>
-          {selectedLabel || placeholder}
-        </span>
-        <div style={STATIC_CONTROL_STYLE} className={standardStyle ? 'w-8 h-8 bg-[#2C4AAE] rounded-lg flex items-center justify-center transition-none transform-none' : 'w-8 h-8 bg-[#2C4AAE] rounded-lg flex items-center justify-center transition-none transform-none'}>
-          <svg
-            style={STATIC_CONTROL_STYLE}
-            className="w-4 h-4 text-white transition-none transform-none"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </button>
+        placeholder={required ? '' : ' '}
+        {...rest}
+        className={`w-full h-11 px-4 rounded-full text-sm text-slate-800 placeholder:text-slate-500 outline-none ring-inset !bg-azulado-100 ${error ? 'ring-2 ring-red-500' : 'ring-1 ring-azulado-300 focus:ring-2 focus:ring-blue-900/40'}`}
+      />
       <AnimatedInlineMessage
         show={Boolean(errorMessage)}
         message={errorMessage}
-        wrapperClassName="mt-1"
-        messageClassName="text-xs text-red-600 dark:text-red-400"
-      />
-      {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-xl border-2 border-[#2C4AAE] bg-white dark:bg-slate-800 shadow-xl max-h-48 overflow-auto">
-          {options.map((option) => {
-            const isSelected = value === option.value;
-            const markers = selectedIndexesByValue?.[String(option.value)] || (isSelected && selectedIndex !== null ? [selectedIndex] : []);
-            return (
-              <button
-                key={option.value}
-                type="button"
-                disabled={option.disabled}
-                onClick={() => {
-                  if (option.disabled) return;
-                  onChange({ target: { name, value: option.value } });
-                  setOpen(false);
-                }}
-                className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center justify-between ${
-                  isSelected
-                    ? 'bg-[#2C4AAE] text-white font-semibold'
-                    : option.disabled
-                    ? 'text-slate-400 dark:text-slate-500 cursor-not-allowed bg-slate-100 dark:bg-slate-800/80'
-                    : 'text-slate-700 dark:text-slate-300 hover:bg-[#2C4AAE] hover:text-white'
-                }`}
-              >
-                <span>{option.label}</span>
-                {markers.length > 0 && (
-                  <span className="inline-flex items-center gap-1">
-                    {markers.map((marker) => (
-                      <span key={marker} className="inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full bg-white text-[#2C4AAE] text-xs font-bold leading-none">
-                        {marker}
-                      </span>
-                    ))}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
-
-const obtenerNombreCompletoDocente = (docente) => {
-  if (!docente) return '';
-  // Si ya tiene nombre_completo, usarlo
-  if (docente.nombre_completo) return docente.nombre_completo;
-  // Si no, construir desde campos separados
-  return `${docente.nombres || ''} ${docente.apellido_paterno || ''} ${docente.apellido_materno || ''}`.trim();
-};
-
-const FilterDocentes = ({
-  label,
-  name,
-  value,
-  onChange,
-  docentes,
-  error,
-  disabled = false,
-  placeholder = 'Buscar docente...'
-}) => {
-  const [open, setOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isPulsing, setIsPulsing] = useState(false);
-  const containerRef = useRef(null);
-  const inputRef = useRef(null);
-
-  const selectedDocente = docentes.find((d) => String(d.id) === String(value));
-
-  // Efecto rebote (shake) al detectar error
-  useEffect(() => {
-    if (!error) {
-      setIsPulsing(false);
-      return;
-    }
-
-    setIsPulsing(false);
-    const frameId = requestAnimationFrame(() => setIsPulsing(true));
-    const timeoutId = setTimeout(() => setIsPulsing(false), ERROR_SHAKE_DURATION_MS);
-
-    return () => {
-      cancelAnimationFrame(frameId);
-      clearTimeout(timeoutId);
-    };
-  }, [error]);
-
-  useEffect(() => {
-    if (selectedDocente) {
-      setSearchTerm(obtenerNombreCompletoDocente(selectedDocente));
-    } else if (!value) {
-      setSearchTerm('');
-    }
-  }, [value, selectedDocente]);
-
-  useEffect(() => {
-    const handleOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-    if (open) {
-      document.addEventListener('mousedown', handleOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, [open]);
-
-  const filteredDocentes = docentes.filter((docente) => {
-    const term = searchTerm.toLowerCase();
-    const nombre = obtenerNombreCompletoDocente(docente).toLowerCase();
-    const ci = String(docente.ci || '').toLowerCase();
-    return nombre.includes(term) || ci.includes(term);
-  });
-
-  const handleInputChange = (e) => {
-    const nextValue = e.target.value;
-    setSearchTerm(nextValue);
-    setOpen(true);
-  };
-
-  const handleButtonClick = () => {
-    if (disabled) return;
-    if (value) {
-      setSearchTerm('');
-      onChange({ target: { name, value: '' } });
-      setOpen(true);
-      setTimeout(() => inputRef.current?.focus(), 0);
-      return;
-    }
-
-    setOpen(!open);
-    if (!open) {
-      setTimeout(() => inputRef.current?.focus(), 0);
-    }
-  };
-
-  const handleSelectDocente = (docente) => {
-    onChange({ target: { name, value: docente.id } });
-    setSearchTerm(obtenerNombreCompletoDocente(docente));
-    setOpen(false);
-  };
-
-  return (
-    <div ref={containerRef} className={`relative ${error && isPulsing ? ERROR_MOTION_CLASS : ''}`}>
-      {label && (
-        <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
-          {label}
-        </label>
-      )}
-
-      <div
-        style={STATIC_CONTROL_STYLE}
-        className={`flex items-center px-4 py-3 rounded-xl shadow-sm ${
-          disabled
-            ? `cursor-not-allowed opacity-60 ${SELECT_INPUT_BASE_CLASS}`
-            : error
-              ? `${ERROR_FIELD_BORDER_CLASS} bg-slate-50 dark:bg-slate-700`
-              : SELECT_INPUT_BASE_CLASS
-        }`}
-      >
-        <input
-          ref={inputRef}
-          type="text"
-          value={searchTerm}
-          onChange={handleInputChange}
-          onFocus={() => !disabled && setOpen(true)}
-          placeholder={placeholder}
-          disabled={disabled}
-          className="flex-1 bg-transparent text-slate-800 dark:text-white focus:outline-none text-sm placeholder-slate-400 dark:placeholder-slate-500"
-        />
-
-        <button
-          type="button"
-          onClick={handleButtonClick}
-          disabled={disabled}
-          style={STATIC_CONTROL_STYLE}
-          className="w-8 h-8 bg-[#2C4AAE] rounded-lg flex items-center justify-center flex-shrink-0 ml-2 disabled:opacity-70"
-        >
-          <svg
-            style={STATIC_CONTROL_STYLE}
-            className="w-4 h-4 text-white"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-      </div>
-
-      {open && !disabled && (
-        <div className="absolute z-50 mt-2 w-full rounded-xl border-2 border-[#2C4AAE] bg-white dark:bg-slate-800 shadow-xl max-h-64 overflow-auto">
-          {docentes.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-red-600 dark:text-red-400 text-center font-bold">
-              ⚠️ No hay docentes cargados
-            </div>
-          ) : filteredDocentes.length > 0 ? (
-            filteredDocentes.map((docente) => (
-              <button
-                key={docente.id}
-                type="button"
-                onClick={() => handleSelectDocente(docente)}
-                className="w-full text-left px-4 py-3 text-sm transition-colors text-slate-700 dark:text-slate-300 hover:bg-[#2C4AAE] hover:text-white border-b border-slate-200 dark:border-slate-700 last:border-b-0"
-              >
-                <div className="font-semibold">{obtenerNombreCompletoDocente(docente)}</div>
-              </button>
-            ))
-          ) : searchTerm ? (
-            <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 text-center">
-              No hay docentes que coincidan
-            </div>
-          ) : (
-            <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 text-center">
-              Escribe para buscar docentes ({docentes.length} disponibles)
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
-const FilterCarreras = ({
-  label,
-  name,
-  value,
-  onChange,
-  carreras,
-  error,
-  disabled = false,
-  placeholder = 'Buscar carrera...'
-}) => {
-  const [open, setOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const containerRef = useRef(null);
-  const inputRef = useRef(null);
-  const clearingSelectionRef = useRef(false);
-
-  const selectedCarrera = carreras.find((c) => String(c.id) === String(value));
-
-  useEffect(() => {
-    if (clearingSelectionRef.current) {
-      if (!value) {
-        clearingSelectionRef.current = false;
-      }
-      return;
-    }
-    if (selectedCarrera?.nombre) {
-      setSearchTerm(selectedCarrera.nombre);
-    } else if (!value) {
-      setSearchTerm('');
-    }
-  }, [value, selectedCarrera]);
-
-  useEffect(() => {
-    const handleOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-    if (open) {
-      document.addEventListener('mousedown', handleOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, [open]);
-
-  const filteredCarreras = carreras.filter((carrera) => {
-    const term = searchTerm.toLowerCase();
-    const nombre = String(carrera.nombre || '').toLowerCase();
-    const codigo = String(carrera.codigo || '').toLowerCase();
-    const facultad = String(carrera.facultad || '').toLowerCase();
-    return nombre.includes(term) || codigo.includes(term) || facultad.includes(term);
-  });
-
-  const handleInputChange = (e) => {
-    const nextValue = e.target.value;
-    setSearchTerm(nextValue);
-    setOpen(true);
-
-    if (value) {
-      onChange({ target: { name, value: '' } });
-    }
-  };
-
-  const handleButtonClick = () => {
-    if (disabled) return;
-    if (value) {
-      clearingSelectionRef.current = true;
-      setSearchTerm('');
-      onChange({ target: { name, value: '' } });
-      setOpen(true);
-      setTimeout(() => inputRef.current?.focus(), 0);
-      return;
-    }
-    setOpen(!open);
-    if (!open) {
-      setTimeout(() => inputRef.current?.focus(), 0);
-    }
-  };
-
-  const handleSelectCarrera = (carrera) => {
-    onChange({ target: { name, value: carrera.id } });
-    setSearchTerm(carrera.nombre || '');
-    setOpen(false);
-  };
-
-  return (
-    <div ref={containerRef} className="relative">
-      {label && (
-        <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
-          {label}
-        </label>
-      )}
-
-      <div
-        style={STATIC_CONTROL_STYLE}
-        className={`flex items-center px-4 py-3 rounded-xl shadow-sm ${
-          disabled
-            ? `cursor-not-allowed opacity-60 ${SELECT_INPUT_BASE_CLASS}`
-            : error
-              ? `${ERROR_FIELD_BORDER_CLASS} bg-slate-50 dark:bg-slate-700`
-              : SELECT_INPUT_BASE_CLASS
-        }`}
-      >
-        <input
-          ref={inputRef}
-          type="text"
-          value={searchTerm}
-          onChange={handleInputChange}
-          onFocus={() => !disabled && setOpen(true)}
-          placeholder={placeholder}
-          disabled={disabled}
-          className="flex-1 bg-transparent text-slate-800 dark:text-white focus:outline-none text-sm placeholder-slate-400 dark:placeholder-slate-500"
-        />
-
-        <button
-          type="button"
-          onClick={handleButtonClick}
-          disabled={disabled}
-          style={STATIC_CONTROL_STYLE}
-          className="w-8 h-8 bg-[#2C4AAE] rounded-lg flex items-center justify-center flex-shrink-0 ml-2 disabled:opacity-70"
-        >
-          <svg
-            style={STATIC_CONTROL_STYLE}
-            className="w-4 h-4 text-white"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-      </div>
-
-      {open && !disabled && (
-        <div className="absolute z-50 mt-2 w-full rounded-xl border-2 border-[#2C4AAE] bg-white dark:bg-slate-800 shadow-xl max-h-64 overflow-auto">
-          {filteredCarreras.length > 0 ? (
-            filteredCarreras.map((carrera) => (
-              <button
-                key={carrera.id}
-                type="button"
-                onClick={() => handleSelectCarrera(carrera)}
-                className="w-full text-left px-4 py-3 text-sm transition-colors text-slate-700 dark:text-slate-300 hover:bg-[#2C4AAE] hover:text-white border-b border-slate-200 dark:border-slate-700 last:border-b-0"
-              >
-                <div className="font-semibold">{carrera.nombre}</div>
-              </button>
-            ))
-          ) : searchTerm ? (
-            <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 text-center">
-              No hay carreras que coincidan
-            </div>
-          ) : (
-            <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 text-center">
-              Escribe para buscar carreras
-            </div>
-          )}
-        </div>
-      )}
-
-      <AnimatedInlineMessage
-        show={Boolean(error)}
-        message={error || ''}
-        wrapperClassName="mt-1"
-        messageClassName="text-xs text-red-600 dark:text-red-400"
+        wrapperClassName="mt-1 pl-1"
+        messageClassName="text-xs text-red-600"
       />
     </div>
   );
 };
 
-const ToggleSwitch = ({ isActive, onChange, disabled = false }) => (
-  <button
-    type="button"
-    onClick={() => !disabled && onChange()}
-    disabled={disabled}
-    className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-      isActive
-        ? 'bg-emerald-500 dark:bg-emerald-600 focus:ring-emerald-400 dark:focus:ring-emerald-500'
-        : 'bg-slate-500 dark:bg-slate-600 focus:ring-slate-400 dark:focus:ring-slate-500'
-    } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
-  >
-    <span
-      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-transform duration-300 ${
-        isActive ? 'translate-x-6' : 'translate-x-0.5'
-      }`}
-    />
-  </button>
-);
-
-// Componente compacto para seleccionar carrera (mismo estilo que SelectConDropdown de ListaDocentes)
-const CarreraSelectorCompacto = ({ value, onChange, options }) => {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    const handleOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-    if (open) {
-      document.addEventListener('mousedown', handleOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, [open]);
-
-  const selectedCarrera = options.find((c) => String(c.id) === String(value));
-  const displayLabel = selectedCarrera?.nombre || 'Seleccione...';
-
-  return (
-    <div ref={containerRef} className="relative">
-      <div className={`relative w-full rounded-xl border-2 shadow-sm ${value ? 'border-[#2C4AAE] bg-[#2C4AAE]/10' : 'border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700'}`}>
-        <button
-          type="button"
-          onClick={() => setOpen((prev) => !prev)}
-          className={`w-full text-left px-3 py-2 rounded-xl bg-transparent flex items-center justify-between gap-2 ${value ? 'text-[#2C4AAE] dark:text-blue-300' : 'text-slate-700 dark:text-white'}`}
-        >
-          <span className={`truncate text-xs font-semibold ${!value ? 'text-slate-400 dark:text-slate-500' : ''}`}>{displayLabel}</span>
-          <span className="flex items-center justify-center h-5 w-5 rounded-md bg-[#2C4AAE] ring-1 ring-[#2C4AAE]">
-            <svg className={`w-3 h-3 text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-            </svg>
-          </span>
-        </button>
-      </div>
-
-      {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-xl border-2 border-[#2C4AAE] bg-white dark:bg-slate-800 shadow-xl max-h-48 overflow-y-auto">
-          <div className="p-1.5">
-            {options.map((carrera) => (
-              <button
-                key={carrera.id}
-                type="button"
-                onClick={() => {
-                  onChange(String(carrera.id));
-                  setOpen(false);
-                }}
-                className={`w-full text-left px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                  String(value) === String(carrera.id)
-                    ? 'bg-cyan-50 dark:bg-cyan-900/30 shadow-[inset_2px_0_0_0_#06b6d4] text-cyan-800 dark:text-cyan-200 font-semibold'
-                    : 'bg-transparent text-slate-700 dark:text-slate-200 hover:bg-[#2C4AAE] hover:text-white'
-                }`}
-              >
-                <span className="block truncate">{carrera.nombre}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Dropdown simple estilo "Seleccione..."
-const SimpleDropdown = ({ label, value, onChange, options, placeholder = 'Carreras', clearOnToggle = false }) => {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const containerRef = useRef(null);
-  const inputRef = useRef(null);
-
-  useEffect(() => {
-    const handleOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpen(false);
-        setSearch('');
-      }
-    };
-    if (open) {
-      document.addEventListener('mousedown', handleOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, [open]);
-
-  useEffect(() => {
-    if (open) {
-      setTimeout(() => inputRef.current?.focus(), 0);
-    }
-  }, [open]);
-
-  const selectedLabel = options.find(opt => opt.value === value)?.label;
-  const filteredOptions = options.filter((option) =>
-    option.label.toLowerCase().includes(search.toLowerCase())
-  );
-
-  return (
-    <div ref={containerRef} className="relative">
-        <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
-        {label}
-      </label>
-      <button
-        type="button"
-        onClick={() => {
-          if (clearOnToggle) {
-            onChange('');
-          }
-          setOpen(!open);
-          if (open) {
-            setSearch('');
-          }
-        }}
-        className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-700 border-2 border-slate-400 dark:border-slate-600 focus:border-blue-500 rounded-xl text-left flex items-center justify-between transition-all shadow-sm"
-      >
-        <span className={`${selectedLabel ? 'text-slate-800 dark:text-white font-semibold text-sm leading-tight' : 'text-slate-400 dark:text-slate-500'}`}>
-          {selectedLabel || placeholder}
-        </span>
-        <div className="w-8 h-8 bg-[#2C4AAE] rounded-lg flex items-center justify-center">
-          <svg
-            className={`w-4 h-4 text-white ${open ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </button>
-      {open && (
-        <div className="absolute z-40 mt-1 w-full rounded-xl border-2 border-[#2C4AAE] bg-white dark:bg-slate-800 shadow-xl max-h-48 overflow-auto">
-          <div className="p-2 border-b border-slate-200 dark:border-slate-700">
-            <input
-              ref={inputRef}
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar carrera..."
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-sm text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          {filteredOptions.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => {
-                onChange(option.value);
-                setOpen(false);
-                setSearch('');
-              }}
-              className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                value === option.value
-                  ? 'bg-[#2C4AAE] text-white font-semibold'
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-[#2C4AAE] hover:text-white'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-          {filteredOptions.length === 0 && (
-            <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 text-center">
-              No hay carreras que coincidan
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Componente de Búsqueda Animado
-const SearchInput = ({ value, onChange, placeholder = 'Buscar por nombre o C.I....' }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const inputRef = useRef(null);
-
-  useEffect(() => {
-    if (isExpanded && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [isExpanded]);
-
-  const handleBlur = () => {
-    if (!value) {
-      setIsExpanded(false);
-    }
-  };
-
-  return (
-    <div className="gestion-usuarios-search flex items-center gap-2 flex-row-reverse">
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className={`p-2.5 bg-[#2C4AAE] hover:bg-[#1a3a8a] text-white rounded-xl transition-all duration-300 hover:scale-110 ${isExpanded ? 'rotate-0' : 'rotate-0'}`}
-        title="Buscar usuario"
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-      </button>
-      <div className={`transition-all duration-300 overflow-hidden ${isExpanded ? 'w-64 opacity-100' : 'w-0 opacity-0'}`}>
-        <input
-          ref={inputRef}
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={handleBlur}
-          placeholder={placeholder}
-          className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border-2 border-[#2C4AAE] rounded-xl text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none transition-all"
-        />
-      </div>
-    </div>
-  );
-};
-
-function GestionUsuarios({ sidebarCollapsed = false, user: usuarioSesion, hasSidebar = true }) {
+function GestionUsuarios({ user: usuarioSesion }) {
   // Usuario con su rol ACTIVO (contexto de rol), no el guardado al iniciar sesión.
   const { effectiveUser } = useActiveRole();
   const user = effectiveUser || usuarioSesion;
@@ -1045,7 +264,6 @@ function GestionUsuarios({ sidebarCollapsed = false, user: usuarioSesion, hasSid
   // State for inline creation form
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState({});
-  const [crearNuevoDocente, setCrearNuevoDocente] = useState(false);
   const [resolucionJefe, setResolucionJefe] = useState(null);
   const [asignacionesExtra, setAsignacionesExtra] = useState([]);
   const [selectedRoleLeft, setSelectedRoleLeft] = useState(null);
@@ -1131,6 +349,28 @@ function GestionUsuarios({ sidebarCollapsed = false, user: usuarioSesion, hasSid
   const [showOnlyOrphans, setShowOnlyOrphans] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCarrera, setSelectedCarrera] = useState('');
+  // Tarjetas o lista; se recuerda en este navegador.
+  const [vista, setVista] = useState(() => {
+    try {
+      return localStorage.getItem(VISTA_USUARIOS_KEY) === 'lista' ? 'lista' : 'tarjetas';
+    } catch {
+      return 'tarjetas';
+    }
+  });
+  const [pagina, setPagina] = useState(1);
+  const listaRef = useRef(null);
+  const cambiarVista = (nuevaVista) => {
+    setVista(nuevaVista);
+    setPagina(1);
+    try {
+      localStorage.setItem(VISTA_USUARIOS_KEY, nuevaVista);
+    } catch {
+      // Sin almacenamiento disponible la vista simplemente no se recuerda.
+    }
+  };
+  useEffect(() => {
+    setPagina(1);
+  }, [searchTerm, selectedCarrera, showOnlyOrphans]);
 
   const esSuperuserActual = user?.is_superuser === true;
   const esDirectorCarreraActual = user?.perfil?.rol === 'director';
@@ -1242,7 +482,6 @@ function GestionUsuarios({ sidebarCollapsed = false, user: usuarioSesion, hasSid
           password_confirm: datosCrearUsuario?.password_confirm || '',
         });
         setAsignacionesExtra([]);
-        setCrearNuevoDocente(false);
         setErrors({});
         setUsuarioEditando(null);
         setIsCreating(true);
@@ -1284,7 +523,6 @@ function GestionUsuarios({ sidebarCollapsed = false, user: usuarioSesion, hasSid
           carrera: docenteRetornado?.carrera || datos.carrera || '',
           docente: docenteRetornado?.id || (datos.docente || ''),
         });
-        setCrearNuevoDocente(false);
         setAsignacionesExtra([]);
         sessionStorage.removeItem('datosCrearUsuario');
         sessionStorage.removeItem('docenteRetornadoDesdeUsuarios');
@@ -1374,7 +612,8 @@ function GestionUsuarios({ sidebarCollapsed = false, user: usuarioSesion, hasSid
       result = result.filter((usuario) => {
         const nombre = `${usuario.first_name || ''} ${usuario.last_name || ''}`.toLowerCase();
         const ci = usuario.ci || '';
-        return nombre.includes(searchLower) || ci.includes(searchLower);
+        return nombre.includes(searchLower) || ci.includes(searchLower)
+          || String(usuario.username || '').toLowerCase().includes(searchLower);
       });
     }
 
@@ -1410,7 +649,6 @@ function GestionUsuarios({ sidebarCollapsed = false, user: usuarioSesion, hasSid
     if (isCreating) {
       if (restoringFormRef.current) {
         restoringFormRef.current = false;
-        setCrearNuevoDocente(false);
         setErrors({});
         return;
       }
@@ -1431,7 +669,6 @@ const initialData = {
       setFormData(initialData);
       setAsignacionesExtra([]);
       setVinculacionRapidaDocente(false);
-      setCrearNuevoDocente(false);
       setDocenteReciente(null);
       setResolucionJefe(null);
       setErrors({});
@@ -1571,10 +808,6 @@ const initialData = {
 
       return updated;
     });
-
-    if (name === 'docente' && value) {
-      setCrearNuevoDocente(false);
-    }
 
     // Limpia el error del campo al escribir para feedback inmediato
     setErrors((prev) => {
@@ -2111,20 +1344,12 @@ const initialData = {
   const mostrarNombreCompletoCreacion = true;
   const mostrarCiCreacion = true;
 
-  // REFACTOR: Detectar si el rol 'docente' está presente en CUALQUIER asignación
-  // (principal o secundaria). Esto unifica la captura de datos del docente para que
-  // se muestre y asocie correctamente sin importar si el docente es rol principal
-  // (formData) o secundario (asignacionesExtra). Permite reordenar roles sin perder
-  // la información del docente ya ingresada.
-  const hayRolDocenteEnAsignaciones = String(formData.rol || '').trim() === 'docente'
-    || asignacionesExtra.some((item) => String(item.rol || '').trim() === 'docente');
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-slate-900">
+      <div className="flex items-center justify-center min-h-screen bg-azulado-100">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-slate-700 dark:text-slate-300">Cargando usuarios...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-900 mx-auto"></div>
+          <p className="mt-4 text-slate-600">Cargando usuarios...</p>
         </div>
       </div>
     );
@@ -2132,16 +1357,16 @@ const initialData = {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-screen px-4 bg-slate-50 dark:bg-slate-900">
-        <div role="alert" className="max-w-md text-center">
-          <p className="text-lg font-bold text-red-700 dark:text-red-400">{error}</p>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+      <div className="flex items-center justify-center min-h-screen px-4 bg-azulado-100">
+        <div role="alert" className={`${BLOQUE} p-8 max-w-md w-full text-center`}>
+          <p className="text-lg font-bold text-red-700">{error}</p>
+          <p className="mt-2 text-sm text-slate-600">
             No se pudo obtener la lista de usuarios. Revise su conexión e intente de nuevo.
           </p>
           <button
             type="button"
             onClick={cargarDatos}
-            className="mt-5 px-6 py-2.5 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all"
+            className={`${BOTON} mt-5 px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white`}
           >
             Reintentar
           </button>
@@ -2208,63 +1433,327 @@ const initialData = {
     return carrerasUnicas.length > 0 ? carrerasUnicas.join(' / ') : 'Sin carrera';
   };
 
+  // --- Piezas comunes de las vistas de tarjetas, lista y detalle ---
+  const totalActivosUsuarios = usuarios.filter((usuario) => usuario.is_active !== false).length;
+  const nombreCarreraFiltro = carrerasGestionables.find((carrera) => String(carrera.id) === String(selectedCarrera))?.nombre;
+  const { paginaActual, totalPaginas, itemsPagina: usuariosPagina } = paginar(usuariosFiltrados, pagina, vista);
+  const irAPagina = (nuevaPagina) => {
+    setPagina(nuevaPagina);
+    listaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const claveVista = `${selectedCarrera}-${searchTerm}-${showOnlyOrphans}-${paginaActual}`;
+
+  const fotoUsuario = (usuario, tamano) => (
+    usuario?.perfil?.foto_perfil ? (
+      <img src={usuario.perfil.foto_perfil} alt="" className={`${tamano} rounded-full object-cover flex-shrink-0`} />
+    ) : (
+      <Avatar nombre={obtenerNombreUsuario(usuario) || usuario?.username} size={tamano} />
+    )
+  );
+
+  const chipsRoles = (usuario) => {
+    if (usuario.is_superuser) {
+      return <span className={`${CHIP_ROL} bg-amber-50 text-amber-800 ring-amber-200`}>Super Admin</span>;
+    }
+    const roles = obtenerRolesUsuario(usuario);
+    if (roles.length === 0) return <span className="text-xs text-slate-500">Sin rol</span>;
+    const docenteInactivo = usuarioTieneDocenteInactivo(usuario);
+    return roles.map((rol) => (
+      <span key={rol} className={`${CHIP_ROL} ${ROL_STYLES[rol] || ROL_STYLES.docente}`}>
+        {ROL_LABELS[rol] || rol}
+        {docenteInactivo && rol === 'docente' ? ' (inactivo)' : ''}
+      </span>
+    ));
+  };
+
+  const avisosUsuario = (usuario) => (
+    <>
+      {!usuario.perfil && <span className="text-xs font-semibold text-amber-700">Sin perfil</span>}
+      {usuarioTienePerfilDocentePendiente(usuario) && <span className="text-xs font-semibold text-amber-700">Falta crear la ficha de docente</span>}
+    </>
+  );
+
+  const estadoUsuario = (usuario) => (
+    usuario.is_superuser ? (
+      <span className="text-xs font-semibold text-amber-700">Protegido</span>
+    ) : (
+      <span className="flex items-center gap-2.5" onClick={(event) => event.stopPropagation()}>
+        <Interruptor
+          chico
+          isActive={usuario.is_active}
+          disabled={!puedeCambiarEstadoUsuario(usuario)}
+          onChange={() => puedeCambiarEstadoUsuario(usuario) && handleToggleActivo(usuario)}
+          etiqueta={usuario.is_active ? 'Desactivar usuario' : 'Activar usuario'}
+        />
+        <span className={`text-xs ${usuario.is_active ? 'text-slate-700' : 'font-semibold text-red-700'}`}>
+          {usuario.is_active ? 'Activo' : 'Inactivo'}
+        </span>
+      </span>
+    )
+  );
+
+  const accionesUsuario = (usuario) => {
+    if (!puedeGestionarUsuarios()) return null;
+    const bloqueado = !puedeEditarUsuario(usuario);
+    const puedeBorrar = puedeEliminarUsuario(usuario);
+    return (
+      <div className="flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
+        <button data-escritura
+          type="button"
+          onClick={() => !bloqueado && abrirModalEditar(usuario)}
+          disabled={bloqueado}
+          title={bloqueado ? 'Acción deshabilitada: usuario protegido' : 'Editar'}
+          className={`${BOTON_CHICO} bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-emerald-500`}
+        >
+          <FaEdit size={12} />
+          <span>Editar</span>
+        </button>
+        {puedeEliminarUsuarios() && (
+          <button data-escritura
+            type="button"
+            onClick={() => puedeBorrar && handleEliminar(usuario)}
+            disabled={!puedeBorrar}
+            title={!puedeBorrar ? 'Acción deshabilitada: usuario protegido' : 'Eliminar'}
+            className={`${BOTON_CHICO} bg-red-400 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-400`}
+          >
+            <FaTrash size={11} />
+            <span>Eliminar</span>
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  const abrirConTeclado = (usuario) => (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      abrirDetalleUsuario(usuario);
+    }
+  };
+
+  // La carrera solo la ve el superusuario; el Director solo gestiona usuarios de la suya.
+  const columnasLista = esSuperuserActual
+    ? 'xl:grid-cols-[minmax(0,2fr)_7rem_minmax(0,1.2fr)_minmax(0,1.6fr)_8rem_12rem]'
+    : 'xl:grid-cols-[minmax(0,2fr)_7rem_minmax(0,1.8fr)_8rem_12rem]';
+
   return (
-    <div className="gestion-usuarios-page min-h-screen bg-slate-50 dark:bg-slate-900 p-6">
-      <div className="gestion-usuarios-shell max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="gestion-usuarios-header bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-lg p-6">
-          <div className="gestion-usuarios-header-row flex items-center justify-between">
-            <div className="gestion-usuarios-title-block">
-              <h1 className="gestion-usuarios-title text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
-                Gestión de Usuarios
-              </h1>
-              <p className="gestion-usuarios-subtitle text-slate-700 dark:text-slate-300 mt-1 italic">
-                Administración de cuentas y permisos
-              </p>
-            </div>
-            <div className="gestion-usuarios-controls flex items-center gap-4">
-              <SearchInput value={searchTerm} onChange={setSearchTerm} />
-              <div className="gestion-usuarios-filter w-48">
-                <SimpleDropdown
-                  label=""
-                  value={selectedCarrera}
-                  onChange={setSelectedCarrera}
-                  options={carrerasGestionables.map(c => ({ value: c.id, label: c.nombre }))}
-                  placeholder="Carreras"
-                  clearOnToggle
-                />
+    <div className="min-h-screen bg-azulado-100 text-slate-800">
+      <div className="w-full max-w-[92rem] mx-auto px-3 sm:px-4 md:px-8 pt-16 md:pt-20 pb-6 space-y-4">
+        {/* Bloque 1: encabezado con la acción y, al lado, el total (como el dashboard de fondos) */}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
+          <div className={`${BLOQUE} p-5 sm:p-6`}>
+            <div className="flex flex-wrap items-center justify-between gap-5">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="hidden sm:flex w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-50 to-azulado-200 ring-1 ring-inset ring-azulado-300 text-blue-900 items-center justify-center flex-shrink-0">
+                  <UsuariosIcon className="w-7 h-7" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                    Cuentas y permisos del sistema
+                  </p>
+                  <h2 className="text-2xl sm:text-3xl font-bold text-blue-900">Usuarios</h2>
+                </div>
               </div>
               {puedeGestionarUsuarios() && (
                 <button data-escritura
+                  type="button"
                   onClick={handleToggleCreateForm}
-                  className="gestion-usuarios-create-btn px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 flex items-center gap-2"
+                  className={`${BOTON} w-full sm:w-auto px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm`}
                 >
-                  <span>{isCreating ? '➖' : '➕'}</span>
-                  {isCreating ? 'Cancelar Creación' : 'Crear Usuario'}
+                  <MasIcon className="w-5 h-5" />
+                  <span>Nuevo Usuario</span>
                 </button>
               )}
             </div>
           </div>
+
+          <div className="rounded-3xl bg-gradient-to-br from-blue-900 to-blue-950 text-white p-5 sm:p-6 flex flex-col justify-between gap-4 shadow-[0_4px_14px_rgba(30,58,138,0.25)]">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wider text-blue-200">Usuarios</p>
+                {esSuperuserActual && (
+                  <p key={selectedCarrera || 'todas'} className="animate-campo-entrada mt-1.5 text-sm font-semibold text-white leading-snug line-clamp-2">
+                    {nombreCarreraFiltro || 'Todas las carreras'}
+                  </p>
+                )}
+              </div>
+              <span className="text-5xl font-bold tabular-nums leading-none">
+                <NumeroAnimado valor={usuarios.length} />
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <NumeroAnimado valor={totalActivosUsuarios} singular="activo" plural="activos" />
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                <NumeroAnimado valor={usuarios.length - totalActivosUsuarios} singular="inactivo" plural="inactivos" />
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* MODAL DE CREACIÓN DE USUARIO */}
-        {isCreating && createPortal((
-          <div
-            className={`fixed top-0 right-0 bottom-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 ${crearNuevoDocente && hayRolDocenteEnAsignaciones ? '!justify-center' : ''}`}
-            style={{ left: hasSidebar ? (sidebarCollapsed ? '5rem' : '18rem') : '0' }}
-          >
-            <div className={`flex items-center justify-center w-full h-full ${crearNuevoDocente && hayRolDocenteEnAsignaciones ? 'gap-6' : ''}`}>
-              {/* Modal Usuario - mantiene su tamaño original */}
-              <div className={`bg-white dark:bg-slate-800 rounded-2xl shadow-2xl animate-fade-in transition-all duration-300 max-h-[90vh] flex flex-col ${crearNuevoDocente && hayRolDocenteEnAsignaciones ? 'max-w-5xl w-full' : 'max-w-5xl w-full mx-4'}`}>
-                {/* Header azul */}
-                <div className="bg-[#2C4AAE] dark:bg-[#1a3a8a] px-6 py-4 rounded-t-2xl">
-                  <h2 className="text-xl font-bold text-white">
-                    Crear Nuevo Usuario
-                  </h2>
-                </div>
+        {/* Bloque 2: búsqueda, carrera (solo superusuario), huérfanos y vista */}
+        <div className={`${BLOQUE} p-3 flex flex-wrap items-center gap-2 sm:gap-3`}>
+          <CampoBusqueda value={searchTerm} onChange={setSearchTerm} placeholder="Buscar por nombre o C.I." />
+          {esSuperuserActual && (
+            <div className="min-w-0 flex-1 sm:flex-none sm:w-64">
+              <FiltroDesplegable
+                value={selectedCarrera}
+                onChange={setSelectedCarrera}
+                options={carrerasGestionables.map((carrera) => ({ value: carrera.id, label: carrera.nombre }))}
+                placeholder="Todas las carreras"
+                ariaLabel="Filtrar por carrera"
+                emptyText="No hay carreras que coincidan"
+              />
+            </div>
+          )}
+          {hayOrfanos && (
+            <button
+              type="button"
+              onClick={() => setShowOnlyOrphans((prev) => !prev)}
+              className={`${BOTON_CHICO} h-9 ${showOnlyOrphans ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-red-50 text-red-800 ring-1 ring-inset ring-red-200 hover:bg-red-100'}`}
+            >
+              {showOnlyOrphans ? 'Mostrar todos' : 'Ver sin perfil o ficha'}
+            </button>
+          )}
+          <SelectorVista vista={vista} onCambiar={cambiarVista} className="ml-auto" />
+        </div>
+
+        {/* Bloque 3: usuarios en tarjetas o en lista (15 por página en lista y 9 en tarjetas) */}
+        <div ref={listaRef} className="scroll-mt-4" />
+        {usuariosFiltrados.length > 0 ? (
+          vista === 'lista' ? (
+            // Cuadrícula en vez de <table>: el CSS del módulo POA da estilo a todas las tablas.
+            <div key={`lista-${claveVista}`} className={`${BLOQUE} p-2 sm:p-3`}>
+              <div className={`hidden xl:grid ${columnasLista} gap-4 px-3 pt-3 pb-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 [border-bottom:1px_solid_#B8C9E1]`}>
+                <span>Usuario</span>
+                <span>C.I.</span>
+                {esSuperuserActual && <span>Carrera</span>}
+                <span>Rol</span>
+                <span>Estado</span>
+                <span>Acciones</span>
+              </div>
+              <div className="divide-y divide-azulado-300">
+                {usuariosPagina.map((usuario, indice) => {
+                  const inactivo = usuario.is_active === false && !usuario.is_superuser;
+                  return (
+                    <div
+                      key={usuario.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => abrirDetalleUsuario(usuario)}
+                      onKeyDown={abrirConTeclado(usuario)}
+                      style={{ animationDelay: `${Math.min(indice, 8) * 35}ms` }}
+                      className={`animate-fondo-entrada grid grid-cols-1 ${columnasLista} items-center gap-x-4 gap-y-3 px-3 py-4 rounded-2xl cursor-pointer transition-colors ${
+                        inactivo ? 'bg-red-50/70' : 'hover:bg-azulado-100/70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {fotoUsuario(usuario, 'w-10 h-10 text-sm')}
+                        <div className="min-w-0">
+                          <div className="font-bold text-blue-900 truncate">{obtenerNombreUsuario(usuario)}</div>
+                          <div className="text-sm text-slate-600 truncate">@{usuario.username}</div>
+                          <div className="flex flex-col">{avisosUsuario(usuario)}</div>
+                        </div>
+                      </div>
+                      <div className="text-tabla text-slate-700 tabular-nums">
+                        <span className="xl:hidden text-xs font-semibold text-blue-800">C.I.: </span>{usuario.ci || '—'}
+                      </div>
+                      {esSuperuserActual && (
+                        <div className="text-tabla font-semibold text-slate-800 truncate">{obtenerTextoCarrerasUsuario(usuario)}</div>
+                      )}
+                      <div className="flex flex-wrap gap-1.5">{chipsRoles(usuario)}</div>
+                      <div>{estadoUsuario(usuario)}</div>
+                      {accionesUsuario(usuario) || <span />}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div key={`tarjetas-${claveVista}`} className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+              {usuariosPagina.map((usuario, indice) => {
+                const inactivo = usuario.is_active === false && !usuario.is_superuser;
+                return (
+                  <div
+                    key={usuario.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => abrirDetalleUsuario(usuario)}
+                    onKeyDown={abrirConTeclado(usuario)}
+                    style={{ animationDelay: `${Math.min(indice, 8) * 35}ms` }}
+                    className={`${BLOQUE} animate-fondo-entrada p-5 flex flex-col gap-4 cursor-pointer hover:ring-blue-900/30 transition-colors ${inactivo ? '!bg-red-50/70 !ring-red-200' : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {fotoUsuario(usuario, 'w-12 h-12')}
+                        <div className="min-w-0">
+                          <h3 className="text-lg font-bold text-blue-900 leading-tight truncate">{obtenerNombreUsuario(usuario)}</h3>
+                          <p className="text-sm text-slate-600 truncate">@{usuario.username}</p>
+                        </div>
+                      </div>
+                      {inactivo && (
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-800 ring-1 ring-inset ring-red-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
+                          Inactivo
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5">{chipsRoles(usuario)}</div>
+
+                    <dl className={`grid ${esSuperuserActual ? 'grid-cols-2 divide-x' : 'grid-cols-1'} divide-azulado-300 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 py-2.5`}>
+                      <div className="min-w-0 px-4">
+                        <dt className="text-xs font-semibold text-blue-800">C.I.</dt>
+                        <dd className="mt-0.5 text-[13px] font-semibold text-slate-800 tabular-nums">{usuario.ci || '—'}</dd>
+                      </div>
+                      {esSuperuserActual && (
+                        <div className="min-w-0 px-4">
+                          <dt className="text-xs font-semibold text-blue-800">Carrera</dt>
+                          <dd className="mt-0.5 text-[13px] font-semibold text-slate-800 truncate">{obtenerTextoCarrerasUsuario(usuario)}</dd>
+                        </div>
+                      )}
+                    </dl>
+
+                    <div className="flex flex-col">{avisosUsuario(usuario)}</div>
+
+                    <div className="mt-auto pt-3 flex flex-wrap items-center justify-between gap-2 [border-top:1px_solid_#B8C9E1]">
+                      {estadoUsuario(usuario)}
+                      {accionesUsuario(usuario)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          <div className={`${BLOQUE} p-10 sm:p-12 text-center`}>
+            <h3 className="text-xl font-bold text-slate-800 mb-2">
+              {usuarios.length > 0 ? 'No hay usuarios que coincidan' : 'No hay usuarios registrados'}
+            </h3>
+            <p className="text-slate-600">
+              {usuarios.length > 0 ? 'Prueba con otro nombre o C.I.' : 'Crea el primer usuario del sistema.'}
+            </p>
+          </div>
+        )}
+
+        <Paginacion paginaActual={paginaActual} totalPaginas={totalPaginas} onCambiar={irAPagina} />
+      </div>
+
+      {/* MODAL DE CREACIÓN DE USUARIO */}
+      {isCreating && createPortal((
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-blue-950/30 backdrop-blur-sm animate-fade-in" style={{ animationDuration: '160ms' }}>
+          <div className="min-h-full flex items-center justify-center p-3 sm:p-6">
+            <div className="w-full max-w-5xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '180ms' }}>
+              <div className="px-5 sm:px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
+                <h2 className="text-xl font-bold text-blue-900">Nuevo Usuario</h2>
+                <p className="mt-0.5 text-sm text-slate-600">Cuenta de acceso, roles y carrera del usuario.</p>
+              </div>
 
               <form onSubmit={handleSubmit} noValidate>
-                  <div className="p-6 overflow-y-auto">
+                <div className="p-4 sm:p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Fila 1: Usuario - Nombre completo */}
                     <InputField label="Usuario" name="username" value={formData.username || ''} onChange={handleChange} clearError={clearFieldError} error={errors.username} required pulse={errorPulse.username || 0} />
@@ -2283,34 +1772,31 @@ const initialData = {
                       <div />
                     )}
 
-                    <div className="md:col-span-2 rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+                    <div className="md:col-span-2 rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-3 text-sm text-amber-900">
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                        <span className="font-semibold">
-                          Contrasena por defecto
-                        </span>
-                        <span className="font-mono font-black tracking-wide" aria-live="polite">
+                        <span className="font-semibold">Contraseña por defecto</span>
+                        <span className="font-mono font-semibold tracking-wide" aria-live="polite">
                           {formData.username ? `${formData.username}UABJB` : 'usuarioUABJB'}
                         </span>
                       </div>
-                      <p className="mt-1 text-xs font-medium text-amber-800 dark:text-amber-300">
-                        El usuario debera cambiarla al iniciar sesion.
+                      <p className="mt-1 text-xs text-amber-800">
+                        El usuario deberá cambiarla al iniciar sesión.
                       </p>
                     </div>
 
-                    {/* Transfer List de Roles y Carreras */}
+                    {/* Lista de transferencia: roles disponibles y asignados (con su carrera) */}
                     <div className="md:col-span-2">
-                      <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-stretch">
-                        {/* Panel izquierdo: Roles disponibles */}
-                        <div className={`rounded-2xl border-2 bg-white dark:bg-slate-800 flex flex-col transition-colors ${errors?.rol ? `${ERROR_FIELD_BORDER_CLASS}` : 'border-slate-300 dark:border-slate-600'} ${leftPanelPulsing ? ERROR_MOTION_CLASS : ''}`}>
-                          <div className="px-3 py-2 border-b border-slate-300 dark:border-slate-600 rounded-t-2xl">
-                            <p className="text-xs font-bold text-slate-700 dark:text-slate-200 text-center uppercase tracking-wide">Roles disponibles</p>
-                          </div>
-                          <div className="flex-1 overflow-y-auto max-h-72 min-h-[180px]">
+                      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-3 items-stretch">
+                        {/* Panel izquierdo: roles disponibles */}
+                        <div className={`rounded-2xl bg-white flex flex-col ring-1 ring-inset ${errors?.rol ? 'ring-2 ring-red-500' : 'ring-azulado-300'} ${leftPanelPulsing ? ERROR_MOTION_CLASS : ''}`}>
+                          <p className="px-4 py-2.5 text-xs font-semibold text-blue-800 [border-bottom:1px_solid_#D2DDEE]">Roles disponibles</p>
+                          <div className="flex-1 overflow-y-auto max-h-72 min-h-[160px] p-1.5">
                             {rolesDisponiblesLista.length === 0 ? (
-                              <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-6 italic">No hay roles disponibles</p>
+                              <p className="text-xs text-slate-500 text-center py-6">No hay roles disponibles</p>
                             ) : (
                               rolesDisponiblesLista.map((rol) => {
                                 const yaAsignado = rolesAsignadosSet.has(rol.value);
+                                const elegido = selectedRoleLeft === rol.value;
                                 return (
                                   <button
                                     key={rol.value}
@@ -2320,20 +1806,14 @@ const initialData = {
                                       setErrors((prev) => prev?.rol ? { ...prev, rol: null } : prev);
                                     }}
                                     onDoubleClick={() => moverRolDerecha(rol.value)}
-                                    className={`w-full text-left px-3 py-2.5 text-sm transition-colors border-b border-slate-300 dark:border-slate-700 last:border-b-0 flex items-center justify-between gap-2 ${
-                                      selectedRoleLeft === rol.value
-                                        ? 'bg-[#2C4AAE] text-white font-semibold'
-                                        : 'text-slate-700 dark:text-slate-300 hover:bg-[#2C4AAE] hover:text-white'
+                                    className={`w-full text-left px-3 py-2 rounded-xl text-sm flex items-center justify-between gap-2 ${
+                                      elegido ? 'bg-sky-600 text-white font-semibold' : 'text-slate-700 hover:bg-blue-900 hover:text-white'
                                     }`}
                                   >
                                     <span>{rol.label}</span>
                                     {yaAsignado && (
-                                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                                        selectedRoleLeft === rol.value
-                                          ? 'bg-white/25 text-white'
-                                          : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                                      }`}>
-                                        ✓ Asignado
+                                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${elegido ? 'bg-white/25 text-white' : 'bg-emerald-50 text-emerald-700'}`}>
+                                        Asignado
                                       </span>
                                     )}
                                   </button>
@@ -2344,86 +1824,78 @@ const initialData = {
                         </div>
 
                         {/* Flechas centrales */}
-                        <div className="flex flex-col items-center justify-center gap-2 px-1">
+                        <div className="flex sm:flex-col items-center justify-center gap-2 px-1">
                           <button
                             type="button"
                             onClick={() => selectedRoleLeft && moverRolDerecha(selectedRoleLeft)}
                             disabled={!selectedRoleLeft || vinculacionRapidaDocente || hayAsignacionPendiente || (rolesAsignadosLista.length >= 2)}
-                            className="w-10 h-10 rounded-full bg-[#2C4AAE] text-white font-bold text-lg shadow-md hover:bg-[#1a3a8a] disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:scale-110 flex items-center justify-center"
+                            className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-900 text-white hover:bg-blue-950 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                             title={hayAsignacionPendiente ? 'Complete la carrera pendiente primero' : 'Asignar rol'}
+                            aria-label="Asignar rol"
                           >
-                            →
+                            <svg className="w-4 h-4 rotate-90 sm:rotate-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
                           </button>
                           <button
                             type="button"
                             onClick={() => selectedRoleRight !== null && moverRolIzquierda(selectedRoleRight)}
                             disabled={selectedRoleRight === null || vinculacionRapidaDocente}
-                            className="w-10 h-10 rounded-full bg-[#2C4AAE] text-white font-bold text-lg shadow-md hover:bg-[#1a3a8a] disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:scale-110 flex items-center justify-center"
+                            className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-900 text-white hover:bg-blue-950 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                             title="Quitar rol"
+                            aria-label="Quitar rol"
                           >
-                            ←
+                            <svg className="w-4 h-4 rotate-90 sm:rotate-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
                           </button>
                         </div>
 
-                        {/* Panel derecho: Roles asignados con menú extensible de Carrera */}
-                        <div className={`rounded-2xl border-2 bg-white dark:bg-slate-800 flex flex-col transition-colors ${(errors?.asignaciones || errors?.rol) ? `${ERROR_FIELD_BORDER_CLASS}` : 'border-slate-300 dark:border-slate-600'} ${rightPanelPulsing ? ERROR_MOTION_CLASS : ''}`}>
-                          <div className="px-3 py-2 border-b border-slate-300 dark:border-slate-600 rounded-t-2xl">
-                            <p className="text-xs font-bold text-slate-700 dark:text-slate-200 text-center uppercase tracking-wide">Roles asignados</p>
-                          </div>
-                          <div className="flex-1 overflow-y-auto max-h-80 min-h-[180px]">
+                        {/* Panel derecho: roles asignados con su carrera */}
+                        <div className={`rounded-2xl bg-white flex flex-col ring-1 ring-inset ${(errors?.asignaciones || errors?.rol) ? 'ring-2 ring-red-500' : 'ring-azulado-300'} ${rightPanelPulsing ? ERROR_MOTION_CLASS : ''}`}>
+                          <p className="px-4 py-2.5 text-xs font-semibold text-blue-800 [border-bottom:1px_solid_#D2DDEE]">Roles asignados</p>
+                          <div className="flex-1 overflow-y-auto max-h-80 min-h-[160px] p-1.5">
                             {rolesAsignadosLista.length === 0 ? (
-                              <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-6 italic">Use las flechas para asignar roles</p>
+                              <p className="text-xs text-slate-500 text-center py-6">Use las flechas para asignar roles</p>
                             ) : (
                               rolesAsignadosLista.map((item, index) => (
-                                <div
-                                  key={`${item.rol}-${index}`}
-                                  className={`border-b border-slate-300 dark:border-slate-700 last:border-b-0 ${
-                                    filaConflictoIndex === index ? '!border-red-500' : ''
-                                  }`}
-                                >
+                                <div key={`${item.rol}-${index}`}>
                                   <button
                                     type="button"
                                     onClick={() => setSelectedRoleRight(index)}
                                     onDoubleClick={() => moverRolIzquierda(index)}
-                                    className={`w-full text-left px-3 py-2.5 text-sm transition-colors flex items-center justify-between ${
+                                    className={`w-full text-left px-3 py-2 rounded-xl text-sm flex items-center justify-between gap-2 ${
                                       filaConflictoIndex === index
-                                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 font-semibold'
+                                        ? 'bg-red-50 text-red-700 font-semibold ring-1 ring-inset ring-red-300'
                                         : selectedRoleRight === index
-                                          ? 'bg-[#2C4AAE] text-white font-semibold'
-                                          : 'text-slate-700 dark:text-slate-300 hover:bg-[#2C4AAE] hover:text-white'
+                                          ? 'bg-sky-600 text-white font-semibold'
+                                          : 'text-slate-700 hover:bg-blue-900 hover:text-white'
                                     }`}
                                   >
                                     <span>{obtenerRolLabel(item.rol)}</span>
-                                    <span
-                                      onClick={(e) => { e.stopPropagation(); if (esSuperuserActual) toggleExpandCarrera(index); }}
-                                      className={`${esSuperuserActual ? 'cursor-pointer' : 'cursor-default'} font-bold text-xs px-2.5 py-1 rounded-lg truncate max-w-[45%] border-2 ${
-                                        item.carrera
-                                          ? 'bg-[#2C4AAE] text-white border-[#2C4AAE]'
-                                          : 'bg-red-50 text-red-600 border-red-500 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700'
-                                      }`}
-                                    >
-                                      {!esSuperuserActual
-                                        ? obtenerCarreraLabel(item.carrera)
-                                        : item.carrera
-                                          ? `${expandedCarreraRoles[index] ? '▼' : '▶'} ${obtenerCarreraLabel(item.carrera)}`
-                                          : (expandedCarreraRoles[index] ? '▼ Carrera' : '▶ Carrera')}
-                                    </span>
+                                    {/* Carrera de la asignación: solo el superusuario la elige; al Director se le asigna la suya sola. */}
+                                    {esSuperuserActual && (
+                                      <span
+                                        onClick={(e) => { e.stopPropagation(); toggleExpandCarrera(index); }}
+                                        className={`cursor-pointer text-xs font-semibold px-2.5 py-1 rounded-full truncate max-w-[55%] ${
+                                          item.carrera ? 'bg-blue-900 text-white' : 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-300'
+                                        }`}
+                                      >
+                                        {item.carrera
+                                          ? `${expandedCarreraRoles[index] ? '▾' : '▸'} ${obtenerCarreraLabel(item.carrera)}`
+                                          : (expandedCarreraRoles[index] ? '▾ Carrera' : '▸ Carrera')}
+                                      </span>
+                                    )}
                                   </button>
                                   {esSuperuserActual && expandedCarreraRoles[index] && (
-                                    <div className="px-3 py-2 animate-panel-asignacion">
-                                      <div className="flex justify-end">
-                                        <div className="w-[70%] max-w-[260px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm max-h-40 overflow-y-auto">
-                                          {carrerasGestionables.map((carrera) => (
-                                            <button
-                                              key={carrera.id}
-                                              type="button"
-                                              onClick={() => asignarCarreraARol(index, String(carrera.id))}
-                                              className="w-full text-left px-3 py-1.5 text-xs border-b border-slate-300 dark:border-slate-700 last:border-b-0 text-slate-700 dark:text-slate-300 hover:bg-[#2C4AAE] hover:text-white transition-colors"
-                                            >
-                                              {carrera.nombre}
-                                            </button>
-                                          ))}
-                                        </div>
+                                    <div className="px-2 py-1.5 animate-panel-asignacion">
+                                      <div className="ml-auto w-[75%] max-w-[260px] rounded-2xl bg-white ring-1 ring-azulado-300 shadow-lg max-h-40 overflow-y-auto p-1.5">
+                                        {carrerasGestionables.map((carrera) => (
+                                          <button
+                                            key={carrera.id}
+                                            type="button"
+                                            onClick={() => asignarCarreraARol(index, String(carrera.id))}
+                                            className="w-full text-left px-3 py-1.5 rounded-xl text-xs text-slate-700 hover:bg-blue-900 hover:text-white"
+                                          >
+                                            {carrera.nombre}
+                                          </button>
+                                        ))}
                                       </div>
                                     </div>
                                   )}
@@ -2433,9 +1905,10 @@ const initialData = {
                           </div>
                         </div>
                       </div>
-                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        Todos los roles son de la carrera del contrato del usuario (ej. Director + Docente de la misma carrera). Máximo 2 asignaciones. {esSuperuserActual
-                          ? <>Expanda <span className="text-[#2C4AAE] dark:text-blue-400 font-bold">Carrera</span> para asignar.</>
+                      <p className="mt-2 pl-1 text-xs text-slate-600">
+                        Todos los roles son de la carrera del contrato del usuario (ej. Director + Docente de la misma carrera). Máximo 2 asignaciones.{' '}
+                        {esSuperuserActual
+                          ? <>Pulse <span className="font-semibold text-blue-900">Carrera</span> para asignarla.</>
                           : 'La carrera es la tuya: se asigna sola.'}
                       </p>
                       {[formData.rol, ...asignacionesExtra.map((item) => item.rol)].includes('jefe_estudios') && (
@@ -2451,7 +1924,7 @@ const initialData = {
                       )}
                     </div>
 
-                    {/* Fila 3: Correo institucional - Cargo profesional / CI */}
+                    {/* Fila 3: Correo institucional - C.I. */}
                     <InputField
                       label="Correo institucional"
                       name="email"
@@ -2481,16 +1954,10 @@ const initialData = {
                     ) : (
                       <div />
                     )}
-
-                    {/* Los errores de asignaciones ahora se muestran exclusivamente
-                        como Toasts descriptivos en caliente (normativa UABJB),
-                        eliminando el mensaje estático del pie del formulario. */}
-
                   </div>
                 </div>
 
-                {/* Footer con botones */}
-                <div className="px-6 py-4 bg-slate-100 dark:bg-slate-700 border-t border-slate-300 dark:border-slate-600 flex justify-end gap-3 rounded-b-2xl">
+                <div className="px-5 sm:px-6 py-4 flex flex-col-reverse sm:flex-row justify-end gap-2 [border-top:1px_solid_#B8C9E1]">
                   <button
                     type="button"
                     onClick={() => {
@@ -2501,529 +1968,235 @@ const initialData = {
                         navigate('/fondo-tiempo/docentes');
                       }
                     }}
-                    className="px-6 py-2.5 rounded-xl font-semibold text-slate-700 dark:text-slate-200 bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 transition-all"
+                    className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200`}
                   >
                     {volverANuevoDocente ? 'Cancelar y volver' : 'Cancelar'}
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-6 py-2.5 rounded-xl font-bold text-white bg-[#2C4AAE] hover:bg-[#1a3a8a] transition-all disabled:opacity-50"
+                    className={`${BOTON} px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm disabled:opacity-50`}
                   >
                     {isSubmitting
                       ? (volverANuevoDocente ? 'Guardando y volviendo...' : 'Creando...')
-                      : (volverANuevoDocente ? 'Guardar y volver' : 'Crear Usuario')}
+                      : (volverANuevoDocente ? 'Guardar y volver' : 'Crear usuario')}
                   </button>
                 </div>
               </form>
-              </div>
             </div>
           </div>
-        ), document.body)}
- 
-        {/* Modal for editing */}
-        <ModalUsuario
-          isOpen={showModal}
-          onClose={() => setShowModal(false)}
-          onSaveSuccess={(usuarioActualizado) => {
-            setShowModal(false);
-            if (usuarioActualizado?.id) {
-              setUsuarios((prev) => prev.map((usuario) => (
-                usuario.id === usuarioActualizado.id ? usuarioActualizado : usuario
-              )));
-              setUsuarioEditando(usuarioActualizado);
-            }
-          }}
-          userToEdit={usuarioEditando}
-          docentes={docentes}
-          carreras={carrerasGestionables}
-          roles={roles}
-          sidebarCollapsed={sidebarCollapsed}
-          hasSidebar={hasSidebar}
-          currentUser={user}
-        />
-
-        <div className="flex justify-end">
-          {hayOrfanos && (
-            <button
-              type="button"
-              onClick={() => setShowOnlyOrphans((prev) => !prev)}
-              className={`px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all shadow-md ${
-                showOnlyOrphans
-                  ? 'bg-red-700 text-white border-red-800 hover:bg-red-800 dark:bg-red-700 dark:border-red-900 animate-pulse-slow'
-                  : 'bg-red-600 text-white border-red-700 hover:bg-red-700 dark:bg-red-600 dark:border-red-800 animate-pulse-slow'
-              }`}
-            >
-              {showOnlyOrphans ? '⚠️ Mostrar Todos' : '⚠️ Urgente: Ver Huérfanos'}
-            </button>
-          )}
         </div>
-        
-        {/* Tabla de usuarios */}
-        <div id="fondo-usuarios-tabla" className="gestion-usuarios-table bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-lg overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y-2 divide-slate-300 dark:divide-slate-700">
-              <thead className="bg-blue-800 dark:bg-blue-900">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
-                    Usuario
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
-                    Nombre completo
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
-                    C.I.
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
-                    Carrera
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
-                    Rol
-                  </th>
-                  <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">
-                    Estado
-                  </th>
-                  <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                {usuariosFiltrados.map(usuario => (
-                  (() => {
-                    const perfilDocentePendiente = usuarioTienePerfilDocentePendiente(usuario);
-                    // Solo el estado real del usuario: la falta de ficha de docente no lo inactiva.
-                    const filaInactiva = usuario.is_active === false && !usuario.is_superuser;
-                    const textoFila = filaInactiva ? 'text-red-700 dark:text-red-300' : 'text-slate-700 dark:text-slate-300';
-                    const textoPrincipal = filaInactiva ? 'font-bold text-red-700 dark:text-red-300' : 'font-bold text-slate-800 dark:text-white';
-                    return (
-                  <tr
-                    key={usuario.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => abrirDetalleUsuario(usuario)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        abrirDetalleUsuario(usuario);
-                      }
-                    }}
-                    className={`transition-colors ${
-                      !filaInactiva
-                        ? 'hover:bg-slate-50 dark:hover:bg-slate-700/30'
-                        : 'bg-red-200/90 dark:bg-red-950/35 hover:bg-red-300/80 dark:hover:bg-red-900/45'
-                    }`}
-                  >
-                    <td data-label="Usuario" className={`px-6 py-4 whitespace-nowrap ${filaInactiva ? 'bg-red-200/90 dark:bg-red-950/35' : ''}`}>
-                      <div className="space-y-1">
-                        <div className={`flex items-center gap-2 ${textoPrincipal}`}>
-                          <span>{usuario.username}</span>
-                          {filaInactiva && (
-                            <span className="inline-flex items-center rounded-md border border-red-700 bg-red-200 px-2 py-0.5 text-xs font-bold text-red-900 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300">
-                              (inactivo)
-                            </span>
-                          )}
-                        </div>
-                        {/* Aviso si el usuario no tiene perfil */}
-                        {!usuario.perfil && (
-                          <div className={`text-xs font-semibold ${filaInactiva ? 'text-red-700 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                            ⚠️ Sin Perfil
-                          </div>
-                        )}
-                        {perfilDocentePendiente && (
-                          <div className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-                            ⚠️ Falta crear la ficha de docente
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td data-label="Nombre" className={`px-6 py-4 whitespace-nowrap ${filaInactiva ? 'bg-red-200/90 dark:bg-red-950/35' : ''}`}>
-                      <div className={`text-sm ${textoFila}`}>
-                        {obtenerNombreUsuario(usuario)}
-                      </div>
-                    </td>
-                    <td data-label="C.I." className={`px-6 py-4 whitespace-nowrap ${filaInactiva ? 'bg-red-200/90 dark:bg-red-950/35' : ''}`}>
-                      <div className={`text-sm font-mono ${textoFila}`}>
-                        {usuario.ci || '-'}
-                      </div>
-                    </td>
-                    <td data-label="Carrera" className={`px-6 py-4 whitespace-nowrap text-center ${filaInactiva ? 'bg-red-200/90 dark:bg-red-950/35' : ''}`}>
-                      <div className={`text-sm font-bold ${textoFila}`}>
-                        {obtenerTextoCarrerasUsuario(usuario) || '-'}
-                      </div>
-                    </td>
-                    <td data-label="Rol" className={`px-6 py-4 whitespace-nowrap ${filaInactiva ? 'bg-red-200/90 dark:bg-red-950/35' : ''}`}>
-                      {(() => {
-                        const docenteInactivo = usuarioTieneDocenteInactivo(usuario);
-                        const rolesUsuario = obtenerRolesUsuario(usuario);
-                        const tieneVariosRoles = rolesUsuario.length > 1;
-                        const claseBase = 'inline-flex items-center rounded-lg border-2 px-3 py-1.5 text-xs font-bold shadow-none';
-                        if (usuario.is_superuser) {
-                          return <span className={`${claseBase} bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 border-amber-500 dark:border-amber-600`}>👑 Super Admin</span>;
-                        }
+      ), document.body)}
 
-                        if (tieneVariosRoles) {
-                          return (
-                            <>
-                              {rolesUsuario.map((rol, index) => (
-                                <span key={rol} className="inline-flex items-center">
-                                  {index > 0 && <span className="px-1 text-slate-500 dark:text-slate-400 font-bold">/</span>}
-                                  <span
-                                    className={`${claseBase} ${ROL_STYLES[rol] || 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-500 dark:border-green-700'}`}
-                                  >
-                                    {ROL_LABELS[rol] || rol}
-                                    {docenteInactivo && rol === 'docente' ? ' (inactivo)' : ''}
-                                  </span>
-                                </span>
-                              ))}
-                            </>
-                          );
-                        }
+      {/* Edición */}
+      <ModalUsuario
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        onSaveSuccess={(usuarioActualizado) => {
+          setShowModal(false);
+          if (usuarioActualizado?.id) {
+            setUsuarios((prev) => prev.map((usuario) => (
+              usuario.id === usuarioActualizado.id ? usuarioActualizado : usuario
+            )));
+            setUsuarioEditando(usuarioActualizado);
+          }
+        }}
+        userToEdit={usuarioEditando}
+        docentes={docentes}
+        carreras={carrerasGestionables}
+        roles={roles}
+        currentUser={user}
+      />
 
-                        const rolUnico = rolesUsuario[0];
-                        const textoRol = obtenerTextoRolUsuario(usuario);
-                        return (
-                          <span className={`${claseBase} ${ROL_STYLES[rolUnico] || 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-500 dark:border-green-700'}`}>
-                            {textoRol}
-                            {docenteInactivo ? ' (inactivo)' : ''}
-                          </span>
-                        );
-                      })()}
-                    </td>
-                    <td data-label="Estado" className={`px-6 py-4 whitespace-nowrap ${filaInactiva ? 'bg-red-200/90 dark:bg-red-950/35' : ''}`}>
-                      <div className="flex items-center justify-center gap-3">
-                        {!usuario.is_superuser && (
-                          <ToggleSwitch
-                            isActive={usuario.is_active}
-                            disabled={!puedeCambiarEstadoUsuario(usuario)}
-                            onChange={() => puedeCambiarEstadoUsuario(usuario) && handleToggleActivo(usuario)}
-                          />
-                        )}
-                        <span className="text-sm font-semibold">
-                          {usuario.is_superuser
-                            ? <span className="text-amber-600 dark:text-amber-400 italic">protegido</span>
-                            : usuario.is_active
-                            ? <span className="text-emerald-600 dark:text-emerald-400 italic">Activo</span>
-                            : <span className="text-red-800 dark:text-red-400 font-black italic tracking-wide">inactivo</span>
-                          }
-                        </span>
-                      </div>
-                    </td>
-                    <td data-label="Acciones" className={`px-6 py-4 whitespace-nowrap text-center ${filaInactiva ? 'bg-red-200/90 dark:bg-red-950/35' : ''}`}>
-                      {puedeGestionarUsuarios() && (() => {
-                        const blockedBtn = !puedeEditarUsuario(usuario);
-                        const canDelete = puedeEliminarUsuario(usuario);
-                        const titleMsg = blockedBtn ? 'Acción deshabilitada: usuario protegido' : '';
-                        return (
-                          <div className="flex justify-center gap-3">
-                            <button
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                if (!blockedBtn) abrirModalEditar(usuario);
-                              }}
-                              disabled={blockedBtn}
-                              className={`text-blue-500 ${blockedBtn ? 'opacity-50 cursor-not-allowed' : 'hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300'} transition-all duration-200 ${blockedBtn ? '' : 'hover:scale-110'}`}
-                              title={titleMsg || 'Editar'}
-                            >
-                              <FaEdit size={18} />
-                            </button>
-                            {puedeEliminarUsuarios() && (
-                              <button
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  if (canDelete) handleEliminar(usuario);
-                                }}
-                                disabled={!canDelete}
-                                className={`text-red-500 ${!canDelete ? 'opacity-50 cursor-not-allowed' : 'hover:text-red-400 dark:text-red-400 dark:hover:text-red-300'} transition-all duration-200 ${!canDelete ? '' : 'hover:scale-110'}`}
-                                title={titleMsg || 'Eliminar'}
-                              >
-                                <FaTrash size={18} />
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </td>
-                  </tr>
-                    );
-                  })()
-                ))}
-              </tbody>
-            </table>
+      {/* Detalle del usuario */}
+      {usuarioDetalle && (() => {
+        const puedeEditarDetalle = puedeEditarUsuario(usuarioDetalle);
+        const puedeEliminarDetalle = puedeEliminarUsuario(usuarioDetalle);
+        const perfilDocentePendienteDetalle = usuarioTienePerfilDocentePendiente(usuarioDetalle);
+        const filasDetalle = [
+          ['C.I.', usuarioDetalle.ci || '—'],
+          ['Correo', usuarioDetalle.email || usuarioDetalle.correo || '—'],
+          // La carrera solo la ve el superusuario.
+          ...(esSuperuserActual ? [['Carrera', obtenerTextoCarrerasDetalleUsuario(usuarioDetalle)]] : []),
+          ['Estado', obtenerEstadoUsuario(usuarioDetalle)],
+        ];
 
-            {usuarios.length === 0 && (
-              <div className="text-center py-12">
-                <p className="text-slate-500 dark:text-slate-400">No hay usuarios registrados</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Modal de detalle de usuario */}
-        {usuarioDetalle && createPortal((() => {
-          const rolesDetalle = obtenerRolesUsuario(usuarioDetalle);
-          const puedeEditarDetalle = puedeEditarUsuario(usuarioDetalle);
-          const puedeEliminarDetalle = puedeEliminarUsuario(usuarioDetalle);
-          const perfilDocentePendienteDetalle = usuarioTienePerfilDocentePendiente(usuarioDetalle);
-          const docenteInactivoDetalle = usuarioTieneDocenteInactivo(usuarioDetalle);
-          const correoDetalle = usuarioDetalle.email || usuarioDetalle.correo || '-';
-          const fotoPerfilDetalle = usuarioDetalle?.perfil?.foto_perfil;
-          const inicialDetalle = (obtenerNombreUsuario(usuarioDetalle) || usuarioDetalle.username || 'U').trim().charAt(0).toUpperCase();
-          const filasDetalle = [
-            ['Usuario', usuarioDetalle.username || '-'],
-            ['Nombre completo', obtenerNombreUsuario(usuarioDetalle)],
-            ['C.I.', usuarioDetalle.ci || '-'],
-            ['Correo', correoDetalle],
-            ['Carrera', obtenerTextoCarrerasDetalleUsuario(usuarioDetalle)],
-            ['Estado', obtenerEstadoUsuario(usuarioDetalle)],
-          ];
-
-          return (
-            <div
-              className="fixed top-0 right-0 bottom-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[90] p-3 md:p-4 animate-fade-in"
-              style={{ left: hasSidebar ? (sidebarCollapsed ? '5rem' : '18rem') : '0', animationDuration: '160ms' }}
-              onClick={cerrarDetalleUsuario}
-            >
-              <div
-                className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-5xl w-full max-h-[88vh] md:max-h-[92vh] overflow-hidden animate-slide-up flex flex-col"
-                style={{ animationDuration: '180ms' }}
-                onClick={(event) => event.stopPropagation()}
-              >
-                <div className="px-4 py-3 md:px-6 md:py-4 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800 flex items-center justify-between">
-                  <h3 className="text-base md:text-xl font-bold text-white">Ver Usuario</h3>
-                  <button
-                    type="button"
-                    onClick={cerrarDetalleUsuario}
-                    className="flex h-8 w-8 md:h-9 md:w-9 items-center justify-center rounded-full border border-white/25 bg-white/10 text-base md:text-lg font-black text-white transition hover:bg-white/20"
-                    aria-label="Cerrar detalle"
-                  >
-                    X
-                  </button>
-                </div>
-
-                <div className="flex-1 p-3 md:p-6 overflow-y-auto bg-slate-950/5 dark:bg-slate-950">
-                  <div className="mx-auto max-w-3xl bg-blue-50 text-slate-800 rounded-lg border border-blue-100 shadow-xl p-4 md:p-8 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700">
-                    <div className="flex items-center gap-3 md:flex-col md:gap-0 md:justify-center pb-4 md:pb-6 border-b border-slate-300">
-                      <div className="h-20 w-20 md:h-40 md:w-40 shrink-0 overflow-hidden rounded-2xl md:rounded-full border-[3px] md:border-4 border-white bg-blue-100 shadow-md dark:border-slate-600 dark:bg-slate-700">
-                        {fotoPerfilDetalle ? (
-                          <img src={fotoPerfilDetalle} alt="Foto de perfil" className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center bg-blue-700 text-3xl md:text-5xl font-black text-white dark:bg-blue-600">
-                            {inicialDetalle}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="min-w-0 md:text-center">
-                        <h4 className="text-lg md:mt-4 md:text-2xl font-bold text-blue-800 leading-tight break-words dark:text-blue-200">
-                          {obtenerNombreUsuario(usuarioDetalle)}
-                        </h4>
-                        <span className="mt-1 md:mt-2 inline-flex items-center justify-center text-center px-2 md:px-4 py-1 text-sm md:text-base text-blue-700 font-extrabold tracking-wide leading-none min-w-0 md:min-w-[64px] dark:text-blue-300">
-                          {usuarioDetalle.username || 'Usuario'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 md:mt-6 grid grid-cols-2 md:grid-cols-3 gap-3 pb-4 border-b border-slate-200">
-                      {filasDetalle.slice(2, 6).map(([label, value]) => (
-                        <div key={label} className={label === 'Correo' ? 'col-span-2 md:col-span-1' : ''}>
-                          <h5 className="text-xs md:text-xs font-bold tracking-widest text-slate-600 uppercase dark:text-slate-300">{label}</h5>
-                          <p className="mt-1 text-xs md:text-sm font-semibold text-slate-800 break-words leading-snug dark:text-white">{value}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="mt-4 md:mt-6">
-                      <h5 className="text-xs md:text-sm font-bold tracking-wider text-blue-700 uppercase dark:text-blue-300">Roles</h5>
-                      <div className="mt-2 rounded-md border border-blue-200 bg-white/70 p-3 md:p-4 min-h-[58px] md:min-h-[86px] dark:border-slate-600 dark:bg-slate-900/45">
-                        <div className="flex flex-wrap gap-2">
-                          {usuarioDetalle.is_superuser ? (
-                            <span className="inline-flex items-center rounded-lg border-2 border-amber-500 bg-amber-100 px-2.5 py-1 text-xs md:px-3 md:py-1.5 md:text-xs font-bold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">Super Admin</span>
-                          ) : rolesDetalle.length > 0 ? (
-                            rolesDetalle.map((rol) => (
-                              <span key={rol} className={`inline-flex items-center rounded-lg border-2 px-2.5 py-1 text-xs md:px-3 md:py-1.5 md:text-xs font-bold ${ROL_STYLES[rol] || 'bg-green-100 text-green-700 border-green-500'}`}>
-                                {ROL_LABELS[rol] || rol}
-                                {docenteInactivoDetalle && rol === 'docente' ? ' (inactivo)' : ''}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-sm font-semibold text-slate-500">Sin rol</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {(!usuarioDetalle.perfil || perfilDocentePendienteDetalle) && (
-                      <div className="mt-4 md:mt-6 rounded-md border border-amber-300 bg-amber-50 p-3 md:p-4 text-xs md:text-sm font-semibold text-amber-900 dark:border-amber-700 dark:bg-amber-900/25 dark:text-amber-100">
-                        {!usuarioDetalle.perfil && <p>Sin perfil asignado.</p>}
-                        {perfilDocentePendienteDetalle && <p>Falta crear la ficha de docente: su parte docente (fondo de tiempo y carga horaria) queda pendiente. Sus demás roles funcionan normal.</p>}
-                      </div>
-                    )}
+        return (
+          <ModalCentrado onClose={cerrarDetalleUsuario}>
+            <div className="w-full max-w-2xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '180ms' }}>
+              <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
+                <div className="flex items-center gap-4 min-w-0">
+                  {fotoUsuario(usuarioDetalle, 'w-16 h-16 text-xl')}
+                  <div className="min-w-0">
+                    <h3 className="text-xl font-bold text-blue-900 leading-tight break-words">{obtenerNombreUsuario(usuarioDetalle)}</h3>
+                    <p className="text-sm text-slate-600">@{usuarioDetalle.username || 'usuario'}</p>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={cerrarDetalleUsuario}
+                  className="flex-shrink-0 rounded-full p-2 -mr-2 text-slate-500 hover:text-blue-900 hover:bg-azulado-200 transition-colors"
+                  aria-label="Cerrar detalle"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
 
-                <div className="px-3 py-3 md:px-6 md:py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 grid grid-cols-3 gap-2 md:flex md:flex-wrap md:justify-end md:gap-3">
+              <div className="px-6 py-5 space-y-4">
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 px-4 py-3">
+                  {filasDetalle.map(([label, value]) => (
+                    <div key={label} className="min-w-0">
+                      <dt className="text-xs font-semibold text-blue-800">{label}</dt>
+                      <dd className="mt-0.5 text-sm font-semibold text-slate-800 break-words">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+
+                <div>
+                  <h4 className="mb-2 text-sm font-bold text-blue-900">Roles</h4>
+                  <div className="flex flex-wrap gap-1.5">{chipsRoles(usuarioDetalle)}</div>
+                </div>
+
+                {(!usuarioDetalle.perfil || perfilDocentePendienteDetalle) && (
+                  <div className="rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-3 text-sm text-amber-900">
+                    {!usuarioDetalle.perfil && <p>Sin perfil asignado.</p>}
+                    {perfilDocentePendienteDetalle && <p>Falta crear la ficha de docente: su parte docente (fondo de tiempo y carga horaria) queda pendiente. Sus demás roles funcionan normal.</p>}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 pb-6">
+                <button
+                  type="button"
+                  onClick={cerrarDetalleUsuario}
+                  className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200`}
+                >
+                  Cerrar
+                </button>
+                {puedeGestionarUsuarios() && (
                   <button
                     type="button"
-                    onClick={cerrarDetalleUsuario}
-                    className="px-2 md:px-6 py-2 md:py-2.5 min-w-0 md:min-w-[120px] rounded-lg md:rounded-xl text-xs md:text-sm font-semibold text-slate-700 dark:text-slate-200 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
+                    onClick={editarDesdeDetalle}
+                    disabled={!puedeEditarDetalle}
+                    className={`${BOTON} px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
-                    Cerrar
+                    <FaEdit size={13} />
+                    Editar
                   </button>
-                  {puedeGestionarUsuarios() && (
-                    <button
-                      type="button"
-                      onClick={editarDesdeDetalle}
-                      disabled={!puedeEditarDetalle}
-                      className="inline-flex items-center justify-center gap-1.5 md:gap-2 px-2 md:px-6 py-2 md:py-2.5 min-w-0 md:min-w-[120px] rounded-lg md:rounded-xl bg-blue-600 text-xs md:text-sm text-white font-bold transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-                    >
-                      <FaEdit size={14} />
-                      Editar
-                    </button>
-                  )}
-                  {puedeEliminarUsuarios() && (
-                    <button
-                      type="button"
-                      onClick={eliminarDesdeDetalle}
-                      disabled={!puedeEliminarDetalle}
-                      className="inline-flex items-center justify-center gap-1.5 md:gap-2 px-2 md:px-6 py-2 md:py-2.5 min-w-0 md:min-w-[120px] rounded-lg md:rounded-xl bg-red-600 text-xs md:text-sm text-white font-bold transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-                    >
-                      <FaTrash size={14} />
-                      Eliminar
-                    </button>
-                  )}
-                </div>
+                )}
+                {puedeEliminarUsuarios() && (
+                  <button
+                    type="button"
+                    onClick={eliminarDesdeDetalle}
+                    disabled={!puedeEliminarDetalle}
+                    className={`${BOTON} px-5 py-2.5 bg-red-400 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    <FaTrash size={12} />
+                    Eliminar
+                  </button>
+                )}
               </div>
             </div>
-          );
-        })(), document.body)}
+          </ModalCentrado>
+        );
+      })()}
 
-        {/* Modal de Confirmación de Toggle Estado */}
-        {showToggleModal && usuarioToToggle && createPortal((
-          <div
-            className="fixed top-0 right-0 bottom-0 z-[70] flex items-center justify-center p-4"
-            style={{ left: hasSidebar ? (sidebarCollapsed ? '5rem' : '18rem') : '0' }}
-          >
-            <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={() => setShowToggleModal(false)} />
-            <div
-              className={`relative w-full max-w-lg rounded-2xl border bg-slate-900 shadow-2xl overflow-hidden animate-slide-up ${
-                usuarioToToggle.is_active
-                  ? 'border-uab-gold-300/40 dark:border-uab-gold-700/50'
-                  : 'border-uab-green-300/40 dark:border-uab-green-700/50'
-              }`}
-              style={{ animationDuration: '160ms' }}
-            >
-              <div className={`px-5 py-4 border-b border-slate-700/70 bg-gradient-to-r ${usuarioToToggle.is_active ? 'from-uab-gold-900/30 to-slate-900' : 'from-uab-green-900/30 to-slate-900'}`}>
-                <h4 className={`text-lg font-bold flex items-center gap-2 ${usuarioToToggle.is_active ? 'text-uab-gold-300' : 'text-uab-green-300'}`}>
-                  <span>{usuarioToToggle.is_active ? '⏸️' : '▶️'}</span>
-                  {usuarioToToggle.is_active ? 'Confirmar Pausa de Acceso' : 'Confirmar Reactivación'}
-                </h4>
-              </div>
-              <div className="px-5 py-4 space-y-3 text-slate-200">
-                <p className="text-sm leading-relaxed">
-                  {usuarioToToggle.is_active
-                    ? `Se pausará el acceso de ${usuarioToToggle.username} al sistema.`
-                    : `Se reactivará el acceso de ${usuarioToToggle.username} al sistema.`}
-                </p>
-                <div className={`rounded-lg border px-3 py-2 text-sm ${usuarioToToggle.is_active ? 'border-uab-gold-500/40 bg-uab-gold-500/10' : 'border-uab-green-500/40 bg-uab-green-500/10'}`}>
-                  Usuario: <strong className={usuarioToToggle.is_active ? 'text-uab-gold-300' : 'text-uab-green-300'}>{usuarioToToggle.username}</strong>
-                </div>
-                <p className="text-xs text-slate-400">
-                  Esta acción se puede revertir desde el interruptor de estado.
-                </p>
-              </div>
-              <div className="px-5 py-4 border-t border-slate-700/70 flex justify-end gap-3 bg-slate-950/70">
-                <button
-                  type="button"
-                  onClick={() => setShowToggleModal(false)}
-                  className="px-4 py-2 rounded-lg font-semibold text-slate-300 border border-slate-600 hover:bg-slate-800"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      const response = await api.post(`/usuarios/${usuarioToToggle.id}/toggle_activo/`);
-                      toast.success(`Usuario ${usuarioToToggle.is_active ? 'desactivado' : 'reactivado'} con éxito`);
-                      setShowToggleModal(false);
-                      setUsuarios((prev) => prev.map((usuario) => (
-                        usuario.id === usuarioToToggle.id
-                          ? (response.data?.id ? response.data : { ...usuario, is_active: !usuario.is_active })
-                          : usuario
-                      )));
-                    } catch (err) {
-                      console.error('Error:', err);
-                      toast.error('Error al cambiar el estado del usuario');
-                    }
-                  }}
-                  className={`px-4 py-2 rounded-lg font-bold text-white ${usuarioToToggle.is_active ? 'bg-uab-gold-600 hover:bg-uab-gold-700' : 'bg-uab-green-600 hover:bg-uab-green-700'}`}
-                >
-                  {usuarioToToggle.is_active ? '⏸️ Confirmar Pausa' : '▶️ Confirmar Reactivación'}
-                </button>
-              </div>
+      {/* Confirmación de pausa o reactivación */}
+      {showToggleModal && usuarioToToggle && (
+        <ModalCentrado onClose={() => setShowToggleModal(false)}>
+          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '160ms' }}>
+            <div className="px-6 pt-6">
+              <h4 className="text-xl font-bold text-blue-900">
+                {usuarioToToggle.is_active ? 'Pausar acceso' : 'Reactivar acceso'}
+              </h4>
+              <p className="mt-1 text-sm text-slate-600">
+                {usuarioToToggle.is_active
+                  ? <>Se pausará el acceso de <strong className="text-slate-900">{usuarioToToggle.username}</strong> al sistema.</>
+                  : <>Se reactivará el acceso de <strong className="text-slate-900">{usuarioToToggle.username}</strong> al sistema.</>}
+              </p>
+              <p className="mt-2 text-xs text-slate-500">Esta acción se puede revertir desde el interruptor de estado.</p>
+            </div>
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 py-6">
+              <button
+                type="button"
+                onClick={() => setShowToggleModal(false)}
+                className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200`}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const response = await api.post(`/usuarios/${usuarioToToggle.id}/toggle_activo/`);
+                    toast.success(`Usuario ${usuarioToToggle.is_active ? 'desactivado' : 'reactivado'} con éxito`);
+                    setShowToggleModal(false);
+                    setUsuarios((prev) => prev.map((usuario) => (
+                      usuario.id === usuarioToToggle.id
+                        ? (response.data?.id ? response.data : { ...usuario, is_active: !usuario.is_active })
+                        : usuario
+                    )));
+                  } catch (err) {
+                    console.error('Error:', err);
+                    toast.error('Error al cambiar el estado del usuario');
+                  }
+                }}
+                className={`${BOTON} px-5 py-2.5 text-white ${usuarioToToggle.is_active ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+              >
+                {usuarioToToggle.is_active ? 'Pausar acceso' : 'Reactivar'}
+              </button>
             </div>
           </div>
-        ), document.body)}
+        </ModalCentrado>
+      )}
 
-        {/* Modal de Confirmación de Eliminación */}
-        {showDeleteModal && createPortal((
-          <div
-            className="fixed top-0 right-0 bottom-0 z-[70] flex items-center justify-center p-4"
-            style={{ left: hasSidebar ? (sidebarCollapsed ? '5rem' : '18rem') : '0' }}
-          >
-            <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={closeDeleteModal} />
-            <div className="relative w-full max-w-lg rounded-2xl border border-red-600/80 dark:border-red-700/50 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden animate-slide-up" style={{ animationDuration: '160ms' }}>
-              <div className="px-5 py-4 border-b border-red-400 dark:border-slate-700/70 bg-gradient-to-r from-red-400 via-red-200 to-red-50 dark:from-red-900/30 dark:via-slate-900 dark:to-slate-900">
-                <h4 className="text-lg font-bold text-red-900 dark:text-red-300 flex items-center gap-2">
-                  <span>🗑️</span>
-                  Confirmar Eliminación
-                </h4>
+      {/* Confirmación de eliminación */}
+      {showDeleteModal && (
+        <ModalCentrado onClose={closeDeleteModal}>
+          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '160ms' }}>
+            <div className="px-6 pt-6">
+              <h4 className="text-xl font-bold text-red-700">Confirmar eliminación</h4>
+              <p className="mt-1 text-sm text-slate-600">
+                Se eliminará el usuario <strong className="text-slate-900">{usuarioToDelete?.username}</strong> de forma permanente.
+              </p>
+            </div>
+            <div className="px-6 py-4 space-y-3 text-sm">
+              <div className="rounded-2xl bg-red-50 ring-1 ring-inset ring-red-200 px-4 py-3 text-red-800">
+                Acción irreversible: <strong>el usuario perderá su acceso definitivamente.</strong>
               </div>
-              <div className="px-5 py-4 space-y-3 text-slate-700 dark:text-slate-200">
-                <p className="text-sm leading-relaxed">
-                  Se eliminará el usuario <strong className="text-slate-900 dark:text-white">{usuarioToDelete?.username}</strong> del sistema de forma permanente.
-                </p>
-                <div className="rounded-lg border border-red-700/70 bg-red-200/70 dark:bg-red-500/10 px-3 py-2 text-sm text-red-900 dark:text-red-200">
-                  Acción irreversible: <strong className="text-red-900 dark:text-red-300">El usuario perderá su acceso definitivamente.</strong>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                    Escribe el nombre exacto de usuario para habilitar la eliminación:
-                  </label>
-                  <input
-                    type="text"
-                    value={deleteConfirmText}
-                    onChange={(e) => setDeleteConfirmText(e.target.value)}
-                    placeholder="Escribe el nombre de usuario para confirmar"
-                    className="w-full px-3 py-2 rounded-lg border border-red-400/40 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500/60"
-                  />
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Esta operación no se puede deshacer.
-                </p>
-              </div>
-              <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700/70 flex justify-end gap-3 bg-slate-50 dark:bg-slate-950/70">
-                <button
-                  type="button"
-                  onClick={closeDeleteModal}
-                  className="px-4 py-2 rounded-lg font-semibold text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={confirmarEliminar}
-                  disabled={deleteConfirmText !== (usuarioToDelete?.username || '')}
-                  className="px-4 py-2 rounded-lg font-bold text-white bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 disabled:bg-red-900/40 disabled:text-slate-300 disabled:cursor-not-allowed"
-                >
-                  🗑️ Eliminar
-                </button>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 pl-1">
+                  Escribe el nombre exacto de usuario para habilitar la eliminación:
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder={usuarioToDelete?.username || ''}
+                  className="w-full h-11 px-4 rounded-full text-sm text-slate-800 placeholder:text-slate-500 outline-none ring-1 ring-inset ring-azulado-300 focus:ring-2 focus:ring-red-400/50 !bg-azulado-100"
+                />
               </div>
             </div>
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 pb-6">
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200`}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarEliminar}
+                disabled={deleteConfirmText !== (usuarioToDelete?.username || '')}
+                className={`${BOTON} px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-500`}
+              >
+                Eliminar
+              </button>
+            </div>
           </div>
-        ), document.body)}
-      </div>
+        </ModalCentrado>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
@@ -7,6 +7,10 @@ import {
   MENSAJE_RESOLUCION_JEFE, MENSAJE_UNA_SOLA_CARRERA, asignacionesIniciales, asignacionesParaEnviar, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf,
 } from '../utils/asignacionesUsuario';
 import CampoResolucionJefe from './common/CampoResolucionJefe';
+import FiltroDesplegable from './common/FiltroDesplegable';
+import { BOTON, BOTON_CHICO } from './fondos/estilosFondo';
+
+const LABEL_CAMPO = 'block text-xs font-semibold text-slate-700 mb-1.5 pl-1';
 
 const obtenerNombreCompletoDocente = (docente) => {
   if (!docente) return '';
@@ -15,102 +19,6 @@ const obtenerNombreCompletoDocente = (docente) => {
   // Si no, construir desde campos separados
   return `${docente.nombres || ''} ${docente.apellido_paterno || ''} ${docente.apellido_materno || ''}`.trim();
 };
-
-// Componente Select con Dropdown animado (igual que en ListaDocentes)
-const SelectConDropdown = ({ label, name, value, onChange, options, error, disabled = false, required = false, placeholder = 'Seleccione...' }) => {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    const handleOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-    if (open) {
-      document.addEventListener('mousedown', handleOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, [open]);
-
-  const selectedLabel = options.find(opt => opt.value === value)?.label;
-
-  return (
-    <div ref={containerRef} className="relative">
-      <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        disabled={disabled}
-        className={`w-full px-4 py-3 rounded-2xl text-left flex items-center justify-between transition-all ${
-          disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:shadow-md'
-        } ${
-          error
-            ? 'border-2 border-red-500 bg-white dark:bg-slate-800'
-            : open
-              ? 'border-2 border-[#2C4AAE] bg-white dark:bg-slate-800'
-                : 'border-2 border-slate-400 bg-slate-100 dark:bg-slate-700 hover:border-[#2C4AAE]'
-        }`}
-      >
-        <span className={`${selectedLabel ? 'text-slate-800 dark:text-white font-semibold' : 'text-slate-400 dark:text-slate-500'}`}>
-          {selectedLabel || placeholder}
-        </span>
-        <div className="w-8 h-8 bg-[#2C4AAE] hover:bg-[#1a3a8a] rounded-lg flex items-center justify-center transition-colors">
-          <svg
-            className={`w-4 h-4 text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </button>
-      {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-xl border-2 border-[#2C4AAE] bg-white dark:bg-slate-800 shadow-xl max-h-48 overflow-auto">
-          {options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => {
-                onChange({ target: { name, value: option.value } });
-                setOpen(false);
-              }}
-              className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                value === option.value
-                  ? 'bg-[#2C4AAE] text-white font-semibold'
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-[#2C4AAE] hover:text-white'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      )}
-      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
-    </div>
-  );
-};
-
-const ToggleSwitch = ({ isActive, onChange }) => (
-  <button
-    type="button"
-    onClick={onChange}
-    className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-      isActive
-        ? 'bg-emerald-500 dark:bg-emerald-600 focus:ring-emerald-400 dark:focus:ring-emerald-500'
-        : 'bg-slate-500 dark:bg-slate-600 focus:ring-slate-400 dark:focus:ring-slate-500'
-    }`}
-  >
-    <span
-      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-transform duration-300 ${
-        isActive ? 'translate-x-6' : 'translate-x-0.5'
-      }`}
-    />
-  </button>
-);
 
 const buildNombreCompleto = (firstName = '', lastName = '') =>
   `${firstName || ''} ${lastName || ''}`.trim();
@@ -332,6 +240,8 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
   const obtenerResumenAsignacion = (item, index) => {
     const rol = String(item?.rol || '').trim();
     const carrera = String(item?.carrera || '').trim();
+    // La carrera solo la ve el superusuario; para los demás es siempre la suya.
+    if (!puedeElegirCarrera) return `#${index + 1} ${rol ? obtenerRolLabel(rol) : 'Selecciona rol'}`;
     if (!rol && !carrera) return `#${index + 1} Selecciona rol y carrera`;
     if (!rol) return `#${index + 1} Selecciona rol - ${obtenerCarreraLabel(carrera)}`;
     if (!carrera) return `#${index + 1} ${obtenerRolLabel(rol)} - selecciona carrera`;
@@ -568,218 +478,193 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
 
   if (!isOpen || !userToEdit) return null;
 
+  const rolActual = indiceAsignacionActiva === 0 ? (formData.rol || '') : (asignacionesExtra[0]?.rol || '');
+  const carreraActual = indiceAsignacionActiva === 0 ? (formData.carrera || '') : (asignacionesExtra[0]?.carrera || '');
+
   return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-    >
-      <div className="flex max-h-[95vh] w-full max-w-4xl flex-col rounded-2xl bg-white shadow-2xl dark:bg-slate-800">
-        <div className="bg-[#2C4AAE] px-6 py-4 rounded-t-2xl dark:bg-[#1a3a8a]">
-          <h3 className="text-xl font-bold text-white">
-            Editar Usuario ✓
-          </h3>
-        </div>
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-blue-950/30 backdrop-blur-sm animate-fade-in" style={{ animationDuration: '160ms' }}>
+      <div className="min-h-full flex items-center justify-center p-3 sm:p-6">
+        <div className="w-full max-w-4xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '180ms' }}>
+          <div className="px-5 sm:px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
+            <h3 className="text-xl font-bold text-blue-900">Editar Usuario</h3>
+            <p className="mt-0.5 text-sm text-slate-600">@{userToEdit.username}</p>
+          </div>
 
-        <form id="user-form" onSubmit={handleSubmit} noValidate className="flex-1 overflow-visible">
-          <div className="p-6">
-            {identidadBloqueada && (
-              <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100">
-                Este usuario ya tiene datos registrados ({identidadBloqueada.map((item) => `${item.etiqueta}: ${item.cantidad}`).join(', ')}).
-                El usuario, el nombre y el C.I. no se pueden cambiar, y solo se puede desactivar (no eliminar).
-              </div>
-            )}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InputField label="Usuario" name="username" value={formData.username} onChange={handleChange} required disabled={Boolean(identidadBloqueada)} error={errors.username} />
-              <InputField label="Nombre completo" name="nombre_completo" value={formData.nombre_completo || ''} onChange={handleChange} required disabled={Boolean(identidadBloqueada)} error={errors.nombre_completo || errors.first_name || errors.last_name} />
-
-              <div className="flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <SelectConDropdown
-                    label="Rol"
-                    name="rol"
-                    value={indiceAsignacionActiva === 0 ? (formData.rol || '') : (asignacionesExtra[0]?.rol || '')}
-                    onChange={handleRolSeleccionActual}
-                    options={rolesDisponiblesModal.map((rol) => ({ value: rol.value, label: rol.label }))}
-                    error={errors.rol}
-                    disabled={esSuperusuarioEditado}
-                    required
-                  />
+          <form id="user-form" onSubmit={handleSubmit} noValidate>
+            <div className="p-4 sm:p-6">
+              {identidadBloqueada && (
+                <div className="mb-4 rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-3 text-sm text-amber-900">
+                  Este usuario ya tiene datos registrados ({identidadBloqueada.map((item) => `${item.etiqueta}: ${item.cantidad}`).join(', ')}).
+                  El usuario, el nombre y el C.I. no se pueden cambiar, y solo se puede desactivar (no eliminar).
                 </div>
-                {!esSuperusuarioEditado && (
-                  <div className="shrink-0 pt-[28px]">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!puedeAgregarAsignacion) {
-                          toast.error(asignacionesExtra.length > 0 ? 'Ya existe un segundo rol asignado.' : 'Primero selecciona rol y carrera.');
-                          return;
-                        }
-                        agregarAsignacion();
-                      }}
-                      disabled={!puedeAgregarAsignacion}
-                      className={`h-[52px] w-16 rounded-2xl border-2 text-2xl font-black text-white shadow-sm transition-colors ${puedeAgregarAsignacion ? 'border-[#2C4AAE] bg-[#2C4AAE] hover:bg-[#1a3a8a]' : 'cursor-not-allowed border-slate-400 bg-slate-400'}`}
-                      aria-label="Agregar segunda asignacion"
-                    >
-                      +
-                    </button>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <InputField label="Usuario" name="username" value={formData.username} onChange={handleChange} disabled={Boolean(identidadBloqueada)} error={errors.username} />
+                <InputField label="Nombre completo" name="nombre_completo" value={formData.nombre_completo || ''} onChange={handleChange} disabled={Boolean(identidadBloqueada)} error={errors.nombre_completo || errors.first_name || errors.last_name} />
+
+                <div>
+                  <label htmlFor="editar-usuario-rol" className={LABEL_CAMPO}>Rol</label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <FiltroDesplegable
+                        id="editar-usuario-rol"
+                        value={rolActual}
+                        onChange={(valor) => handleRolSeleccionActual({ target: { name: 'rol', value: valor } })}
+                        options={rolesDisponiblesModal.map((rol) => ({ value: rol.value, label: rol.label }))}
+                        placeholder="Seleccione un rol"
+                        ariaLabel="Rol"
+                        permitirQuitar={false}
+                        invalido={Boolean(errors.rol)}
+                        disabled={esSuperusuarioEditado}
+                      />
+                    </div>
+                    {!esSuperusuarioEditado && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!puedeAgregarAsignacion) {
+                            toast.error(asignacionesExtra.length > 0 ? 'Ya existe un segundo rol asignado.' : 'Primero selecciona rol y carrera.');
+                            return;
+                          }
+                          agregarAsignacion();
+                        }}
+                        disabled={!puedeAgregarAsignacion}
+                        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-900 text-white hover:bg-blue-950 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        title="Agregar un segundo rol"
+                        aria-label="Agregar un segundo rol"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                      </button>
+                    )}
+                  </div>
+                  <MensajeError error={errors.rol} />
+                </div>
+
+                {/* Solo el superusuario elige la carrera; para los demás es la suya. */}
+                {puedeElegirCarrera && (
+                  <div>
+                    <label htmlFor="editar-usuario-carrera" className={LABEL_CAMPO}>Carrera</label>
+                    <FiltroDesplegable
+                      id="editar-usuario-carrera"
+                      value={carreraActual}
+                      onChange={(valor) => handleCarreraSeleccionActual({ target: { name: 'carrera', value: valor } })}
+                      options={carreras.map((carrera) => ({ value: carrera.id, label: carrera.nombre }))}
+                      placeholder="Seleccione una carrera"
+                      ariaLabel="Carrera"
+                      emptyText="No hay carreras que coincidan"
+                      permitirQuitar={false}
+                      invalido={Boolean(errors.carrera)}
+                      disabled={esSuperusuarioEditado}
+                    />
+                    <MensajeError error={errors.carrera} />
                   </div>
                 )}
-              </div>
 
-              {puedeElegirCarrera && (
-                <SelectConDropdown
-                  label="Carrera"
-                  name="carrera"
-                  value={indiceAsignacionActiva === 0 ? (formData.carrera || '') : (asignacionesExtra[0]?.carrera || '')}
-                  onChange={handleCarreraSeleccionActual}
-                  options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
-                  error={errors.carrera}
-                  disabled={esSuperusuarioEditado}
-                  required
-                  placeholder="Seleccione una carrera..."
-                />
-              )}
-
-              {asignacionesExtra.length > 0 && (
-                <div className="md:col-span-2 animate-panel-asignacion overflow-hidden">
-                  <div className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 dark:border-slate-600 dark:bg-slate-700/30">
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Panel de asignaciones activas</p>
-                      <button
-                        type="button"
-                        onClick={() => eliminarAsignacion(0)}
-                        className="h-9 shrink-0 rounded-xl border-2 border-red-500 px-3 text-xs font-bold text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/20"
-                      >
-                        Quitar selección 2
-                      </button>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      {asignacionesActivas.map((item, index) => (
+                {asignacionesExtra.length > 0 && (
+                  <div className="md:col-span-2 animate-panel-asignacion overflow-hidden">
+                    <div className="rounded-2xl bg-white ring-1 ring-inset ring-azulado-300 px-4 py-3">
+                      <div className="mb-2.5 flex items-center justify-between gap-3">
+                        <p className="text-sm font-bold text-blue-900">Roles del usuario</p>
                         <button
-                          key={`${item.rol || 'sin-rol'}-${item.carrera || 'sin-carrera'}-${index}`}
                           type="button"
-                          onClick={() => setIndiceAsignacionActiva(index)}
-                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-left text-xs font-semibold transition-colors ${
-                            indiceAsignacionActiva === index
-                              ? 'border-[#2C4AAE] bg-[#2C4AAE] text-white'
-                              : 'border-[#2C4AAE]/30 bg-[#2C4AAE]/10 text-[#2C4AAE] dark:text-blue-300'
-                          }`}
+                          onClick={() => eliminarAsignacion(0)}
+                          className={`${BOTON_CHICO} bg-red-50 text-red-700 ring-1 ring-inset ring-red-200 hover:bg-red-100`}
                         >
-                          {obtenerResumenAsignacion(item, index)}
+                          Quitar el segundo rol
                         </button>
-                      ))}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {asignacionesActivas.map((item, index) => (
+                          <button
+                            key={`${item.rol || 'sin-rol'}-${item.carrera || 'sin-carrera'}-${index}`}
+                            type="button"
+                            onClick={() => setIndiceAsignacionActiva(index)}
+                            className={`${BOTON_CHICO} ${
+                              indiceAsignacionActiva === index
+                                ? 'bg-sky-600 text-white'
+                                : 'bg-azulado-100 text-blue-900 ring-1 ring-inset ring-azulado-300 hover:bg-blue-900 hover:text-white'
+                            }`}
+                          >
+                            {obtenerResumenAsignacion(item, index)}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-              {asignacionesError && (
-                <p className="md:col-span-2 -mt-2 text-xs font-semibold text-red-600 dark:text-red-400">
-                  {asignacionesError}
-                </p>
-              )}
-              {designaJefeNuevo && (
-                <CampoResolucionJefe
-                  className="md:col-span-2"
-                  archivo={resolucionJefe}
-                  error={errors.resolucion_jefe}
-                  onChange={(archivo) => {
-                    setResolucionJefe(archivo);
-                    setErrors((prev) => ({ ...prev, resolucion_jefe: null }));
-                  }}
-                />
-              )}
-              {errorFondoTiempo && (
-                <p className="md:col-span-2 -mt-2 text-sm font-semibold text-red-600 dark:text-red-400">
-                  {errorFondoTiempo}
-                </p>
-              )}
+                )}
+                {asignacionesError && (
+                  <p className="md:col-span-2 -mt-2 pl-1 text-xs font-semibold text-red-600">{asignacionesError}</p>
+                )}
+                {designaJefeNuevo && (
+                  <CampoResolucionJefe
+                    className="md:col-span-2"
+                    archivo={resolucionJefe}
+                    error={errors.resolucion_jefe}
+                    onChange={(archivo) => {
+                      setResolucionJefe(archivo);
+                      setErrors((prev) => ({ ...prev, resolucion_jefe: null }));
+                    }}
+                  />
+                )}
+                {errorFondoTiempo && (
+                  <p className="md:col-span-2 -mt-2 pl-1 text-sm font-semibold text-red-600">{errorFondoTiempo}</p>
+                )}
 
-              <div className="hidden">
-                <div className="flex items-start gap-2">
-                  <div className="flex-1 min-w-0" />
-                  {!esSuperusuarioEditado && (
-                    <div className="shrink-0 pt-[28px]">
-                      <button
-                        type="button"
-                        onClick={asignacionesExtra.length > 0 ? () => setAsignacionesExtra([]) : agregarAsignacion}
-                        disabled={!puedeAgregarAsignacion && asignacionesExtra.length === 0}
-                        className={`h-[52px] w-[52px] rounded-2xl text-3xl font-bold text-white ${(!puedeAgregarAsignacion && asignacionesExtra.length === 0) ? 'cursor-not-allowed bg-slate-400' : 'bg-[#2C4AAE]'}`}
-                      >
-                        {asignacionesExtra.length > 0 ? '−' : '+'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>
                 {mostrarCiAutoridad ? (
                   <InputField label="C.I." name="ci" value={formData.ci} onChange={handleChange} disabled={Boolean(identidadBloqueada)} error={errors.ci} maxLength={15} />
                 ) : (
                   <div>
-                    <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
-                      Vincular a Docente Existente
-                    </label>
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1">
-                        <SelectConDropdown
-                          name="docente"
-                          value={formData.docente}
-                          onChange={handleChange}
-                          options={docentes.map((d) => ({ value: d.id, label: obtenerNombreCompletoDocente(d) }))}
-                          error={errors.docente}
-                          disabled={tieneDocenteVinculado}
-                          placeholder={tieneDocenteVinculado ? nombreDocenteVinculado : 'Seleccione un docente'}
-                        />
-                      </div>
-                    </div>
+                    <label htmlFor="editar-usuario-docente" className={LABEL_CAMPO}>Vincular a docente existente</label>
+                    <FiltroDesplegable
+                      id="editar-usuario-docente"
+                      value={formData.docente}
+                      onChange={(valor) => handleChange({ target: { name: 'docente', value: valor } })}
+                      options={docentes.map((docente) => ({ value: docente.id, label: obtenerNombreCompletoDocente(docente) }))}
+                      placeholder={tieneDocenteVinculado ? nombreDocenteVinculado : 'Seleccione un docente'}
+                      ariaLabel="Vincular a docente existente"
+                      emptyText="No hay docentes que coincidan"
+                      permitirQuitar={false}
+                      invalido={Boolean(errors.docente)}
+                      disabled={tieneDocenteVinculado}
+                    />
+                    <MensajeError error={errors.docente} />
                     {mostrarInfoDocente && (
-                      <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-300">
-                        Docente vinculado: {nombreDocenteVinculado}
-                      </p>
+                      <p className="mt-1 pl-1 text-xs text-emerald-700">Docente vinculado: {nombreDocenteVinculado}</p>
                     )}
                   </div>
                 )}
-              </div>
 
-              <InputField label="Correo institucional" name="email" type="email" value={formData.email} onChange={handleChange} error={errors.email} />
-              <div>
-                <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Contraseña inicial</label>
-                <div className="w-full px-4 py-3 rounded-xl border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 font-mono font-semibold">
-                  {formData.username ? `${formData.username}UABJB` : 'usuarioUABJB'}
+                <InputField label="Correo institucional" name="email" type="email" value={formData.email} onChange={handleChange} error={errors.email} />
+                <div>
+                  <span className={LABEL_CAMPO}>Contraseña inicial</span>
+                  <div className="flex h-11 items-center px-4 rounded-full bg-amber-50 ring-1 ring-inset ring-amber-200 text-sm font-mono font-semibold text-amber-900">
+                    {formData.username ? `${formData.username}UABJB` : 'usuarioUABJB'}
+                  </div>
                 </div>
               </div>
-
             </div>
-          </div>
-        </form>
+          </form>
 
-        <div className="px-6 py-4 bg-slate-100 dark:bg-slate-700 border-t border-slate-300 dark:border-slate-600 rounded-b-2xl">
-          <div className="flex items-center justify-between">
+          <div className="px-5 sm:px-6 py-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 [border-top:1px_solid_#B8C9E1]">
             <div>
               {puedeRestablecerPassword && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                      type="button"
-                      onClick={() => setShowResetConfirm(true)}
-                      disabled={loading || resettingPassword}
-                      className={`flex items-center gap-2 rounded-xl border-2 px-4 py-2.5 text-sm font-bold shadow-sm transition-all ${
-                        resettingPassword
-                          ? 'cursor-not-allowed border-slate-300 bg-slate-100 text-slate-400 dark:border-slate-600 dark:bg-slate-700'
-                          : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40'
-                      }`}
-                      title={`Restablecer contraseña a: ${userToEdit?.username}UABJB`}
-                    >
-                      🔑 {resettingPassword ? 'Restableciendo...' : 'Restablecer Contraseña'}
-                    </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowResetConfirm(true)}
+                  disabled={loading || resettingPassword}
+                  className={`${BOTON} w-full sm:w-auto px-4 py-2.5 bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200 hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed`}
+                  title={`Restablecer contraseña a: ${userToEdit?.username}UABJB`}
+                >
+                  {resettingPassword ? 'Restableciendo...' : 'Restablecer contraseña'}
+                </button>
               )}
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-col-reverse sm:flex-row gap-2">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={loading}
-                className="px-6 py-2.5 rounded-xl font-semibold text-slate-700 dark:text-slate-200 bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 transition-all disabled:opacity-50"
+                className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200 disabled:opacity-50`}
               >
                 Cancelar
               </button>
@@ -787,90 +672,82 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
                 type="submit"
                 form="user-form"
                 disabled={loading}
-                className={`px-6 py-2.5 rounded-xl font-bold text-white bg-[#2C4AAE] hover:bg-[#1a3a8a] transition-all disabled:opacity-50 ${
-                  loading
-                    ? 'cursor-not-allowed'
-                    : ''
-                }`}
+                className={`${BOTON} px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                {loading ? 'Guardando...' : 'Actualizar Usuario'}
+                {loading ? 'Guardando...' : 'Guardar cambios'}
               </button>
             </div>
           </div>
         </div>
+      </div>
 
-        {showResetConfirm && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-            <div
-              className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"
-              onClick={() => !resettingPassword && setShowResetConfirm(false)}
-            />
-            <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-amber-300/40 bg-slate-900 shadow-2xl dark:border-amber-700/50">
-              <div className="border-b border-slate-700/70 bg-gradient-to-r from-amber-900/30 to-slate-900 px-5 py-4">
-                <h4 className="flex items-center gap-2 text-lg font-bold text-amber-300">
-                  <span>🔐</span>
-                  Confirmar Restablecimiento
-                </h4>
+      {showResetConfirm && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-blue-950/30 backdrop-blur-sm"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !resettingPassword) setShowResetConfirm(false);
+          }}
+        >
+          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '160ms' }}>
+            <div className="px-6 pt-6">
+              <h4 className="text-xl font-bold text-blue-900">Restablecer contraseña</h4>
+              <p className="mt-1 text-sm text-slate-600">
+                Se restablecerá la contraseña de <strong className="text-slate-900">{userToEdit?.username}</strong> a la contraseña inicial.
+              </p>
+            </div>
+            <div className="px-6 py-4 space-y-2">
+              <div className="rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-3 text-sm text-amber-900">
+                Contraseña por defecto: <strong className="font-mono">{userToEdit?.username}UABJB</strong>
               </div>
-              <div className="space-y-3 px-5 py-4 text-slate-200">
-                <p className="text-sm leading-relaxed">
-                  Se restablecerá la contraseña de <strong className="text-white">{userToEdit?.username}</strong> a la contraseña inicial.
-                </p>
-                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-                  Contraseña por defecto: <strong className="text-amber-300">{userToEdit?.username}UABJB</strong>
-                </div>
-                <p className="text-xs text-slate-400">
-                  El usuario deberá cambiarla al iniciar sesión.
-                </p>
-              </div>
-              <div className="flex justify-end gap-3 border-t border-slate-700/70 bg-slate-950/70 px-5 py-4">
-                <button
-                  type="button"
-                  onClick={() => setShowResetConfirm(false)}
-                  disabled={resettingPassword}
-                  className="rounded-lg border border-slate-600 px-4 py-2 font-semibold text-slate-300 hover:bg-slate-800 disabled:opacity-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResetearPassword}
-                  disabled={resettingPassword}
-                  className={`rounded-lg px-4 py-2 font-bold text-white ${
-                    resettingPassword ? 'cursor-not-allowed bg-slate-500' : 'bg-amber-600 hover:bg-amber-700'
-                  }`}
-                >
-                  {resettingPassword ? 'Restableciendo...' : 'Confirmar y Restablecer'}
-                </button>
-              </div>
+              <p className="pl-1 text-xs text-slate-500">El usuario deberá cambiarla al iniciar sesión.</p>
+            </div>
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 pb-6">
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(false)}
+                disabled={resettingPassword}
+                className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200 disabled:opacity-50`}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleResetearPassword}
+                disabled={resettingPassword}
+                className={`${BOTON} px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {resettingPassword ? 'Restableciendo...' : 'Restablecer'}
+              </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>,
     document.body
   );
 };
 
-const InputField = ({ label, name, type = 'text', value, onChange, required, disabled, readOnly, error, ...rest }) => (
+const MensajeError = ({ error }) => (
+  error ? <p className="mt-1 pl-1 text-xs text-red-600">{Array.isArray(error) ? error[0] : error}</p> : null
+);
+
+const InputField = ({ label, name, type = 'text', value, onChange, disabled, readOnly, error, ...rest }) => (
   <div>
-    <label className="mb-2 block text-sm font-semibold text-slate-800 dark:text-slate-300">
-      {label} {required && <span className="text-red-500">*</span>}
-    </label>
+    <label htmlFor={`editar-usuario-${name}`} className={LABEL_CAMPO}>{label}</label>
     <input
+      id={`editar-usuario-${name}`}
       type={type}
       name={name}
       value={value}
       onChange={onChange}
-      required={required}
       disabled={disabled}
       readOnly={readOnly}
       {...rest}
-      className={`w-full rounded-xl border-2 bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white px-4 py-3 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-        error ? 'border-red-500' : 'border-slate-400 dark:border-slate-600'
-      } ${(disabled || readOnly) ? 'cursor-not-allowed bg-slate-200 dark:bg-slate-700/50' : ''}`}
+      className={`w-full h-11 px-4 rounded-full text-sm text-slate-800 placeholder:text-slate-500 outline-none ring-inset ${
+        error ? 'ring-2 ring-red-500' : 'ring-1 ring-azulado-300 focus:ring-2 focus:ring-blue-900/40'
+      } ${(disabled || readOnly) ? '!bg-slate-100 text-slate-500 cursor-not-allowed' : '!bg-azulado-100'}`}
     />
-    {error && <p className="mt-1 text-xs text-red-600">{Array.isArray(error) ? error[0] : error}</p>}
+    <MensajeError error={error} />
   </div>
 );
 

@@ -317,8 +317,8 @@ function App() {
             </Route>
 
             {/* Módulo Principal: Gestión Global de Usuarios/Carreras */}
-            <Route path="/usuarios" element={<SimpleLayout theme={theme} setTheme={setTheme} />}>
-              <Route index element={<AnimatedRoute><GestionUsuarios isDark={isDark} user={user} hasSidebar={false} /></AnimatedRoute>} />
+            <Route path="/usuarios" element={<SimpleLayout theme={theme} setTheme={setTheme} soloClaro />}>
+              <Route index element={<AnimatedRoute><GestionUsuarios user={user} /></AnimatedRoute>} />
             </Route>
 
             <Route path="/carreras" element={<SimpleLayout theme={theme} setTheme={setTheme} />}>

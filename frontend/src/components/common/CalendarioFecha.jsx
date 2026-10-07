@@ -143,11 +143,13 @@ export function PanelCalendario({ value, min, max, onElegir, onNoPermitido, onBo
                             setMesVisible(new Date(a, m, 1));
                             setVistaAnios(false);
                           }}
+                          // Mes que se está viendo en celeste (secundario); el mes de hoy, con
+                          // contorno celeste; azul (primario) solo bajo el cursor.
                           className={`py-1.5 rounded-lg text-xs transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
                             visible
-                              ? 'bg-blue-900 text-white font-semibold'
+                              ? 'bg-sky-600 text-white font-semibold hover:bg-blue-900'
                               : actual
-                                ? 'bg-sky-600 text-white font-semibold hover:bg-blue-900'
+                                ? 'ring-1 ring-inset ring-sky-600 text-sky-700 font-semibold hover:bg-blue-900 hover:text-white hover:ring-blue-900'
                                 : 'text-slate-700 hover:bg-blue-900 hover:text-white'
                           }`}
                         >
@@ -173,6 +175,9 @@ export function PanelCalendario({ value, min, max, onElegir, onNoPermitido, onBo
               const delMes = fecha.getMonth() === mes;
               const seleccionada = mismoDia(fecha, elegida);
               const esHoy = mismoDia(fecha, hoy);
+              // Día elegido (o hoy, si no hay fecha elegida) en celeste (secundario); si se
+              // eligió otro día, hoy queda con contorno celeste. Azul (primario) solo bajo el cursor.
+              const resaltada = seleccionada || (esHoy && !elegida);
               const bloqueada = fueraDeLimites(fecha);
               return (
                 <button
@@ -181,12 +186,12 @@ export function PanelCalendario({ value, min, max, onElegir, onNoPermitido, onBo
                   onClick={() => elegir(fecha)}
                   aria-disabled={bloqueada || undefined}
                   className={`h-8 rounded-lg text-xs tabular-nums transition-colors ${
-                    seleccionada
-                      ? 'bg-blue-900 text-white font-semibold'
+                    resaltada
+                      ? 'bg-sky-600 text-white font-semibold hover:bg-blue-900'
                       : bloqueada
                         ? 'text-slate-300 cursor-not-allowed'
                         : esHoy
-                          ? 'bg-sky-600 text-white font-semibold hover:bg-blue-900'
+                          ? 'ring-1 ring-inset ring-sky-600 text-sky-700 font-semibold hover:bg-blue-900 hover:text-white hover:ring-blue-900'
                           : `${delMes ? 'text-slate-800' : 'text-slate-400'} hover:bg-blue-900 hover:text-white`
                   }`}
                 >

@@ -1,7 +1,10 @@
 import { Outlet, Link } from 'react-router-dom';
 import ThemeToggle from '../ThemeToggle';
+import useSinElevacionPoa from '../../utils/useSinElevacionPoa';
 
 const SimpleLayout = ({ theme, setTheme }) => {
+    useSinElevacionPoa();
+
     return (
         <div className={`relative min-h-screen bg-slate-50 dark:bg-slate-900${theme === 'dark' ? ' dark' : ''}`}>
             {/* Selector de Tema - Flotante Global */}

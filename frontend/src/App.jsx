@@ -41,6 +41,7 @@ import VistaCalendarioActivo from './VistaCalendarioActivo';
 import AdminPanel from './components/AdminPanel';
 import RutaPorRol from './components/common/RutaPorRol';
 import SimpleLayout from './components/layouts/SimpleLayout';
+import ToasterSistema from './components/common/ToasterSistema';
 import AdminDashboard from './components/AdminDashboard';
 import CambiarPassword from './components/CambiarPassword';
 import CargaHorariaGeneral from './components/CargaHorariaGeneral';
@@ -243,41 +244,7 @@ function App() {
   return (
     <ActiveRoleProvider user={user} setUser={setUser}>
     <Router>
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          style: {
-            background: isDark ? '#1e293b' : '#ffffff',
-            color: isDark ? '#f1f5f9' : '#0f172a',
-            borderRadius: '12px',
-            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-            fontFamily: "'Inter', system-ui, sans-serif",
-            fontSize: '14px',
-            fontWeight: '500',
-            zIndex: 1000001,
-          },
-          success: { 
-            style: { 
-              background: isDark ? '#064e3b' : '#f0fdf4', 
-              color: isDark ? '#a7f3d0' : '#166534',
-              border: '2px solid #10b981',
-              borderLeft: '4px solid #059669',
-            },
-            icon: '✅',
-            duration: 4000,
-          },
-          error: { 
-            style: { 
-              background: isDark ? '#7f1d1d' : '#fef2f2', 
-              color: isDark ? '#fecaca' : '#991b1b',
-              border: '2px solid #ef4444',
-              borderLeft: '4px solid #f59e0b',
-            },
-            icon: '⚠️',
-            duration: 6000,
-          },
-        }}
-      />
+      <ToasterSistema isDark={isDark} />
       <style>{`
         @keyframes page-enter-animation {
           from {
@@ -316,21 +283,22 @@ function App() {
                   onLogout={handleLogout}
                   sidebarCollapsed={sidebarCollapsed}
                   setSidebarCollapsed={setSidebarCollapsed}
-                  theme={theme}
-                  setTheme={setTheme}
                   onProfileUpdate={handleProfileUpdate}
                   onCarreraActivaChange={handleCarreraActivaChange}
                 />
               }
             >
               {/* La ruta 'index' coincide con la ruta padre ('/fondo-tiempo') */}
-              <Route index element={<AnimatedRoute><ListaFondos isDark={isDark} /></AnimatedRoute>} />
+              {/* El formulario de nuevo/editar fondo se abre como modal encima del dashboard */}
+              <Route element={<div className="animate-page-enter"><ListaFondos /></div>}>
+                <Route index element={null} />
+                <Route path="nuevo-fondo" element={<FormularioFondo />} />
+                <Route path="editar-fondo/:id" element={<FormularioFondo editar={true} />} />
+              </Route>
               
               {/* Las rutas hijas son relativas al padre */}
               <Route path="fondo/:id" element={<AnimatedRoute><DetalleFondo isDark={isDark} /></AnimatedRoute>} />
               <Route path="comparar" element={<AnimatedRoute><Comparador /></AnimatedRoute>} />
-              <Route path="nuevo-fondo" element={<AnimatedRoute><FormularioFondo isDark={isDark} /></AnimatedRoute>} />
-              <Route path="editar-fondo/:id" element={<AnimatedRoute><FormularioFondo isDark={isDark} editar={true} /></AnimatedRoute>} />
 
               <Route path="cargas-horarias" element={<AnimatedRoute><CargaHorariaGeneral /></AnimatedRoute>} />
               <Route path="docentes/:id" element={<AnimatedRoute><FondoTiempoDocente /></AnimatedRoute>} />

@@ -69,13 +69,16 @@ const BookOpenIcon = (props) => (
     </svg>
 );
 
-function Sidebar({ user, collapsed, setCollapsed, onProfileUpdate }) {
+function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil = false, menuMovilAbierto = false, onCerrarMenuMovil, onProfileUpdate }) {
+  // En el celular el menú se abre siempre completo; el modo contraído es solo de escritorio.
+  const collapsed = collapsedEscritorio && !esMovil;
   const location = useLocation();
   const navigate = useNavigate();
   const {
     effectiveUser,
   } = useActiveRole();
   const currentUser = effectiveUser || user;
+  const fullName = `${currentUser?.first_name || ''} ${currentUser?.last_name || ''}`.trim() || currentUser?.username;
 
   const isActive = (path) => {
     if (path === '/fondo-tiempo') {
@@ -133,15 +136,15 @@ function Sidebar({ user, collapsed, setCollapsed, onProfileUpdate }) {
     <>
       {/* --- BARRA LATERAL PRINCIPAL --- */}
       <div
-        className={`fixed left-0 top-0 h-screen bg-gradient-to-b from-blue-900 to-blue-950 text-white shadow-2xl z-40 transition-all duration-300 flex flex-col ${
+        className={`fixed left-0 top-0 h-screen bg-gradient-to-b from-blue-900 to-blue-950 text-white z-40 transition-all duration-300 flex flex-col ${
           collapsed ? 'w-20' : 'w-72'
-        }`}
+        } ${esMovil && !menuMovilAbierto ? '-translate-x-full' : 'translate-x-0'}`}
       >
         {/* --- BOTÓN TOGGLE --- */}
         <div className={`flex mb-1 pt-2 ${collapsed ? 'justify-center' : 'justify-end px-3'}`}>
           <button
-            onClick={() => setCollapsed(!collapsed)}
-            title={collapsed ? 'Expandir menú' : 'Contraer menú'}
+            onClick={() => (esMovil ? onCerrarMenuMovil?.() : setCollapsed(!collapsed))}
+            title={esMovil ? 'Cerrar menú' : (collapsed ? 'Expandir menú' : 'Contraer menú')}
             className="p-2 text-blue-200 hover:text-white transition-all duration-300"
           >
             {collapsed ? (
@@ -157,7 +160,7 @@ function Sidebar({ user, collapsed, setCollapsed, onProfileUpdate }) {
         </div>
 
         {/* --- 1. CABECERA CON PERFIL DE USUARIO --- */}
-        <div className="px-4 pb-4 border-b border-blue-800/50">
+        <div className="px-4 pb-2">
           {/* Perfil de usuario */}
           <div className={`flex flex-col items-center gap-3 p-2 rounded-lg transition-all duration-300`}>
             <div className={`transition-all duration-300 ${collapsed ? 'w-12 h-12' : 'w-40 h-40'}`}>
@@ -166,8 +169,8 @@ function Sidebar({ user, collapsed, setCollapsed, onProfileUpdate }) {
             {/* Nombre y Rol (visible solo si no está colapsado) */}
             {!collapsed && (
               <div className="flex-1 min-w-0 text-center">
-                <p className="text-sm font-semibold text-white truncate" title={currentUser?.first_name || currentUser?.username}>
-                  {currentUser?.first_name || currentUser?.username}
+                <p className="text-sm font-semibold text-white leading-snug break-words" title={fullName}>
+                  {fullName}
                 </p>
                 <p className="text-xs text-blue-300 truncate" title={getRoleName(currentUser)}>{getRoleName(currentUser)}</p>
               </div>
@@ -177,31 +180,31 @@ function Sidebar({ user, collapsed, setCollapsed, onProfileUpdate }) {
         </div>
 
         {/* --- 2. NAVEGACIÓN PRINCIPAL (CON SCROLL) --- */}
-        <nav className="flex-1 py-4 overflow-y-auto">
+        <nav className="flex-1 py-3 overflow-y-auto">
           {/* Sección Principal */}
           <div className="mb-6">
             {!collapsed && (
-              <h3 className="px-6 text-xs font-semibold uppercase tracking-wider mb-2 text-blue-400">
+              <h3 className="px-7 text-[11px] font-semibold uppercase tracking-wider mb-2 text-blue-400">
                 Principal
               </h3>
             )}
-            <div className={collapsed ? "space-y-2 px-2" : "space-y-2 px-4"}>
+            <div className={collapsed ? "space-y-1.5 px-4" : "space-y-1.5 px-3"}>
               {visiblePrincipal.map((item) => (
                 <Link
                   key={item.path}
                   to={item.path}
                   title={item.label}
-                  className={`group flex items-center gap-4 w-full transition-all duration-300 rounded-xl ${
-                    collapsed ? 'justify-center h-14' : 'px-4 py-3'
+                  className={`group flex items-center gap-3 w-full transition-all duration-300 rounded-2xl ${
+                    collapsed ? 'justify-center h-12' : 'px-4 py-2.5'
                   } ${
                     isActive(item.path)
-                      ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-[inset_4px_0_0_0_#ffffff,0_10px_24px_rgba(0,0,0,0.22)]'
-                    : 'text-blue-200 hover:bg-blue-800/50 hover:text-white hover:shadow-[inset_4px_0_0_0_#ffffff]'
+                      ? 'bg-white text-blue-900 shadow-sm'
+                      : 'text-blue-200 hover:bg-white/10 hover:text-white'
                   }`}
                 >
-                  <item.icon className="w-6 h-6 flex-shrink-0" />
+                  <item.icon className="w-5 h-5 flex-shrink-0" />
                   {!collapsed && (
-                    <span className="font-semibold text-sm whitespace-nowrap">{item.label}</span>
+                    <span className="font-medium text-sm whitespace-nowrap">{item.label}</span>
                   )}
                 </Link>
               ))}
@@ -210,7 +213,7 @@ function Sidebar({ user, collapsed, setCollapsed, onProfileUpdate }) {
               {visibleAdmin.length > 0 && (
                 <>
                   {!collapsed && (
-                    <div className="text-xs font-bold text-blue-400 mt-4 mb-2 px-4 uppercase tracking-wider">
+                    <div className="text-[11px] font-semibold text-blue-400 mt-5 mb-2 px-4 uppercase tracking-wider">
                       Administración
                     </div>
                   )}
@@ -219,17 +222,17 @@ function Sidebar({ user, collapsed, setCollapsed, onProfileUpdate }) {
                       key={item.path}
                       to={item.path}
                       title={item.label}
-                      className={`group flex items-center gap-4 w-full transition-all duration-300 rounded-xl ${
-                        collapsed ? 'justify-center h-14' : 'px-4 py-3'
+                      className={`group flex items-center gap-3 w-full transition-all duration-300 rounded-2xl ${
+                        collapsed ? 'justify-center h-12' : 'px-4 py-2.5'
                       } ${
                         isActive(item.path)
-                          ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-[inset_4px_0_0_0_#ffffff,0_10px_24px_rgba(0,0,0,0.22)]'
-                          : 'text-blue-200 hover:bg-blue-800/50 hover:text-white hover:shadow-[inset_4px_0_0_0_#ffffff]'
+                          ? 'bg-white text-blue-900 shadow-sm'
+                          : 'text-blue-200 hover:bg-white/10 hover:text-white'
                       }`}
                     >
-                      <item.icon className="w-6 h-6 flex-shrink-0" />
+                      <item.icon className="w-5 h-5 flex-shrink-0" />
                       {!collapsed && (
-                        <span className="font-semibold text-sm whitespace-nowrap">{item.label}</span>
+                        <span className="font-medium text-sm whitespace-nowrap">{item.label}</span>
                       )}
                     </Link>
                   ))}
@@ -241,14 +244,14 @@ function Sidebar({ user, collapsed, setCollapsed, onProfileUpdate }) {
         </nav>
 
         {/* --- 3. PIE DE PÁGINA CON BOTÓN "ATRÁS" --- */}
-        <div className="mt-auto p-4 border-t border-blue-800/50">
+        <div className={`mt-auto pb-5 pt-3 ${collapsed ? 'px-4' : 'px-3'}`}>
           {/* Botón Atrás */}
           <button
             onClick={() => navigate('..')}
             title="Atrás"
-            className={`group flex items-center gap-4 w-full transition-all duration-300 rounded-lg ${collapsed ? 'justify-center h-14' : 'px-4 py-3'} text-blue-200 hover:bg-red-500/80 hover:text-white border border-transparent hover:border-red-300/30`}
+            className={`group flex items-center gap-3 w-full transition-all duration-300 rounded-2xl ${collapsed ? 'justify-center h-12' : 'px-4 py-2.5'} text-blue-200 hover:bg-red-500/80 hover:text-white`}
           >
-            <BackIcon className="w-6 h-6 flex-shrink-0" />
+            <BackIcon className="w-5 h-5 flex-shrink-0" />
             {!collapsed && (
               <span className="font-medium text-sm whitespace-nowrap">Atrás</span>
             )}

@@ -1,17 +1,23 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import toast from 'react-hot-toast';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import { eliminarFondoTiempo, generarFondosTiempoMasivo, getFondosTiempo } from '../apis/api';
 import { puedeCrearFondoTiempo } from '../utils/fondoTiempoPermissions';
 import { useActiveRole } from '../contexts/activeRole';
+import { getApiErrorMessage } from '../utils/formErrors';
 import useConsultaPeriodica from '../utils/useConsultaPeriodica';
+import ModalCentrado from './common/ModalCentrado';
+import { BLOQUE, BOTON } from './fondos/estilosFondo';
+import { Avatar, BarraProgreso, EstadoPill, Etiqueta } from './fondos/ElementosFondo';
 
 const CONSULTA_FONDOS_MS = 30000;
 
 // --- ICONOS ---
 const EyeIcon = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639l4.43-4.43a1.012 1.012 0 011.43 0l4.43 4.43a1.012 1.012 0 010 .639l-4.43 4.43a1.012 1.012 0 01-1.43 0l-4.43-4.43z" />
-    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
   </svg>
 );
 
@@ -33,22 +39,145 @@ const PlusIcon = (props) => (
   </svg>
 );
 
-const SparklesIcon = (props) => (
+const ClockIcon = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.456-2.456L14.25 6l1.035-.259a3.375 3.375 0 0 0 2.456-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
   </svg>
 );
 
-const ESTADOS_FONDO = {
-  borrador: 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600',
-  observado: 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700',
-  presentado_director: 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700',
-  aprobado_director: 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700',
-  en_ejecucion: 'bg-cyan-100 dark:bg-cyan-900 text-cyan-700 dark:text-cyan-300 border-cyan-300 dark:border-cyan-700',
-  informe_presentado: 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700',
-  finalizado: 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700',
-  rechazado: 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700',
-  archivado: 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-600',
+const SearchIcon = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+  </svg>
+);
+
+const GridIcon = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" />
+  </svg>
+);
+
+const ListIcon = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+  </svg>
+);
+
+const ESTADOS_ARCHIVABLES = ['aprobado_director', 'finalizado', 'rechazado', 'archivado'];
+
+const VISTA_STORAGE_KEY = 'fondos_vista_dashboard';
+const FONDOS_POR_PAGINA = { lista: 15, tarjetas: 9 };
+
+const porcentaje = (fondo) => Math.min(100, Math.max(0, Math.round(fondo.porcentaje_completado || 0)));
+
+// Selector de gestión: mismo borde que el buscador, el cuadrito azul con la flecha que
+// gira (como en Docentes) y menú flotante con hover azul. Sin gestión elegida muestra
+// "Todas las gestiones"; volver a pulsar la gestión elegida la quita.
+function SelectorGestion({ value, onChange, options, placeholder }) {
+  const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState(null);
+  const containerRef = useRef(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const cerrarSiEsFuera = (event) => {
+      if (containerRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return;
+      setOpen(false);
+    };
+    // El menú es fijo en pantalla: si se desplaza la página o cambia el tamaño, se cierra.
+    const cerrar = (event) => {
+      if (menuRef.current?.contains(event.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', cerrarSiEsFuera);
+    window.addEventListener('scroll', cerrar, true);
+    window.addEventListener('resize', cerrar);
+    return () => {
+      document.removeEventListener('mousedown', cerrarSiEsFuera);
+      window.removeEventListener('scroll', cerrar, true);
+      window.removeEventListener('resize', cerrar);
+    };
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open || !containerRef.current) {
+      setMenuStyle(null);
+      return;
+    }
+    const anchorRect = containerRef.current.getBoundingClientRect();
+    const estimatedHeight = Math.min(options.length * 40 + 16, window.innerHeight - 16);
+    const spaceBelow = window.innerHeight - anchorRect.bottom - 12;
+    const spaceAbove = anchorRect.top - 12;
+    const placeAbove = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+    setMenuStyle({
+      position: 'fixed',
+      left: `${anchorRect.left}px`,
+      width: `${anchorRect.width}px`,
+      top: placeAbove
+        ? `${Math.max(12, anchorRect.top - estimatedHeight - 8)}px`
+        : `${anchorRect.bottom + 8}px`,
+      zIndex: 99999,
+    });
+  }, [open, options.length]);
+
+  const seleccionada = options.find((opt) => String(opt.value) === String(value));
+
+  return (
+    <div ref={containerRef} className="relative min-w-0 flex-1 sm:flex-none sm:w-56">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="Filtrar por gestión"
+        className="w-full h-11 text-left pl-4 pr-2.5 rounded-full bg-azulado-100 ring-1 ring-inset ring-azulado-300 text-sm text-slate-800 flex items-center justify-between gap-2"
+      >
+        <span className={`truncate ${seleccionada ? '' : 'text-slate-500'}`}>{seleccionada?.label || placeholder}</span>
+        <span className="flex items-center justify-center h-6 w-6 rounded-md bg-[#2C4AAE] ring-1 ring-[#2C4AAE] flex-shrink-0">
+          <svg className={`w-3.5 h-3.5 text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+          </svg>
+        </span>
+      </button>
+
+      {open && menuStyle && createPortal(
+        <div ref={menuRef} role="listbox" className="rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl max-h-72 overflow-y-auto" style={menuStyle}>
+          <div className="p-2">
+            {options.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={String(option.value) === String(value)}
+                onClick={() => {
+                  onChange(String(option.value) === String(value) ? null : option.value);
+                  setOpen(false);
+                }}
+                className={`w-full text-left px-3 py-1.5 text-xs rounded-lg ${
+                  String(option.value) === String(value)
+                    ? 'bg-sky-600 text-white font-semibold hover:bg-sky-700'
+                    : 'bg-transparent text-slate-700 hover:bg-[#2C4AAE] hover:text-white'
+                }`}
+              >
+                <span className="block truncate">{option.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+const paginasVisibles = (actual, total) => {
+  const paginas = [...new Set([1, actual - 1, actual, actual + 1, total])]
+    .filter((pagina) => pagina >= 1 && pagina <= total)
+    .sort((a, b) => a - b);
+  return paginas.flatMap((pagina, i) => (
+    i > 0 && pagina - paginas[i - 1] > 1 ? ['…', pagina] : [pagina]
+  ));
 };
 
 function ListaFondos() {
@@ -59,6 +188,29 @@ function ListaFondos() {
   const [user, setUser] = useState(null);
   const [showMassiveModal, setShowMassiveModal] = useState(false);
   const [generandoMasivo, setGenerandoMasivo] = useState(false);
+  // Resultado de la generación masiva que se muestra en pantalla: { creados, ... } o { error }.
+  const [resultadoMasivo, setResultadoMasivo] = useState(null);
+  const [busqueda, setBusqueda] = useState('');
+  const [gestionFiltro, setGestionFiltro] = useState('todas');
+  const [pagina, setPagina] = useState(1);
+  const listaRef = useRef(null);
+  const [vista, setVista] = useState(() => {
+    try {
+      return localStorage.getItem(VISTA_STORAGE_KEY) === 'tarjetas' ? 'tarjetas' : 'lista';
+    } catch {
+      return 'lista';
+    }
+  });
+
+  const cambiarVista = (nuevaVista) => {
+    setVista(nuevaVista);
+    setPagina(1);
+    try {
+      localStorage.setItem(VISTA_STORAGE_KEY, nuevaVista);
+    } catch {
+      // Sin almacenamiento disponible la vista simplemente no se recuerda.
+    }
+  };
 
   useEffect(() => {
     cargarFondos();
@@ -71,6 +223,16 @@ function ListaFondos() {
       setUser(effectiveUser);
     }
   }, [effectiveUser]);
+
+  // El formulario de nuevo/editar fondo se abre encima de esta lista; al cerrarlo
+  // se vuelve a consultar para mostrar el fondo creado o actualizado.
+  const location = useLocation();
+  const rutaAnterior = useRef(location.pathname);
+  useEffect(() => {
+    const volvioDelFormulario = rutaAnterior.current !== location.pathname && location.pathname === '/fondo-tiempo';
+    rutaAnterior.current = location.pathname;
+    if (volvioDelFormulario) cargarFondos({ silencioso: true });
+  }, [location.pathname]);
 
   const cargarFondos = async ({ silencioso = false } = {}) => {
     try {
@@ -127,16 +289,25 @@ function ListaFondos() {
     try {
       const response = await generarFondosTiempoMasivo();
       const resumen = response.data || {};
+      const creados = resumen.creados || 0;
       setShowMassiveModal(false);
       await cargarFondos({ silencioso: true });
-      alert(
-        `Fondos generados correctamente.\n\nCreados: ${resumen.creados || 0}\n` +
-        `Omitidos por Dedicación Exclusiva: ${resumen.omitidos_exclusiva || 0}\n` +
-        `Omitidos por ya existentes: ${resumen.omitidos_ya_existentes || 0}`
-      );
+      setResultadoMasivo({
+        creados,
+        omitidosExclusiva: resumen.omitidos_exclusiva || 0,
+        omitidosExistentes: resumen.omitidos_ya_existentes || 0,
+      });
+      if (creados > 0) {
+        toast.success(creados === 1 ? 'Se creó 1 fondo de tiempo.' : `Se crearon ${creados} fondos de tiempo.`);
+      } else {
+        toast('No se creó ningún fondo nuevo.', { icon: 'ℹ️' });
+      }
     } catch (err) {
       console.error(err);
-      alert('Error al generar fondos masivamente: ' + (err.response?.data?.error || err.response?.data?.detail || err.message));
+      const mensaje = err.response?.data?.error || getApiErrorMessage(err, 'No se pudieron generar los fondos de tiempo.');
+      setShowMassiveModal(false);
+      setResultadoMasivo({ error: mensaje });
+      toast.error('No se pudieron generar los fondos de tiempo.');
     } finally {
       setGenerandoMasivo(false);
     }
@@ -144,242 +315,378 @@ function ListaFondos() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-slate-900">
+      <div className="flex items-center justify-center h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-slate-700 dark:text-slate-400">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-900 mx-auto"></div>
+          <p className="mt-4 text-slate-600">
             Cargando fondos de tiempo...
           </p>
         </div>
+        <Outlet />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-screen p-6 bg-slate-50 dark:bg-slate-900">
-        <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4 rounded">
-          <p className="text-red-700 dark:text-red-400">{error}</p>
+      <div className="flex items-center justify-center h-screen p-6">
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
+          <p className="text-red-700">{error}</p>
         </div>
+        <Outlet />
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
-      {/* Header con mejor contraste */}
-      <div className="bg-white dark:bg-slate-800 border-b-2 border-slate-300 dark:border-slate-700 shadow-md">
-        <div className="px-6 py-5">
-          <div className="flex items-center justify-between">
-            {/* Título */}
-            <div>
-              <h2 className="text-3xl font-bold text-blue-600 dark:text-white">
-                Dashboard de Fondos
-              </h2>
-              <p className="text-sm text-slate-700 dark:text-slate-400 mt-1">
-                Gestión del Fondo de Tiempo Docente
-              </p>
-              {esIisyp && (
-                <span className="mt-3 inline-flex items-center px-3 py-1.5 rounded-lg border-2 border-cyan-300 bg-cyan-50 text-xs font-bold text-cyan-700 dark:border-cyan-700 dark:bg-cyan-900/20 dark:text-cyan-300">
-                  Vista de Investigación - Solo Lectura
-                </span>
-              )}
-            </div>
+  const gestiones = [...new Set(fondos.map((fondo) => fondo.gestion).filter(Boolean))].sort((a, b) => b - a);
+  const texto = busqueda.trim().toLowerCase();
+  const fondosFiltrados = fondos.filter((fondo) => {
+    if (gestionFiltro !== 'todas' && String(fondo.gestion) !== gestionFiltro) return false;
+    if (!texto) return true;
+    return [fondo.docente_nombre, fondo.carrera_nombre]
+      .some((campo) => (campo || '').toLowerCase().includes(texto));
+  });
 
-            {/* Contador y Botón */}
-            <div className="flex items-center gap-4">
-              {puedeCrear && (
-                <>
-                  <button data-escritura
-                    type="button"
-                    onClick={() => setShowMassiveModal(true)}
-                    className="inline-flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg transition-all"
-                  >
-                    <SparklesIcon className="w-5 h-5" />
-                    <span>Generar Fondos Masivamente</span>
-                  </button>
-                  <Link data-escritura
-                    to="/fondo-tiempo/nuevo-fondo"
-                    className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
-                  >
-                    <PlusIcon className="w-5 h-5" />
-                    <span>Nuevo Fondo de Tiempo</span>
-                  </Link>
-                </>
-              )}
-              <div className="bg-slate-50 dark:bg-slate-700 px-6 py-3 rounded-xl border-2 border-slate-300 dark:border-slate-600 shadow-md">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-blue-600 dark:text-white">
-                    {fondos.length}
-                  </div>
-                  <div className="text-xs text-slate-700 dark:text-slate-400 font-medium">Total fondos</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+  const porPagina = FONDOS_POR_PAGINA[vista];
+  const totalPaginas = Math.max(1, Math.ceil(fondosFiltrados.length / porPagina));
+  // Si la lista se achica (filtro, archivado) la página guardada puede quedar fuera de rango.
+  const paginaActual = Math.min(pagina, totalPaginas);
+  const inicio = (paginaActual - 1) * porPagina;
+  const fondosPagina = fondosFiltrados.slice(inicio, inicio + porPagina);
+
+  const irAPagina = (nuevaPagina) => {
+    setPagina(nuevaPagina);
+    listaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  // Entrada suave y escalonada de cada fondo al cambiar de vista o de página.
+  const entrada = (indice) => ({
+    className: 'animate-fondo-entrada',
+    style: { animationDelay: `${Math.min(indice, 8) * 35}ms` },
+  });
+
+  const horas = (fondo) => (
+    <span className="tabular-nums whitespace-nowrap">
+      <span className="font-bold text-slate-800">{Math.round(fondo.total_asignado || 0)}</span>
+      <span className="text-sm text-slate-500"> / {Math.round(fondo.horas_efectivas || 0)} hrs</span>
+    </span>
+  );
+
+  const progreso = (fondo) => (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-xs font-medium text-slate-600">Progreso</span>
+        <span className="text-sm font-bold text-blue-900 tabular-nums">{porcentaje(fondo)}%</span>
       </div>
+      <BarraProgreso valor={porcentaje(fondo)} />
+    </div>
+  );
 
-      {/* Lista de fondos */}
-      <div className="max-w-7xl mx-auto p-6">
-        {fondos.length > 0 ? (
-          <div className="space-y-4">
-            {fondos.map((fondo) => (
-              <div 
-                key={fondo.id} 
-                className="bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-xl shadow-md hover:shadow-xl transition-all duration-300 hover:scale-[1.01]"
-              >
-                <div className="p-5">
-                  {/* Fila superior */}
-                  <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-4">
-                    {/* Info del docente */}
-                    <div className="flex items-center gap-4 flex-1">
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md flex-shrink-0">
-                        {(fondo.docente_nombre || 'NN').split(' ').map(n => n[0]).join('').substring(0, 2)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-lg font-bold text-blue-600 dark:text-white truncate">
-                          {fondo.docente_nombre}
-                        </h3>
-                        <p className="text-sm text-slate-700 dark:text-slate-400 truncate">
-                          {fondo.carrera_nombre}
-                        </p>
-                      </div>
-                    </div>
+  const acciones = (fondo) => (
+    <div className="flex flex-wrap items-center gap-2">
+      <Link
+        to={`/fondo-tiempo/fondo/${fondo.id}`}
+        className={`${BOTON} bg-blue-900 hover:bg-blue-950 text-white`}
+      >
+        <EyeIcon className="w-[18px] h-[18px]" />
+        <span>Ver</span>
+      </Link>
+      {puedeEditar(fondo) && (
+        <Link
+          to={`/fondo-tiempo/editar-fondo/${fondo.id}`}
+          className={`${BOTON} bg-emerald-500 hover:bg-emerald-600 text-white`}
+        >
+          <PencilIcon className="w-[18px] h-[18px]" />
+          <span>Editar</span>
+        </Link>
+      )}
+      {puedeArchivar && ESTADOS_ARCHIVABLES.includes(fondo.estado) && (
+        <button data-escritura
+          type="button"
+          onClick={() => archivarFondo(fondo.id)}
+          className={`${BOTON} bg-red-400 hover:bg-red-500 text-white`}
+        >
+          <ArchiveBoxIcon className="w-[18px] h-[18px]" />
+          <span>Archivar</span>
+        </button>
+      )}
+    </div>
+  );
 
-                    {/* Horas */}
-                    <div className="bg-slate-50 dark:bg-slate-700 px-4 py-2 rounded-xl border-2 border-slate-300 dark:border-slate-600 shadow-sm min-w-[140px]">
-                      <div className="text-xl font-bold text-slate-800 dark:text-white text-center">
-                        {Math.round(fondo.total_asignado || 0)} <span className="text-sm text-slate-500 dark:text-slate-400 font-normal">/ {Math.round(fondo.horas_efectivas || 0)}</span>
-                      </div>
-                      <div className="text-xs text-slate-700 dark:text-slate-400 font-medium text-center">hrs asignadas</div>
-                    </div>
+  const botonesCrear = (
+    <>
+      <button data-escritura
+        type="button"
+        onClick={() => setShowMassiveModal(true)}
+        className={`${BOTON} px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white shadow-sm`}
+      >
+        Generar Fondos Masivamente
+      </button>
+      <Link data-escritura
+        to="/fondo-tiempo/nuevo-fondo"
+        className={`${BOTON} px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm`}
+      >
+        <PlusIcon className="w-5 h-5" />
+        <span>Nuevo Fondo de Tiempo</span>
+      </Link>
+    </>
+  );
 
-                    {/* Estado */}
-                    <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold border-2 shadow-sm ${ESTADOS_FONDO[fondo.estado] || ESTADOS_FONDO.borrador}`}>
-                      {fondo.estado.toUpperCase()}
-                    </span>
-                  </div>
-
-                  {/* Tags */}
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    <span className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-2 border-slate-300 dark:border-slate-600">
-                      📅 {fondo.gestion}
-                    </span>
-                    <span className="px-3 py-1 rounded-lg text-xs font-medium bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-2 border-slate-300 dark:border-slate-600">
-                      📚 {fondo.descripcion}
-                    </span>
-                  </div>
-
-                  {/* Progreso + Botones */}
-                  <div className="flex flex-col lg:flex-row gap-4 pt-4 border-t-2 border-slate-300 dark:border-slate-700">
-                    {/* Progreso */}
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-slate-700 dark:text-slate-400">
-                          Progreso
-                        </span>
-                        <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
-                          {Math.round(fondo.porcentaje_completado)}%
-                        </span>
-                      </div>
-                      <div className="w-full rounded-full h-2.5 bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600">
-                        <div 
-                          className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2.5 rounded-full transition-all duration-500"
-                          style={{ width: `${fondo.porcentaje_completado}%` }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    {/* Botones */}
-                    <div className="flex flex-wrap gap-2">
-                      <Link 
-                        to={`/fondo-tiempo/fondo/${fondo.id}`}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white text-sm font-semibold rounded-lg transition duration-300 hover:scale-105 shadow-md hover:shadow-lg"
-                      >
-                        <EyeIcon className="w-5 h-5" />
-                        <span>Ver</span>
-                      </Link>
-
-                      {puedeEditar(fondo) && (
-                        <Link
-                          to={`/fondo-tiempo/editar-fondo/${fondo.id}`}
-                          className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition duration-300 hover:scale-105 shadow-md hover:shadow-lg"
-                        >
-                          <PencilIcon className="w-5 h-5" />
-                          <span>Editar</span>
-                        </Link>
-                      )}
-
-                      {puedeArchivar && ['aprobado_director', 'finalizado', 'rechazado', 'archivado'].includes(fondo.estado) && (
-                        <button data-escritura
-                          onClick={() => archivarFondo(fondo.id)}
-                          className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition duration-300 hover:scale-105 shadow-md hover:shadow-lg"
-                        >
-                          <ArchiveBoxIcon className="w-5 h-5" />
-                          <span>Archivar</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
+  return (
+    <div className="min-h-full px-3 sm:px-4 md:px-8 py-4 md:py-6 space-y-4 text-slate-800">
+      {/* Bloque 1: encabezado con acciones, y al lado el total en su propio bloque (misma altura) */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
+        <div className={`${BLOQUE} p-5 sm:p-6`}>
+          <div className="flex flex-wrap items-center justify-between gap-5">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="hidden sm:flex w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-50 to-azulado-200 ring-1 ring-inset ring-azulado-300 text-blue-900 items-center justify-center flex-shrink-0">
+                <ClockIcon className="w-7 h-7" />
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="bg-white dark:bg-slate-800 rounded-xl border-2 border-slate-300 dark:border-slate-700 p-12 text-center shadow-md">
-            <div className="w-20 h-20 rounded-full bg-slate-50 dark:bg-slate-700 border-2 border-slate-300 dark:border-slate-600 flex items-center justify-center mx-auto mb-4">
-              <span className="text-5xl">📊</span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                  Gestión del Fondo de Tiempo Docente
+                </p>
+                <h2 className="text-2xl sm:text-3xl font-bold text-blue-900">
+                  Dashboard de Fondos
+                </h2>
+                {esIisyp && (
+                  <span className="mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-cyan-50 text-cyan-700 ring-1 ring-inset ring-cyan-300">
+                    Vista de Investigación - Solo Lectura
+                  </span>
+                )}
+              </div>
             </div>
-            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
-              No hay fondos registrados
-            </h3>
-            <p className="text-slate-700 dark:text-slate-400 mb-6">
-              Comienza creando tu primer fondo de tiempo
-            </p>
+
             {puedeCrear && (
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                <button data-escritura
-                  type="button"
-                  onClick={() => setShowMassiveModal(true)}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg transition-all"
-                >
-                  <SparklesIcon className="w-5 h-5" />
-                  <span>Generar Fondos Masivamente</span>
-                </button>
-                <Link data-escritura
-                  to="/fondo-tiempo/nuevo-fondo"
-                  className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
-                >
-                  <PlusIcon className="w-5 h-5" />
-                  <span>Nuevo Fondo de Tiempo</span>
-                </Link>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                {botonesCrear}
               </div>
             )}
           </div>
-        )}
+        </div>
+
+        <div className="rounded-3xl bg-gradient-to-br from-blue-900 to-blue-950 text-white p-5 sm:p-6 flex items-center justify-between gap-4 shadow-[0_4px_14px_rgba(30,58,138,0.25)]">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-blue-200">Total fondos</p>
+            <p className="mt-1 text-sm text-blue-100">
+              {fondos.length === 1 ? 'fondo registrado' : 'fondos registrados'}
+            </p>
+          </div>
+          <span className="text-5xl font-bold tabular-nums leading-none">{fondos.length}</span>
+        </div>
       </div>
 
+      {/* Bloque 2: búsqueda, gestión y tipo de vista */}
+      <div className={`${BLOQUE} p-3 flex flex-wrap items-center gap-2 sm:gap-3`}>
+        <label className="flex items-center gap-2 w-full sm:w-auto sm:flex-1 sm:max-w-md h-11 px-4 rounded-full bg-azulado-100 ring-1 ring-inset ring-azulado-300 focus-within:ring-blue-900/40">
+          <SearchIcon className="w-[18px] h-[18px] text-slate-500 flex-shrink-0" />
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => {
+              setBusqueda(e.target.value);
+              setPagina(1);
+            }}
+            placeholder="Buscar docente o carrera"
+            className="w-full text-sm text-slate-800 placeholder:text-slate-500 outline-none"
+            style={{ background: 'transparent', border: 'none', boxShadow: 'none', padding: 0 }}
+          />
+        </label>
+
+        <SelectorGestion
+          value={gestionFiltro}
+          onChange={(gestion) => {
+            setGestionFiltro(gestion ?? 'todas');
+            setPagina(1);
+          }}
+          placeholder="Todas las gestiones"
+          options={gestiones.map((gestion) => ({ value: String(gestion), label: `Gestión ${gestion}` }))}
+        />
+
+        <div className="ml-auto flex items-center gap-1 p-1 rounded-full bg-azulado-100 ring-1 ring-inset ring-azulado-300">
+          {[
+            { id: 'tarjetas', label: 'Tarjetas', icon: GridIcon },
+            { id: 'lista', label: 'Lista', icon: ListIcon },
+          ].map((opcion) => (
+            <button
+              key={opcion.id}
+              type="button"
+              title={opcion.label}
+              onClick={() => cambiarVista(opcion.id)}
+              className={`inline-flex items-center gap-2 px-3 sm:px-4 h-9 rounded-full text-sm font-medium transition-colors ${
+                vista === opcion.id ? 'bg-blue-900 text-white shadow-sm' : 'text-slate-600 hover:text-blue-900'
+              }`}
+            >
+              <opcion.icon className="w-4 h-4" />
+              <span className="hidden sm:inline">{opcion.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Bloque 3: fondos */}
+      <div ref={listaRef} className="scroll-mt-4" />
+      {fondos.length === 0 ? (
+        <div className={`${BLOQUE} p-10 sm:p-12 text-center`}>
+          <h3 className="text-xl font-bold text-slate-800 mb-2">
+            No hay fondos registrados
+          </h3>
+          <p className="text-slate-600">
+            Comienza creando tu primer fondo de tiempo
+          </p>
+        </div>
+      ) : fondosFiltrados.length === 0 ? (
+        <div className={`${BLOQUE} p-10 text-center text-sm text-slate-600`}>
+          Ningún fondo coincide con la búsqueda.
+        </div>
+      ) : vista === 'lista' ? (
+        // Cuadrícula en vez de <table>: el CSS del módulo POA da estilo a todas las tablas.
+        // En escritorio se ve como tabla; en el celular cada fondo es un bloque apilado.
+        <div key={`lista-${paginaActual}`} className={`${BLOQUE} p-2 sm:p-3`}>
+          <div className="hidden xl:grid grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_8rem_10rem_11rem_15rem] gap-4 px-3 pt-3 pb-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 [border-bottom:1px_solid_#B8C9E1]">
+            <span>Docente</span>
+            <span>Descripción</span>
+            <span>Horas asignadas</span>
+            <span>Progreso</span>
+            <span>Estado</span>
+            <span>Acciones</span>
+          </div>
+          <div className="divide-y divide-azulado-300">
+            {fondosPagina.map((fondo, indice) => (
+              <div
+                key={fondo.id}
+                style={entrada(indice).style}
+                className="animate-fondo-entrada grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_8rem_10rem_11rem_15rem] items-center gap-x-4 gap-y-3 px-3 py-4 rounded-2xl hover:bg-azulado-100/70 transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar nombre={fondo.docente_nombre} size="w-10 h-10 text-sm" />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-blue-900 truncate">{fondo.docente_nombre}</div>
+                    <div className="text-sm text-slate-600 truncate">{fondo.carrera_nombre}</div>
+                  </div>
+                  <div className="xl:hidden"><EstadoPill estado={fondo.estado} /></div>
+                </div>
+                <div className="flex flex-wrap gap-2 min-w-0">
+                  <Etiqueta>{fondo.gestion}</Etiqueta>
+                  <span className="min-w-0 max-w-full truncate"><Etiqueta>{fondo.descripcion}</Etiqueta></span>
+                </div>
+                <div className="flex items-baseline justify-between xl:block">
+                  <span className="xl:hidden text-xs font-medium text-slate-600">Horas asignadas</span>
+                  {horas(fondo)}
+                </div>
+                {progreso(fondo)}
+                <div className="hidden xl:block"><EstadoPill estado={fondo.estado} /></div>
+                {acciones(fondo)}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div key={`tarjetas-${paginaActual}`} className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+          {fondosPagina.map((fondo, indice) => (
+            <div key={fondo.id} style={entrada(indice).style} className={`${BLOQUE} ${entrada(indice).className} p-5 flex flex-col gap-4`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar nombre={fondo.docente_nombre} />
+                  <div className="min-w-0">
+                    <h3 className="text-lg font-bold text-blue-900 truncate">{fondo.docente_nombre}</h3>
+                    <p className="text-sm text-slate-600 truncate">{fondo.carrera_nombre}</p>
+                  </div>
+                </div>
+                <EstadoPill estado={fondo.estado} />
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Etiqueta>{fondo.gestion}</Etiqueta>
+                <Etiqueta>{fondo.descripcion}</Etiqueta>
+              </div>
+
+              <div className="flex items-baseline justify-between px-4 py-2 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300">
+                <span className="text-xs font-medium text-slate-600">Horas asignadas</span>
+                {horas(fondo)}
+              </div>
+
+              {progreso(fondo)}
+
+              <div className="pt-3 [border-top:1px_solid_#B8C9E1]">
+                {acciones(fondo)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Paginación: 15 fondos por página en lista y 9 en tarjetas */}
+      {totalPaginas > 1 && (
+        <div className={`${BLOQUE} px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3`}>
+          <p className="text-sm text-slate-600">
+            Mostrando <span className="font-semibold text-slate-800 tabular-nums">{inicio + 1}–{inicio + fondosPagina.length}</span> de{' '}
+            <span className="font-semibold text-slate-800 tabular-nums">{fondosFiltrados.length}</span> fondos
+          </p>
+          <nav className="flex items-center gap-1" aria-label="Paginación">
+            <button
+              type="button"
+              onClick={() => irAPagina(paginaActual - 1)}
+              disabled={paginaActual === 1}
+              aria-label="Página anterior"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-blue-900 hover:bg-azulado-200 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+              </svg>
+            </button>
+            {paginasVisibles(paginaActual, totalPaginas).map((numero, i) => (
+              numero === '…' ? (
+                <span key={`salto-${i}`} className="w-6 text-center text-sm text-slate-400">…</span>
+              ) : (
+                <button
+                  key={numero}
+                  type="button"
+                  onClick={() => irAPagina(numero)}
+                  aria-current={numero === paginaActual ? 'page' : undefined}
+                  className={`h-9 min-w-9 px-3 rounded-full text-sm font-semibold tabular-nums transition-colors ${
+                    numero === paginaActual ? 'bg-blue-900 text-white shadow-sm' : 'text-slate-700 hover:bg-azulado-200'
+                  }`}
+                >
+                  {numero}
+                </button>
+              )
+            ))}
+            <button
+              type="button"
+              onClick={() => irAPagina(paginaActual + 1)}
+              disabled={paginaActual === totalPaginas}
+              aria-label="Página siguiente"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-blue-900 hover:bg-azulado-200 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+              </svg>
+            </button>
+          </nav>
+        </div>
+      )}
+
       {showMassiveModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl">
-            <div className="px-6 py-5 border-b-2 border-slate-200 dark:border-slate-700">
-              <h3 className="text-xl font-bold text-slate-800 dark:text-white">
+        <ModalCentrado onClose={generandoMasivo ? undefined : () => setShowMassiveModal(false)}>
+          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
+            <div className="px-6 pt-6">
+              <h3 className="text-xl font-bold text-slate-800">
                 Generar Fondos Masivamente
               </h3>
             </div>
-            <div className="p-6">
-              <p className="text-sm leading-6 text-slate-700 dark:text-slate-300">
+            <div className="px-6 py-4">
+              <p className="text-sm leading-6 text-slate-700">
                 ¿Está seguro que desea generar los Fondos de Tiempo para todos los docentes activos de la gestión actual?
                 El sistema omitirá automáticamente a los docentes con Dedicación Exclusiva y a los que ya tengan fondo creado.
               </p>
             </div>
-            <div className="flex justify-end gap-3 px-6 py-4 bg-slate-50 dark:bg-slate-900/40 border-t-2 border-slate-200 dark:border-slate-700 rounded-b-2xl">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 pb-6">
               <button
                 type="button"
                 onClick={() => setShowMassiveModal(false)}
                 disabled={generandoMasivo}
-                className="px-5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-all disabled:opacity-50"
+                className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200 disabled:opacity-50`}
               >
                 Cancelar
               </button>
@@ -387,15 +694,81 @@ function ListaFondos() {
                 type="button"
                 onClick={generarFondosMasivamente}
                 disabled={generandoMasivo}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-md hover:shadow-lg transition-all disabled:opacity-50"
+                className={`${BOTON} px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white disabled:opacity-50`}
               >
-                <SparklesIcon className="w-5 h-5" />
-                <span>{generandoMasivo ? 'Generando...' : 'Confirmar generación'}</span>
+                {generandoMasivo ? 'Generando...' : 'Confirmar generación'}
               </button>
             </div>
           </div>
-        </div>
+        </ModalCentrado>
       )}
+
+      {/* Aviso en pantalla con el resultado de la generación masiva */}
+      {resultadoMasivo && (
+        <ModalCentrado onClose={() => setResultadoMasivo(null)}>
+          <div className="w-full max-w-md rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl p-6 text-center">
+            {resultadoMasivo.error ? (
+              <>
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-600 ring-1 ring-inset ring-red-200">
+                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-slate-800">No se generaron los fondos</h3>
+                <p className="mt-2 text-sm text-slate-600">{resultadoMasivo.error}</p>
+              </>
+            ) : (
+              <>
+                <div className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full ring-1 ring-inset ${
+                  resultadoMasivo.creados > 0
+                    ? 'bg-emerald-50 text-emerald-600 ring-emerald-200'
+                    : 'bg-sky-50 text-sky-600 ring-sky-200'
+                }`}>
+                  {resultadoMasivo.creados > 0 ? (
+                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  )}
+                </div>
+                <h3 className="text-xl font-bold text-slate-800">
+                  {resultadoMasivo.creados > 0 ? 'Fondos generados' : 'No había fondos por generar'}
+                </h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  {resultadoMasivo.creados > 0
+                    ? 'Los nuevos fondos ya aparecen en el dashboard en estado borrador.'
+                    : 'Los docentes activos ya tienen fondo, están exentos o su carrera no tiene calendario activo.'}
+                </p>
+                <div className="mt-5 divide-y divide-azulado-300 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 text-left text-sm">
+                  {[
+                    { label: 'Creados', valor: resultadoMasivo.creados, color: 'text-emerald-700' },
+                    { label: 'Omitidos por Dedicación Exclusiva', valor: resultadoMasivo.omitidosExclusiva, color: 'text-slate-800' },
+                    { label: 'Omitidos: ya tienen fondo o sin calendario activo', valor: resultadoMasivo.omitidosExistentes, color: 'text-slate-800' },
+                  ].map((fila) => (
+                    <div key={fila.label} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                      <span className="text-slate-600">{fila.label}</span>
+                      <span className={`font-bold tabular-nums ${fila.color}`}>{fila.valor}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => setResultadoMasivo(null)}
+              className={`${BOTON} mt-6 w-full sm:w-auto px-8 py-2.5 bg-blue-900 hover:bg-blue-950 text-white`}
+            >
+              Aceptar
+            </button>
+          </div>
+        </ModalCentrado>
+      )}
+
+      {/* Formulario de nuevo/editar fondo (rutas hijas), abierto como modal */}
+      <Outlet />
     </div>
   );
 }

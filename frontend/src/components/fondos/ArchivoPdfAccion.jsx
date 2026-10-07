@@ -35,19 +35,23 @@ const ArchivoPdfAccion = ({ endpoint, campos, nombre, url, puedeSubir, onSubido 
   };
 
   return (
-    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-normal">
+    <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs font-normal">
       {url ? (
         <a
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+          className="inline-flex items-center gap-1.5 rounded-full bg-azulado-100 px-2.5 py-1 font-semibold text-blue-900 hover:bg-azulado-200 transition-colors"
         >
           <FileText className="h-3.5 w-3.5" />
           {nombre} (PDF)
         </a>
       ) : (
-        !puedeSubir && <span className="text-amber-700 dark:text-amber-300">Sin {nombre.toLowerCase()}</span>
+        !puedeSubir && (
+          <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 font-semibold text-amber-800">
+            Sin {nombre.toLowerCase()}
+          </span>
+        )
       )}
       {puedeSubir && (
         <>
@@ -57,10 +61,10 @@ const ArchivoPdfAccion = ({ endpoint, campos, nombre, url, puedeSubir, onSubido 
             data-escritura
             disabled={subiendo}
             onClick={() => inputRef.current?.click()}
-            className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-semibold transition-colors disabled:opacity-60 ${
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold transition-colors disabled:opacity-60 ${
               url
-                ? 'border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700'
-                : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200'
+                ? 'text-slate-600 hover:bg-azulado-200'
+                : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
             }`}
           >
             <Upload className="h-3.5 w-3.5" />

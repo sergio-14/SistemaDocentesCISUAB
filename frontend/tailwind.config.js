@@ -8,6 +8,14 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Blanco azulado del módulo de Fondo de Tiempo: menos brillante que el blanco puro.
+        // 100 es el fondo del panel y 50 el de los bloques, para que se distingan entre sí.
+        'azulado': {
+          50: '#F7F9FD',
+          100: '#DFE8F5',
+          200: '#D2DDEE',
+          300: '#B8C9E1',
+        },
         'uab-blue': {
           50: '#EBF5FF',
           100: '#D6EBFF',

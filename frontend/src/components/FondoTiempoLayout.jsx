@@ -1,18 +1,16 @@
-import { Navigate, Outlet } from 'react-router-dom';
-import { useEffect } from 'react';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import Sidebar from './Sidebar';
-import ThemeToggle from './ThemeToggle';
 import { useActiveRole } from '../contexts/activeRole';
 import AvisoCarreraInactiva from './common/AvisoCarreraInactiva';
 import AvisoFichaDocentePendiente from './common/AvisoFichaDocentePendiente';
+import useSinElevacionPoa from '../utils/useSinElevacionPoa';
 
 const FondoTiempoLayout = ({ 
     user, 
     onLogout, 
     sidebarCollapsed, 
     setSidebarCollapsed,
-    theme,
-    setTheme,
     onProfileUpdate, // <-- Recibimos la prop
     onCarreraActivaChange,
 }) => {
@@ -21,6 +19,25 @@ const FondoTiempoLayout = ({
         assignments,
         hasMultipleAssignments,
     } = useActiveRole();
+    const location = useLocation();
+    useSinElevacionPoa();
+
+    // En pantallas menores a lg el sidebar es un menú deslizable que tapa el contenido.
+    const [esMovil, setEsMovil] = useState(() => window.matchMedia('(max-width: 1023px)').matches);
+    const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
+
+    useEffect(() => {
+        const media = window.matchMedia('(max-width: 1023px)');
+        const actualizar = () => setEsMovil(media.matches);
+        media.addEventListener('change', actualizar);
+        return () => media.removeEventListener('change', actualizar);
+    }, []);
+
+    useEffect(() => {
+        setMenuMovilAbierto(false);
+    }, [location.pathname]);
+
+    const anchoSidebar = esMovil ? '0rem' : (sidebarCollapsed ? '5rem' : '18rem');
 
     const storedAssignmentId = localStorage.getItem('active_assignment_id');
     const hasValidStoredAssignment = assignments.some(
@@ -34,12 +51,34 @@ const FondoTiempoLayout = ({
         && !hasValidStoredAssignment
     );
 
+    // El módulo de Fondo de Tiempo solo se ve en modo claro (fondo blanco azulado). Mientras
+    // está montado se quita la clase 'dark' aunque el tema global la vuelva a poner,
+    // y al salir se restaura el tema guardado para el resto del sistema.
     useEffect(() => {
-        document.documentElement.style.setProperty('--fondo-sidebar-width', sidebarCollapsed ? '5rem' : '18rem');
+        const root = document.documentElement;
+        const forzarClaro = () => {
+            if (root.classList.contains('dark')) root.classList.remove('dark');
+            if (root.getAttribute('data-theme') !== 'light') root.setAttribute('data-theme', 'light');
+        };
+        forzarClaro();
+        const observer = new MutationObserver(forzarClaro);
+        observer.observe(root, { attributes: true, attributeFilter: ['class', 'data-theme'] });
+        return () => {
+            observer.disconnect();
+            const saved = localStorage.getItem('theme');
+            const oscuro = saved === 'dark'
+                || ((!saved || saved === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            root.classList.toggle('dark', oscuro);
+            root.setAttribute('data-theme', oscuro ? 'dark' : 'light');
+        };
+    }, []);
+
+    useEffect(() => {
+        document.documentElement.style.setProperty('--fondo-sidebar-width', anchoSidebar);
         return () => {
             document.documentElement.style.removeProperty('--fondo-sidebar-width');
         };
-    }, [sidebarCollapsed]);
+    }, [anchoSidebar]);
 
     if (requiereSeleccionRol) {
         return <Navigate to="/" replace />;
@@ -47,29 +86,54 @@ const FondoTiempoLayout = ({
 
     return (
         <div
-            className="flex h-screen overflow-hidden bg-blue-50 dark:bg-slate-900"
-            style={{ '--fondo-sidebar-width': sidebarCollapsed ? '5rem' : '18rem' }}
+            className="flex h-screen overflow-hidden bg-azulado-100 lg:bg-gradient-to-b lg:from-blue-900 lg:to-blue-950"
+            style={{ '--fondo-sidebar-width': anchoSidebar }}
         >
-            {/* Selector de Tema - Flotante Global */}
-            <ThemeToggle theme={theme} setTheme={setTheme} />
-
             {/* Sidebar */}
             <Sidebar 
                 user={user} 
                 onLogout={onLogout}
                 collapsed={sidebarCollapsed}
                 setCollapsed={setSidebarCollapsed}
+                esMovil={esMovil}
+                menuMovilAbierto={menuMovilAbierto}
+                onCerrarMenuMovil={() => setMenuMovilAbierto(false)}
                 onProfileUpdate={onProfileUpdate} // <-- La pasamos a Sidebar
                 onCarreraActivaChange={onCarreraActivaChange}
             />
 
-            {/* Contenido Principal del Módulo */}
+            {/* Velo detrás del menú deslizable en el celular */}
+            {esMovil && menuMovilAbierto && (
+                <button
+                    type="button"
+                    aria-label="Cerrar menú"
+                    onClick={() => setMenuMovilAbierto(false)}
+                    className="fixed inset-0 z-30 bg-blue-950/40"
+                />
+            )}
+
+            {/* Contenido Principal del Módulo: en escritorio el main lleva el azul del sidebar
+                detrás de las esquinas y el panel azulado se redondea solo del lado del sidebar */}
             <main 
-                className={`flex-1 h-screen overflow-y-auto transition-all duration-300 ${
-                sidebarCollapsed ? 'ml-20' : 'ml-72'
+                className={`flex-1 min-w-0 h-screen flex flex-col transition-all duration-300 ${
+                sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'
                 }`}
             >
-                <div className="min-h-full bg-blue-50 dark:bg-slate-900">
+                {/* Barra superior solo en el celular */}
+                <div className="lg:hidden flex items-center gap-3 px-4 h-14 flex-shrink-0 bg-gradient-to-r from-blue-900 to-blue-950 text-white">
+                    <button
+                        type="button"
+                        onClick={() => setMenuMovilAbierto(true)}
+                        aria-label="Abrir menú"
+                        className="p-2 -ml-2 rounded-full hover:bg-white/10"
+                    >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                    <span className="text-sm font-semibold">Fondo de Tiempo</span>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto bg-azulado-100 lg:rounded-l-[2rem]">
                     <AvisoCarreraInactiva className="sticky top-0 z-30 mx-4 mt-4 md:mx-8" />
                     <AvisoFichaDocentePendiente className="mx-4 mt-4 md:mx-8" />
                     {/* Las rutas anidadas (ListaFondos, DetalleFondo, etc.) se renderizarán aquí */}

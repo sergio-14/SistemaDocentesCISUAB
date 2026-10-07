@@ -3,19 +3,8 @@ import { observarFondo } from '../apis/api';
 import toast from 'react-hot-toast';
 import { ERROR_FIELD_BORDER_CLASS, MENSAJE_REVISA_CAMPOS, getApiErrorMessage } from '../utils/formErrors';
 import MensajeErrorCampo from './common/MensajeErrorCampo';
-
-const PaperAirplaneIcon = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-  </svg>
-);
-
-const InfoIcon = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M12 8.25h.008v.008H12V8.25z" />
-    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
+import ModalCentrado from './common/ModalCentrado';
+import { BOTON } from './fondos/estilosFondo';
 
 function FormularioObservar({ fondo, onObservar, onCancelar }) {
   const [observacion, setObservacion] = useState('');
@@ -45,128 +34,90 @@ function FormularioObservar({ fondo, onObservar, onCancelar }) {
       });
 
       onObservar();
-      toast.success('Observacion enviada al docente');
-
-      setTimeout(() => {}, 500);
+      toast.success('Observación enviada');
     } catch (err) {
       console.error('Error al observar:', err);
-      toast.error(getApiErrorMessage(err, 'Error al enviar la observacion'));
+      toast.error(getApiErrorMessage(err, 'Error al enviar la observación'));
       setEnviando(false);
     }
   };
 
   return (
-    <div className="observacion-modal-overlay">
-      <div className="observacion-modal-card">
-        <div className="observacion-modal-header">
-          <h2 className="observacion-modal-title">
-            <span className="observacion-modal-title-icon">
-              <PaperAirplaneIcon className="h-4 w-4" />
-            </span>
-            Observar Fondo de Tiempo
-          </h2>
-          <p className="observacion-modal-subtitle">
-            Envia tus observaciones al docente para que realice las correcciones necesarias
+    <ModalCentrado>
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        className="w-full max-w-2xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl"
+      >
+        <div className="px-6 pt-6">
+          <h3 className="text-xl font-bold text-blue-900">Observar Fondo de Tiempo</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Envíe sus observaciones para que se realicen las correcciones necesarias.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} noValidate className="observacion-modal-form">
-          <div className="observacion-modal-info">
-            <div className="observacion-modal-info-grid">
-              <div>
-                <span>Docente:</span>
-                <p>
-                  {fondo.docente?.nombre_completo || 'N/A'}
-                </p>
+        <div className="px-6 py-4 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 rounded-2xl bg-azulado-100 px-4 py-3 text-sm">
+            {[
+              { label: 'Docente', valor: fondo.docente?.nombre_completo || 'N/A' },
+              { label: 'Carrera', valor: fondo.carrera?.nombre || 'N/A' },
+              { label: 'Fondo', valor: fondo.descripcion },
+              { label: 'Gestión', valor: fondo.gestion },
+            ].map((dato) => (
+              <div key={dato.label} className="min-w-0">
+                <span className="text-xs text-slate-500">{dato.label}</span>
+                <p className="font-semibold text-slate-800 truncate">{dato.valor}</p>
               </div>
-              <div>
-                <span>Carrera:</span>
-                <p>
-                  {fondo.carrera?.nombre || 'N/A'}
-                </p>
-              </div>
-              <div>
-                <span>Fondo:</span>
-                <p>
-                  {fondo.descripcion}
-                </p>
-              </div>
-              <div>
-                <span>Gestion:</span>
-                <p>
-                  {fondo.gestion}
-                </p>
-              </div>
-            </div>
+            ))}
           </div>
 
           <div>
-            <label className="observacion-modal-label">
-              Observaciones *
-            </label>
+            <label className="block text-sm font-semibold text-slate-800 mb-2 pl-1">Observaciones</label>
             <textarea
               value={observacion}
               onChange={(e) => { setObservacion(e.target.value); setError(''); }}
-              rows={8}
-              placeholder={'Ejemplo:\n\n1. Falta especificar las horas de tutoria en la funcion Docente.\n2. El porcentaje de Investigacion (5%) esta por debajo del minimo requerido (10%).\n3. Debe adjuntar el programa analitico actualizado.'}
-              className={`observacion-modal-textarea ${error ? ERROR_FIELD_BORDER_CLASS : ''}`}
+              rows={7}
+              placeholder={'Ejemplo:\n\n1. Falta especificar las horas de tutoría en la función Docente.\n2. El porcentaje de Investigación (5%) está por debajo del mínimo requerido (10%).\n3. Debe adjuntar el programa analítico actualizado.'}
+              className={`w-full px-4 py-3 rounded-2xl text-sm text-slate-800 placeholder:text-slate-500 outline-none resize-none ring-1 ring-inset ring-azulado-300 focus:ring-2 focus:ring-blue-900/40 !bg-azulado-100 ${error ? ERROR_FIELD_BORDER_CLASS : ''}`}
               aria-invalid={Boolean(error) || undefined}
             />
             <MensajeErrorCampo error={error} pulse={pulso} />
-            <p className="observacion-modal-help">
-              Se especifico sobre que debe corregir el docente
+            <p className="mt-1.5 pl-1 text-xs text-slate-500">
+              Sea específico sobre qué se debe corregir.
             </p>
           </div>
 
-          <div className="observacion-modal-note">
-            <div className="observacion-modal-note-inner">
-              <span className="observacion-modal-note-icon">
-                <InfoIcon className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="observacion-modal-note-title">
-                  Al enviar esta observacion:
-                </p>
-                <ul className="observacion-modal-note-list">
-                  <li>El fondo volvera a estado <strong>"Observado"</strong></li>
-                  <li>El docente podra editar y corregir el fondo</li>
-                  <li>El docente vera tus comentarios en el timeline</li>
-                  <li>Deberas revisar nuevamente cuando lo vuelva a presentar</li>
-                </ul>
-              </div>
-            </div>
+          <div className="rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-900">
+            <p className="font-semibold">Al enviar esta observación:</p>
+            <ul className="mt-1 space-y-0.5 list-disc pl-5 text-sky-800">
+              <li>El fondo volverá a estado <strong>"Con observaciones"</strong></li>
+              <li>Se podrá editar y corregir el fondo</li>
+              <li>Sus comentarios quedarán en el historial del fondo</li>
+              <li>Deberá revisarlo nuevamente cuando se vuelva a presentar</li>
+            </ul>
           </div>
+        </div>
 
-          <div className="observacion-modal-actions">
-            <button
-              type="button"
-              onClick={onCancelar}
-              disabled={enviando}
-              className="observacion-modal-button observacion-modal-button-secondary"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={enviando || !observacion.trim()}
-              className="observacion-modal-button observacion-modal-button-primary"
-            >
-              {enviando ? (
-                <>
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  <span>Enviando...</span>
-                </>
-              ) : (
-                <>
-                  <PaperAirplaneIcon className="h-5 w-5" />
-                  <span>Enviar Observacion</span>
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 pb-6">
+          <button
+            type="button"
+            onClick={onCancelar}
+            disabled={enviando}
+            className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200 disabled:opacity-50`}
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={enviando || !observacion.trim()}
+            className={`${BOTON} px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            {enviando && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+            {enviando ? 'Enviando...' : 'Enviar observación'}
+          </button>
+        </div>
+      </form>
+    </ModalCentrado>
   );
 }
 

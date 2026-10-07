@@ -1,135 +1,90 @@
-import React from 'react';
+import { ESTADOS_FONDO } from './estilosFondo';
+
+// Etapas del flujo del fondo, en orden. "Con observaciones" y "Rechazado" no son etapas
+// propias: el fondo vuelve a corregirse antes de presentarse otra vez al Director.
+const ETAPAS = [
+  { key: 'borrador', label: 'Borrador' },
+  { key: 'presentado_director', label: 'Presentado a Director' },
+  { key: 'aprobado_director', label: 'Aprobado por Director' },
+  { key: 'en_ejecucion', label: 'En ejecución' },
+  { key: 'informe_presentado', label: 'Informe presentado' },
+  { key: 'finalizado', label: 'Finalizado' },
+];
+
+const INDICE_POR_ESTADO = {
+  borrador: 0,
+  observado: 0,
+  rechazado: 1,
+  presentado_director: 1,
+  aprobado_director: 2,
+  en_ejecucion: 3,
+  informe_presentado: 4,
+  finalizado: 5,
+};
+
+const MENSAJES = {
+  observado: 'El Director pidió correcciones antes de aprobarlo.',
+  rechazado: 'El fondo fue rechazado: vuelve a borrador para corregirlo.',
+  en_ejecucion: 'El fondo se está ejecutando; se documenta mediante el informe.',
+  finalizado: 'Fondo completado.',
+};
 
 const EstadoTimeline = ({ estado, tieneObservaciones = false, observacionesPendientes = 0 }) => {
-  // Mapeo de estados a etapas del proceso
-  const ETAPAS = [
-    { key: 'borrador', label: 'Borrador', colorActivo: 'bg-slate-500', colorCompleto: 'bg-slate-400' },
-    { key: 'observado', label: 'Con Obs.', colorActivo: 'bg-orange-500', colorCompleto: 'bg-orange-400' },
-    { key: 'presentado_director', label: 'A Director', colorActivo: 'bg-indigo-500', colorCompleto: 'bg-indigo-400' },
-    { key: 'aprobado_director', label: 'Aprobado', colorActivo: 'bg-green-500', colorCompleto: 'bg-green-400' },
-    { key: 'en_ejecucion', label: 'En Ejecución', colorActivo: 'bg-purple-500', colorCompleto: 'bg-purple-400' },
-    { key: 'finalizado', label: 'Finalizado', colorActivo: 'bg-teal-500', colorCompleto: 'bg-teal-400' },
-  ];
-
-  // Encontrar índice del estado actual
-  const indiceActual = ETAPAS.findIndex(e => e.key === estado);
-
-  const getEstadoBadgeColor = (estado) => {
-    const colores = {
-      'borrador': 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600',
-      'observado': 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-700',
-      'presentado_director': 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700',
-      'aprobado_director': 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700',
-      'en_ejecucion': 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-700',
-      'informe_presentado': 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700',
-      'finalizado': 'bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-700',
-      'rechazado': 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border-red-200 dark:border-red-700',
-    };
-    return colores[estado] || colores['borrador'];
-  };
-
-  const getEstadoLabel = (estado) => {
-    const labels = {
-      'borrador': 'Borrador',
-      'observado': observacionesPendientes > 0 ? `Con Observaciones (${observacionesPendientes})` : 'Con Observaciones',
-      'presentado_director': 'Presentado a Director',
-      'aprobado_director': 'Aprobado por Director',
-      'en_ejecucion': 'En Ejecución',
-      'informe_presentado': 'Informe Presentado',
-      'finalizado': 'Finalizado',
-      'rechazado': 'Rechazado',
-    };
-    return labels[estado] || estado;
-  };
+  const info = ESTADOS_FONDO[estado] || ESTADOS_FONDO.borrador;
+  const indiceActual = INDICE_POR_ESTADO[estado] ?? 0;
+  const conProblema = ['observado', 'rechazado'].includes(estado);
 
   return (
-    <div className="h-full flex flex-col pb-2 justify-between">
-      {/* Título */}
-      <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">
-        🎯 Estado del Proceso
-      </h3>
-
-      {/* Badge de estado actual - GRANDE Y PROMINENTE */}
-      <div className={`flex-1 flex flex-col items-center justify-center gap-4 px-4 py-6 rounded-2xl border-2 ${getEstadoBadgeColor(estado)} mb-4`}>
-        {/* Icono según estado */}
-        <div className="text-4xl">
-          {estado === 'borrador' && '📝'}
-          {estado === 'observado' && '⚠️'}
-          {estado === 'presentado_director' && '📬'}
-          {estado === 'aprobado_director' && '✅'}
-          {estado === 'en_ejecucion' && '⚡'}
-          {estado === 'informe_presentado' && '📊'}
-          {estado === 'finalizado' && '🏁'}
-          {estado === 'rechazado' && '❌'}
-        </div>
-
-        {/* Etiqueta de estado */}
-        <div className="text-center">
-          <p className="text-sm font-black mb-1">{getEstadoLabel(estado)}</p>
-          {estado === 'observado' && tieneObservaciones && (
-            <p className="text-xs opacity-75 mt-2">
-              Hay {observacionesPendientes} hilo{observacionesPendientes === 1 ? '' : 's'} pendiente{observacionesPendientes === 1 ? '' : 's'}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Mini-Timeline compacto */}
-      <div className="space-y-3 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-          Progreso
+    <div className="space-y-4">
+      {/* Estado actual */}
+      <div className={`rounded-2xl px-4 py-3 ring-1 ring-inset ${info.pill}`}>
+        <p className="text-[11px] font-semibold uppercase tracking-wider opacity-70">Estado actual</p>
+        <p className="mt-0.5 flex items-center gap-2 text-base font-bold">
+          <span className={`h-2 w-2 rounded-full ${info.dot}`} />
+          {info.label}
         </p>
-
-        {/* Línea de progreso visual */}
-        <div className="space-y-2">
-          {ETAPAS.slice(0, 5).map((etapa, idx) => {
-            const isCompleta = idx < indiceActual;
-            const isActual = idx === indiceActual;
-
-            return (
-              <div key={etapa.key} className="flex items-center gap-2 text-[10px]">
-                {/* Indicador */}
-                <div className={`flex-shrink-0 w-2.5 h-2.5 rounded-full border border-slate-300 dark:border-slate-600 ${
-                  isCompleta || isActual
-                    ? `${etapa.colorActivo}`
-                    : 'bg-slate-200 dark:bg-slate-700'
-                }`} />
-
-                {/* Etiqueta */}
-                <span className={`flex-1 truncate ${
-                  isActual
-                    ? 'font-bold text-slate-700 dark:text-slate-200'
-                    : isCompleta
-                    ? 'text-slate-600 dark:text-slate-400'
-                    : 'text-slate-500 dark:text-slate-500'
-                }`}>
-                  {etapa.label}
-                </span>
-
-                {/* Checkmark para completadas */}
-                {isCompleta && (
-                  <span className="flex-shrink-0 text-green-600 dark:text-green-400 text-xs font-bold">✓</span>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        {estado === 'observado' && tieneObservaciones && (
+          <p className="mt-1 text-xs font-medium">
+            {observacionesPendientes} hilo{observacionesPendientes === 1 ? '' : 's'} pendiente{observacionesPendientes === 1 ? '' : 's'}
+          </p>
+        )}
+        {MENSAJES[estado] && <p className="mt-1 text-xs opacity-80">{MENSAJES[estado]}</p>}
       </div>
 
-      {/* Mensaje motivacional */}
-      {estado === 'finalizado' && (
-        <div className="mt-3 p-2.5 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-start gap-2 shadow-sm">
-          <span className="text-lg flex-shrink-0">🎉</span>
-          <p className="text-[11px] text-green-700 dark:text-green-400 font-semibold">¡Fondo completado exitosamente!</p>
-        </div>
-      )}
-
-      {estado === 'en_ejecucion' && (
-        <div className="mt-3 p-2.5 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border border-purple-200 dark:border-purple-800 rounded-lg flex items-start gap-2 shadow-sm">
-          <span className="text-lg flex-shrink-0">⚡</span>
-          <p className="text-[11px] text-purple-700 dark:text-purple-400 font-semibold">Tu fondo está siendo ejecutado. Documentarás mediante informes.</p>
-        </div>
-      )}
+      {/* Etapas */}
+      <ol className="space-y-0">
+        {ETAPAS.map((etapa, idx) => {
+          const completa = idx < indiceActual || estado === 'finalizado';
+          const actual = idx === indiceActual && estado !== 'finalizado';
+          const ultima = idx === ETAPAS.length - 1;
+          return (
+            <li key={etapa.key} className="relative flex items-start gap-3 pb-3 last:pb-0">
+              {!ultima && (
+                <span className={`absolute left-[9px] top-5 bottom-0 w-0.5 rounded-full ${completa ? 'bg-sky-500' : 'bg-azulado-300'}`} />
+              )}
+              <span className={`relative z-10 mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${
+                completa
+                  ? 'bg-sky-600 text-white'
+                  : actual
+                    ? `${conProblema ? 'bg-orange-500' : 'bg-blue-900'} ring-4 ${conProblema ? 'ring-orange-100' : 'ring-azulado-200'}`
+                    : 'bg-azulado-200'
+              }`}>
+                {completa && (
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={3.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+                {actual && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+              </span>
+              <span className={`text-sm leading-6 ${
+                actual ? 'font-bold text-blue-900' : completa ? 'font-medium text-slate-700' : 'text-slate-400'
+              }`}>
+                {etapa.label}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 };

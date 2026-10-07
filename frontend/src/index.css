@@ -165,9 +165,11 @@ html:not(.dark) .info-nav-button {
   animation: pulse-slow 2s ease-in-out infinite;
 }
 
-/* Garantizar bordes rojos de error visibles en modo claro (alta prioridad) */
+/* Bordes rojos de error en modo claro (alta prioridad). Rojo suavizado (red-400) y
+   anillo tenue para que se note sin cansar la vista. */
 html:not(.dark) [class*="border-red-600"] {
-  border-color: #dc2626 !important;
+  border-color: #f87171 !important;
+  --tw-ring-color: rgb(248 113 113 / 0.3) !important;
 }
 
 /* Garantizar bordes rojos de error visibles en modo oscuro */
@@ -178,168 +180,14 @@ html.dark [class*="border-red-500"] {
 /* Animación de sacudida (shake) para campos con error de validación */
 @keyframes fieldErrorShake {
   0%, 100% { transform: translateX(0); }
-  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
-  20%, 40%, 60%, 80% { transform: translateX(4px); }
+  15% { transform: translateX(-3px); }
+  35% { transform: translateX(3px); }
+  55% { transform: translateX(-2px); }
+  75% { transform: translateX(1px); }
 }
 
 .animate-field-error-shake {
-  animation: fieldErrorShake 460ms cubic-bezier(.36, .07, .19, .97) both;
-}
-
-/* Fondo de Tiempo: panel central del detalle */
-.fondo-central-flex {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.fondo-central-stage {
-  position: relative;
-  width: 100%;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.fondo-panel-anim {
-  width: 100%;
-  height: 100%;
-}
-
-.fondo-panel-shell {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Fondo de Tiempo: aislar tablas/tarjetas de Actividades Planificadas */
-.fondo-tiempo-cards table {
-  width: 100% !important;
-  border-collapse: collapse !important;
-  border-spacing: 0 !important;
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-}
-
-.fondo-tiempo-cards table:hover {
-  box-shadow: none !important;
-}
-
-.fondo-tiempo-cards table th,
-.fondo-tiempo-cards table td {
-  background: transparent !important;
-  font-size: inherit !important;
-  letter-spacing: normal !important;
-  text-transform: none !important;
-}
-
-.fondo-tiempo-cards table th {
-  background: rgba(241, 245, 249, 0.55) !important;
-  color: #64748b !important;
-  border-bottom: 1px solid rgba(203, 213, 225, 0.6) !important;
-  padding: 0.75rem !important;
-}
-
-.fondo-tiempo-cards table td {
-  color: #334155 !important;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.6) !important;
-  padding: 0.75rem !important;
-}
-
-.fondo-tiempo-cards table tbody tr {
-  background: transparent !important;
-}
-
-.fondo-tiempo-cards table tbody tr:nth-child(odd),
-.fondo-tiempo-cards table tbody tr:nth-child(even) {
-  background: transparent !important;
-}
-
-.fondo-tiempo-cards table tbody tr:hover {
-  background: rgba(248, 250, 252, 0.7) !important;
-}
-
-.dark .fondo-tiempo-cards table,
-.dark .fondo-tiempo-cards table th,
-.dark .fondo-tiempo-cards table td,
-.dark .fondo-tiempo-cards table tbody tr,
-.dark .fondo-tiempo-cards table tbody tr:nth-child(odd),
-.dark .fondo-tiempo-cards table tbody tr:nth-child(even),
-.dark .fondo-tiempo-cards table tbody tr:hover {
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-.dark .fondo-tiempo-cards table th {
-  background: rgba(30, 41, 59, 0.45) !important;
-  color: #94a3b8 !important;
-  border-bottom: 1px solid rgba(51, 65, 85, 0.6) !important;
-  padding: 0.75rem !important;
-}
-
-.dark .fondo-tiempo-cards table td {
-  color: #cbd5e1 !important;
-  border-bottom: 1px solid rgba(30, 41, 59, 0.6) !important;
-  padding: 0.75rem !important;
-}
-
-.dark .fondo-tiempo-cards table tbody tr:hover {
-  background: rgba(51, 65, 85, 0.3) !important;
-}
-
-/* Refuerzo por ID: anula definitivamente estilos globales de POA en esta sección */
-#fondo-actividades-planificadas table {
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-}
-
-#fondo-actividades-planificadas table th {
-  background: rgba(241, 245, 249, 0.55) !important;
-  color: #64748b !important;
-  border-bottom: 1px solid rgba(203, 213, 225, 0.6) !important;
-  padding: 0.75rem !important;
-}
-
-#fondo-actividades-planificadas table td {
-  background: transparent !important;
-  color: #334155 !important;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.6) !important;
-  padding: 0.75rem !important;
-}
-
-#fondo-actividades-planificadas table tbody tr,
-#fondo-actividades-planificadas table tbody tr:nth-child(odd),
-#fondo-actividades-planificadas table tbody tr:nth-child(even) {
-  background: transparent !important;
-}
-
-#fondo-actividades-planificadas table tbody tr:hover {
-  background: rgba(248, 250, 252, 0.7) !important;
-}
-
-/* (Removed) Styles for login-fixed-theme moved to component scope to avoid global overrides */
-
-.dark #fondo-actividades-planificadas table th {
-  background: rgba(30, 41, 59, 0.45) !important;
-  color: #94a3b8 !important;
-  border-bottom: 1px solid rgba(51, 65, 85, 0.6) !important;
-  padding: 0.75rem !important;
-}
-
-.dark #fondo-actividades-planificadas table td {
-  background: transparent !important;
-  color: #cbd5e1 !important;
-  border-bottom: 1px solid rgba(30, 41, 59, 0.6) !important;
-  padding: 0.75rem !important;
-}
-
-.dark #fondo-actividades-planificadas table tbody tr:hover {
-  background: rgba(51, 65, 85, 0.3) !important;
+  animation: fieldErrorShake 460ms ease-out both;
 }
 
 /* Refuerzo específico: tabla de Gestión de Usuarios en Fondo de Tiempo */
@@ -2540,298 +2388,96 @@ html.dark [class*="border-red-500"] {
   }
 }
 
-.observacion-modal-overlay {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: var(--fondo-sidebar-width, 18rem);
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(2px);
-}
-
-.fixed .observacion-modal-overlay,
-body .observacion-modal-overlay {
-  left: var(--fondo-sidebar-width, 18rem);
-}
-
-.observacion-modal-card {
-  font-family: "Segoe UI", Helvetica, Arial, sans-serif;
-  width: min(42rem, 100%);
-  max-height: 90vh;
-  overflow-y: auto;
-  border: 1px solid #ced0d4;
-  border-radius: 12px;
-  background: #ffffff !important;
-  color: #050505 !important;
-  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.25);
-}
-
-.observacion-modal-card textarea,
-.observacion-modal-card button {
-  font-family: "Segoe UI", Helvetica, Arial, sans-serif;
-}
-
-.observacion-modal-header {
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid rgba(24, 119, 242, 0.45);
-  background: #1877f2 !important;
-  color: #ffffff !important;
-}
-
-.observacion-modal-title {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin: 0;
-  color: #ffffff !important;
-  font-size: 1.25rem;
-  font-weight: 650;
-  line-height: 1.3;
-}
-
-.observacion-modal-title-icon {
-  display: inline-flex;
-  width: 2rem;
-  height: 2rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
-  color: #ffffff;
-}
-
-.observacion-modal-subtitle {
-  margin: 0.5rem 0 0;
-  color: rgba(255, 255, 255, 0.92) !important;
-  font-size: 0.875rem;
-  line-height: 1.45;
-}
-
-.observacion-modal-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  padding: 1.5rem;
-}
-
-.observacion-modal-info,
-.observacion-modal-note {
-  border: 1px solid #ced0d4;
-  border-radius: 12px;
-  background: #f0f2f5 !important;
-  padding: 1rem;
-}
-
-.observacion-modal-info-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.85rem;
-  font-size: 0.875rem;
-}
-
-.observacion-modal-info-grid span {
-  color: #65676b !important;
-}
-
-.observacion-modal-info-grid p {
-  margin: 0.15rem 0 0;
-  color: #050505 !important;
-  font-weight: 650;
-}
-
-.observacion-modal-label {
-  display: block;
-  margin-bottom: 0.5rem;
-  color: #050505 !important;
-  font-size: 0.875rem;
-  font-weight: 650;
-}
-
-.observacion-modal-textarea {
-  width: 100%;
-  min-height: 12rem;
-  resize: vertical;
-  border: 1px solid #ced0d4 !important;
-  border-radius: 12px;
-  background: #f0f2f5 !important;
-  padding: 0.85rem 1rem;
-  color: #050505 !important;
-  outline: none;
-  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
-}
-
-.observacion-modal-textarea::placeholder {
-  color: #65676b !important;
-  opacity: 1;
-}
-
-.observacion-modal-textarea:focus {
-  border-color: #1877f2 !important;
-  box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.22);
-}
-
-.observacion-modal-help {
-  margin: 0.5rem 0 0;
-  color: #65676b !important;
-  font-size: 0.75rem;
-}
-
-.observacion-modal-note-inner {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-}
-
-.observacion-modal-note-icon {
-  display: inline-flex;
-  width: 2rem;
-  height: 2rem;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: rgba(24, 119, 242, 0.12);
-  color: #1877f2;
-}
-
-.observacion-modal-note-title {
-  margin: 0 0 0.25rem;
-  color: #050505 !important;
-  font-size: 0.875rem;
-  font-weight: 650;
-}
-
-.observacion-modal-note-list {
-  margin: 0;
-  padding-left: 1rem;
-  color: #65676b !important;
-  font-size: 0.875rem;
-  line-height: 1.55;
-}
-
-.observacion-modal-actions {
-  display: flex;
-  gap: 0.75rem;
-  padding-top: 1rem;
-  border-top: 1px solid #ced0d4;
-}
-
-.observacion-modal-button {
-  display: inline-flex;
-  flex: 1 1 0;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  border: 0;
-  border-radius: 12px;
-  padding: 0.85rem 1.5rem;
-  font-weight: 650;
-  transition: background-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
-}
-
-.observacion-modal-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.observacion-modal-button-secondary {
-  background: #e4e6eb !important;
-  color: #050505 !important;
-}
-
-.observacion-modal-button-secondary:hover:not(:disabled) {
-  background: #d8dadf !important;
-}
-
-.observacion-modal-button-primary {
-  background: #1877f2 !important;
-  color: #ffffff !important;
-  box-shadow: 0 8px 20px rgba(24, 119, 242, 0.22);
-}
-
-.observacion-modal-button-primary:hover:not(:disabled) {
-  background: #166fe5 !important;
-  box-shadow: 0 10px 24px rgba(24, 119, 242, 0.28);
-}
-
-.dark .observacion-modal-card {
-  border-color: #3e4042;
-  background: #242526 !important;
-  color: #e4e6eb !important;
-}
-
-.dark .observacion-modal-header {
-  border-bottom-color: #3e4042;
-  background: #1c2b33 !important;
-}
-
-.dark .observacion-modal-subtitle,
-.dark .observacion-modal-info-grid span,
-.dark .observacion-modal-help,
-.dark .observacion-modal-note-list {
-  color: #b0b3b8 !important;
-}
-
-.dark .observacion-modal-info,
-.dark .observacion-modal-note {
-  border-color: #3e4042;
-  background: #3a3b3c !important;
-}
-
-.dark .observacion-modal-info-grid p,
-.dark .observacion-modal-label,
-.dark .observacion-modal-note-title {
-  color: #e4e6eb !important;
-}
-
-.dark .observacion-modal-textarea {
-  border-color: #3e4042 !important;
-  background: #3a3b3c !important;
-  color: #e4e6eb !important;
-}
-
-.dark .observacion-modal-textarea::placeholder {
-  color: #b0b3b8 !important;
-}
-
-.dark .observacion-modal-actions {
-  border-top-color: #3e4042;
-}
-
-.dark .observacion-modal-button-secondary {
-  background: #3a3b3c !important;
-  color: #e4e6eb !important;
-}
-
-.dark .observacion-modal-button-secondary:hover:not(:disabled) {
-  background: #4e4f50 !important;
-}
-
-@media (max-width: 640px) {
-  .observacion-modal-overlay,
-  .fixed .observacion-modal-overlay,
-  body .observacion-modal-overlay {
-    left: 0;
-  }
-
-  .observacion-modal-actions,
-  .observacion-modal-info-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .observacion-modal-actions {
-    flex-direction: column;
-  }
-}
-
 /* Carrera desactivada: se ocultan los botones que crean o editan datos
    (marcados con data-escritura). El backend bloquea igual cualquier escritura. */
 html[data-solo-lectura="true"] [data-escritura] {
   display: none !important;
+}
+
+/* Fondo de Tiempo, Carreras y Usuarios: anula la regla global del módulo POA que eleva
+   todos los botones (button:hover / button:active). Se vuelve a la composición de
+   Tailwind para que las clases hover:scale-*, hover:shadow-* de cada botón sigan valiendo. */
+html.sin-elevacion-poa button:not(:disabled):hover,
+html.sin-elevacion-poa button:active {
+  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow, 0 0 #0000);
+  filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
+}
+
+/* Toasts del módulo de Fondo de Tiempo: salen a la altura del bloque "Total fondos"
+   del dashboard (padding superior del panel; en el celular, debajo de la barra azul). */
+.toaster-fondo {
+  top: 72px !important;
+  right: 12px !important;
+}
+
+@media (min-width: 640px) {
+  .toaster-fondo {
+    right: 16px !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .toaster-fondo {
+    top: 80px !important;
+    right: 32px !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .toaster-fondo {
+    top: 24px !important;
+  }
+}
+
+@keyframes toastFondoEntrada {
+  from { opacity: 0; transform: translateX(1.5rem); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes toastFondoSalida {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(1.5rem); }
+}
+
+.animate-toast-fondo-entrada {
+  animation: toastFondoEntrada 260ms ease-out both;
+}
+
+.animate-toast-fondo-salida {
+  animation: toastFondoSalida 200ms ease-in both;
+}
+
+/* Dashboard de fondos: entrada suave y escalonada de cada fondo al cambiar entre
+   Tarjetas y Lista o de página (el retraso por elemento va en línea). */
+@keyframes fondoEntrada {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fondo-entrada {
+  animation: fondoEntrada 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fondo-entrada {
+    animation: none;
+  }
+}
+
+/* Formulario de carga del fondo: cada campo que aparece (o cambia con la unidad o la
+   sub-actividad) entra con un fundido corto desde arriba. */
+@keyframes campoEntrada {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-campo-entrada {
+  animation: campoEntrada 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-campo-entrada {
+    animation: none;
+  }
 }

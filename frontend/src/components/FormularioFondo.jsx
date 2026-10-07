@@ -1,19 +1,23 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { getDocentes, getCarreras, crearFondoTiempo, getCalendarioActivo, getCalendarios } from '../apis/api';
 import api, { obtenerTodos } from '../apis/api';
 import toast from 'react-hot-toast';
+import ModalCentrado from './common/ModalCentrado';
 import {
-  ERROR_FIELD_BORDER_CLASS,
   ERROR_MOTION_CLASS,
   ERROR_SHAKE_DURATION_MS,
+  MENSAJE_REVISA_CAMPOS,
   sanitizeApiErrors,
   getApiErrorMessage,
 } from '../utils/formErrors';
 import { puedeCrearFondoTiempo } from '../utils/fondoTiempoPermissions';
 
+// Compara sin mayúsculas ni tildes: "maria" encuentra "María".
+const normalizar = (texto) => String(texto || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
 const SelectConDropdown = ({
-  label,
   name,
   value,
   onChange,
@@ -22,22 +26,59 @@ const SelectConDropdown = ({
   disabled = false,
   error,
   onFocus,
-  className = '',
+  // Sin texto de búsqueda se muestran solo las primeras N opciones, bajo este título.
+  limiteSinBusqueda = null,
+  tituloSinBusqueda = '',
 }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [menuStyle, setMenuStyle] = useState(null);
   const containerRef = useRef(null);
   const inputRef = useRef(null);
+  const menuRef = useRef(null);
 
   useEffect(() => {
+    if (!open) return undefined;
     const handleOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpen(false);
-        setSearch('');
-      }
+      if (containerRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return;
+      setOpen(false);
+      setSearch('');
     };
-    if (open) document.addEventListener('mousedown', handleOutside);
-    return () => document.removeEventListener('mousedown', handleOutside);
+    // El menú está fijo en pantalla: si se desplaza el modal o cambia el tamaño, se cierra.
+    const cerrar = (event) => {
+      if (menuRef.current?.contains(event.target)) return;
+      setOpen(false);
+      setSearch('');
+    };
+    document.addEventListener('mousedown', handleOutside);
+    window.addEventListener('scroll', cerrar, true);
+    window.addEventListener('resize', cerrar);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      window.removeEventListener('scroll', cerrar, true);
+      window.removeEventListener('resize', cerrar);
+    };
+  }, [open]);
+
+  // El menú se monta en <body> para que pueda salir del modal sin quedar recortado.
+  useLayoutEffect(() => {
+    if (!open || !containerRef.current) {
+      setMenuStyle(null);
+      return;
+    }
+    const rect = containerRef.current.getBoundingClientRect();
+    const alturaMax = 240;
+    const espacioAbajo = window.innerHeight - rect.bottom - 12;
+    const abrirArriba = espacioAbajo < alturaMax && rect.top > espacioAbajo;
+    setMenuStyle({
+      position: 'fixed',
+      left: `${rect.left}px`,
+      width: `${rect.width}px`,
+      ...(abrirArriba
+        ? { bottom: `${window.innerHeight - rect.top + 8}px` }
+        : { top: `${rect.bottom + 8}px` }),
+      zIndex: 99999,
+    });
   }, [open]);
 
   useEffect(() => {
@@ -46,9 +87,10 @@ const SelectConDropdown = ({
 
   const selectedLabel = options.find((opt) => String(opt.value) === String(value))?.label;
   const inputValue = open ? search : (selectedLabel || '');
-  const filteredOptions = options.filter((option) =>
-    option.label.toLowerCase().includes(search.toLowerCase())
-  );
+  const buscando = search.trim() !== '';
+  const filteredOptions = buscando
+    ? options.filter((option) => normalizar(option.label).includes(normalizar(search.trim())))
+    : (limiteSinBusqueda ? options.slice(0, limiteSinBusqueda) : options);
 
   const handleSelect = (optionValue) => {
     if (disabled) return;
@@ -58,20 +100,15 @@ const SelectConDropdown = ({
   };
 
   return (
-    <div ref={containerRef} className={`relative ${className}`}>
-      {label && (
-        <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
-          {label} {error && <span className="text-red-500">*</span>}
-        </label>
-      )}
-      <div className={`relative h-[46px] w-full rounded-xl border-2 bg-slate-50 dark:bg-slate-700 shadow-sm ${
-        disabled ? 'opacity-70' : ''
+    <div ref={containerRef} className="relative">
+      <div className={`relative h-11 w-full rounded-full ${
+        disabled ? 'bg-slate-100 opacity-80' : 'bg-azulado-100'
       } ${
         error
-          ? ERROR_FIELD_BORDER_CLASS
+          ? 'ring-2 ring-inset ring-red-400/80'
           : open
-            ? 'border-[#3A56AF] dark:border-[#3A56AF]'
-            : 'border-slate-300 dark:border-slate-600'
+            ? 'ring-2 ring-inset ring-blue-900/50'
+            : 'ring-1 ring-inset ring-azulado-300'
       }`}>
         <input
           ref={inputRef}
@@ -97,16 +134,14 @@ const SelectConDropdown = ({
             setOpen(true);
             if (value) onChange({ target: { name, value: '' } });
           }}
-          className={`h-full w-full px-4 py-0 pr-12 rounded-xl bg-transparent outline-none text-sm ${
-            !selectedLabel || open ? 'italic' : ''
-          } ${
-            selectedLabel || open
-              ? 'text-slate-800 dark:text-white font-semibold'
-              : 'text-slate-400 dark:text-slate-500'
+          className={`h-full w-full pl-4 pr-12 text-sm outline-none ${
+            selectedLabel && !open ? 'text-slate-800 font-semibold' : 'text-slate-700 placeholder:text-slate-500'
           } disabled:cursor-not-allowed`}
+          style={{ background: 'transparent', border: 'none', boxShadow: 'none' }}
         />
         <button
           type="button"
+          tabIndex={-1}
           disabled={disabled}
           onClick={(event) => {
             event.preventDefault();
@@ -115,44 +150,57 @@ const SelectConDropdown = ({
             setOpen((prev) => !prev);
             setSearch('');
           }}
-          className="absolute right-3 top-1/2 flex items-center justify-center h-6 w-6 rounded-md bg-[#2C4AAE] ring-1 ring-[#2C4AAE] hover:bg-[#1a3a8a] transition-colors disabled:bg-slate-500 disabled:ring-slate-500"
+          className="absolute right-2.5 top-1/2 flex items-center justify-center h-6 w-6 rounded-md bg-[#2C4AAE] ring-1 ring-[#2C4AAE] hover:bg-[#1a3a8a] transition-colors disabled:bg-slate-400 disabled:ring-slate-400"
           style={{ transform: 'translateY(-50%)' }}
+          aria-label={open ? 'Cerrar opciones' : 'Ver opciones'}
         >
-          <svg
-            className={`w-3.5 h-3.5 text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-          </svg>
+          {disabled ? (
+            <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 10V7a4 4 0 00-8 0v3m-2 0h12a1 1 0 011 1v8a1 1 0 01-1 1H6a1 1 0 01-1-1v-8a1 1 0 011-1z" />
+            </svg>
+          ) : (
+            <svg
+              className={`w-3.5 h-3.5 text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+            </svg>
+          )}
         </button>
       </div>
-      {open && (
-        <div className="absolute z-40 mt-1 w-full rounded-xl border-2 border-[#3A56AF] bg-white dark:bg-slate-900 shadow-xl max-h-60 overflow-auto">
+      {open && menuStyle && createPortal(
+        <div ref={menuRef} className="rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl max-h-60 overflow-auto" style={menuStyle}>
           <div className="p-2">
+          {!buscando && tituloSinBusqueda && filteredOptions.length > 0 && (
+            <div className="px-3 pt-1 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              {tituloSinBusqueda}
+            </div>
+          )}
           {filteredOptions.length > 0 ? (
             filteredOptions.map((option) => (
               <button
                 key={option.value}
                 type="button"
                 onClick={() => handleSelect(option.value)}
-                className={`w-full text-left px-4 py-2.5 text-sm rounded-lg transition-colors ${
+                className={`w-full text-left px-3 py-2 text-sm rounded-lg ${
                   String(value) === String(option.value)
-                    ? 'bg-cyan-50 dark:bg-cyan-900/30 shadow-[inset_2px_0_0_0_#06b6d4] text-cyan-800 dark:text-cyan-200 font-semibold'
-                    : 'bg-transparent text-slate-700 dark:text-slate-200 hover:bg-[#2C4AAE] hover:text-white hover:shadow-[inset_2px_0_0_0_#2C4AAE] dark:hover:bg-[#2C4AAE]'
+                    ? 'bg-sky-600 text-white font-semibold hover:bg-sky-700'
+                    : 'bg-transparent text-slate-700 hover:bg-[#2C4AAE] hover:text-white'
                 }`}
               >
                 <span className="block truncate">{option.label}</span>
               </button>
             ))
           ) : (
-            <div className="px-4 py-3 text-sm italic text-slate-500 dark:text-slate-400">
+            <div className="px-3 py-2.5 text-sm text-slate-500">
               Sin resultados
             </div>
           )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -552,12 +600,11 @@ function FormularioFondo({ editar = false }) {
     const primerCampo = Object.keys(errores)[0];
     if (!primerCampo) return;
 
+    // Solo se desplaza hasta el campo: hacerle focus() dispararía su onFocus, que
+    // limpia el error, y el borde rojo desaparecería antes de verse.
     setTimeout(() => {
-      const campo = document.querySelector(`[name="${primerCampo}"]`);
-      if (campo) {
-        campo.focus();
-        campo.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      document.querySelector(`[name="${primerCampo}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 0);
   };
 
@@ -583,6 +630,7 @@ function FormularioFondo({ editar = false }) {
     if (hayErrores) {
       // Disparar sacudida (shake) de 460ms en los campos con error.
       triggerShake(Object.keys(erroresValidados));
+      toast.error(MENSAJE_REVISA_CAMPOS);
       enfocarPrimerCampoConError(erroresValidados);
       return;
     }
@@ -684,14 +732,14 @@ function FormularioFondo({ editar = false }) {
 
   if (loadingDatos) {
     return (
-      <div className="h-full flex items-center justify-center bg-slate-50 dark:bg-slate-900">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-slate-700 dark:text-slate-300">
+      <ModalCentrado>
+        <div className="text-center rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 px-10 py-8 shadow-2xl">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-900 mx-auto"></div>
+          <p className="mt-4 text-slate-700">
             Cargando datos del fondo...
           </p>
         </div>
-      </div>
+      </ModalCentrado>
     );
   }
 
@@ -701,7 +749,12 @@ function FormularioFondo({ editar = false }) {
   }));
 
   const docenteOptions = formData.carrera
-    ? docentes.map((docente) => ({
+    ? [...docentes]
+      .sort((a, b) => (
+        String(b.fecha_creacion || '').localeCompare(String(a.fecha_creacion || ''))
+        || (Number(b.id) || 0) - (Number(a.id) || 0)
+      ))
+      .map((docente) => ({
         value: docente.id,
         label: obtenerNombreDocente(docente),
       }))
@@ -715,188 +768,161 @@ function FormularioFondo({ editar = false }) {
     .sort((a, b) => b - a)
     .map((gestion) => ({ value: gestion, label: `Gestión ${gestion}` }));
 
+  const etiqueta = (titulo, extra = null) => (
+    <div className="flex items-center gap-2 mb-2 pl-1">
+      <span className="text-sm font-semibold text-slate-800">{titulo}</span>
+      {extra}
+    </div>
+  );
+
+  const mensajeCampo = (campo) => (
+    erroresCampos[campo] && <p className="text-xs text-red-600 mt-1.5 pl-4">{erroresCampos[campo]}</p>
+  );
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6 animate-fade-in flex items-center justify-center">
-      <div className="mx-auto w-full max-w-5xl">
-        {/* Header */}
-        <div className="hidden">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
-                {editar ? '✏️ Editar Fondo de Tiempo' : '➕ Crear Nuevo Fondo de Tiempo'}
-              </h1>
-              <p className="text-sm text-slate-700 dark:text-slate-400 mt-1">
-                Complete la información requerida para el fondo de tiempo docente.
-              </p>
+    <ModalCentrado>
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        className="w-full max-w-2xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up"
+        style={{ animationDuration: '180ms' }}
+      >
+        {/* Encabezado */}
+        <div className="flex items-center justify-between gap-4 px-5 sm:px-7 pt-6 pb-5 [border-bottom:1px_solid_#B8C9E1]">
+          <h2 className="text-xl sm:text-2xl font-bold text-blue-900">
+            {editar ? 'Editar Fondo de Tiempo' : 'Nuevo Fondo de Tiempo'}
+          </h2>
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            disabled={loading}
+            aria-label="Cerrar"
+            className="p-2 -mr-2 rounded-full text-slate-500 hover:text-blue-900 hover:bg-azulado-200 transition-colors disabled:opacity-50"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Campos */}
+        <div className="px-5 sm:px-7 py-6 space-y-5">
+          {/* Mensaje de error global */}
+          {error && (
+            <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-50 ring-1 ring-inset ring-red-200">
+              <svg className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <p className="text-sm font-medium text-red-700">{error}</p>
             </div>
-            <button
-              onClick={() => navigate(-1)}
-              className="px-5 py-3 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-semibold rounded-xl shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 border-2 border-slate-300 dark:border-slate-600"
-            >
-              ← Volver
-            </button>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Carrera */}
+            <div className={shakingFields.carrera ? ERROR_MOTION_CLASS : ''}>
+              {etiqueta('Carrera')}
+              <SelectConDropdown
+                name="carrera"
+                value={formData.carrera}
+                onChange={handleChange}
+                onFocus={() => handleFieldFocus({ target: { name: 'carrera' } })}
+                disabled={loading || editar || carreraBloqueada}
+                options={carreraOptions}
+                placeholder="Seleccione una carrera"
+                error={erroresCampos.carrera}
+              />
+              {mensajeCampo('carrera')}
+            </div>
+
+            {/* Gestión */}
+            <div className={shakingFields.gestion ? ERROR_MOTION_CLASS : ''}>
+              {etiqueta('Gestión',
+                calendarioActivo && String(formData.gestion) === String(calendarioActivo.gestion) && (
+                  <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Activa
+                  </span>
+                )
+              )}
+              <SelectConDropdown
+                name="gestion"
+                value={formData.gestion}
+                onChange={handleChange}
+                onFocus={() => handleFieldFocus({ target: { name: 'gestion' } })}
+                disabled={loading || editar || !formData.carrera}
+                options={gestionOptions}
+                placeholder={
+                  !formData.carrera
+                    ? 'Seleccione una carrera primero'
+                    : gestionOptions.length === 0
+                      ? 'La carrera no tiene calendarios académicos'
+                      : 'Seleccione una gestión'
+                }
+                error={erroresCampos.gestion}
+              />
+              {mensajeCampo('gestion')}
+            </div>
+
+            {/* Docente */}
+            <div className={`md:col-span-2 ${shakingFields.docente ? ERROR_MOTION_CLASS : ''}`}>
+              {etiqueta('Docente')}
+              <SelectConDropdown
+                name="docente"
+                value={formData.docente}
+                onChange={handleDocenteChange}
+                onFocus={() => handleFieldFocus({ target: { name: 'docente' } })}
+                disabled={editar || docenteBloqueadoPorNavegacion || !formData.gestion}
+                options={docenteOptions}
+                limiteSinBusqueda={5}
+                tituloSinBusqueda="Últimos docentes registrados"
+                placeholder={
+                  !formData.carrera
+                    ? 'Seleccione una carrera primero'
+                    : !formData.gestion
+                      ? 'Seleccione una gestión primero'
+                      : cargandoDocentes
+                        ? 'Cargando docentes...'
+                        : docenteOptions.length === 0
+                          ? 'Todos los docentes tienen fondo de tiempo en esta gestión'
+                          : 'Escriba el nombre del docente'
+                }
+                error={erroresCampos.docente}
+              />
+              {mensajeCampo('docente')}
+              {formData.carrera && formData.gestion && !cargandoDocentes && docenteOptions.length === 0 && (
+                <p className="text-xs text-amber-700 mt-1.5 pl-4">
+                  Todos los docentes tienen fondo de tiempo en esta gestión
+                </p>
+              )}
+              {docenteDedicacionExclusiva && (
+                <div className="mt-3 rounded-2xl bg-red-50 ring-1 ring-inset ring-red-200 px-4 py-3 text-sm font-semibold text-red-700">
+                  Docente exento de distribución de tiempo (Art. 25°)
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Formulario */}
-        <form onSubmit={handleSubmit} noValidate className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border-2 border-slate-300 dark:border-slate-700 flex flex-col overflow-hidden animate-slide-up" style={{ animationDuration: '180ms' }}>
-          <div className="bg-[#2C4AAE] px-6 py-4">
-            <h2 className="text-xl font-bold text-white">
-              {editar ? 'Editar Fondo de Tiempo' : 'Nuevo Fondo de Tiempo'}
-            </h2>
-          </div>
-          <div className="bg-slate-50 dark:bg-slate-900 p-6 space-y-8 transition-all duration-300 ease-out">
-              
-              {/* Mensaje de error global */}
-              {error && (
-                <div className="mb-6 p-4 rounded-xl border-l-4 border-red-500 bg-gradient-to-r from-red-50 to-rose-50/30 dark:from-red-900/20 dark:to-rose-900/10 shadow-sm">
-                  <div className="flex items-start gap-3">
-                    <svg className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    <p className="text-sm font-medium text-red-700 dark:text-red-300">{error}</p>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Campo Docente */}
-                      <div className={`${shakingFields.docente ? ERROR_MOTION_CLASS : ''} order-2`}>
-                        <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
-                          Docente {erroresCampos.docente && <span className="text-red-500">*</span>}
-                        </label>
-                        <SelectConDropdown
-                          name="docente"
-                          label=""
-                          value={formData.docente}
-                          onChange={handleDocenteChange}
-                          onFocus={() => handleFieldFocus({ target: { name: 'docente' } })}
-                          disabled={editar || docenteBloqueadoPorNavegacion || !formData.gestion}
-                          options={docenteOptions}
-                          placeholder={
-                            !formData.carrera
-                              ? 'Seleccione una carrera primero'
-                              : !formData.gestion
-                                ? 'Seleccione una gestión primero'
-                                : cargandoDocentes
-                                  ? 'Cargando docentes...'
-                                  : docenteOptions.length === 0
-                                    ? 'Todos los docentes tienen fondo de tiempo en esta gestión'
-                                    : 'Seleccione un docente'
-                          }
-                          error={erroresCampos.docente}
-                        />
-                        {erroresCampos.docente && (
-                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">{erroresCampos.docente}</p>
-                        )}
-                        {formData.carrera && formData.gestion && !cargandoDocentes && docenteOptions.length === 0 && (
-                          <p className="text-xs text-amber-600 dark:text-amber-300 mt-1">
-                            Todos los docentes tienen fondo de tiempo en esta gestión
-                          </p>
-                        )}
-                        {docenteDedicacionExclusiva && (
-                          <div className="mt-2 rounded-xl border-2 border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-700 dark:bg-red-900/20 dark:text-red-300">
-                            Docente exento de distribución de tiempo (Art. 25°)
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Carrera */}
-                      <div className={`${shakingFields.carrera ? ERROR_MOTION_CLASS : ''} order-1`}>
-                        <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
-                          Carrera {erroresCampos.carrera && <span className="text-red-500">*</span>}
-                        </label>
-                        <SelectConDropdown
-                          name="carrera"
-                          label=""
-                          value={formData.carrera}
-                          onChange={handleChange}
-                          onFocus={() => handleFieldFocus({ target: { name: 'carrera' } })}
-                          disabled={loading || editar || carreraBloqueada}
-                          options={carreraOptions}
-                          placeholder="Seleccione una carrera"
-                          error={erroresCampos.carrera}
-                        />
-                        {erroresCampos.carrera && (
-                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">{erroresCampos.carrera}</p>
-                        )}
-                      </div>
-
-                      {/* Gestión */}
-                      <div className={`${shakingFields.gestion ? ERROR_MOTION_CLASS : ''} order-3`}>
-                        <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
-                          Gestión {erroresCampos.gestion && <span className="text-red-500">*</span>}
-                          {calendarioActivo && String(formData.gestion) === String(calendarioActivo.gestion) && (
-                            <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-                              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                              </svg>
-                              Activa
-                            </span>
-                          )}
-                        </label>
-                        <SelectConDropdown
-                          name="gestion"
-                          label=""
-                          value={formData.gestion}
-                          onChange={handleChange}
-                          onFocus={() => handleFieldFocus({ target: { name: 'gestion' } })}
-                          disabled={loading || editar || !formData.carrera}
-                          options={gestionOptions}
-                          placeholder={
-                            !formData.carrera
-                              ? 'Seleccione una carrera primero'
-                              : gestionOptions.length === 0
-                                ? 'La carrera no tiene calendarios académicos'
-                                : 'Seleccione una gestión'
-                          }
-                          error={erroresCampos.gestion}
-                        />
-                        {erroresCampos.gestion && (
-                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">{erroresCampos.gestion}</p>
-                        )}
-                      </div>
-              </div>
-
-                  {/* Nota final */}
-                  <div className="p-5 rounded-xl border-l-4 border-blue-500 bg-gradient-to-r from-blue-50 to-indigo-50/30 dark:from-blue-900/20 dark:to-indigo-900/10 shadow-sm">
-                    <div className="flex items-start gap-3">
-                      <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <div className="text-xs text-blue-800 dark:text-blue-300">
-                        <p className="font-bold mb-2">Resumen:</p>
-                        <ul className="list-disc list-inside space-y-1">
-                          <li>Después de crear, asigne las materias y actividades de cada unidad: el total debe coincidir con las horas efectivas</li>
-                          <li>El programa analítico (PDF) se sube por materia en el detalle del fondo y es obligatorio para presentarlo al Director</li>
-                          <li>Un solo fondo por docente y gestión: reúne las materias de todos los calendarios del año</li>
-                          <li>Solo fondos en "borrador" pueden editarse</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-          </div>
-          {/* Footer con botones */}
-          <div className="px-6 py-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              disabled={loading}
-              className="px-6 py-2.5 rounded-xl font-bold text-slate-700 dark:text-slate-300 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-all disabled:opacity-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={loading || docenteDedicacionExclusiva}
-              className="px-6 py-2.5 rounded-xl text-white font-bold transition-all shadow-lg hover:shadow-xl flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Guardando...' : (editar ? 'Actualizar Fondo' : 'Crear Fondo')}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        {/* Pie con botones */}
+        <div className="px-5 sm:px-7 py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 [border-top:1px_solid_#B8C9E1]">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            disabled={loading}
+            className="inline-flex justify-center items-center px-5 py-2.5 rounded-full text-sm font-semibold text-slate-700 hover:bg-azulado-200 transition-colors disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={loading || docenteDedicacionExclusiva}
+            className="inline-flex justify-center items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold text-white bg-blue-900 hover:bg-blue-950 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Guardando...' : (editar ? 'Actualizar Fondo' : 'Crear Fondo')}
+          </button>
+        </div>
+      </form>
+    </ModalCentrado>
   );
 }
 

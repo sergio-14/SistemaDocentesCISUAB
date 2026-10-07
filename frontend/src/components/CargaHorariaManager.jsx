@@ -383,7 +383,6 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
         tipo_actividad: 'Tipo de actividad',
         titulo_actividad: 'Actividad',
         evidencias: 'Evidencias',
-        documento_respaldo: 'Respaldo',
         hora_inicio: 'Hora de inicio',
         hora_fin: 'Hora de fin',
         aula: 'Aula',
@@ -431,7 +430,6 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
         tipo_actividad: '',
         horas: '',
         evidencias: '',
-        documento_respaldo: ''
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const isReadOnly = Boolean(readOnly);
@@ -580,7 +578,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
         try {
             await api.post('/cargas-horarias/', payload);
             toast.success("Asignación agregada");
-            setFormData({ categoria: 'academica', calendario: calendarioPorDefecto, materia: '', paralelo: 'A', titulo_actividad: '', tipo_actividad: '', horas: '', evidencias: '', documento_respaldo: '' });
+            setFormData({ categoria: 'academica', calendario: calendarioPorDefecto, materia: '', paralelo: 'A', titulo_actividad: '', tipo_actividad: '', horas: '', evidencias: '' });
             setSemestre('');
             cargarCargas();
             cargarFondoDetalle();
@@ -641,7 +639,6 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
             tipo_actividad: '',
             horas: '',
             evidencias: '',
-            documento_respaldo: formData.documento_respaldo || ''
         });
     };
 
@@ -710,8 +707,6 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
     // Sin la validación nativa (noValidate): entero mayor a 0, con mensaje bajo el campo.
     const horasInvalidas = String(formData.horas ?? '') !== ''
         && (!Number.isInteger(Number(formData.horas)) || Number(formData.horas) < 1);
-    const respaldoRequerido = false;
-    const respaldoInvalido = respaldoRequerido && !formData.documento_respaldo?.trim();
     const submitDisabled = isSubmitting
         || (requiereMateriaAcademica && !formData.calendario)
         || (requiereMateriaAcademica && !formData.materia)
@@ -725,8 +720,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
         || Number(formData.horas) <= 0
         || horasInvalidas
         || duplicadoTipoSeleccionado
-        || excedeObjetivoAnual
-        || respaldoInvalido;
+        || excedeObjetivoAnual;
 
     // Campos con el estilo del dashboard. El fondo va con "!" porque index.css pinta todos
     // los inputs y textarea en modo claro.
@@ -869,8 +863,8 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                     </div>
                 )}
 
-                {/* Paralelo (solo clases en aula), horas y respaldo en una fila */}
-                <div className={`grid gap-4 ${esClaseAula ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                {/* Paralelo (solo clases en aula) y horas en una fila */}
+                <div className="grid grid-cols-2 gap-4">
                     {esClaseAula && (
                         <div className="animate-campo-entrada">
                             <label className={labelCls}>Paralelo</label>
@@ -905,19 +899,6 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                                 disabled={isReadOnly}
                             />
                         )}
-                    </div>
-                    <div>
-                        <label className={labelCls}>
-                            Respaldo <span className={`font-normal ${respaldoInvalido ? 'text-red-500' : 'text-slate-500'}`}>(opcional)</span>
-                        </label>
-                        <input
-                            type="text"
-                            className={`${inputCls} ${respaldoInvalido ? ERROR_FIELD_BORDER_CLASS : ''}`}
-                            placeholder="Ej: Memo #123"
-                            value={formData.documento_respaldo}
-                            onChange={e => setFormData({ ...formData, documento_respaldo: e.target.value })}
-                            disabled={isReadOnly}
-                        />
                     </div>
                 </div>
                 <MensajeErrorCampo error={horasInvalidas ? 'Ingrese un número entero de horas mayor a 0.' : ''} />

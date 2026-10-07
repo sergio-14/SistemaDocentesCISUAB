@@ -2476,7 +2476,6 @@ def _detalle_de_carga(carga, fondo, programas, documentos):
         ),
         "horas": carga.horas,
         "evidencias": carga.evidencias,
-        "respaldo": carga.documento_respaldo,
         "carrera_calendario": carga.calendario.carrera.nombre if carga.calendario_id else None,
         # Clases en aula: la misma materia puede darse en dos calendarios (igual que en el PDF).
         "calendario_nombre": nombre_calendario_en_fondo(carga.calendario, fondo) if carga.calendario_id else None,

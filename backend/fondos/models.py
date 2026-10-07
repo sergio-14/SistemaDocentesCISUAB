@@ -1436,11 +1436,6 @@ class CargaHoraria(models.Model):
         default='',
         help_text='Evidencias o respaldo descriptivo de la actividad.'
     )
-    documento_respaldo = models.CharField(
-        max_length=100,
-        blank=True,
-        help_text='Opcional. Ej: "Memo #123", "Res. HCF #456/2024"'
-    )
     creado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='cargas_creadas')
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_modificacion = models.DateTimeField(auto_now=True)

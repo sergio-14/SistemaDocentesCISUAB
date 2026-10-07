@@ -1121,7 +1121,7 @@ class FondoPDFGenerator:
                 if es_clase and carga.materia:
                     grupo['horas_semana'] += float(carga.materia.horas_totales)
                 if not grupo['evidencia']:
-                    grupo['evidencia'] = (carga.documento_respaldo or '').strip() or (carga.evidencias or '').strip()
+                    grupo['evidencia'] = (carga.evidencias or '').strip()
 
             # Primero las clases en aula (una fila por calendario) y luego las demás, como en el detalle.
             orden_claves.sort(key=lambda clave: not clave.startswith('clases_aula_'))

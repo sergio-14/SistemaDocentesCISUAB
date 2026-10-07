@@ -1,5 +1,3 @@
-import { ESTADOS_FONDO } from './estilosFondo';
-
 // Etapas del flujo del fondo, en orden. "Con observaciones" y "Rechazado" no son etapas
 // propias: el fondo vuelve a corregirse antes de presentarse otra vez al Director.
 const ETAPAS = [
@@ -22,35 +20,12 @@ const INDICE_POR_ESTADO = {
   finalizado: 5,
 };
 
-const MENSAJES = {
-  observado: 'El Director pidió correcciones antes de aprobarlo.',
-  rechazado: 'El fondo fue rechazado: vuelve a borrador para corregirlo.',
-  en_ejecucion: 'El fondo se está ejecutando; se documenta mediante el informe.',
-  finalizado: 'Fondo completado.',
-};
-
-const EstadoTimeline = ({ estado, tieneObservaciones = false, observacionesPendientes = 0 }) => {
-  const info = ESTADOS_FONDO[estado] || ESTADOS_FONDO.borrador;
+const EstadoTimeline = ({ estado }) => {
   const indiceActual = INDICE_POR_ESTADO[estado] ?? 0;
   const conProblema = ['observado', 'rechazado'].includes(estado);
 
   return (
-    <div className="space-y-4">
-      {/* Estado actual */}
-      <div className={`rounded-2xl px-4 py-3 ring-1 ring-inset ${info.pill}`}>
-        <p className="text-xs font-semibold opacity-80">Estado actual</p>
-        <p className="mt-0.5 flex items-center gap-2 text-base font-bold">
-          <span className={`h-2 w-2 rounded-full ${info.dot}`} />
-          {info.label}
-        </p>
-        {estado === 'observado' && tieneObservaciones && (
-          <p className="mt-1 text-xs font-medium">
-            {observacionesPendientes} hilo{observacionesPendientes === 1 ? '' : 's'} pendiente{observacionesPendientes === 1 ? '' : 's'}
-          </p>
-        )}
-        {MENSAJES[estado] && <p className="mt-1 text-xs opacity-80">{MENSAJES[estado]}</p>}
-      </div>
-
+    <div>
       {/* Etapas */}
       <ol className="space-y-0">
         {ETAPAS.map((etapa, idx) => {

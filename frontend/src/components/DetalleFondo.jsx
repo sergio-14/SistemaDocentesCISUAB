@@ -124,7 +124,6 @@ function DetalleFondo() {
   const [mostrarModalAprobar, setMostrarModalAprobar] = useState(false);
   const [documentoDecanatura, setDocumentoDecanatura] = useState(null);
   const observacionesRef = useRef();
-  const [observacionesPendientes, setObservacionesPendientes] = useState(0);
   const [mostrarFormEvaluarInforme, setMostrarFormEvaluarInforme] = useState(false);
   const [mostrarModalIniciarEjecucion, setMostrarModalIniciarEjecucion] = useState(false);
   const [mostrarModalInforme, setMostrarModalInforme] = useState(false);
@@ -261,7 +260,6 @@ function DetalleFondo() {
       const response = await getFondoTiempoDetalle(id);
       setFondo(response.data);
       const pendientes = response.data.observaciones_detalladas?.filter(obs => !obs.resuelta).length || 0;
-      setObservacionesPendientes(pendientes);
       estadoFondoRef.current = response.data.estado;
       observacionesPendientesRef.current = pendientes;
 
@@ -299,7 +297,6 @@ function DetalleFondo() {
         if (!cambioDetectado) return;
 
         setFondo(response.data);
-        setObservacionesPendientes(pendientes);
         estadoFondoRef.current = response.data.estado;
         observacionesPendientesRef.current = pendientes;
       })
@@ -335,7 +332,6 @@ function DetalleFondo() {
         fecha_presentacion: new Date().toISOString(),
       } : prev);
       if (esReenvio) {
-        setObservacionesPendientes(0);
         observacionesPendientesRef.current = 0;
       }
       estadoFondoRef.current = 'presentado_director';
@@ -430,11 +426,7 @@ function DetalleFondo() {
       ...prev,
       estado: 'observado',
     } : prev);
-    setObservacionesPendientes((prev) => {
-      const siguiente = Math.max(1, Number(prev || 0) + 1);
-      observacionesPendientesRef.current = siguiente;
-      return siguiente;
-    });
+    observacionesPendientesRef.current = Math.max(1, observacionesPendientesRef.current + 1);
     estadoFondoRef.current = 'observado';
 
     if (observacionesRef.current) {
@@ -921,11 +913,7 @@ function DetalleFondo() {
                 </div>
               )}
 
-              <EstadoTimeline
-                estado={fondo.estado}
-                tieneObservaciones={observacionesPendientes > 0}
-                observacionesPendientes={observacionesPendientes}
-              />
+              <EstadoTimeline estado={fondo.estado} />
 
               <div className="mt-auto pt-4 space-y-2">
                 <div className="pt-4 space-y-2 [border-top:1px_solid_#B8C9E1]">

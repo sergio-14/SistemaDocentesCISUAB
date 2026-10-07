@@ -8,7 +8,6 @@ from reportlab.pdfgen import canvas as pdfgen_canvas
 from reportlab.pdfbase.pdfmetrics import stringWidth, registerFont, registerFontFamily
 from reportlab.pdfbase.ttfonts import TTFont
 import os
-from datetime import datetime, date
 from decimal import Decimal, ROUND_HALF_UP
 import io
 import re
@@ -646,79 +645,6 @@ class FondoPDFGenerator:
             return "-"
         return str(texto).replace('\n', '<br/>')
 
-    def _duracion_horas(self, hora_inicio, hora_fin):
-        if not hora_inicio or not hora_fin:
-            return 0.0
-        dt_inicio = datetime.combine(date.today(), hora_inicio)
-        dt_fin = datetime.combine(date.today(), hora_fin)
-        return max((dt_fin - dt_inicio).total_seconds() / 3600.0, 0.0)
-
-    def _agrupar_horarios_contiguos(self, cargas_docencia):
-        orden_dias = {
-            'lunes': 1,
-            'martes': 2,
-            'miercoles': 3,
-            'jueves': 4,
-            'viernes': 5,
-            'sabado': 6,
-        }
-
-        cargas_ordenadas = sorted(
-            cargas_docencia,
-            key=lambda c: (
-                orden_dias.get(c.dia_semana, 99),
-                c.hora_inicio,
-                c.materia_id or 0,
-                c.paralelo,
-                (c.aula or '').strip().lower(),
-            ),
-        )
-
-        bloques = []
-        for carga in cargas_ordenadas:
-            materia_nombre = f"{carga.materia.sigla} - {carga.materia.nombre}" if carga.materia else "Sin materia"
-            aula_norm = (carga.aula or '').strip()
-            paralelo = (carga.paralelo or '').strip()
-
-            if not bloques:
-                bloques.append({
-                    'dia_semana': carga.dia_semana,
-                    'materia_id': carga.materia_id,
-                    'materia': materia_nombre,
-                    'paralelo': paralelo,
-                    'aula': aula_norm,
-                    'hora_inicio': carga.hora_inicio,
-                    'hora_fin': carga.hora_fin,
-                })
-                continue
-
-            ultimo = bloques[-1]
-            es_contiguo = (
-                ultimo['dia_semana'] == carga.dia_semana
-                and ultimo['materia_id'] == carga.materia_id
-                and ultimo['paralelo'] == paralelo
-                and (ultimo['aula'] or '').lower() == aula_norm.lower()
-                and ultimo['hora_fin'] == carga.hora_inicio
-            )
-
-            if es_contiguo:
-                ultimo['hora_fin'] = carga.hora_fin
-            else:
-                bloques.append({
-                    'dia_semana': carga.dia_semana,
-                    'materia_id': carga.materia_id,
-                    'materia': materia_nombre,
-                    'paralelo': paralelo,
-                    'aula': aula_norm,
-                    'hora_inicio': carga.hora_inicio,
-                    'hora_fin': carga.hora_fin,
-                })
-
-        for bloque in bloques:
-            bloque['horas'] = self._duracion_horas(bloque['hora_inicio'], bloque['hora_fin'])
-
-        return bloques
-
     def _dedicacion_docente(self, fondo):
         """Devuelve (texto, abreviatura_o_vacio) de la dedicación vigente del
         docente en esta carrera, ej. ('Tiempo Completo', 'T.C.')."""
@@ -801,7 +727,6 @@ class FondoPDFGenerator:
 
         estilo_normal = self._get_estilo_normal()
         estilo_celda_center = self._get_estilo_celda_center()
-        estilo_celda = self._get_estilo_celda()
 
         # --- 2. CABECERA ---
         
@@ -819,32 +744,58 @@ class FondoPDFGenerator:
         # Spacer(altura chica) puesto en la otra columna.
         estilo_relleno_minimo = ParagraphStyle('RellenoMinimo', fontSize=1, leading=1)
 
-        # Columna 3 (se arma primero: su altura por fila se usa para alinear
-        # "Carrera de ..." y "Tiempo de dedicación: ..." con la fila de
-        # "Feriados Nacionales y Locales", ver mas abajo).
-        # Sincronización de Clases Aula (Total de horas anuales asignadas por Jefatura)
-        # Clases en aula: materia x 20 semanas (semestre) o x 40 (calendario anual).
-        clases_aula = fondo.cargas.filter(categoria='academica', tipo_actividad='clases_aula').select_related(
-            'calendario', 'materia',
+        # Asignaturas (Columna 2) y sus semanas y horas de clases en aula (Columna 3) se
+        # arman juntas: cada fila de "Clases Aula" queda a la altura de su línea
+        # "Asignatura: ... N Hrs/Sem", como en el formato en papel. Una misma materia
+        # puede tener varios registros (un calendario por semestre): se agrupa por
+        # (materia, paralelo) y el paralelo solo se muestra cuando no es 'A'.
+        cargas_docencia = fondo.cargas.filter(categoria='academica').select_related(
+            'materia', 'calendario',
         ).order_by('calendario__fecha_inicio', 'id')
-        total_clases_aula = float(sum(carga.horas for carga in clases_aula))
-        # Una línea por materia, como el formato en papel: sus semanas (20 por semestre,
-        # 40 si es anual o se dicta en los dos semestres) y sus horas por año.
-        clases_por_materia = {}
-        for carga in clases_aula:
-            materia = clases_por_materia.setdefault(carga.materia_id, {
-                'nombre': _capitalizar(carga.materia.nombre) if carga.materia else 'Sin materia',
-                'calendarios': {}, 'horas': 0.0,
-            })
-            if carga.calendario_id:
-                materia['calendarios'][carga.calendario_id] = carga.calendario.semanas_de_clase
-            materia['horas'] += float(carga.horas)
+        total_clases_aula = float(sum(
+            carga.horas for carga in cargas_docencia if carga.tipo_actividad == 'clases_aula'
+        ))
+        asignaturas = {}
+        for carga in cargas_docencia:
+            asignatura = asignaturas.get((carga.materia_id, carga.paralelo))
+            if asignatura is None:
+                if carga.materia:
+                    nombre = _capitalizar(carga.materia.nombre)
+                    if carga.paralelo and carga.paralelo != 'A':
+                        nombre = f"{nombre} - {carga.paralelo}"
+                    horas_sem = carga.materia.horas_totales
+                else:
+                    nombre, horas_sem = 'Sin materia', None
+                asignatura = asignaturas[(carga.materia_id, carga.paralelo)] = {
+                    'nombre': nombre, 'horas_sem': horas_sem, 'clases': False, 'semanas': {}, 'horas': 0.0,
+                }
+            if carga.tipo_actividad == 'clases_aula':
+                # Semanas: 20 por semestre, 40 si es anual o se dicta en los dos semestres.
+                asignatura['clases'] = True
+                asignatura['horas'] += float(carga.horas)
+                if carga.calendario_id:
+                    asignatura['semanas'][carga.calendario_id] = carga.calendario.semanas_de_clase
+
+        # Ancho real de la columna de contenido de t_asig (colWidths mas abajo:
+        # [1.8*cm, 7.8*cm]), usado para que "N Hrs/Sem" quede alineado al borde derecho.
+        ANCHO_CONTENIDO_ASIGNATURA = 7.8 * cm
+        parrafos_asignaturas = []
+        for asignatura in asignaturas.values():
+            linea = escape(asignatura['nombre']) if asignatura['horas_sem'] is None else _linea_con_leader(
+                asignatura['nombre'], f"{_formato_es(asignatura['horas_sem'])} Hrs/Sem", ANCHO_CONTENIDO_ASIGNATURA,
+            )
+            parrafos_asignaturas.append(Paragraph(linea, estilo_docente_label))
+        if not parrafos_asignaturas:
+            parrafos_asignaturas = [Paragraph("Sin asignaturas", estilo_docente_label)]
+        # Alto real de cada línea (un nombre largo puede ocupar dos): la fila de la
+        # Columna 3 de esa asignatura toma el mismo alto.
+        alturas_asignaturas = [parrafo.wrap(ANCHO_CONTENIDO_ASIGNATURA, 1000*cm)[1] for parrafo in parrafos_asignaturas]
 
         horas_contrato = fondo.contrato_horas
         horas_vacacion = fondo.horas_vacacion
         horas_feriados = fondo.horas_feriados
         horas_efectivas = float(fondo.horas_efectivas)
-        
+
         dias_vacacion = fondo.dias_vacacion
         funciones_sustantivas = horas_efectivas - total_clases_aula
 
@@ -852,40 +803,24 @@ class FondoPDFGenerator:
             font = 'Helvetica-Bold' if bold else 'Helvetica'
             return Paragraph(str(txt), ParagraphStyle('p3', parent=estilo_tabla_col3, alignment=align, fontName=font))
 
-        filas_clases = [
-            [p_c3(escape(materia['nombre']), 2), p_c3(f"{sum(materia['calendarios'].values())} sem"),
-             p_c3(f"{_formato_es(materia['horas'])} h")]
-            for materia in clases_por_materia.values()
-        ] or [[p_c3('Sin materias', 2), p_c3('0 sem'), p_c3('0 h')]]
-        col3_data = [
-            ['', p_c3('Semanas/Año'), p_c3('Hrs/Año')],
-            [p_c3('Contrato:', 2, True), p_c3('52'), p_c3(_formato_es(horas_contrato))],
-            [p_c3('Clases Aula:', 2, True), '', ''],
-            *filas_clases,
-            [p_c3('Funciones Sustantivas:', 2, True), '', p_c3(_formato_es(funciones_sustantivas))],
-            [p_c3('Vacación(días):', 2, True), p_c3(_formato_es(dias_vacacion)), p_c3(_formato_es(horas_vacacion))],
-            [p_c3('Feriados Nacionales y Locales:', 2, True), '', p_c3(_formato_es(horas_feriados))],
-            [p_c3('<font backColor="#9CC2E5">Horas efectivas</font>', 2, True), '', p_c3(_formato_es(horas_efectivas), 1, True)]
-        ]
-        fila_vacacion = len(col3_data) - 3
-        
-        col3_table = Table(col3_data, colWidths=[4.2*cm, 2.0*cm, 2.0*cm])
-        col3_table.setStyle(TableStyle([
+        ANCHOS_COL3 = [4.2*cm, 2.0*cm, 2.0*cm]
+        estilo_col3_base = [
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('LEFTPADDING', (0,0), (-1,-1), 1),
             ('RIGHTPADDING', (0,0), (-1,-1), 1),
             ('TOPPADDING', (0,0), (-1,-1), 0),
-            ('BACKGROUND', (1, 1), (1, 1), colors.HexColor('#E6B8B7')),
-            ('BACKGROUND', (1, fila_vacacion), (1, fila_vacacion), colors.HexColor('#C4D79B')),
-        ]))
-
-        # Altura real (ya calculada por ReportLab) de las filas de la Columna
-        # 3 hasta la fila de "Feriados Nacionales y Locales" (la penúltima de
-        # col3_data), sin contarla. Se usa para que "Carrera de ..." (Columna
-        # 1) y "Tiempo de dedicación: ..." (Columna 2) arranquen exactamente
-        # a esa altura, sin importar cuantas lineas tenga cada columna.
-        col3_table.wrap(4.2*cm + 2.0*cm + 2.0*cm, 1000*cm)
-        altura_hasta_feriados = sum(col3_table._rowHeights[:len(col3_data) - 2])
+        ]
+        col3_superior = [
+            ['', p_c3('Semanas/Año'), p_c3('Hrs/Año')],
+            [p_c3('Contrato:', 2, True), p_c3('52'), p_c3(_formato_es(horas_contrato))],
+        ]
+        # Alto de la Columna 3 hasta "Contrato:": debajo va "Clases Aula:" en la misma
+        # línea que la primera asignatura de la Columna 2, que arranca a esa altura
+        # (ver altura_fila_superior en la Columna 1).
+        _col3_superior_medida = Table(col3_superior, colWidths=ANCHOS_COL3)
+        _col3_superior_medida.setStyle(TableStyle(estilo_col3_base))
+        _col3_superior_medida.wrap(sum(ANCHOS_COL3), 1000*cm)
+        altura_col3_superior = sum(_col3_superior_medida._rowHeights)
 
         # Columna 1
         facultad_texto = _capitalizar(fondo.carrera.facultad.nombre) if fondo.carrera else "Facultad de Ingeniería y Tecnología"
@@ -923,9 +858,56 @@ class FondoPDFGenerator:
         # abajo): hay que restarlo del alto pedido o el hueco real queda 1pt
         # mas grande que lo calculado.
         _padding_fila_extra = 1
-        altura_fila_superior = max(altura_universidad, altura_docente)
+        altura_fila_superior = max(altura_universidad, altura_docente, altura_col3_superior)
         espacio_fila0_col1 = max(0, altura_fila_superior - altura_universidad - _padding_fila_extra)
         espacio_fila0_col2 = max(0, altura_fila_superior - altura_docente - _padding_fila_extra)
+
+        # Columna 3: "Clases Aula:" y una fila por asignatura con sus semanas y horas por
+        # año (sin repetir el nombre), del mismo alto que su línea de la Columna 2. Un
+        # espaciador iguala el arranque de ambas columnas.
+        espacio_clases_col3 = max(0, altura_fila_superior - altura_col3_superior)
+        filas_espacio_col3 = [['', '', '']] if espacio_clases_col3 > 0.5 else []
+        filas_clases = [
+            ['', p_c3(_formato_es(sum(asignatura['semanas'].values()))), p_c3(_formato_es(asignatura['horas']))]
+            if asignatura['clases'] else ['', '', '']
+            for asignatura in asignaturas.values()
+        ] or [['', p_c3('0'), p_c3('0')]]
+        filas_clases[0][0] = p_c3('Clases Aula:', 2, True)
+        col3_data = [
+            *col3_superior,
+            *filas_espacio_col3,
+            *filas_clases,
+            [p_c3('Funciones Sustantivas:', 2, True), '', p_c3(_formato_es(funciones_sustantivas))],
+            [p_c3('Vacación(días):', 2, True), p_c3(_formato_es(dias_vacacion)), p_c3(_formato_es(horas_vacacion))],
+            [p_c3('Feriados Nacionales y Locales:', 2, True), '', p_c3(_formato_es(horas_feriados))],
+            [p_c3('<font backColor="#9CC2E5">Horas efectivas</font>', 2, True), '', p_c3(_formato_es(horas_efectivas), 1, True)]
+        ]
+        fila_vacacion = len(col3_data) - 3
+        primera_fila_fija = len(col3_superior)
+        ultima_fila_fija = primera_fila_fija + len(filas_espacio_col3) + len(filas_clases) - 1
+        alturas_col3 = (
+            [None] * len(col3_superior)
+            + ([espacio_clases_col3] if filas_espacio_col3 else [])
+            # La última asignatura deja un poco de aire antes de "Funciones Sustantivas".
+            + alturas_asignaturas[:-1] + [alturas_asignaturas[-1] + 3]
+            + [None] * 4
+        )
+
+        col3_table = Table(col3_data, colWidths=ANCHOS_COL3, rowHeights=alturas_col3)
+        col3_table.setStyle(TableStyle([
+            *estilo_col3_base,
+            # Espaciador y filas de asignaturas: sin relleno, su alto es el de la línea.
+            ('BOTTOMPADDING', (0, primera_fila_fija), (-1, ultima_fila_fija), 0),
+            ('BACKGROUND', (1, 1), (1, 1), colors.HexColor('#E6B8B7')),
+            ('BACKGROUND', (1, fila_vacacion), (1, fila_vacacion), colors.HexColor('#C4D79B')),
+        ]))
+
+        # Altura real (ya calculada por ReportLab) de las filas de la Columna 3 hasta
+        # la fila de "Feriados Nacionales y Locales" (la penúltima de col3_data), sin
+        # contarla. Se usa para que "Carrera de ..." (Columna 1) y "Tiempo de
+        # dedicación: ..." (Columna 2) arranquen exactamente a esa altura.
+        col3_table.wrap(sum(ANCHOS_COL3), 1000*cm)
+        altura_hasta_feriados = sum(col3_table._rowHeights[:len(col3_data) - 2])
 
         col1_previo = Table(
             [
@@ -969,52 +951,14 @@ class FondoPDFGenerator:
         rows_docente.append([Paragraph(f"Docente: {nombre_docente}", estilo_docente_label), ''])
         rows_docente.append([Spacer(1, espacio_fila0_col2), Paragraph('', estilo_relleno_minimo)])
 
-        # Asignaturas: solo nombres, en formato normal (no mayusculas) y sin
-        # codigos, una por linea. Una misma materia puede tener varios
-        # registros de CargaHoraria (un horario por cada dia/bloque de la
-        # semana), por eso se deduplica por (materia, paralelo) en vez de
-        # listar cada registro. El paralelo solo se muestra cuando no es el
-        # unico/por defecto ('A'), igual que en el documento de referencia.
-        cargas_docencia = fondo.cargas.filter(categoria='academica').select_related('materia')
-
-        materias_vistas = set()
-        asignaturas_list = []
-        for carga in cargas_docencia:
-            clave = (carga.materia_id, carga.paralelo)
-            if clave in materias_vistas:
-                continue
-            materias_vistas.add(clave)
-            if not carga.materia:
-                asignaturas_list.append(('Sin materia', None))
-                continue
-            nombre_materia = _capitalizar(carga.materia.nombre)
-            if carga.paralelo and carga.paralelo != 'A':
-                nombre_completo = f"{nombre_materia} - {carga.paralelo}"
-            else:
-                nombre_completo = nombre_materia
-            asignaturas_list.append((nombre_completo, carga.materia.horas_totales))
-
-        # Ancho real de la columna de contenido de t_asig (colWidths mas
-        # abajo: [1.8*cm, 7.8*cm]), usado para calcular cuantos puntos hacen
-        # falta para que "N Hrs/Sem" quede alineado al borde derecho.
-        ANCHO_CONTENIDO_ASIGNATURA = 7.8 * cm
-        lineas_asignaturas = []
-        for nombre, horas_sem in asignaturas_list:
-            if horas_sem is None:
-                lineas_asignaturas.append(escape(nombre))
-            else:
-                lineas_asignaturas.append(_linea_con_leader(
-                    nombre, f"{_formato_es(horas_sem)} Hrs/Sem", ANCHO_CONTENIDO_ASIGNATURA,
-                ))
-        if lineas_asignaturas:
-            asignatura_texto = "<br/>".join(lineas_asignaturas)
-        else:
-            asignatura_texto = "Sin asignaturas"
-
-        # Tabla anidada para alineación (Label | Contenido)
+        # Asignaturas: una fila por asignatura (ver arriba), del mismo alto que su fila
+        # de "Clases Aula" en la Columna 3. La etiqueta va solo en la primera.
         lbl_asig = Paragraph("Asignatura:", estilo_docente_label)
-        val_asig = Paragraph(asignatura_texto, estilo_docente_label)
-        t_asig = Table([[lbl_asig, val_asig]], colWidths=[1.8*cm, 7.8*cm])
+        t_asig = Table(
+            [[lbl_asig if indice == 0 else '', parrafo] for indice, parrafo in enumerate(parrafos_asignaturas)],
+            colWidths=[1.8*cm, ANCHO_CONTENIDO_ASIGNATURA],
+            rowHeights=alturas_asignaturas,
+        )
         t_asig.setStyle(TableStyle([
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('LEFTPADDING', (0,0), (-1,-1), 0),
@@ -1100,88 +1044,6 @@ class FondoPDFGenerator:
         tabla_cabecera.hAlign = 'CENTER'
         elementos.append(tabla_cabecera)
         elementos.append(Spacer(1, 8))
-
-        # --- 2.1 HORARIO SEMANAL (LUNES A SÁBADO) ---
-        # BUGFIX 2026-09-13: la mayoria de CargaHoraria se carga con horas
-        # anuales totales por actividad, sin hora_inicio/hora_fin (esos
-        # campos solo se usan si alguien arma un horario semanal detallado).
-        # Antes se pasaban TODAS las cargas aca, y _agrupar_horarios_contiguos
-        # devolvia bloques con hora_inicio/hora_fin en None, que luego
-        # tronaban al hacer .strftime(). Ahora solo se arma la grilla con las
-        # cargas que sí tienen horario cargado; el resto simplemente no
-        # aparece en esta tabla (sus horas anuales igual se cuentan en el
-        # resto del documento).
-        cargas_horario = [
-            c for c in cargas_docencia.select_related('materia', 'calendario', 'calendario__carrera')
-            if c.hora_inicio and c.hora_fin
-        ]
-        # Un horario por calendario (semestres, anual, otra carrera), en orden de inicio.
-        calendarios_horario = sorted(
-            {c.calendario for c in cargas_horario if c.calendario_id},
-            key=lambda cal: (cal.fecha_inicio, cal.pk),
-        )
-
-        estilo_horario_header = ParagraphStyle(
-            'HorarioHeader',
-            parent=estilo_celda_center,
-            fontSize=7,
-            fontName='Helvetica-Bold',
-        )
-        estilo_horario_celda = ParagraphStyle(
-            'HorarioCelda',
-            parent=estilo_celda,
-            fontSize=7,
-            leading=8,
-        )
-
-        # Sin ningun bloque con horario detallado la tabla no aporta nada: se omite.
-        for calendario in calendarios_horario:
-            bloques_horario = self._agrupar_horarios_contiguos(
-                [c for c in cargas_horario if c.calendario_id == calendario.pk]
-            )
-            datos_horario = [[
-                Paragraph('Día', estilo_horario_header),
-                Paragraph('Horario', estilo_horario_header),
-                Paragraph('Materia', estilo_horario_header),
-                Paragraph('Paralelo', estilo_horario_header),
-                Paragraph('Aula', estilo_horario_header),
-                Paragraph('Horas', estilo_horario_header),
-            ]]
-            for bloque in bloques_horario:
-                datos_horario.append([
-                    Paragraph((bloque['dia_semana'] or '-').capitalize(), estilo_horario_celda),
-                    Paragraph(f"{bloque['hora_inicio'].strftime('%H:%M')} - {bloque['hora_fin'].strftime('%H:%M')}", estilo_horario_celda),
-                    Paragraph(self._limpiar_texto(bloque['materia']), estilo_horario_celda),
-                    Paragraph(self._limpiar_texto(bloque['paralelo'] or '-'), estilo_horario_celda),
-                    Paragraph(self._limpiar_texto(bloque['aula'] or '-'), estilo_horario_celda),
-                    Paragraph(f"{bloque['horas']:.2f}", estilo_horario_celda),
-                ])
-
-            tabla_horario = Table(
-                datos_horario,
-                colWidths=[2.0*cm, 3.2*cm, 9.0*cm, 2.2*cm, 4.0*cm, 2.0*cm],
-                repeatRows=1,
-            )
-            tabla_horario.setStyle(TableStyle([
-                ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-                ('BACKGROUND', (0,0), (-1,0), colors.Color(0.9, 0.9, 0.9)),
-                ('ALIGN', (0,0), (1,-1), 'CENTER'),
-                ('ALIGN', (3,0), (5,-1), 'CENTER'),
-                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                ('LEFTPADDING', (0,0), (-1,-1), 3),
-                ('RIGHTPADDING', (0,0), (-1,-1), 3),
-                ('TOPPADDING', (0,0), (-1,-1), 2),
-                ('BOTTOMPADDING', (0,0), (-1,-1), 2),
-            ]))
-            tabla_horario.hAlign = 'CENTER'
-
-            titulo_horario = escape(nombre_calendario_en_fondo(calendario, fondo).upper())
-            elementos.append(Paragraph(
-                f'<b>HORARIO SEMANAL (LUNES A SÁBADO) · {titulo_horario}</b>', estilo_celda_center,
-            ))
-            elementos.append(Spacer(1, 0.15*cm))
-            elementos.append(tabla_horario)
-            elementos.append(Spacer(1, 0.35*cm))
 
         # --- 3. CUERPO: TABLA DE ACTIVIDADES (agrupada por tipo de actividad) ---
         # Cada tipo_actividad de CargaHoraria puede tener VARIOS registros

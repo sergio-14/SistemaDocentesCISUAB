@@ -10,7 +10,7 @@ import ModalCentrado from '../common/ModalCentrado';
 import NumeroAnimado from '../common/NumeroAnimado';
 import Paginacion from '../common/Paginacion';
 import SelectorVista from '../common/SelectorVista';
-import { BLOQUE, BOTON } from '../fondos/estilosFondo';
+import { BLOQUE, BOTON, BOTON_CHICO } from '../fondos/estilosFondo';
 import { paginar } from '../../utils/paginacion';
 
 // --- ICONOS ---
@@ -233,11 +233,12 @@ const MateriaList = () => {
     const interruptorEstado = (materia) => (
         <span data-escritura className="flex items-center gap-2.5">
             <Interruptor
+                chico
                 isActive={materia.activo !== false}
                 onChange={() => cambiarActivo(materia)}
                 etiqueta={materia.activo === false ? 'Activar materia' : 'Desactivar materia'}
             />
-            <span className="text-sm text-slate-700">{materia.activo === false ? 'Inactiva' : 'Activa'}</span>
+            <span className="text-xs text-slate-700">{materia.activo === false ? 'Inactiva' : 'Activa'}</span>
         </span>
     );
 
@@ -245,25 +246,25 @@ const MateriaList = () => {
         <div className="flex flex-wrap gap-2">
             <Link data-escritura
                 to={`/fondo-tiempo/materias/editar/${materia.id}`}
-                className={`${BOTON} bg-emerald-500 hover:bg-emerald-600 text-white`}
+                className={`${BOTON_CHICO} bg-emerald-500 hover:bg-emerald-600 text-white`}
             >
-                <FaEdit size={14} />
+                <FaEdit size={12} />
                 <span>Editar</span>
             </Link>
             <button data-escritura
                 type="button"
                 onClick={() => handleDelete(materia)}
-                className={`${BOTON} bg-red-400 hover:bg-red-500 text-white`}
+                className={`${BOTON_CHICO} bg-red-400 hover:bg-red-500 text-white`}
             >
-                <FaTrash size={13} />
+                <FaTrash size={11} />
                 <span>Eliminar</span>
             </button>
         </div>
     );
 
     const columnasLista = canEdit
-        ? 'xl:grid-cols-[minmax(0,2.4fr)_8rem_5rem_5rem_5rem_8.5rem_13rem]'
-        : 'xl:grid-cols-[minmax(0,2.4fr)_8rem_5rem_5rem_5rem_8.5rem]';
+        ? 'xl:grid-cols-[minmax(0,2.4fr)_8rem_5rem_5rem_5rem_7.5rem_11rem]'
+        : 'xl:grid-cols-[minmax(0,2.4fr)_8rem_5rem_5rem_5rem_7.5rem]';
 
     return (
         <div className="min-h-full px-3 sm:px-4 md:px-8 py-4 md:py-6 text-slate-800">
@@ -385,7 +386,7 @@ const MateriaList = () => {
                                             className={`animate-fondo-entrada grid grid-cols-1 ${columnasLista} items-center gap-x-4 gap-y-3 px-3 py-4 rounded-2xl hover:bg-azulado-100/70 transition-colors`}
                                         >
                                             <div className="flex items-center gap-3 min-w-0">
-                                                <div className="flex h-10 min-w-[3.5rem] flex-shrink-0 items-center justify-center rounded-xl bg-blue-900 px-2 text-white text-xs font-bold">
+                                                <div className="flex h-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-600 px-2 text-white text-[11px] font-bold">
                                                     {materia.sigla}
                                                 </div>
                                                 <div className="min-w-0">
@@ -416,7 +417,7 @@ const MateriaList = () => {
                                 >
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="flex items-center gap-3 min-w-0">
-                                            <div className="flex h-12 min-w-[3.5rem] flex-shrink-0 items-center justify-center rounded-2xl bg-blue-900 px-2 text-white text-xs font-bold">
+                                            <div className="flex h-9 flex-shrink-0 items-center justify-center rounded-xl bg-sky-600 px-2.5 text-white text-xs font-bold">
                                                 {materia.sigla}
                                             </div>
                                             <div className="min-w-0">

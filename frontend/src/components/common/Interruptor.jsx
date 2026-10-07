@@ -1,5 +1,6 @@
-// Interruptor de activo / inactivo: encendido en el color secundario (celeste).
-function Interruptor({ isActive, onChange, etiqueta }) {
+// Interruptor de activo / inactivo: encendido en el color secundario (celeste). chico: versión
+// compacta para las tarjetas y filas de los listados.
+function Interruptor({ isActive, onChange, etiqueta, chico = false }) {
   return (
     <button
       type="button"
@@ -7,13 +8,13 @@ function Interruptor({ isActive, onChange, etiqueta }) {
       aria-checked={Boolean(isActive)}
       aria-label={etiqueta}
       onClick={onChange}
-      className={`relative inline-flex h-6 w-12 flex-shrink-0 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+      className={`relative inline-flex ${chico ? 'h-5 w-9' : 'h-6 w-12'} flex-shrink-0 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
         isActive ? 'bg-sky-600 focus:ring-sky-400' : 'bg-slate-300 focus:ring-slate-400'
       }`}
     >
       <span
-        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-transform duration-300 ${
-          isActive ? 'translate-x-6' : 'translate-x-0.5'
+        className={`inline-block ${chico ? 'h-4 w-4' : 'h-5 w-5'} transform rounded-full bg-white shadow-lg transition-transform duration-300 ${
+          isActive ? (chico ? 'translate-x-[18px]' : 'translate-x-6') : 'translate-x-0.5'
         }`}
       />
     </button>

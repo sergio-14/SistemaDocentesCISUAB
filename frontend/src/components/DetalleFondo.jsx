@@ -624,7 +624,6 @@ function DetalleFondo() {
     .map((categoria) => ({
       tipo: categoria.tipo,
       nombre: categoria.tipo_display,
-      color: colorUnidad(categoria.tipo),
       conCarga: Number(categoria.total_horas || 0) > 0,
     }));
   // Columnas de la lista de actividades (con o sin la de acciones).

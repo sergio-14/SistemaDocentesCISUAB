@@ -203,9 +203,9 @@ const HORAS_ANUALES_OFICIALES = {
 const normalizar = (texto) => String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 // Selector con el diseño del dashboard: campo azulado, cuadrito azul con la flecha que
-// gira y menú flotante (en <body>, para que no lo recorte el panel). Las listas largas
-// (más de 8 opciones) traen un buscador arriba; con "escribible" el propio campo es el
-// buscador: al pulsarlo se despliega la lista y lo que se escribe la filtra.
+// gira y menú flotante (en <body>, para que no lo recorte el panel). En las listas largas
+// (más de 8 opciones) o con "escribible", el propio campo es el buscador: al pulsarlo se
+// despliega la lista y lo que se escribe la filtra (sin una casilla de búsqueda aparte).
 const CustomSelect = ({
     value,
     options,
@@ -220,9 +220,8 @@ const CustomSelect = ({
     const [menuStyle, setMenuStyle] = useState(null);
     const containerRef = useRef(null);
     const menuRef = useRef(null);
-    const busquedaRef = useRef(null);
     const selected = options.find(opt => opt.value?.toString() === value?.toString());
-    const conBusqueda = !escribible && options.length > 8;
+    const modoEscribible = escribible || options.length > 8;
 
     const cerrar = () => {
         setOpen(false);
@@ -282,10 +281,6 @@ const CustomSelect = ({
         });
     }, [open]);
 
-    useEffect(() => {
-        if (open && conBusqueda) setTimeout(() => busquedaRef.current?.focus(), 0);
-    }, [open, conBusqueda]);
-
     const handlePick = (newValue) => {
         onChange(newValue);
         cerrar();
@@ -319,7 +314,7 @@ const CustomSelect = ({
 
     return (
         <div ref={containerRef} className="relative">
-            {escribible ? (
+            {modoEscribible ? (
                 <>
                     {/* Cerrado muestra la opción elegida; abierto, lo que se escribe para buscar. */}
                     <input
@@ -365,18 +360,6 @@ const CustomSelect = ({
 
             {open && !disabled && menuStyle && createPortal(
                 <div ref={menuRef} style={menuStyle} className="rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl overflow-hidden">
-                    {conBusqueda && (
-                        <div className="px-2 pt-2">
-                            <input
-                                ref={busquedaRef}
-                                type="text"
-                                value={busqueda}
-                                onChange={(e) => setBusqueda(e.target.value)}
-                                placeholder="Buscar..."
-                                className="w-full h-9 px-3 rounded-lg text-[13px] text-slate-800 placeholder:text-slate-500 outline-none !bg-azulado-100"
-                            />
-                        </div>
-                    )}
                     <div className="max-h-64 overflow-auto p-2">
                         {filtradas.length === 0 ? (
                             <div className="px-3 py-2 text-xs text-slate-500">

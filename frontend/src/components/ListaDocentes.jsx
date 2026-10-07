@@ -568,106 +568,105 @@ const InputField = ({
   );
 };
 
-// Selector de carrera con el estilo del dashboard: píldora azulada, cuadrito azul con la
-// flecha que gira y menú con buscador. Volver a pulsar la carrera elegida la quita.
+// Selector de carrera con el estilo del dashboard: píldora azulada y cuadrito azul con la
+// flecha que gira. El propio campo es el buscador: al pulsarlo se despliega la lista y lo
+// que se escribe la filtra. Volver a elegir la carrera seleccionada la quita.
 const SimpleDropdown = ({ value, onChange, options, placeholder = 'Todas las carreras' }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = React.useRef(null);
-  const inputRef = React.useRef(null);
+
+  const cerrar = () => {
+    setOpen(false);
+    setSearch('');
+  };
 
   useEffect(() => {
+    if (!open) return undefined;
     const handleOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpen(false);
-        setSearch('');
-      }
+      if (containerRef.current && !containerRef.current.contains(event.target)) cerrar();
     };
-    if (open) {
-      document.addEventListener('mousedown', handleOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, [open]);
-
-  useEffect(() => {
-    if (open) {
-      setTimeout(() => inputRef.current?.focus(), 0);
-    }
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') cerrar();
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
   }, [open]);
 
   const selectedLabel = options.find((opt) => String(opt.value) === String(value))?.label;
-  const filteredOptions = options.filter((option) =>
-    option.label.toLowerCase().includes(search.toLowerCase())
-  );
+  const normalizar = (texto) => String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const filteredOptions = search.trim()
+    ? options.filter((option) => normalizar(option.label).includes(normalizar(search.trim())))
+    : options;
+
+  const elegir = (option) => {
+    onChange(String(value) === String(option.value) ? '' : option.value);
+    cerrar();
+  };
 
   return (
     <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        onClick={() => {
-          setOpen(!open);
-          if (open) {
-            setSearch('');
-          }
-        }}
-        aria-haspopup="listbox"
+      <input
+        type="text"
+        role="combobox"
         aria-expanded={open}
         aria-label="Filtrar por carrera"
-        className="w-full h-11 text-left pl-4 pr-2.5 rounded-full bg-azulado-100 ring-1 ring-inset ring-azulado-300 text-sm text-slate-800 flex items-center justify-between gap-2"
-      >
-        <span className={`truncate ${selectedLabel ? '' : 'text-slate-500'}`}>
-          {selectedLabel || placeholder}
-        </span>
-        <span className="flex items-center justify-center h-6 w-6 rounded-md bg-[#2C4AAE] flex-shrink-0">
-          <svg
-            className={`w-3.5 h-3.5 text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-          </svg>
-        </span>
-      </button>
+        value={open ? search : (selectedLabel || '')}
+        onChange={(e) => {
+          setSearch(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)}
+        onKeyDown={(e) => {
+          // Enter elige la primera coincidencia.
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            if (open && filteredOptions.length > 0) elegir(filteredOptions[0]);
+          }
+          if (e.key === 'Tab') cerrar();
+        }}
+        placeholder={open ? (selectedLabel || 'Escribe para buscar...') : placeholder}
+        className="w-full h-11 pl-4 pr-11 rounded-full ring-1 ring-inset ring-azulado-300 text-sm text-slate-800 placeholder:text-slate-500 outline-none !bg-azulado-100 focus:ring-2 focus:ring-blue-900/40"
+        style={{ border: 'none' }}
+      />
+      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center justify-center h-6 w-6 rounded-md bg-[#2C4AAE]">
+        <svg
+          className={`w-3.5 h-3.5 text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+        </svg>
+      </span>
       {open && (
-        <div role="listbox" className="absolute z-40 mt-2 w-full rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl max-h-72 overflow-auto">
-          <div className="p-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar carrera..."
-              className="w-full h-9 px-3 rounded-lg text-[13px] text-slate-800 placeholder:text-slate-500 outline-none !bg-azulado-100"
-            />
-          </div>
-          <div className="px-2 pb-2">
-            {filteredOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                role="option"
-                aria-selected={String(value) === String(option.value)}
-                onClick={() => {
-                  onChange(String(value) === String(option.value) ? '' : option.value);
-                  setOpen(false);
-                  setSearch('');
-                }}
-                className={`w-full text-left px-3 py-1.5 text-xs rounded-lg ${
-                  String(value) === String(option.value)
-                    ? 'bg-sky-600 text-white font-semibold hover:bg-sky-700'
-                    : 'bg-transparent text-slate-700 hover:bg-[#2C4AAE] hover:text-white'
-                }`}
-              >
-                <span className="block truncate">{option.label}</span>
-              </button>
-            ))}
-            {filteredOptions.length === 0 && (
-              <div className="px-3 py-2 text-xs text-slate-500">
-                No hay carreras que coincidan
-              </div>
-            )}
-          </div>
+        <div role="listbox" className="absolute z-40 mt-2 w-full rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl max-h-72 overflow-auto p-2">
+          {filteredOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="option"
+              aria-selected={String(value) === String(option.value)}
+              onClick={() => elegir(option)}
+              className={`w-full text-left px-3 py-1.5 text-xs rounded-lg ${
+                String(value) === String(option.value)
+                  ? 'bg-sky-600 text-white font-semibold hover:bg-sky-700'
+                  : 'bg-transparent text-slate-700 hover:bg-[#2C4AAE] hover:text-white'
+              }`}
+            >
+              <span className="block truncate">{option.label}</span>
+            </button>
+          ))}
+          {filteredOptions.length === 0 && (
+            <div className="px-3 py-2 text-xs text-slate-500">
+              No hay carreras que coincidan
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -703,7 +702,27 @@ const PlusIcon = (props) => (
   </svg>
 );
 
+const GridIcon = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" />
+  </svg>
+);
+
+const ListIcon = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+  </svg>
+);
+
 const ETIQUETAS_CATEGORIA = { catedratico: 'Catedrático', adjunto: 'Adjunto', asistente: 'Asistente' };
+const VISTA_DOCENTES_KEY = 'docentes_vista';
+
+const PildoraInactivo = () => (
+  <span className="docente-inactivo-badge inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-800 ring-1 ring-inset ring-red-200">
+    <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
+    Inactivo
+  </span>
+);
 
 const OPCIONES_CONDICION = [
   { value: 'titular', label: 'Titular' },
@@ -922,6 +941,22 @@ function ListaDocentes({ sidebarCollapsed = false }) {
   const [buscarUsuario, setBuscarUsuario] = useState('');
   const [abrirDesdeUsuarios, setAbrirDesdeUsuarios] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  // Tarjetas o lista, como en el dashboard de fondos; se recuerda en este navegador.
+  const [vista, setVista] = useState(() => {
+    try {
+      return localStorage.getItem(VISTA_DOCENTES_KEY) === 'lista' ? 'lista' : 'tarjetas';
+    } catch {
+      return 'tarjetas';
+    }
+  });
+  const cambiarVista = (nuevaVista) => {
+    setVista(nuevaVista);
+    try {
+      localStorage.setItem(VISTA_DOCENTES_KEY, nuevaVista);
+    } catch {
+      // Sin almacenamiento disponible la vista simplemente no se recuerda.
+    }
+  };
   const [selectedCarrera, setSelectedCarrera] = useState('');
   const [showUserInfo, setShowUserInfo] = useState(false);
   const [userInfoKey, setUserInfoKey] = useState(null);
@@ -1970,6 +2005,70 @@ function ListaDocentes({ sidebarCollapsed = false }) {
 
   const totalActivos = docentes.filter((docente) => docente.activo).length;
 
+  // Columnas de la vista de lista (con o sin la de acciones).
+  const columnasLista = esAdmin()
+    ? 'xl:grid-cols-[minmax(0,2.3fr)_minmax(0,1.6fr)_6.5rem_8.5rem_minmax(0,1.1fr)_13rem]'
+    : 'xl:grid-cols-[minmax(0,2.3fr)_minmax(0,1.6fr)_6.5rem_8.5rem_minmax(0,1.1fr)]';
+
+  // Datos que muestran las dos vistas de cada docente.
+  const infoDocente = (docente) => {
+    const vinculo = docente.vinculos?.[0];
+    return {
+      nombre: docente.usuario_nombre || docente.nombre_completo,
+      datos: [
+        { label: 'Categoría', valor: ETIQUETAS_CATEGORIA[vinculo?.categoria] || '—' },
+        { label: 'Dedicación', valor: vinculo ? (ETIQUETAS_DEDICACION[vinculo.dedicacion] || vinculo.dedicacion) : '—' },
+        { label: 'Cargo', valor: obtenerRolesDocente(docente) || '—' },
+      ],
+      bloqueoEditar: Boolean(docente?.tiene_historial),
+      bloqueoEliminar: Boolean(docente?.tiene_registros),
+    };
+  };
+
+  // Acciones de cada docente: el Director ve la ficha; el superusuario edita (sin
+  // historial) y elimina (sin fondos, cargas ni saldos).
+  const accionesDocente = (docente, info) => {
+    if (!esAdmin()) return null;
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        {!esSuperusuario && (
+          <button
+            type="button"
+            onClick={() => abrirModalEditar(docente, { soloLectura: true })}
+            className={`${BOTON} bg-blue-900 hover:bg-blue-950 text-white`}
+          >
+            <FaEye size={14} />
+            <span>Ver ficha</span>
+          </button>
+        )}
+        {esSuperusuario && (
+          <>
+            <button
+              type="button"
+              onClick={() => !info.bloqueoEditar && abrirModalEditar(docente)}
+              disabled={info.bloqueoEditar}
+              className={`${BOTON} bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-emerald-500`}
+              title={info.bloqueoEditar ? 'Ficha fija: el docente tiene un Fondo de Tiempo presentado o informes' : 'Editar'}
+            >
+              <FaEdit size={14} />
+              <span>Editar</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => !info.bloqueoEliminar && eliminarDocente(docente)}
+              disabled={info.bloqueoEliminar}
+              className={`${BOTON} bg-red-400 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-400`}
+              title={info.bloqueoEliminar ? 'No se puede eliminar: el docente tiene fondos, cargas o saldos' : 'Eliminar'}
+            >
+              <FaTrash size={13} />
+              <span>Eliminar</span>
+            </button>
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-full px-3 sm:px-4 md:px-8 py-4 md:py-6 text-slate-800">
       <div className="space-y-4">
@@ -2023,9 +2122,30 @@ function ListaDocentes({ sidebarCollapsed = false }) {
               options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
             />
           </div>
-          <span className="ml-auto px-2 text-sm text-slate-600 tabular-nums">
-            {docentesFiltrados.length} {docentesFiltrados.length === 1 ? 'docente' : 'docentes'}
-          </span>
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
+            <span className="px-1 text-sm text-slate-600 tabular-nums whitespace-nowrap">
+              {docentesFiltrados.length} {docentesFiltrados.length === 1 ? 'docente' : 'docentes'}
+            </span>
+            <div className="flex items-center gap-1 p-1 rounded-full bg-azulado-100 ring-1 ring-inset ring-azulado-300">
+              {[
+                { id: 'tarjetas', label: 'Tarjetas', icon: GridIcon },
+                { id: 'lista', label: 'Lista', icon: ListIcon },
+              ].map((opcion) => (
+                <button
+                  key={opcion.id}
+                  type="button"
+                  title={opcion.label}
+                  onClick={() => cambiarVista(opcion.id)}
+                  className={`inline-flex items-center gap-2 px-3 sm:px-4 h-9 rounded-full text-sm font-medium transition-colors ${
+                    vista === opcion.id ? 'bg-blue-900 text-white shadow-sm' : 'text-slate-600 hover:text-blue-900'
+                  }`}
+                >
+                  <opcion.icon className="w-4 h-4" />
+                  <span className="hidden sm:inline">{opcion.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* MODAL DE CREACION DE DOCENTE */}
@@ -2370,103 +2490,104 @@ function ListaDocentes({ sidebarCollapsed = false }) {
           </div>
         ), document.body)}
 
-        {/* Bloque 3: docentes en tarjetas de la misma altura */}
+        {/* Bloque 3: docentes en tarjetas o en lista; al cambiar de vista entran escalonados */}
         {docentesFiltrados.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-            {docentesFiltrados.map((docente, indice) => {
-              const vinculo = docente.vinculos?.[0];
-              const roles = obtenerRolesDocente(docente);
-              const nombre = docente.usuario_nombre || docente.nombre_completo;
-              const datos = [
-                { label: 'Categoría', valor: ETIQUETAS_CATEGORIA[vinculo?.categoria] || '—' },
-                { label: 'Dedicación', valor: vinculo ? (ETIQUETAS_DEDICACION[vinculo.dedicacion] || vinculo.dedicacion) : '—' },
-                { label: 'Cargo', valor: roles || '—' },
-              ];
-              const bloqueoEditar = Boolean(docente?.tiene_historial);
-              const bloqueoEliminar = Boolean(docente?.tiene_registros);
-              return (
-                <div
-                  key={docente.id}
-                  style={{ animationDelay: `${Math.min(indice, 8) * 35}ms` }}
-                  className={`${BLOQUE} animate-fondo-entrada p-5 flex flex-col gap-4 ${docente.activo ? '' : '!bg-red-50/70 !ring-red-200'}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <Avatar nombre={nombre} size={`w-12 h-12 ${docente.activo ? '' : '!bg-red-700'}`} />
-                      <div className="min-w-0">
-                        <h3 className="text-lg font-bold text-blue-900 truncate" title={nombre}>{nombre}</h3>
-                        <p className="text-sm text-slate-600 truncate">{docente.carrera_nombre || 'Sin carrera'}</p>
+          vista === 'lista' ? (
+            // Cuadrícula en vez de <table>: el CSS del módulo POA da estilo a todas las tablas.
+            <div key="lista" className={`${BLOQUE} p-2 sm:p-3`}>
+              <div className={`hidden xl:grid ${columnasLista} gap-4 px-3 pt-3 pb-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 [border-bottom:1px_solid_#B8C9E1]`}>
+                <span>Docente</span>
+                <span>Contacto</span>
+                <span>Categoría</span>
+                <span>Dedicación</span>
+                <span>Cargo</span>
+                {esAdmin() && <span>Acciones</span>}
+              </div>
+              <div className="divide-y divide-azulado-300">
+                {docentesFiltrados.map((docente, indice) => {
+                  const info = infoDocente(docente);
+                  return (
+                    <div
+                      key={docente.id}
+                      style={{ animationDelay: `${Math.min(indice, 8) * 35}ms` }}
+                      className={`animate-fondo-entrada grid grid-cols-1 ${columnasLista} items-center gap-x-4 gap-y-3 px-3 py-4 rounded-2xl transition-colors ${
+                        docente.activo ? 'hover:bg-azulado-100/70' : 'bg-red-50/70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar nombre={info.nombre} size={`w-10 h-10 text-sm ${docente.activo ? '' : '!bg-red-700'}`} />
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-blue-900 truncate" title={info.nombre}>{info.nombre}</div>
+                          <div className="text-sm text-slate-600 truncate">
+                            {!docente.activo && <span className="font-semibold text-red-700">Inactivo · </span>}
+                            {docente.carrera_nombre || 'Sin carrera'}
+                          </div>
+                        </div>
                       </div>
+                      <div className="min-w-0 text-tabla text-slate-700">
+                        <div className="tabular-nums">CI: {docente.ci}</div>
+                        {docente.usuario_email && <div className="truncate text-slate-600" title={docente.usuario_email}>{docente.usuario_email}</div>}
+                      </div>
+                      {info.datos.map((dato) => (
+                        <div key={dato.label} className="min-w-0 flex items-baseline justify-between gap-3 xl:block">
+                          <span className="xl:hidden text-xs font-semibold text-blue-800">{dato.label}</span>
+                          <span className="block text-tabla font-semibold text-slate-800 truncate" title={dato.valor}>{dato.valor}</span>
+                        </div>
+                      ))}
+                      {accionesDocente(docente, info)}
                     </div>
-                    {!docente.activo && (
-                      <span className="docente-inactivo-badge inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-800 ring-1 ring-inset ring-red-200">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
-                        Inactivo
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 min-w-0">
-                    <Etiqueta>CI: {docente.ci}</Etiqueta>
-                    {docente.usuario_email && (
-                      <span className="min-w-0 max-w-full truncate"><Etiqueta>{docente.usuario_email}</Etiqueta></span>
-                    )}
-                  </div>
-
-                  {/* En el celular cada dato va en su fila; desde sm, en tres columnas. */}
-                  <dl className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-azulado-300 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 py-1 sm:py-2.5">
-                    {datos.map((dato) => (
-                      <div key={dato.label} className="min-w-0 px-3 py-1.5 sm:py-0 flex items-baseline justify-between gap-3 sm:block">
-                        <dt className="text-xs font-semibold text-blue-800">{dato.label}</dt>
-                        <dd className="sm:mt-0.5 text-[13px] font-semibold text-slate-800 truncate" title={dato.valor}>{dato.valor}</dd>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div key="tarjetas" className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+              {docentesFiltrados.map((docente, indice) => {
+                const info = infoDocente(docente);
+                return (
+                  <div
+                    key={docente.id}
+                    style={{ animationDelay: `${Math.min(indice, 8) * 35}ms` }}
+                    className={`${BLOQUE} animate-fondo-entrada p-5 flex flex-col gap-4 ${docente.activo ? '' : '!bg-red-50/70 !ring-red-200'}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar nombre={info.nombre} size={`w-12 h-12 ${docente.activo ? '' : '!bg-red-700'}`} />
+                        <div className="min-w-0">
+                          <h3 className="text-lg font-bold text-blue-900 truncate" title={info.nombre}>{info.nombre}</h3>
+                          <p className="text-sm text-slate-600 truncate">{docente.carrera_nombre || 'Sin carrera'}</p>
+                        </div>
                       </div>
-                    ))}
-                  </dl>
+                      {!docente.activo && <PildoraInactivo />}
+                    </div>
 
-                  {esAdmin() && (
-                    <div className="mt-auto pt-3 flex flex-wrap items-center gap-2 [border-top:1px_solid_#B8C9E1]">
-                      {/* Director: ver la ficha (solo lectura) */}
-                      {!esSuperusuario && (
-                        <button
-                          type="button"
-                          onClick={() => abrirModalEditar(docente, { soloLectura: true })}
-                          className={`${BOTON} bg-blue-900 hover:bg-blue-950 text-white`}
-                        >
-                          <FaEye size={14} />
-                          <span>Ver ficha</span>
-                        </button>
-                      )}
-                      {/* Superusuario: editar (sin historial) y eliminar (sin fondos, cargas ni saldos) */}
-                      {esSuperusuario && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => !bloqueoEditar && abrirModalEditar(docente)}
-                            disabled={bloqueoEditar}
-                            className={`${BOTON} bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-emerald-500`}
-                            title={bloqueoEditar ? 'Ficha fija: el docente tiene un Fondo de Tiempo presentado o informes' : 'Editar'}
-                          >
-                            <FaEdit size={14} />
-                            <span>Editar</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => !bloqueoEliminar && eliminarDocente(docente)}
-                            disabled={bloqueoEliminar}
-                            className={`${BOTON} bg-red-400 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-400`}
-                            title={bloqueoEliminar ? 'No se puede eliminar: el docente tiene fondos, cargas o saldos' : 'Eliminar'}
-                          >
-                            <FaTrash size={13} />
-                            <span>Eliminar</span>
-                          </button>
-                        </>
+                    <div className="flex flex-wrap gap-2 min-w-0">
+                      <Etiqueta>CI: {docente.ci}</Etiqueta>
+                      {docente.usuario_email && (
+                        <span className="min-w-0 max-w-full truncate"><Etiqueta>{docente.usuario_email}</Etiqueta></span>
                       )}
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+
+                    {/* En el celular cada dato va en su fila; desde sm, en tres columnas. */}
+                    <dl className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-azulado-300 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 py-1 sm:py-2.5">
+                      {info.datos.map((dato) => (
+                        <div key={dato.label} className="min-w-0 px-3 py-1.5 sm:py-0 flex items-baseline justify-between gap-3 sm:block">
+                          <dt className="text-xs font-semibold text-blue-800">{dato.label}</dt>
+                          <dd className="sm:mt-0.5 text-[13px] font-semibold text-slate-800 truncate" title={dato.valor}>{dato.valor}</dd>
+                        </div>
+                      ))}
+                    </dl>
+
+                    {esAdmin() && (
+                      <div className="mt-auto pt-3 [border-top:1px_solid_#B8C9E1]">
+                        {accionesDocente(docente, info)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )
         ) : (
           <div className={`${BLOQUE} p-10 sm:p-12 text-center`}>
             <h3 className="text-xl font-bold text-slate-800 mb-2">

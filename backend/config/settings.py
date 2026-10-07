@@ -223,6 +223,8 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    # 404 genérico en español y demás mensajes estándar sin textos en inglés.
+    'EXCEPTION_HANDLER': 'config.excepciones.manejador_excepciones',
 }
 # JWT Settings
 from datetime import timedelta

@@ -8,6 +8,7 @@ from poa_document.api.views import ReporteGeneralPOAView
 from fondos.views import CustomTokenObtainPairView
 from config.media import serve_signed_media
 from config.health import health
+from config.excepciones import no_encontrado
 
 urlpatterns = [
     path('health/', health, name='health'),
@@ -25,3 +26,6 @@ urlpatterns = [
 # el admin de Django vive en /django-admin/.
 if settings.DJANGO_ADMIN_ENABLED:
     urlpatterns.insert(0, path('django-admin/', admin.site.urls))
+
+# Rutas inexistentes bajo /api/: JSON con el mensaje genérico (solo con DEBUG=False).
+handler404 = no_encontrado

@@ -13,6 +13,7 @@ import FormularioEvaluarInforme from './FormularioEvaluarInforme';
 import CargaHorariaManager from './CargaHorariaManager';
 import ModalCentrado from './common/ModalCentrado';
 import EstadoTimeline from './fondos/EstadoTimeline';
+import FiltroUnidades from './fondos/FiltroUnidades';
 import ProgramaAnaliticoAccion from './fondos/ProgramaAnaliticoAccion';
 import DocumentoActividadAccion from './fondos/DocumentoActividadAccion';
 import { BLOQUE, BOTON } from './fondos/estilosFondo';
@@ -130,6 +131,8 @@ function DetalleFondo() {
   // Carga que se corrige en su fila de la tabla: solo horas (y descripción en "Otros").
   // { id, horas, titulo, esOtros, error, guardando }
   const [edicionCarga, setEdicionCarga] = useState(null);
+  // Unidades desmarcadas en el filtro de "Actividades planificadas" (al inicio, ninguna).
+  const [unidadesOcultas, setUnidadesOcultas] = useState(() => new Set());
   // Sube al eliminar una carga desde la tabla: el gestor recarga sus cargas y totales.
   const [versionCargas, setVersionCargas] = useState(0);
   const [slideGrafico, setSlideGrafico] = useState(0);
@@ -207,6 +210,7 @@ function DetalleFondo() {
 
   // Evita overlays residuales al entrar a otro detalle
   useEffect(() => {
+    setUnidadesOcultas(new Set());
     setMostrarFormObservar(false);
     setMostrarFormEvaluarInforme(false);
     setMostrarModalAprobar(false);
@@ -614,6 +618,15 @@ function DetalleFondo() {
   const categoriasVisibles = [...(fondo.categorias || [])]
     .sort((a, b) => ORDEN_UNIDADES.indexOf(a.tipo) - ORDEN_UNIDADES.indexOf(b.tipo))
     .filter((categoria) => Number(categoria.total_horas || 0) > 0);
+  const categoriasMostradas = categoriasVisibles.filter((categoria) => !unidadesOcultas.has(categoria.tipo));
+  const unidadesFiltro = [...(fondo.categorias || [])]
+    .sort((a, b) => ORDEN_UNIDADES.indexOf(a.tipo) - ORDEN_UNIDADES.indexOf(b.tipo))
+    .map((categoria) => ({
+      tipo: categoria.tipo,
+      nombre: categoria.tipo_display,
+      color: colorUnidad(categoria.tipo),
+      conCarga: Number(categoria.total_horas || 0) > 0,
+    }));
   // Columnas de la lista de actividades (con o sin la de acciones).
   const columnasActividades = mostrarAccionesCarga
     ? 'lg:grid-cols-[minmax(0,2.4fr)_minmax(0,1.4fr)_7.5rem_minmax(0,1.8fr)_8rem]'
@@ -1055,18 +1068,22 @@ function DetalleFondo() {
           {/* Actividades planificadas, una sección por unidad */}
           {fondo.categorias && (
             <div className="space-y-4">
-              <div className="flex items-baseline justify-between gap-3 px-1 pt-2">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-1 pt-2">
                 <h3 className="text-xl font-bold text-blue-900">Actividades planificadas</h3>
-                <span className="text-sm font-medium text-slate-600">
-                  {categoriasVisibles.length} {categoriasVisibles.length === 1 ? 'unidad' : 'unidades'} con carga
-                </span>
+                {categoriasVisibles.length > 0 && (
+                  <FiltroUnidades unidades={unidadesFiltro} ocultas={unidadesOcultas} onCambiar={setUnidadesOcultas} />
+                )}
               </div>
 
               {categoriasVisibles.length === 0 ? (
                 <div className={`${BLOQUE} p-10 text-center text-sm text-slate-600`}>
                   Sin actividades planificadas para mostrar
                 </div>
-              ) : categoriasVisibles.map((categoria) => {
+              ) : categoriasMostradas.length === 0 ? (
+                <div className={`${BLOQUE} p-10 text-center text-sm text-slate-600`}>
+                  Marque al menos una unidad en el desplegable para ver sus actividades.
+                </div>
+              ) : categoriasMostradas.map((categoria) => {
                 const color = colorUnidad(categoria.tipo);
                 const totalActual = Number(categoria.total_horas || 0);
                 const totalPrevio = Number(prevTotalesCategoriasRef.current[categoria.tipo] || 0);

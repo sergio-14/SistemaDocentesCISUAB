@@ -557,7 +557,7 @@ function ListaDocentes() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   // Usuario con su rol activo (contexto de rol).
-  const { effectiveUser: user, activeRole } = useActiveRole();
+  const { effectiveUser: user, activeRole, activeCareerName } = useActiveRole();
 
   // Modal de crear/editar
   const [showModal, setShowModal] = useState(false);
@@ -1707,6 +1707,10 @@ function ListaDocentes() {
     : docentes;
   const totalActivos = docentesDeCarrera.filter((docente) => docente.activo).length;
   const nombreCarreraElegida = carreras.find((carrera) => String(carrera.id) === String(selectedCarrera))?.nombre;
+  // "Todas las carreras" es solo del superusuario; los demás roles ven el nombre de su carrera.
+  const tituloCarreraTotal = esSuperusuario
+    ? (nombreCarreraElegida || 'Todas las carreras')
+    : (activeCareerName || carreras[0]?.nombre || 'Tu carrera');
 
   const { paginaActual, totalPaginas, inicio, itemsPagina: docentesPagina } = paginar(docentesFiltrados, pagina, vista);
   const irAPagina = (nuevaPagina) => {
@@ -1821,9 +1825,9 @@ function ListaDocentes() {
                 <p
                   key={selectedCarrera || 'todas'}
                   className="animate-campo-entrada mt-1.5 text-sm font-semibold text-white leading-snug line-clamp-2"
-                  title={nombreCarreraElegida || 'Todas las carreras'}
+                  title={tituloCarreraTotal}
                 >
-                  {nombreCarreraElegida || 'Todas las carreras'}
+                  {tituloCarreraTotal}
                 </p>
               </div>
               <span className="text-5xl font-bold tabular-nums leading-none">
@@ -1846,16 +1850,19 @@ function ListaDocentes() {
         {/* Bloque 2: búsqueda y carrera */}
         <div className={`${BLOQUE} p-3 flex flex-wrap items-center gap-2 sm:gap-3`}>
           <CampoBusqueda value={searchTerm} onChange={setSearchTerm} placeholder="Buscar por nombre o C.I." />
-          <div className="min-w-0 flex-1 sm:flex-none sm:w-64">
-            <FiltroDesplegable
-              value={selectedCarrera}
-              onChange={setSelectedCarrera}
-              options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
-              placeholder="Todas las carreras"
-              ariaLabel="Filtrar por carrera"
-              emptyText="No hay carreras que coincidan"
-            />
-          </div>
+          {/* Filtro de carrera: solo el superusuario ve todas las carreras */}
+          {esSuperusuario && (
+            <div className="min-w-0 flex-1 sm:flex-none sm:w-64">
+              <FiltroDesplegable
+                value={selectedCarrera}
+                onChange={setSelectedCarrera}
+                options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
+                placeholder="Todas las carreras"
+                ariaLabel="Filtrar por carrera"
+                emptyText="No hay carreras que coincidan"
+              />
+            </div>
+          )}
           <SelectorVista vista={vista} onCambiar={cambiarVista} className="ml-auto" />
         </div>
 

@@ -745,7 +745,7 @@ function ListaCalendarios() {
     { value: '2', label: 'Segundo Semestre' },
     { value: 'anual', label: 'Anual' },
   ];
-  const { effectiveUser, activeRole } = useActiveRole();
+  const { effectiveUser, activeRole, activeCareerName } = useActiveRole();
   const esSuperAdmin = effectiveUser?.is_superuser === true;
   // Crean, editan, activan y eliminan: superusuario, Director y Jefe de Estudios (rol
   // activo, en su carrera; el backend lo exige). El resto solo consulta.
@@ -1412,6 +1412,10 @@ function ListaCalendarios() {
   const totalActivos = calendariosFiltrados.filter((cal) => cal.activo).length;
   const nombreCarreraFiltro = carreraOptions.find((opt) => String(opt.value) === String(carreraFiltro))?.label;
   const hayFiltroCarrera = esSuperAdmin && carreraFiltro && carreraFiltro !== 'todas';
+  // "Todas las carreras" es solo del superusuario; los demás roles ven el nombre de su carrera.
+  const tituloCarreraTotal = esSuperAdmin
+    ? (hayFiltroCarrera ? nombreCarreraFiltro : 'Todas las carreras')
+    : (activeCareerName || calendarios[0]?.carrera_nombre || 'Tu carrera');
   const { paginaActual, totalPaginas, inicio, itemsPagina: calendariosPagina } = paginar(calendariosFiltrados, pagina, vista);
   const irAPagina = (nuevaPagina) => {
     setPagina(nuevaPagina);
@@ -1506,9 +1510,9 @@ function ListaCalendarios() {
                 <p
                   key={carreraFiltro || 'todas'}
                   className="animate-campo-entrada mt-1.5 text-sm font-semibold text-white leading-snug line-clamp-2"
-                  title={hayFiltroCarrera ? nombreCarreraFiltro : 'Todas las carreras'}
+                  title={tituloCarreraTotal}
                 >
-                  {hayFiltroCarrera ? nombreCarreraFiltro : (esSuperAdmin ? 'Todas las carreras' : 'Tu carrera')}
+                  {tituloCarreraTotal}
                 </p>
               </div>
               <span className="text-5xl font-bold tabular-nums leading-none">

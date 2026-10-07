@@ -163,6 +163,7 @@ function SelectorGestion({ value, onChange, options, placeholder }) {
 
 function ListaFondos() {
   const { effectiveUser, activeAssignment } = useActiveRole();
+  const esSuperusuario = effectiveUser?.is_superuser === true;
   const [fondos, setFondos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -324,7 +325,8 @@ function ListaFondos() {
   const fondosFiltrados = fondos.filter((fondo) => {
     if (gestionFiltro !== 'todas' && String(fondo.gestion) !== gestionFiltro) return false;
     if (!texto) return true;
-    return [fondo.docente_nombre, fondo.carrera_nombre]
+    // Los demás roles solo ven su carrera: buscan por docente.
+    return (esSuperusuario ? [fondo.docente_nombre, fondo.carrera_nombre] : [fondo.docente_nombre])
       .some((campo) => (campo || '').toLowerCase().includes(texto));
   });
 
@@ -463,7 +465,7 @@ function ListaFondos() {
               setBusqueda(e.target.value);
               setPagina(1);
             }}
-            placeholder="Buscar docente o carrera"
+            placeholder={esSuperusuario ? 'Buscar docente o carrera' : 'Buscar docente'}
             className="w-full text-sm text-slate-800 placeholder:text-slate-500 outline-none"
             style={{ background: 'transparent', border: 'none', boxShadow: 'none', padding: 0 }}
           />

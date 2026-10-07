@@ -76,7 +76,7 @@ const MateriaList = () => {
     const [pagina, setPagina] = useState(1);
     const listaRef = useRef(null);
     // Rol y carrera ACTIVOS (contexto de rol), no el perfil base ni localStorage('user').
-    const { activeRole, activeCareerId, effectiveUser } = useActiveRole();
+    const { activeRole, activeCareerId, activeCareerName, effectiveUser } = useActiveRole();
 
     const obtenerId = (valor) => {
         if (valor === null || valor === undefined || valor === '') return '';
@@ -223,7 +223,8 @@ const MateriaList = () => {
     const totalActivas = materiasFiltradas.filter((m) => m.activo !== false).length;
     const nombreCarrera = carreraOptions.find((opt) => String(opt.value) === String(carreraSeleccionada))?.label;
     const subtituloTotal = [
-        isSuperAdmin ? (nombreCarrera || 'Todas las carreras') : 'Tu carrera',
+        // "Todas las carreras" es solo del superusuario; los demás roles ven su carrera.
+        isSuperAdmin ? (nombreCarrera || 'Todas las carreras') : (activeCareerName || materias[0]?.carrera_nombre || 'Tu carrera'),
         semestreSeleccionado ? getSemestreLabel(semestreSeleccionado) : null,
     ].filter(Boolean).join(' · ');
 

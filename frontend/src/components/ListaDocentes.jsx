@@ -13,6 +13,7 @@ import {
 import { DEDICACIONES_HORARIO, ETIQUETAS_DEDICACION, describirDedicacion, horasSemanalesDedicacion } from '../utils/dedicaciones';
 import { hoyBolivia } from '../utils/fechas';
 import { CalendarioFlotante } from './common/CalendarioFecha';
+import NumeroAnimado from './common/NumeroAnimado';
 import { useActiveRole } from '../contexts/activeRole';
 import { BLOQUE, BOTON } from './fondos/estilosFondo';
 import { Avatar, Etiqueta } from './fondos/ElementosFondo';
@@ -543,35 +544,6 @@ const ListIcon = (props) => (
 
 const ETIQUETAS_CATEGORIA = { catedratico: 'Catedrático', adjunto: 'Adjunto', asistente: 'Asistente' };
 const VISTA_DOCENTES_KEY = 'docentes_vista';
-
-// Número que, al cambiar, cuenta desde el valor anterior hasta el nuevo (~0,4 s). Con
-// singular/plural, la palabra sigue al número que se está mostrando.
-function NumeroAnimado({ valor, singular, plural }) {
-  const [mostrado, setMostrado] = useState(valor);
-  const anteriorRef = React.useRef(valor);
-
-  useEffect(() => {
-    const desde = anteriorRef.current;
-    anteriorRef.current = valor;
-    if (desde === valor || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setMostrado(valor);
-      return undefined;
-    }
-    const inicio = performance.now();
-    let frame;
-    const paso = (ahora) => {
-      const t = Math.min(1, (ahora - inicio) / 400);
-      const suave = 1 - (1 - t) ** 3;
-      setMostrado(Math.round(desde + (valor - desde) * suave));
-      if (t < 1) frame = requestAnimationFrame(paso);
-    };
-    frame = requestAnimationFrame(paso);
-    return () => cancelAnimationFrame(frame);
-  }, [valor]);
-
-  if (!singular) return mostrado;
-  return `${mostrado} ${mostrado === 1 ? singular : plural}`;
-}
 
 const PildoraInactivo = () => (
   <span className="inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-800 ring-1 ring-inset ring-red-200">

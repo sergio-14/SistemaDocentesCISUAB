@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { FaEdit, FaTrash } from 'react-icons/fa';
 import { X } from 'lucide-react';
 import api, { getCalendarios, getCarreras } from '../apis/api';
@@ -8,12 +9,41 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useActiveRole } from '../contexts/activeRole';
 import RuedaOpciones from './common/RuedaOpciones';
 import { CalendarioFlotante } from './common/CalendarioFecha';
+import ModalCentrado from './common/ModalCentrado';
+import NumeroAnimado from './common/NumeroAnimado';
+import { BLOQUE, BOTON } from './fondos/estilosFondo';
+import { Etiqueta } from './fondos/ElementosFondo';
 import {
   ERROR_FIELD_BORDER_CLASS,
   getErrorMessage,
   sanitizeApiErrors,
   useErrorPulse,
 } from '../utils/formErrors';
+
+// Campos con el estilo del módulo (píldora azulada, etiqueta chica arriba).
+const LABEL_CAMPO = 'block text-xs font-semibold text-slate-700 mb-1.5 pl-1';
+const CAMPO = 'w-full h-11 px-4 rounded-full text-sm text-slate-800 placeholder:text-slate-500 outline-none ring-inset';
+const CAMPO_NORMAL = 'ring-1 ring-azulado-300 focus:ring-2 focus:ring-blue-900/40';
+
+// Fechas ISO (aaaa-mm-dd) a dd/mm/aaaa sin pasar por Date: así no se corren un día por la zona horaria.
+const formatoFecha = (iso) => {
+  if (!iso) return '';
+  const [y, m, d] = String(iso).slice(0, 10).split('-');
+  return d && m && y ? `${d}/${m}/${y}` : '';
+};
+const rangoFechas = (desde, hasta) => (desde || hasta ? `${formatoFecha(desde) || '—'} – ${formatoFecha(hasta) || '—'}` : '—');
+
+const IconoCalendario = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+  </svg>
+);
+
+const IconoMas = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+  </svg>
+);
 
 const SelectConDropdown = ({
   label,
@@ -80,15 +110,15 @@ const SelectConDropdown = ({
   return (
     <div ref={containerRef} className="relative">
       {label && (
-        <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
-          {label} {errorMessage && <span className="text-red-500">*</span>}
+        <label className={LABEL_CAMPO}>
+          {label}
         </label>
       )}
 
-      <div className={`relative w-full min-w-[200px] rounded-xl border-2 bg-slate-50 dark:bg-slate-700 shadow-sm ${
-        errorMessage ? `${ERROR_FIELD_BORDER_CLASS} ${motionClass}` : 'border-slate-300 dark:border-slate-600'
+      <div className={`relative w-full min-w-[200px] rounded-full !bg-azulado-100 ring-inset ${
+        errorMessage ? `${ERROR_FIELD_BORDER_CLASS} ${motionClass}` : open ? 'ring-2 ring-blue-900/40' : 'ring-1 ring-azulado-300'
       } ${disabled ? 'opacity-70' : ''}`}>
-        <div className="flex items-center gap-2 px-4 py-2.5">
+        <div className="flex items-center gap-2 h-11 pl-4 pr-2.5">
           <input
             type="text"
             value={open ? searchTerm : (selectedLabel || '')}
@@ -106,13 +136,14 @@ const SelectConDropdown = ({
             }}
             disabled={disabled}
             placeholder={placeholder}
-            className="w-full bg-transparent text-slate-800 dark:text-white placeholder-slate-400/70 dark:placeholder-slate-400/60 focus:outline-none disabled:cursor-not-allowed"
+            className="w-full !bg-transparent text-sm text-slate-800 placeholder:text-slate-500 outline-none disabled:cursor-not-allowed"
+            style={{ border: 'none', boxShadow: 'none', padding: 0 }}
           />
           {selectedLabel && !disabled && (
             <button
               type="button"
               onClick={clearSelection}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-600 dark:hover:text-white"
+              className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-azulado-200 hover:text-blue-900"
               title="Limpiar filtro"
             >
               <X className="h-3.5 w-3.5" />
@@ -138,8 +169,8 @@ const SelectConDropdown = ({
       </div>
 
       {open && !disabled && (
-        <div className="absolute z-50 mt-2 w-full rounded-xl border-2 border-[#3A56AF] bg-white dark:bg-slate-900 shadow-xl">
-          <div className="max-h-40 overflow-auto p-2">
+        <div className="absolute z-50 mt-2 w-full rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl">
+          <div className="max-h-56 overflow-auto p-2">
             {visibleOptions.length > 0 ? (
               visibleOptions.map((option) => (
                 <button
@@ -148,8 +179,8 @@ const SelectConDropdown = ({
                   onClick={() => handleSelect(option.value)}
                   className={`w-full text-left px-3 py-1.5 text-xs rounded-lg transition-colors ${
                     String(option.value) === String(value)
-                      ? 'bg-cyan-50 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-200 font-semibold'
-                      : 'bg-transparent text-slate-700 dark:text-slate-200 hover:bg-[#2C4AAE] hover:text-white dark:hover:bg-[#2C4AAE]'
+                      ? 'bg-sky-600 text-white font-semibold hover:bg-blue-900'
+                      : 'text-slate-700 hover:bg-[#2C4AAE] hover:text-white'
                   }`}
                 >
                   <span className="block truncate">{option.label}</span>
@@ -184,8 +215,8 @@ const ToggleSwitch = ({ isActive, onChange }) => (
     onClick={onChange}
     className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
       isActive
-        ? 'bg-emerald-500 dark:bg-emerald-600 focus:ring-emerald-400 dark:focus:ring-emerald-500'
-        : 'bg-slate-300 dark:bg-slate-600 focus:ring-slate-400 dark:focus:ring-slate-500'
+        ? 'bg-sky-600 focus:ring-sky-400'
+        : 'bg-slate-300 focus:ring-slate-400'
     }`}
   >
     <span
@@ -202,8 +233,8 @@ const SegmentedOptions = ({ options, value, onChange, className = '', error, err
 
   return (
     <div
-      className={`grid gap-1.5 rounded-2xl p-1.5 bg-slate-200 dark:bg-slate-800 shadow-sm ${
-        errorMessage ? `${ERROR_FIELD_BORDER_CLASS} ${motionClass}` : 'border border-slate-300 dark:border-slate-700'
+      className={`grid gap-1 rounded-3xl p-1 bg-azulado-100 ring-inset ${
+        errorMessage ? `${ERROR_FIELD_BORDER_CLASS} ${motionClass}` : 'ring-1 ring-azulado-300'
       } ${className}`}
     >
       {options.map((opt) => {
@@ -216,18 +247,18 @@ const SegmentedOptions = ({ options, value, onChange, className = '', error, err
               onClearError?.();
               onChange(opt.value);
             }}
-            className="relative h-14 md:h-12 w-full rounded-xl overflow-hidden"
+            className="relative min-h-[2.5rem] w-full rounded-2xl overflow-hidden"
           >
             {isActive && (
               <motion.span
                 layoutId="period-segment-pill"
-                className="absolute inset-0 rounded-xl border border-[#4A55F0] bg-[#4654E8] shadow-[0_8px_20px_rgba(70,84,232,0.35)]"
+                className="absolute inset-0 rounded-2xl bg-blue-900 shadow-sm"
                 transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.7 }}
               />
             )}
             <span
-              className={`relative z-10 px-2 text-sm md:text-base font-semibold leading-tight transition-colors duration-200 ${
-                isActive ? 'text-white' : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              className={`relative z-10 block px-1.5 py-1.5 text-xs sm:text-sm leading-tight transition-colors duration-200 ${
+                isActive ? 'text-white' : 'text-slate-600 hover:text-blue-900'
               }`}
             >
               {opt.label}
@@ -347,13 +378,17 @@ const YearPickerField = ({ value, onChange, currentYear, error, errorPulse = 0, 
           onMouseDown={startLongPress}
           onMouseUp={clearLongPress}
           onMouseLeave={clearLongPress}
-          className={`w-full px-4 py-3 rounded-xl bg-white/80 dark:bg-slate-800/75 text-slate-800 dark:text-slate-100 text-left flex items-center justify-between hover:border-[#3D6DE0]/70 transition-all ${
-            errorMessage ? `${ERROR_FIELD_BORDER_CLASS} ${motionClass}` : 'border border-[#3D6DE0]/35 dark:border-[#4B67C0]/45'
+          className={`w-full h-11 pl-4 pr-2.5 rounded-full !bg-azulado-100 text-sm text-slate-800 text-left flex items-center justify-between ring-inset ${
+            errorMessage ? `${ERROR_FIELD_BORDER_CLASS} ${motionClass}` : 'ring-1 ring-azulado-300 hover:ring-blue-900/30'
           }`}
           title="Click para abrir ruleta. Doble click o click prolongado para escribir."
         >
-          <span className="font-semibold">{draftYear}</span>
-          <span className="text-xs text-slate-500 dark:text-slate-400">Abrir selector</span>
+          <span className="font-semibold tabular-nums">{draftYear}</span>
+          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#2C4AAE] text-white">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 9l4-4 4 4M16 15l-4 4-4-4" />
+            </svg>
+          </span>
         </button>
       ) : (
         <input
@@ -372,8 +407,8 @@ const YearPickerField = ({ value, onChange, currentYear, error, errorPulse = 0, 
             if (e.key === 'Enter') commitManualYear();
             if (e.key === 'Escape') setManualMode(false);
           }}
-          className={`w-full px-4 py-3 rounded-xl bg-white/85 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 text-center font-semibold focus:outline-none focus:ring-2 focus:ring-[#3D6DE0]/35 ${
-            errorMessage ? `${ERROR_FIELD_BORDER_CLASS} ${motionClass}` : 'border border-[#3D6DE0]/45 dark:border-[#4B67C0]/55'
+          className={`${CAMPO} !bg-azulado-100 text-center font-semibold ${
+            errorMessage ? `${ERROR_FIELD_BORDER_CLASS} ${motionClass}` : CAMPO_NORMAL
           }`}
         />
       )}
@@ -387,9 +422,9 @@ const YearPickerField = ({ value, onChange, currentYear, error, errorPulse = 0, 
             exit={{ opacity: 0 }}
             transition={{ duration: 0.14 }}
           >
-            <div className="absolute inset-0 bg-black/35 backdrop-blur-[1px]" onClick={commitDraftAndClose} />
+            <div className="absolute inset-0 bg-blue-950/30 backdrop-blur-sm" onClick={commitDraftAndClose} />
             <motion.div
-              className="relative w-full max-w-xs rounded-2xl border border-[#3D6DE0]/35 dark:border-[#5B75CD]/55 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl shadow-2xl overflow-hidden"
+              className="relative w-full max-w-xs rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl overflow-hidden"
               initial={{ y: 14, scale: 0.98, opacity: 0 }}
               animate={{ y: 0, scale: 1, opacity: 1 }}
               exit={{ y: 10, scale: 0.99, opacity: 0 }}
@@ -439,10 +474,10 @@ const YearPickerField = ({ value, onChange, currentYear, error, errorPulse = 0, 
                       commitDraftAndClose();
                     }
                   }}
-                  className={`w-44 px-3 py-2 rounded-lg border bg-white/85 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 text-center text-sm font-semibold focus:outline-none focus:ring-2 transition-colors ${
+                  className={`w-44 h-10 px-3 rounded-full !bg-azulado-100 text-slate-900 text-center text-sm font-semibold outline-none ring-inset transition-colors ${
                     popupHasError
-                      ? 'border-red-500/90 dark:border-red-400/90 focus:ring-red-400/35'
-                      : 'border-[#3D6DE0]/45 dark:border-[#4B67C0]/55 focus:ring-[#3D6DE0]/35'
+                      ? 'ring-2 ring-red-500'
+                      : 'ring-1 ring-azulado-300 focus:ring-2 focus:ring-blue-900/40'
                   } ${popupIsTyping ? 'animate-pulse' : ''}`}
                   placeholder="Escribir año"
                 />
@@ -450,7 +485,7 @@ const YearPickerField = ({ value, onChange, currentYear, error, errorPulse = 0, 
 
               <p
                 className={`mt-3 text-xs ${
-                  popupHasError ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-slate-500 dark:text-slate-400'
+                  popupHasError ? 'text-red-600 font-semibold' : 'text-slate-600'
                 }`}
               >
                 {popupHasError
@@ -463,107 +498,6 @@ const YearPickerField = ({ value, onChange, currentYear, error, errorPulse = 0, 
         )}
       </AnimatePresence>
     </>
-  );
-};
-
-const ChevronDown = ({ open = false }) => (
-  <div className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
-    <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-[#263F8A]/10 dark:bg-[#263F8A]/25 ring-1 ring-[#263F8A]/35 dark:ring-[#263F8A]/45">
-      <svg
-        className={`w-3 h-3 text-[#263F8A] dark:text-[#8EA0D9] transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-      </svg>
-    </span>
-  </div>
-);
-
-const CustomSelect = ({
-  value,
-  options,
-  onChange,
-  placeholder,
-  disabled = false,
-  emptyText = 'Sin opciones disponibles',
-  menuMaxHeight = 'max-h-56',
-}) => {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef(null);
-  const selected = options.find((opt) => opt.value?.toString() === value?.toString());
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-
-    const handleEscape = (event) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, []);
-
-  const handlePick = (newValue) => {
-    onChange(newValue);
-    setOpen(false);
-  };
-
-  return (
-    <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        onClick={() => !disabled && setOpen((prev) => !prev)}
-        disabled={disabled}
-        className={`w-full text-left pl-3.5 pr-10 py-2.5 rounded-xl border bg-white dark:bg-slate-800 text-sm shadow-sm transition-all ${
-          disabled
-            ? 'border-slate-300/80 dark:border-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-70'
-            : open
-              ? 'border-[#263F8A] dark:border-[#3A56AF] ring-2 ring-[#263F8A]/35 dark:ring-[#3A56AF]/35 text-slate-900 dark:text-slate-100'
-              : 'border-[#263F8A]/45 dark:border-[#3A56AF]/60 hover:border-[#263F8A]/75 dark:hover:border-[#4B67C0] text-slate-800 dark:text-slate-100'
-        }`}
-      >
-        <span className="block truncate font-semibold">{selected ? selected.label : placeholder}</span>
-        <ChevronDown open={open} />
-      </button>
-
-      {open && !disabled && (
-        <div className={`absolute z-30 mt-1.5 w-full overflow-auto rounded-xl border border-[#263F8A]/40 dark:border-[#3A56AF]/60 bg-white dark:bg-slate-900 shadow-xl shadow-[#263F8A]/20 dark:shadow-black/35 ${menuMaxHeight}`}>
-          {options.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">{emptyText}</div>
-          ) : (
-            options.map((opt) => {
-              const active = opt.value?.toString() === value?.toString();
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => handlePick(opt.value)}
-                  className={`w-full text-left px-3 py-1.5 text-sm transition-colors border-l-2 ${
-                    active
-                      ? 'bg-[#263F8A]/10 dark:bg-[#263F8A]/30 border-[#263F8A] dark:border-[#5C77CC] text-[#263F8A] dark:text-[#B6C3EC] font-semibold'
-                      : 'bg-transparent border-transparent text-slate-700 dark:text-slate-200 hover:bg-[#2C4AAE] hover:text-white dark:hover:bg-[#2C4AAE]'
-                  }`}
-                  title={opt.label}
-                >
-                  <span className="block truncate">{opt.label}</span>
-                </button>
-              );
-            })
-          )}
-        </div>
-      )}
-    </div>
   );
 };
 
@@ -584,7 +518,7 @@ const InputField = ({
 
   return (
     <div>
-      <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">{label} {errorMessage && <span className="text-red-500">*</span>}</label>
+      <label className={LABEL_CAMPO}>{label}</label>
       <input
         type={type}
         name={name}
@@ -597,8 +531,8 @@ const InputField = ({
         onClick={onClearError}
         required={required}
         aria-invalid={Boolean(errorMessage)}
-        className={`w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm hover:shadow-md ${
-          errorMessage ? `${ERROR_FIELD_BORDER_CLASS} ${motionClass}` : 'border-2 border-slate-300 dark:border-slate-600'
+        className={`${CAMPO} ${props.readOnly ? '!bg-slate-100 text-slate-500 cursor-not-allowed' : '!bg-azulado-100'} ${
+          errorMessage ? `${ERROR_FIELD_BORDER_CLASS} ${motionClass}` : CAMPO_NORMAL
         }`}
         {...props}
       />
@@ -723,10 +657,10 @@ const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse =
 
   return (
     <div className="relative">
-      <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">{label}</label>
-      <div ref={campoRef} className={`relative w-full rounded-xl bg-slate-50 dark:bg-slate-700 shadow-sm ${
-        errorMessage ? `${ERROR_FIELD_BORDER_CLASS} ${motionClass}` : 'border-2 border-slate-300 dark:border-slate-600'
-      } focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent`}>
+      <label className={LABEL_CAMPO}>{label}</label>
+      <div ref={campoRef} className={`relative w-full rounded-full !bg-azulado-100 ring-inset ${
+        errorMessage ? `${ERROR_FIELD_BORDER_CLASS} ${motionClass}` : 'ring-1 ring-azulado-300 focus-within:ring-2 focus-within:ring-blue-900/40'
+      }`}>
         <input
           type="text"
           inputMode="numeric"
@@ -739,7 +673,7 @@ const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse =
             onClearError?.();
             onFieldInteraction?.();
           }}
-          className="w-full bg-transparent text-slate-800 dark:text-white px-4 py-2.5 pr-12 rounded-xl focus:outline-none"
+          className="w-full h-11 !bg-transparent text-sm text-slate-800 placeholder:text-slate-500 px-4 pr-12 rounded-full outline-none"
           aria-label={label}
           aria-invalid={Boolean(errorMessage)}
         />
@@ -750,11 +684,11 @@ const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse =
             onFieldInteraction?.();
             setOpen((prev) => !prev);
           }}
-          className="absolute right-1.5 top-1/2 h-8 w-8 rounded-lg border border-[#3A56AF]/40 bg-[#2C4AAE] text-slate-100 hover:bg-[#233C8F] transition-colors"
+          className="absolute right-2.5 top-1/2 flex h-6 w-6 items-center justify-center rounded-md bg-[#2C4AAE] text-white hover:bg-[#233C8F] transition-colors"
           style={{ transform: 'translateY(-50%)' }}
           aria-label={`Abrir calendario de ${label}`}
         >
-          <svg className="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10m-13 9h16a1 1 0 001-1V7a1 1 0 00-1-1H4a1 1 0 00-1 1v12a1 1 0 001 1z" />
           </svg>
         </button>
@@ -779,7 +713,7 @@ const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse =
         }}
       />
 
-      {errorMessage && showErrorText && <p className={`text-xs text-red-600 dark:text-red-400 mt-1 ${motionClass}`}>{errorMessage}</p>}
+      {errorMessage && showErrorText && <p className={`text-xs text-red-600 mt-1 ${motionClass}`}>{errorMessage}</p>}
     </div>
   );
 };
@@ -1466,146 +1400,225 @@ function ListaCalendarios() {
   };
 
   if (loading) {
-    return <div className="p-6 text-center">Cargando calendarios...</div>;
+    return (
+      <div className="flex items-center justify-center h-full min-h-[50vh]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-900 mx-auto"></div>
+          <p className="mt-4 text-slate-600">Cargando calendarios...</p>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="p-6 text-center text-red-500">{error}</div>;
+    return (
+      <div className="flex items-center justify-center h-full min-h-[50vh] p-6">
+        <div className={`${BLOQUE} p-6 max-w-md w-full text-center`}>
+          <p className="text-red-600 font-semibold">{error}</p>
+        </div>
+      </div>
+    );
   }
 
+  const totalActivos = calendariosFiltrados.filter((cal) => cal.activo).length;
+  const nombreCarreraFiltro = carreraOptions.find((opt) => String(opt.value) === String(carreraFiltro))?.label;
+  const hayFiltroCarrera = esSuperAdmin && carreraFiltro && carreraFiltro !== 'todas';
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-lg p-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
-                🗓️ Calendarios Académicos
-              </h1>
-              <p className="text-sm text-slate-700 dark:text-slate-400 mt-1">
-                Gestión de periodos, gestiones y fechas importantes.
-              </p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3 items-center">
-              {esSuperAdmin && (
-                <div className="w-full sm:flex-1">
-                  <SelectConDropdown
-                    name="carrera"
-                    value={carreraFiltro}
-                    onChange={(event) => setCarreraFiltro(event.target.value)}
-                    options={[{ value: 'todas', label: 'Todas las carreras' }, ...carreraOptions]}
-                    placeholder="Buscar carrera..."
-                    emptyText="No hay carreras"
-                    hideSelectedOption
-                  />
+    <div className="min-h-full px-3 sm:px-4 md:px-8 py-4 md:py-6 text-slate-800">
+      <div className="space-y-4">
+        {/* Bloque 1: encabezado con la acción y, al lado, el total (como el dashboard de fondos) */}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
+          <div className={`${BLOQUE} p-5 sm:p-6`}>
+            <div className="flex flex-wrap items-center justify-between gap-5">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="hidden sm:flex w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-50 to-azulado-200 ring-1 ring-inset ring-azulado-300 text-blue-900 items-center justify-center flex-shrink-0">
+                  <IconoCalendario className="w-7 h-7" />
                 </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                    Periodos, gestiones y fechas importantes
+                  </p>
+                  <h2 className="text-2xl sm:text-3xl font-bold text-blue-900">
+                    Calendario Académico
+                  </h2>
+                </div>
+              </div>
+              {puedeGestionar && (
+                <button data-escritura
+                  onClick={() => abrirModal()}
+                  className={`${BOTON} w-full sm:w-auto px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm`}
+                >
+                  <IconoMas className="w-5 h-5" />
+                  <span>Nuevo Calendario</span>
+                </button>
               )}
-            {puedeGestionar && (
-            <button data-escritura
-              onClick={() => abrirModal()}
-              className="w-full sm:w-auto px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 flex items-center justify-center gap-2"
-            >
-              <span>➕</span>
-              Nuevo Calendario
-            </button>
-            )}
+            </div>
+          </div>
+
+          {/* Total de la carrera filtrada; al cambiar de carrera los números cuentan hasta el nuevo valor. */}
+          <div className="rounded-3xl bg-gradient-to-br from-blue-900 to-blue-950 text-white p-5 sm:p-6 flex flex-col justify-between gap-4 shadow-[0_4px_14px_rgba(30,58,138,0.25)]">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wider text-blue-200">Calendarios</p>
+                <p
+                  key={carreraFiltro || 'todas'}
+                  className="animate-campo-entrada mt-1.5 text-sm font-semibold text-white leading-snug line-clamp-2"
+                  title={hayFiltroCarrera ? nombreCarreraFiltro : 'Todas las carreras'}
+                >
+                  {hayFiltroCarrera ? nombreCarreraFiltro : (esSuperAdmin ? 'Todas las carreras' : 'Tu carrera')}
+                </p>
+              </div>
+              <span className="text-5xl font-bold tabular-nums leading-none">
+                <NumeroAnimado valor={calendariosFiltrados.length} />
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <NumeroAnimado valor={totalActivos} singular="activo" plural="activos" />
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
+                <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+                <NumeroAnimado valor={calendariosFiltrados.length - totalActivos} singular="inactivo" plural="inactivos" />
+              </span>
             </div>
           </div>
         </div>
 
-        <div className="space-y-4">
-          {calendariosFiltrados.map((cal) => (
-            <div key={cal.id} className={`rounded-2xl border backdrop-blur-sm shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl ${cal.activo ? 'bg-white/90 dark:bg-slate-800/85 border-green-400/70 dark:border-green-500/70 ring-2 ring-green-400/30' : 'bg-white/80 dark:bg-slate-800/75 border-slate-300/80 dark:border-slate-700/70 hover:border-[#3D6DE0]/45'}`}>
-              <div className="p-5">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-white font-bold shadow-md text-xl flex-shrink-0 ${cal.activo ? 'bg-gradient-to-br from-green-500 to-emerald-600' : 'bg-gradient-to-br from-blue-500 to-indigo-600'}`}>
-                      {cal.gestion}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-lg font-bold text-blue-600 dark:text-white">
-                          Gestión {cal.gestion} - {cal.periodo_display}
-                        </h3>
-                        {cal.activo && (
-                          <span className="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide bg-emerald-500 text-white shadow-md shadow-emerald-500/40">
-                            Activo
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-1 text-sm font-semibold text-slate-600 dark:text-slate-300">
-                        {cal.carrera_nombre || 'Sin carrera'}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-2 mt-2 text-sm text-slate-600 dark:text-slate-400">
-                        <span>🗓️ {new Date(cal.fecha_inicio).toLocaleDateString()} - {new Date(cal.fecha_fin).toLocaleDateString()}</span>
-                        <span>|</span>
-                        <span>📦 Límite Presentación: {new Date(cal.fecha_limite_presentacion_proyectos).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap justify-end">
-                    <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[#263F8A]/10 dark:bg-[#263F8A]/25 border-2 border-[#263F8A]/40 dark:border-[#3A56AF]/55">
-                      {puedeGestionar && (
-                        <span data-escritura className="flex">
-                          <ToggleSwitch
-                            isActive={cal.activo}
-                            onChange={() => handleToggleActivo(cal)}
-                          />
-                        </span>
-                      )}
-                      <span className="text-sm font-semibold">
-                        {cal.activo
-                          ? <span className="text-emerald-600 dark:text-emerald-400">Activo</span>
-                          : <span className="text-amber-600 dark:text-amber-400">Inactivo</span>
-                        }
-                      </span>
-                    </div>
-                    {puedeGestionar && (
-                    <>
-                    <button data-escritura
-                      onClick={() => abrirModal(cal)}
-                      className="text-blue-500 hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300 transition-all duration-200 hover:scale-110"
-                      title="Editar"
-                    >
-                      <FaEdit size={18} />
-                    </button>
-                    <button data-escritura
-                      onClick={() => eliminarCalendario(cal)}
-                      className="text-red-500 hover:text-red-400 dark:text-red-400 dark:hover:text-red-300 transition-all duration-200 hover:scale-110"
-                      title="Eliminar"
-                    >
-                      <FaTrash size={18} />
-                    </button>
-                    </>
-                    )}
-                  </div>
-                </div>
-              </div>
+        {/* Bloque 2: filtro de carrera (solo el superusuario ve todas las carreras) */}
+        {esSuperAdmin && (
+          <div className={`${BLOQUE} p-3`}>
+            <div className="w-full sm:w-80">
+              <SelectConDropdown
+                name="carrera"
+                value={carreraFiltro}
+                onChange={(event) => setCarreraFiltro(event.target.value)}
+                options={[{ value: 'todas', label: 'Todas las carreras' }, ...carreraOptions]}
+                placeholder="Todas las carreras"
+                emptyText="No hay carreras"
+                hideSelectedOption
+              />
             </div>
-          ))}
-        </div>
+          </div>
+        )}
+
+        {/* Bloque 3: calendarios en tarjetas de la misma altura */}
+        {calendariosFiltrados.length > 0 ? (
+          <div key={`calendarios-${carreraFiltro}`} className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+            {calendariosFiltrados.map((cal, indice) => {
+              const datos = [
+                { label: 'Periodo', valor: rangoFechas(cal.fecha_inicio, cal.fecha_fin) },
+                { label: 'Presentación de proyectos', valor: rangoFechas(cal.fecha_inicio_presentacion_proyectos, cal.fecha_limite_presentacion_proyectos) },
+                { label: 'Programas analíticos', valor: cal.fecha_limite_programas_analiticos ? `Hasta ${formatoFecha(cal.fecha_limite_programas_analiticos)}` : '—' },
+                { label: 'Receso', valor: rangoFechas(cal.fecha_inicio_receso, cal.fecha_fin_receso) },
+              ];
+              return (
+                <div
+                  key={cal.id}
+                  style={{ animationDelay: `${Math.min(indice, 8) * 35}ms` }}
+                  className={`${BLOQUE} animate-fondo-entrada p-5 flex flex-col gap-4`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-12 w-12 flex-shrink-0 flex-col items-center justify-center rounded-2xl bg-blue-900 text-white leading-none">
+                        <span className="text-sm font-bold tabular-nums">{cal.gestion}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-lg font-bold text-blue-900 truncate">{cal.periodo_display}</h3>
+                        <p className="text-sm text-slate-600 truncate">{cal.carrera_nombre || 'Sin carrera'}</p>
+                      </div>
+                    </div>
+                    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${
+                      cal.activo ? 'bg-emerald-50 text-emerald-800 ring-emerald-200' : 'bg-slate-100 text-slate-600 ring-slate-300'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${cal.activo ? 'bg-emerald-600' : 'bg-slate-400'}`} />
+                      {cal.activo ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </div>
+
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 px-4 py-3">
+                    {datos.map((dato) => (
+                      <div key={dato.label} className="min-w-0">
+                        <dt className="text-xs font-semibold text-blue-800">{dato.label}</dt>
+                        <dd className="mt-0.5 text-[13px] font-semibold text-slate-800 tabular-nums">{dato.valor}</dd>
+                      </div>
+                    ))}
+                  </dl>
+
+                  <div className="flex flex-wrap gap-2">
+                    {cal.semanas_calendario ? <Etiqueta>{cal.semanas_calendario} semanas</Etiqueta> : null}
+                    <Etiqueta>{Number(cal.dias_feriados_gestion || 0)} {Number(cal.dias_feriados_gestion) === 1 ? 'día' : 'días'} de feriado</Etiqueta>
+                  </div>
+
+                  {puedeGestionar && (
+                    <div className="mt-auto pt-3 flex flex-wrap items-center justify-between gap-2 [border-top:1px_solid_#B8C9E1]">
+                      <span data-escritura className="flex items-center gap-2.5">
+                        <ToggleSwitch
+                          isActive={cal.activo}
+                          onChange={() => handleToggleActivo(cal)}
+                        />
+                        <span className="text-sm text-slate-700">{cal.activo ? 'Activo' : 'Inactivo'}</span>
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        <button data-escritura
+                          type="button"
+                          onClick={() => abrirModal(cal)}
+                          className={`${BOTON} bg-emerald-500 hover:bg-emerald-600 text-white`}
+                        >
+                          <FaEdit size={14} />
+                          <span>Editar</span>
+                        </button>
+                        <button data-escritura
+                          type="button"
+                          onClick={() => eliminarCalendario(cal)}
+                          className={`${BOTON} bg-red-400 hover:bg-red-500 text-white`}
+                        >
+                          <FaTrash size={13} />
+                          <span>Eliminar</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className={`${BLOQUE} p-10 sm:p-12 text-center`}>
+            <h3 className="text-xl font-bold text-slate-800 mb-2">
+              {calendarios.length > 0 ? 'No hay calendarios para esta carrera' : 'No hay calendarios registrados'}
+            </h3>
+            <p className="text-slate-600">
+              {calendarios.length > 0 ? 'Elige otra carrera o crea un calendario nuevo.' : 'Crea el primer calendario académico.'}
+            </p>
+          </div>
+        )}
       </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 overflow-y-auto animate-fade-in" style={{ animationDuration: '160ms' }}>
+      {showModal && createPortal(
+        <div
+          className="fixed top-0 right-0 bottom-0 z-50 overflow-y-auto bg-blue-950/30 backdrop-blur-sm animate-fade-in"
+          style={{ left: 'var(--fondo-sidebar-width, 0px)', animationDuration: '160ms' }}
+        >
           {/* Si el formulario no entra en la pantalla se desplaza el fondo: nada queda cortado. */}
-          <div className="min-h-full flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl max-w-6xl w-full overflow-visible animate-slide-up" style={{ animationDuration: '180ms' }}>
-            <div className="px-6 py-4 border-b border-[#7F97E8]/45 bg-[#2C4AAE] rounded-t-2xl">
-              <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                {calendarioSeleccionado ? '✏️ Editar Calendario' : '➕ Nuevo Calendario'}
+          <div className="min-h-full flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-azulado-50 rounded-3xl ring-1 ring-azulado-300 shadow-2xl max-w-6xl w-full overflow-visible animate-slide-up" style={{ animationDuration: '180ms' }}>
+            <div className="px-5 sm:px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
+              <h3 className="text-xl font-bold text-blue-900">
+                {calendarioSeleccionado ? 'Editar Calendario' : 'Nuevo Calendario'}
               </h3>
             </div>
-            <form onSubmit={handleSubmit} noValidate className="p-5 md:p-6">
+            <form onSubmit={handleSubmit} noValidate className="p-4 sm:p-6">
               {isEditingActiveCalendar && (
-                <div className="mb-4 rounded-xl border border-red-700/70 bg-red-200/70 dark:bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-900 dark:text-red-200">
+                <div className="mb-4 rounded-2xl bg-red-50 ring-1 ring-inset ring-red-200 px-4 py-3 text-sm font-semibold text-red-800">
                   {activeCalendarEditWarning}
                 </div>
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-5">
                 {esSuperAdmin && (
-                <div className="md:col-span-2">
+                <div className="md:col-span-2 xl:col-span-1">
                   <SelectConDropdown
                     label="Carrera"
                     name="carrera"
@@ -1622,8 +1635,8 @@ function ListaCalendarios() {
                   />
                 </div>
                 )}
-                <div className={esSuperAdmin ? '' : 'xl:col-span-2'}>
-                  <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Gestión (Año)</label>
+                <div className={esSuperAdmin ? 'md:col-span-2 xl:col-span-1' : 'md:col-span-2'}>
+                  <label className={LABEL_CAMPO}>Gestión (Año)</label>
                   <YearPickerField
                     value={Number(formData.gestion || currentYear)}
                     onChange={handleGestionChange}
@@ -1632,10 +1645,10 @@ function ListaCalendarios() {
                     errorPulse={errorPulse}
                     onClearError={() => clearFieldError('gestion')}
                   />
-                  {errors.gestion && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{getErrorMessage(errors.gestion)}</p>}
+                  {errors.gestion && <p className="text-xs text-red-600 mt-1">{getErrorMessage(errors.gestion)}</p>}
                 </div>
-                <div className={esSuperAdmin ? '' : 'xl:col-span-2'}>
-                  <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Periodo</label>
+                <div className="md:col-span-2 xl:col-span-2">
+                  <label className={LABEL_CAMPO}>Periodo</label>
                   <SegmentedOptions
                     options={periodoOptions}
                     value={formData.periodo}
@@ -1645,12 +1658,12 @@ function ListaCalendarios() {
                     errorPulse={errorPulse}
                     onClearError={() => clearFieldError('periodo')}
                   />
-                  {errors.periodo && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{getErrorMessage(errors.periodo)}</p>}
+                  {errors.periodo && <p className="text-xs text-red-600 mt-1">{getErrorMessage(errors.periodo)}</p>}
                 </div>
 
-                <div className="md:col-span-2 rounded-xl border border-[#3D6DE0]/30 dark:border-[#4B67C0]/40 bg-gradient-to-r from-white/60 via-[#3D6DE0]/5 to-cyan-400/10 dark:from-slate-800/55 dark:to-cyan-900/20 p-4 shadow-sm hover:shadow-md transition-all duration-200">
-                  <h4 className="text-sm font-bold text-[#263F8A] dark:text-[#B6C3EC] mb-3">Rango del Periodo Académico</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2 rounded-2xl bg-white/70 ring-1 ring-inset ring-azulado-300 p-4">
+                  <h4 className="text-sm font-bold text-blue-900 mb-3">Rango del Periodo Académico</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <DatePickerField
                       label="Fecha de Inicio"
                       name="fecha_inicio"
@@ -1683,9 +1696,9 @@ function ListaCalendarios() {
                   </div>
                 </div>
 
-                <div className="md:col-span-2 rounded-xl border border-[#3D6DE0]/30 dark:border-[#4B67C0]/40 bg-gradient-to-r from-white/60 via-[#3D6DE0]/5 to-cyan-400/10 dark:from-slate-800/55 dark:to-cyan-900/20 p-4 shadow-sm hover:shadow-md transition-all duration-200">
-                  <h4 className="text-sm font-bold text-[#263F8A] dark:text-[#B6C3EC] mb-3">Presentación de Proyectos</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2 rounded-2xl bg-white/70 ring-1 ring-inset ring-azulado-300 p-4">
+                  <h4 className="text-sm font-bold text-blue-900 mb-3">Presentación de Proyectos</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <DatePickerField
                       label="Inicio Presentación Proyectos"
                       name="fecha_inicio_presentacion_proyectos"
@@ -1712,19 +1725,19 @@ function ListaCalendarios() {
                 </div>
 
                 {isDateRangeInvalid && (
-                  <div className="md:col-span-2 xl:col-span-4 rounded-lg border border-amber-400/40 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+                  <div className="md:col-span-2 xl:col-span-4 rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-2.5 text-sm text-amber-800">
                     {endDateErrorMessage}
                   </div>
                 )}
 
                 {isCriticalProjectRangeConflict && (
-                  <div className="md:col-span-2 xl:col-span-4 rounded-lg border border-red-600/60 bg-red-100 dark:bg-red-900/25 px-3 py-2 text-sm font-semibold text-red-800 dark:text-red-300">
+                  <div className="md:col-span-2 xl:col-span-4 rounded-2xl bg-red-50 ring-1 ring-inset ring-red-200 px-4 py-2.5 text-sm font-semibold text-red-800">
                     {criticalProjectRangeMessage}
                   </div>
                 )}
 
                 <DatePickerField
-                  label="Fecha limite programas analiticos"
+                  label="Fecha límite programas analíticos"
                   name="fecha_limite_programas_analiticos"
                   value={formData.fecha_limite_programas_analiticos}
                   onDateChange={handleDateFieldChange}
@@ -1733,7 +1746,7 @@ function ListaCalendarios() {
                   onClearError={() => clearFieldError('fecha_limite_programas_analiticos')}
                 />
                 <DatePickerField
-                  label="Inicio receso academico"
+                  label="Inicio receso académico"
                   name="fecha_inicio_receso"
                   value={formData.fecha_inicio_receso}
                   onDateChange={handleDateFieldChange}
@@ -1742,7 +1755,7 @@ function ListaCalendarios() {
                   onClearError={() => clearFieldError('fecha_inicio_receso')}
                 />
                 <DatePickerField
-                  label="Fin receso academico"
+                  label="Fin receso académico"
                   name="fecha_fin_receso"
                   value={formData.fecha_fin_receso}
                   onDateChange={handleDateFieldChange}
@@ -1761,7 +1774,7 @@ function ListaCalendarios() {
                     onChange={() => {}}
                     readOnly
                   />
-                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                  <p className="mt-1 pl-1 text-xs text-slate-600">
                     Total de semanas del periodo (calculado)
                   </p>
                 </div>
@@ -1781,7 +1794,7 @@ function ListaCalendarios() {
                     onClearError={() => clearFieldError('dias_feriados_gestion')}
                   />
                   {!errors.dias_feriados_gestion && (
-                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                    <p className="mt-1 pl-1 text-xs text-slate-600">
                       Solo los que caen de lunes a viernes. El fondo descuenta días × jornada diaria del docente.
                       {calendarioDeLaMismaGestion && (calendarioSeleccionado
                         ? ` Al guardar se aplica también al calendario ${calendarioDeLaMismaGestion.periodo_display} de la gestión.`
@@ -1789,183 +1802,162 @@ function ListaCalendarios() {
                     </p>
                   )}
                 </div>
-                <div className="mt-1 bg-white/70 dark:bg-slate-800/60 rounded-xl p-3 border border-[#3D6DE0]/25 dark:border-[#4B67C0]/40 md:self-end xl:col-span-2">
+                <div className="rounded-2xl bg-white/70 ring-1 ring-inset ring-azulado-300 px-4 py-3 md:self-end xl:col-span-2">
                   <div className="flex items-center gap-3">
                     <ToggleSwitch
                       isActive={Boolean(formData.activo)}
                       onChange={handleActivoSwitchChange}
                     />
-                    <span className="text-sm font-medium text-slate-800 dark:text-slate-300">
-                      ✅ Calendario activo
-                    </span>
+                    <span className="text-sm text-slate-800">Calendario activo</span>
                   </div>
                 </div>
               </div>
-              <div className="mt-5 pt-3 border-t-2 border-slate-300 dark:border-slate-700 flex gap-3 justify-end">
+              <div className="mt-6 pt-4 flex flex-col-reverse sm:flex-row justify-end gap-2 [border-top:1px_solid_#B8C9E1]">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-xl font-semibold transition-all duration-200 border-2 border-slate-300 dark:border-slate-600 shadow-sm hover:shadow-md hover:scale-105"
+                  className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200`}
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isSaveBlocked}
-                  className={`px-5 py-2.5 text-white rounded-xl font-semibold transition-all duration-200 shadow-md disabled:opacity-100 disabled:hover:scale-100 ${isSaveBlocked ? 'bg-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-cyan-500 hover:shadow-xl hover:-translate-y-0.5 animate-pulse'}`}
+                  className={`${BOTON} px-5 py-2.5 ${isSaveBlocked ? 'bg-slate-200 text-slate-500 cursor-not-allowed' : 'bg-blue-900 hover:bg-blue-950 text-white shadow-sm'}`}
                 >
-                  {isSubmitting ? 'Guardando...' : '💾 Guardar'}
+                  {isSubmitting ? 'Guardando...' : 'Guardar'}
                 </button>
               </div>
             </form>
           </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {showToggleModal && calendarioToToggle && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={() => setShowToggleModal(false)} />
-          <div
-            className={`relative w-full max-w-lg rounded-2xl border bg-slate-900 shadow-2xl overflow-hidden animate-slide-up ${
-              calendarioToToggle.activo
-                ? 'border-uab-gold-300/40 dark:border-uab-gold-700/50'
-                : 'border-uab-green-300/40 dark:border-uab-green-700/50'
-            }`}
-            style={{ animationDuration: '160ms' }}
-          >
-            <div className={`px-5 py-4 border-b border-slate-700/70 bg-gradient-to-r ${calendarioToToggle.activo ? 'from-uab-gold-900/30 to-slate-900' : 'from-uab-green-900/30 to-slate-900'}`}>
-              <h4 className={`text-lg font-bold flex items-center gap-2 ${calendarioToToggle.activo ? 'text-uab-gold-300' : 'text-uab-green-300'}`}>
+        <ModalCentrado onClose={() => setShowToggleModal(false)}>
+          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '160ms' }}>
+            <div className="px-6 pt-6">
+              <h4 className="text-xl font-bold text-blue-900 flex items-center gap-2">
                 {calendarioToToggle.activo ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
-                {calendarioToToggle.activo ? 'Confirmar Desactivación' : 'Confirmar Activación'}
+                {calendarioToToggle.activo ? 'Confirmar desactivación' : 'Confirmar activación'}
               </h4>
-            </div>
-            <div className="px-5 py-4 space-y-3 text-slate-200">
-              <p className="text-sm leading-relaxed">
+              <p className="mt-1 text-sm text-slate-600">
                 {calendarioToToggle.activo
                   ? `Se desactivará el calendario ${calendarioToToggle.gestion} - ${calendarioToToggle.periodo_display}.`
                   : `Se activará el calendario ${calendarioToToggle.gestion} - ${calendarioToToggle.periodo_display}.`}
               </p>
-              <div className={`rounded-lg border px-3 py-2 text-sm ${calendarioToToggle.activo ? 'border-uab-gold-500/40 bg-uab-gold-500/10' : 'border-uab-green-500/40 bg-uab-green-500/10'}`}>
-                Calendario: <strong className={calendarioToToggle.activo ? 'text-uab-gold-300' : 'text-uab-green-300'}>{calendarioToToggle.gestion} - {calendarioToToggle.periodo_display}</strong>
-              </div>
+            </div>
+            <div className="px-6 py-4 space-y-3 text-sm">
               {calendarioToToggle.activo && (
-                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-                  Advertencia: si desactiva el calendario activo, algunos procesos pueden quedarse sin periodo vigente (registro, seguimiento y reportes hasta activar otro calendario).
+                <div className="rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-3 text-amber-900">
+                  Si desactiva el calendario activo, algunos procesos pueden quedarse sin periodo vigente (registro, seguimiento y reportes) hasta activar otro calendario.
                 </div>
               )}
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 Esta acción se puede revertir desde el interruptor de estado.
               </p>
             </div>
-            <div className="px-5 py-4 border-t border-slate-700/70 flex justify-end gap-3 bg-slate-950/70">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 pb-6">
               <button
                 type="button"
                 onClick={() => setShowToggleModal(false)}
-                className="px-4 py-2 rounded-lg font-semibold text-slate-300 border border-slate-600 hover:bg-slate-800"
+                className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200`}
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={confirmarToggleActivo}
-                className={`px-4 py-2 rounded-lg font-bold text-white ${calendarioToToggle.activo ? 'bg-uab-gold-600 hover:bg-uab-gold-700' : 'bg-uab-green-600 hover:bg-uab-green-700'}`}
+                className={`${BOTON} px-5 py-2.5 text-white ${calendarioToToggle.activo ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
               >
-                {calendarioToToggle.activo ? '⏸️ Confirmar Desactivación' : '▶️ Confirmar Activación'}
+                {calendarioToToggle.activo ? 'Desactivar' : 'Activar'}
               </button>
             </div>
           </div>
-        </div>
+        </ModalCentrado>
       )}
 
       {/* Modal de Confirmación de Eliminación */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={closeDeleteModal} />
-          <div className="relative w-full max-w-lg rounded-2xl border border-red-600/80 dark:border-red-700/50 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden animate-slide-up" style={{ animationDuration: '160ms' }}>
-            <div className="px-5 py-4 border-b border-red-400 dark:border-slate-700/70 bg-gradient-to-r from-red-400 via-red-200 to-red-50 dark:from-red-900/30 dark:via-slate-900 dark:to-slate-900">
-              <h4 className="text-lg font-bold text-red-900 dark:text-red-300 flex items-center gap-2">
-                <span>🗑️</span>
-                Confirmar Eliminación
-              </h4>
-            </div>
-            <div className="px-5 py-4 space-y-3 text-slate-700 dark:text-slate-200">
-              <p className="text-sm leading-relaxed">
-                Se eliminará el calendario <strong className="text-slate-900 dark:text-white">{calendarioToDelete?.gestion} - {calendarioToDelete?.periodo_display}</strong> del sistema de forma permanente.
+        <ModalCentrado onClose={closeDeleteModal}>
+          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '160ms' }}>
+            <div className="px-6 pt-6">
+              <h4 className="text-xl font-bold text-red-700">Confirmar eliminación</h4>
+              <p className="mt-1 text-sm text-slate-600">
+                Se eliminará el calendario <strong className="text-slate-900">{calendarioToDelete?.gestion} - {calendarioToDelete?.periodo_display}</strong> de forma permanente.
               </p>
-              <div className="rounded-lg border border-red-700/70 bg-red-200/70 dark:bg-red-500/10 px-3 py-2 text-sm text-red-900 dark:text-red-200">
-                Acción irreversible: <strong className="text-red-900 dark:text-red-300">se perderá el periodo y sus fechas de referencia para este calendario.</strong>
+            </div>
+            <div className="px-6 py-4 space-y-3 text-sm">
+              <div className="rounded-2xl bg-red-50 ring-1 ring-inset ring-red-200 px-4 py-3 text-red-800">
+                Acción irreversible: <strong>se perderá el periodo y sus fechas de referencia para este calendario.</strong>
               </div>
-              <div className="rounded-lg border border-amber-500/40 bg-amber-100 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
+              <div className="rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-3 text-amber-900">
                 Dependencias actuales: {deleteImpact.cargas_horarias} cargas horarias.
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                <label className={LABEL_CAMPO}>
                   Escribe el nombre exacto del calendario para habilitar la eliminación:
                 </label>
                 <input
                   type="text"
                   value={deleteConfirmText}
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  placeholder="Escribe el nombre del calendario para confirmar"
-                  className="w-full px-3 py-2 rounded-lg border border-red-400/40 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500/60"
+                  placeholder={`${calendarioToDelete?.gestion || ''} - ${calendarioToDelete?.periodo_display || ''}`}
+                  className={`${CAMPO} ring-1 ring-azulado-300 focus:ring-2 focus:ring-red-400/50 !bg-azulado-100`}
                 />
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Esta operación no se puede deshacer.
-              </p>
             </div>
-            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700/70 flex justify-end gap-3 bg-slate-50 dark:bg-slate-950/70">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 pb-6">
               <button
+                type="button"
                 onClick={closeDeleteModal}
-                className="px-4 py-2 rounded-lg font-semibold text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200`}
               >
                 Cancelar
               </button>
               <button
+                type="button"
                 onClick={confirmarEliminar}
                 disabled={deleteConfirmText !== `${calendarioToDelete?.gestion || ''} - ${calendarioToDelete?.periodo_display || ''}`}
-                className="px-4 py-2 rounded-lg font-bold text-white bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 disabled:bg-red-900/40 disabled:text-slate-300 disabled:cursor-not-allowed"
+                className={`${BOTON} px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-500`}
               >
-                🗑️ Eliminar
+                Eliminar
               </button>
             </div>
           </div>
-        </div>
+        </ModalCentrado>
       )}
 
       {showDependencyWarningModal && calendarioToDelete && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={() => setShowDependencyWarningModal(false)} />
-          <div className="relative w-full max-w-lg rounded-2xl border border-red-600/80 dark:border-red-700/50 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden animate-slide-up" style={{ animationDuration: '160ms' }}>
-            <div className="px-5 py-4 border-b border-red-400 dark:border-slate-700/70 bg-gradient-to-r from-red-400 via-red-200 to-red-50 dark:from-red-900/30 dark:via-slate-900 dark:to-slate-900">
-              <h4 className="text-lg font-bold text-red-900 dark:text-red-300 flex items-center gap-2">
-                <span>⛔</span>
-                Error de Integridad
-              </h4>
-            </div>
-            <div className="px-5 py-4 space-y-3 text-slate-700 dark:text-slate-200">
-              <p className="text-sm leading-relaxed">
-                {deleteImpact.detail || `ERROR DE INTEGRIDAD: No se puede eliminar el calendario ${calendarioToDelete.gestion}-${calendarioToDelete.periodo_display} porque aún tiene dependencias vinculadas.`}
+        <ModalCentrado onClose={() => setShowDependencyWarningModal(false)}>
+          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '160ms' }}>
+            <div className="px-6 pt-6">
+              <h4 className="text-xl font-bold text-red-700">No se puede eliminar</h4>
+              <p className="mt-1 text-sm text-slate-600">
+                {deleteImpact.detail || `No se puede eliminar el calendario ${calendarioToDelete.gestion}-${calendarioToDelete.periodo_display} porque aún tiene dependencias vinculadas.`}
               </p>
-              <div className="rounded-lg border border-red-700/70 bg-red-200/70 dark:bg-red-500/10 px-3 py-2 text-sm text-red-900 dark:text-red-100">
+            </div>
+            <div className="px-6 py-4 space-y-3 text-sm">
+              <div className="rounded-2xl bg-red-50 ring-1 ring-inset ring-red-200 px-4 py-3 text-red-800">
                 Dependencias detectadas: {deleteImpact.cargas_horarias} cargas horarias, {deleteImpact.fondos_gestion || 0} fondos de la gestión sin otro calendario.
               </div>
-              <div className="rounded-lg border border-amber-500/40 bg-amber-100 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
+              <div className="rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-3 text-amber-900">
                 Para eliminar este calendario, primero debes mover o eliminar manualmente sus registros asociados.
               </div>
             </div>
-            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700/70 flex justify-end bg-slate-50 dark:bg-slate-950/70">
+            <div className="flex justify-end px-6 pb-6">
               <button
                 type="button"
                 onClick={() => setShowDependencyWarningModal(false)}
-                className="px-4 py-2 rounded-lg font-semibold text-red-800 dark:text-red-200 border border-red-300 dark:border-red-700/60 bg-red-100 dark:bg-red-900/25 hover:bg-red-200 dark:hover:bg-red-900/35"
+                className={`${BOTON} px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white`}
               >
                 Entendido
               </button>
             </div>
           </div>
-        </div>
+        </ModalCentrado>
       )}
     </div>
   );

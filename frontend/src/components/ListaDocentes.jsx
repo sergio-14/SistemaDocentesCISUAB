@@ -13,6 +13,8 @@ import {
 import { DEDICACIONES_HORARIO, ETIQUETAS_DEDICACION, describirDedicacion, horasSemanalesDedicacion } from '../utils/dedicaciones';
 import { hoyBolivia } from '../utils/fechas';
 import { useActiveRole } from '../contexts/activeRole';
+import { BLOQUE, BOTON } from './fondos/estilosFondo';
+import { Avatar, Etiqueta } from './fondos/ElementosFondo';
 import {
   TOPE_HORAS_SEMANALES_FONDO, calcularAntiguedad, calcularHorasFondo, diasVacacionPorAntiguedad, inicioDeGestion,
 } from '../utils/horasFondo';
@@ -566,7 +568,9 @@ const InputField = ({
   );
 };
 
-const SimpleDropdown = ({ value, onChange, options, placeholder = 'Carreras', clearOnToggle = false }) => {
+// Selector de carrera con el estilo del dashboard: píldora azulada, cuadrito azul con la
+// flecha que gira y menú con buscador. Volver a pulsar la carrera elegida la quita.
+const SimpleDropdown = ({ value, onChange, options, placeholder = 'Todas las carreras' }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = React.useRef(null);
@@ -601,113 +605,105 @@ const SimpleDropdown = ({ value, onChange, options, placeholder = 'Carreras', cl
       <button
         type="button"
         onClick={() => {
-          if (clearOnToggle) {
-            onChange('');
-          }
           setOpen(!open);
           if (open) {
             setSearch('');
           }
         }}
-        className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl text-left flex items-center justify-between transition-all"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="Filtrar por carrera"
+        className="w-full h-11 text-left pl-4 pr-2.5 rounded-full bg-azulado-100 ring-1 ring-inset ring-azulado-300 text-sm text-slate-800 flex items-center justify-between gap-2"
       >
-        <span className={`${selectedLabel ? 'text-slate-800 dark:text-white font-semibold text-sm leading-tight italic' : 'text-slate-400 dark:text-slate-500 italic'}`}>
+        <span className={`truncate ${selectedLabel ? '' : 'text-slate-500'}`}>
           {selectedLabel || placeholder}
         </span>
-        <div className="w-8 h-8 bg-[#2C4AAE] hover:bg-[#1a3a8a] rounded-lg flex items-center justify-center transition-colors">
+        <span className="flex items-center justify-center h-6 w-6 rounded-md bg-[#2C4AAE] flex-shrink-0">
           <svg
-            className={`w-4 h-4 text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+            className={`w-3.5 h-3.5 text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
           </svg>
-        </div>
+        </span>
       </button>
       {open && (
-        <div className="absolute z-40 mt-1 w-full rounded-xl border-2 border-[#2C4AAE] bg-white dark:bg-slate-800 shadow-xl max-h-48 overflow-auto">
-          <div className="p-2 border-b border-slate-200 dark:border-slate-700">
+        <div role="listbox" className="absolute z-40 mt-2 w-full rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl max-h-72 overflow-auto">
+          <div className="p-2">
             <input
               ref={inputRef}
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar carrera..."
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-sm text-slate-800 dark:text-white italic placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full h-9 px-3 rounded-lg text-[13px] text-slate-800 placeholder:text-slate-500 outline-none !bg-azulado-100"
             />
           </div>
-          {filteredOptions.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => {
-                onChange(option.value);
-                setOpen(false);
-                setSearch('');
-              }}
-              className={`w-full text-left px-4 py-2.5 text-sm italic transition-colors ${
-                String(value) === String(option.value)
-                  ? 'bg-[#2C4AAE] text-white font-semibold'
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-[#2C4AAE] hover:text-white'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-          {filteredOptions.length === 0 && (
-            <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 text-center">
-              No hay carreras que coincidan
-            </div>
-          )}
+          <div className="px-2 pb-2">
+            {filteredOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={String(value) === String(option.value)}
+                onClick={() => {
+                  onChange(String(value) === String(option.value) ? '' : option.value);
+                  setOpen(false);
+                  setSearch('');
+                }}
+                className={`w-full text-left px-3 py-1.5 text-xs rounded-lg ${
+                  String(value) === String(option.value)
+                    ? 'bg-sky-600 text-white font-semibold hover:bg-sky-700'
+                    : 'bg-transparent text-slate-700 hover:bg-[#2C4AAE] hover:text-white'
+                }`}
+              >
+                <span className="block truncate">{option.label}</span>
+              </button>
+            ))}
+            {filteredOptions.length === 0 && (
+              <div className="px-3 py-2 text-xs text-slate-500">
+                No hay carreras que coincidan
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
   );
 };
 
-const SearchInput = ({ value, onChange, placeholder = 'Buscar por nombre o C.I....' }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const inputRef = React.useRef(null);
+// Buscador con el estilo del dashboard: siempre visible, con la lupa dentro del campo.
+const SearchInput = ({ value, onChange, placeholder = 'Buscar por nombre o C.I.' }) => (
+  <label className="flex items-center gap-2 w-full sm:w-auto sm:flex-1 sm:max-w-md h-11 px-4 rounded-full bg-azulado-100 ring-1 ring-inset ring-azulado-300 focus-within:ring-blue-900/40">
+    <svg className="w-[18px] h-[18px] text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+    </svg>
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-full text-sm text-slate-800 placeholder:text-slate-500 outline-none"
+      style={{ background: 'transparent', border: 'none', boxShadow: 'none', padding: 0 }}
+    />
+  </label>
+);
 
-  useEffect(() => {
-    if (isExpanded && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [isExpanded]);
+const UsersIcon = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+  </svg>
+);
 
-  const handleBlur = () => {
-    if (!value) {
-      setIsExpanded(false);
-    }
-  };
+const PlusIcon = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+  </svg>
+);
 
-  return (
-    <div className="flex items-center gap-2 flex-row-reverse">
-      <button
-        type="button"
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="p-2.5 bg-[#2C4AAE] hover:bg-[#1a3a8a] text-white rounded-xl transition-all duration-300 hover:scale-110"
-        title="Buscar docente"
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-      </button>
-      <div className={`transition-all duration-300 overflow-hidden ${isExpanded ? 'w-64 opacity-100' : 'w-0 opacity-0'}`}>
-        <input
-          ref={inputRef}
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={handleBlur}
-          placeholder={placeholder}
-          className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border-2 border-[#2C4AAE] rounded-xl text-slate-800 dark:text-white italic placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none transition-all"
-        />
-      </div>
-    </div>
-  );
-};
+const ETIQUETAS_CATEGORIA = { catedratico: 'Catedrático', adjunto: 'Adjunto', asistente: 'Asistente' };
 
 const OPCIONES_CONDICION = [
   { value: 'titular', label: 'Titular' },
@@ -1951,10 +1947,10 @@ function ListaDocentes({ sidebarCollapsed = false }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full bg-slate-50 dark:bg-slate-900">
+      <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-slate-700 dark:text-slate-300">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-900 mx-auto"></div>
+          <p className="mt-4 text-slate-600">
             Cargando docentes...
           </p>
         </div>
@@ -1964,74 +1960,96 @@ function ListaDocentes({ sidebarCollapsed = false }) {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-full bg-slate-50 dark:bg-slate-900 p-6">
-        <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4 rounded-xl shadow-md">
-          <p className="text-red-700 dark:text-red-400">{error}</p>
+      <div className="flex items-center justify-center h-full p-6">
+        <div className={`${BLOQUE} p-6 max-w-md w-full text-center`}>
+          <p className="text-red-600 font-semibold">{error}</p>
         </div>
       </div>
     );
   }
 
+  const totalActivos = docentes.filter((docente) => docente.activo).length;
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
-                Docentes
-              </h1>
-              <p className="text-sm text-slate-700 dark:text-slate-400 mt-1 italic">
-                Gestion del personal docente
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <SearchInput value={searchTerm} onChange={setSearchTerm} />
-              <div className="w-48">
-                <SimpleDropdown
-                  value={selectedCarrera}
-                  onChange={setSelectedCarrera}
-                  options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
-                  placeholder="Carreras"
-                  clearOnToggle
-                />
+    <div className="min-h-full px-3 sm:px-4 md:px-8 py-4 md:py-6 text-slate-800">
+      <div className="space-y-4">
+        {/* Bloque 1: encabezado con la acción y, al lado, el total (como el dashboard de fondos) */}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
+          <div className={`${BLOQUE} p-5 sm:p-6`}>
+            <div className="flex flex-wrap items-center justify-between gap-5">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="hidden sm:flex w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-50 to-azulado-200 ring-1 ring-inset ring-azulado-300 text-blue-900 items-center justify-center flex-shrink-0">
+                  <UsersIcon className="w-7 h-7" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                    Gestión del personal docente
+                  </p>
+                  <h2 className="text-2xl sm:text-3xl font-bold text-blue-900">
+                    Docentes
+                  </h2>
+                </div>
               </div>
               {esAdmin() && (
                 <button
                   onClick={handleToggleCreateForm}
-                  className="px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 flex items-center gap-2"
+                  className={`${BOTON} w-full sm:w-auto px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm`}
                 >
-                  <span>{isCreating ? '-' : '+'}</span>
-                  {isCreating ? 'Cancelar' : 'Nuevo Docente'}
+                  <PlusIcon className="w-5 h-5" />
+                  <span>Nuevo Docente</span>
                 </button>
               )}
             </div>
           </div>
+
+          <div className="rounded-3xl bg-gradient-to-br from-blue-900 to-blue-950 text-white p-5 sm:p-6 flex items-center justify-between gap-4 shadow-[0_4px_14px_rgba(30,58,138,0.25)]">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-blue-200">Total docentes</p>
+              <p className="mt-1 text-sm text-blue-100">
+                {totalActivos} {totalActivos === 1 ? 'activo' : 'activos'}
+              </p>
+            </div>
+            <span className="text-5xl font-bold tabular-nums leading-none">{docentes.length}</span>
+          </div>
+        </div>
+
+        {/* Bloque 2: búsqueda y carrera */}
+        <div className={`${BLOQUE} p-3 flex flex-wrap items-center gap-2 sm:gap-3`}>
+          <SearchInput value={searchTerm} onChange={setSearchTerm} />
+          <div className="min-w-0 flex-1 sm:flex-none sm:w-64">
+            <SimpleDropdown
+              value={selectedCarrera}
+              onChange={setSelectedCarrera}
+              options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
+            />
+          </div>
+          <span className="ml-auto px-2 text-sm text-slate-600 tabular-nums">
+            {docentesFiltrados.length} {docentesFiltrados.length === 1 ? 'docente' : 'docentes'}
+          </span>
         </div>
 
         {/* MODAL DE CREACION DE DOCENTE */}
         {isCreating && createPortal((
           <div
-            className="fixed top-0 right-0 bottom-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            className="fixed top-0 right-0 bottom-0 z-50 flex items-center justify-center bg-blue-950/30 backdrop-blur-sm p-4"
             style={{ left: sidebarCollapsed ? '5rem' : '18rem' }}
           >
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="bg-azulado-50 rounded-3xl ring-1 ring-azulado-300 shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
               {/* Header */}
-              <div className="bg-[#2C4AAE] px-6 py-4">
+              <div className="px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-blue-900 flex items-center gap-2">
                     Nuevo Docente
                   </h2>
                   {abrirDesdeUsuarios && (
-                    <span className="px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-lg text-xs font-semibold text-white flex items-center gap-2">
+                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-azulado-100 text-blue-900 ring-1 ring-inset ring-azulado-300 flex items-center gap-2">
                       Volviendo a Crear Usuario
                     </span>
                   )}
                 </div>
               </div>
               {/* Body */}
-              <form id="crear-docente-form" onSubmit={handleCreateSubmit} noValidate className="flex-1 overflow-hidden p-6 space-y-6 bg-slate-50 dark:bg-slate-900 transition-all duration-300 ease-out">
+              <form id="crear-docente-form" onSubmit={handleCreateSubmit} noValidate className="flex-1 overflow-hidden p-6 space-y-6 transition-all duration-300 ease-out">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="md:col-span-2">
                     <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
@@ -2314,7 +2332,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                 </div>
               </form>
               {/* Footer */}
-              <div className="px-6 py-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+              <div className="px-6 py-4 [border-top:1px_solid_#B8C9E1] flex flex-col-reverse sm:flex-row justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -2326,7 +2344,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                       setIsCreating(false);
                     }
                   }}
-                  className="px-6 py-2.5 rounded-xl font-bold text-slate-700 dark:text-slate-300 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
+                  className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200`}
                 >
                   {abrirDesdeUsuarios ? 'Cancelar y volver' : 'Cancelar'}
                 </button>
@@ -2334,7 +2352,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                   type="submit"
                   form="crear-docente-form"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all flex items-center gap-2 disabled:opacity-50"
+                  className={`${BOTON} px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm disabled:opacity-50`}
                 >
                   {isSubmitting ? (
                     <>
@@ -2352,142 +2370,118 @@ function ListaDocentes({ sidebarCollapsed = false }) {
           </div>
         ), document.body)}
 
-        {/* Lista de docentes */}
+        {/* Bloque 3: docentes en tarjetas de la misma altura */}
         {docentesFiltrados.length > 0 ? (
-          <div className="space-y-4">
-            {docentesFiltrados.map((docente) => (
-              <div
-                key={docente.id}
-                className={`rounded-2xl border-2 shadow-md hover:shadow-xl transition-all duration-200 hover:scale-[1.01] ${
-                  docente.activo
-                    ? 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700'
-                    : 'docente-inactivo-card bg-red-50 dark:bg-red-900/15 border-red-400 dark:border-red-700'
-                }`}
-              >
-                <div className="p-5">
-                  <div className="flex flex-col gap-3">
-                    {/* Primera línea: Avatar + Nombre + Botones */}
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-4 flex-1">
-                        <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-white font-bold shadow-md text-xl flex-shrink-0 ${
-                          docente.activo
-                            ? 'bg-gradient-to-br from-blue-500 to-indigo-600'
-                            : 'bg-gradient-to-br from-red-500 to-rose-700'
-                        }`}>
-                          {docente.nombres[0]}{docente.apellido_paterno[0]}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className={`text-lg font-bold truncate ${docente.activo ? 'text-blue-600 dark:text-white' : 'text-red-700 dark:text-red-300'}`}>
-                            {docente.usuario_nombre || docente.nombre_completo}
-                          </h3>
-                        </div>
+          <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+            {docentesFiltrados.map((docente, indice) => {
+              const vinculo = docente.vinculos?.[0];
+              const roles = obtenerRolesDocente(docente);
+              const nombre = docente.usuario_nombre || docente.nombre_completo;
+              const datos = [
+                { label: 'Categoría', valor: ETIQUETAS_CATEGORIA[vinculo?.categoria] || '—' },
+                { label: 'Dedicación', valor: vinculo ? (ETIQUETAS_DEDICACION[vinculo.dedicacion] || vinculo.dedicacion) : '—' },
+                { label: 'Cargo', valor: roles || '—' },
+              ];
+              const bloqueoEditar = Boolean(docente?.tiene_historial);
+              const bloqueoEliminar = Boolean(docente?.tiene_registros);
+              return (
+                <div
+                  key={docente.id}
+                  style={{ animationDelay: `${Math.min(indice, 8) * 35}ms` }}
+                  className={`${BLOQUE} animate-fondo-entrada p-5 flex flex-col gap-4 ${docente.activo ? '' : '!bg-red-50/70 !ring-red-200'}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar nombre={nombre} size={`w-12 h-12 ${docente.activo ? '' : '!bg-red-700'}`} />
+                      <div className="min-w-0">
+                        <h3 className="text-lg font-bold text-blue-900 truncate" title={nombre}>{nombre}</h3>
+                        <p className="text-sm text-slate-600 truncate">{docente.carrera_nombre || 'Sin carrera'}</p>
                       </div>
+                    </div>
+                    {!docente.activo && (
+                      <span className="docente-inactivo-badge inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-800 ring-1 ring-inset ring-red-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
+                        Inactivo
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 min-w-0">
+                    <Etiqueta>CI: {docente.ci}</Etiqueta>
+                    {docente.usuario_email && (
+                      <span className="min-w-0 max-w-full truncate"><Etiqueta>{docente.usuario_email}</Etiqueta></span>
+                    )}
+                  </div>
+
+                  {/* En el celular cada dato va en su fila; desde sm, en tres columnas. */}
+                  <dl className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-azulado-300 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 py-1 sm:py-2.5">
+                    {datos.map((dato) => (
+                      <div key={dato.label} className="min-w-0 px-3 py-1.5 sm:py-0 flex items-baseline justify-between gap-3 sm:block">
+                        <dt className="text-xs font-semibold text-blue-800">{dato.label}</dt>
+                        <dd className="sm:mt-0.5 text-[13px] font-semibold text-slate-800 truncate" title={dato.valor}>{dato.valor}</dd>
+                      </div>
+                    ))}
+                  </dl>
+
+                  {esAdmin() && (
+                    <div className="mt-auto pt-3 flex flex-wrap items-center gap-2 [border-top:1px_solid_#B8C9E1]">
                       {/* Director: ver la ficha (solo lectura) */}
-                      {!esSuperusuario && esAdmin() && (
-                        <div className="flex gap-3 flex-shrink-0">
-                          <button
-                            onClick={() => abrirModalEditar(docente, { soloLectura: true })}
-                            className="text-blue-500 hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300 transition-all duration-200 hover:scale-110"
-                            title="Ver ficha"
-                          >
-                            <FaEye size={18} />
-                          </button>
-                        </div>
+                      {!esSuperusuario && (
+                        <button
+                          type="button"
+                          onClick={() => abrirModalEditar(docente, { soloLectura: true })}
+                          className={`${BOTON} bg-blue-900 hover:bg-blue-950 text-white`}
+                        >
+                          <FaEye size={14} />
+                          <span>Ver ficha</span>
+                        </button>
                       )}
                       {/* Superusuario: editar (sin historial) y eliminar (sin fondos, cargas ni saldos) */}
-                      {esSuperusuario && (() => {
-                        const bloqueoEditar = Boolean(docente?.tiene_historial);
-                        const bloqueoEliminar = Boolean(docente?.tiene_registros);
-                        return (
-                          <div className="flex gap-3 flex-shrink-0">
-                            <button
-                              onClick={() => !bloqueoEditar && abrirModalEditar(docente)}
-                              disabled={bloqueoEditar}
-                              className={`text-blue-500 ${bloqueoEditar ? 'opacity-50 cursor-not-allowed' : 'hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300 hover:scale-110'} transition-all duration-200`}
-                              title={bloqueoEditar ? 'Ficha fija: el docente tiene un Fondo de Tiempo presentado o informes' : 'Editar'}
-                            >
-                              <FaEdit size={18} />
-                            </button>
-                            <button
-                              onClick={() => !bloqueoEliminar && eliminarDocente(docente)}
-                              disabled={bloqueoEliminar}
-                              className={`text-red-500 ${bloqueoEliminar ? 'opacity-50 cursor-not-allowed' : 'hover:text-red-400 dark:text-red-400 dark:hover:text-red-300 hover:scale-110'} transition-all duration-200`}
-                              title={bloqueoEliminar ? 'No se puede eliminar: el docente tiene fondos, cargas o saldos' : 'Eliminar'}
-                            >
-                              <FaTrash size={18} />
-                            </button>
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Segunda línea: CI, Email, Carrera */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-2 border-slate-300 dark:border-slate-600 shadow-sm">
-                        CI: {docente.ci}
-                      </span>
-                      {docente.usuario_email && (
-                        <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 border-2 border-cyan-300 dark:border-cyan-700 shadow-sm">
-                          {docente.usuario_email}
-                        </span>
-                      )}
-                      {docente.carrera_nombre && (
-                        <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border-2 border-violet-300 dark:border-violet-700 shadow-sm">
-                          Carrera: {docente.carrera_nombre}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Tercera línea: Categoría, Dedicación, Rol adicional */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      {docente.activo ? (
+                      {esSuperusuario && (
                         <>
-                          {docente.vinculos?.[0] && (
-                          <>
-                          <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-2 border-blue-300 dark:border-blue-700 shadow-sm">
-                            {docente.vinculos?.[0]?.categoria === 'catedratico' ? 'Catedrático' :
-                              docente.vinculos?.[0]?.categoria === 'adjunto' ? 'Adjunto' : 'Asistente'}
-                          </span>
-                          <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-2 border-green-300 dark:border-green-700 shadow-sm">
-                            {ETIQUETAS_DEDICACION[docente.vinculos?.[0]?.dedicacion] || docente.vinculos?.[0]?.dedicacion}
-                          </span>
-                          </>
-                          )}
-                          {obtenerRolesDocente(docente) && (
-                            <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-2 border-orange-300 dark:border-orange-700 shadow-sm">
-                              {obtenerRolesDocente(docente)}
-                            </span>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => !bloqueoEditar && abrirModalEditar(docente)}
+                            disabled={bloqueoEditar}
+                            className={`${BOTON} bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-emerald-500`}
+                            title={bloqueoEditar ? 'Ficha fija: el docente tiene un Fondo de Tiempo presentado o informes' : 'Editar'}
+                          >
+                            <FaEdit size={14} />
+                            <span>Editar</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => !bloqueoEliminar && eliminarDocente(docente)}
+                            disabled={bloqueoEliminar}
+                            className={`${BOTON} bg-red-400 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-400`}
+                            title={bloqueoEliminar ? 'No se puede eliminar: el docente tiene fondos, cargas o saldos' : 'Eliminar'}
+                          >
+                            <FaTrash size={13} />
+                            <span>Eliminar</span>
+                          </button>
                         </>
-                      ) : (
-                        <span className="docente-inactivo-badge px-3 py-1 rounded-lg text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-2 border-red-300 dark:border-red-700 shadow-sm">
-                          Docente inactivo
-                        </span>
                       )}
                     </div>
-                  </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-300 dark:border-slate-700 p-12 text-center shadow-md">
-            <div className="w-20 h-20 rounded-full bg-slate-50 dark:bg-slate-700 border-2 border-slate-300 dark:border-slate-600 flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl font-bold text-slate-500 dark:text-slate-300">DOC</span>
-            </div>
-            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
+          <div className={`${BLOQUE} p-10 sm:p-12 text-center`}>
+            <h3 className="text-xl font-bold text-slate-800 mb-2">
               {docentes.length > 0 ? 'No hay docentes que coincidan' : 'No hay docentes registrados'}
             </h3>
-            <p className="text-slate-600 dark:text-slate-400 mb-6">
+            <p className="text-slate-600">
               {docentes.length > 0 ? 'Prueba otro nombre, C.I. o carrera' : 'Comienza agregando tu primer docente'}
             </p>
-            {esAdmin() && (
+            {esAdmin() && docentes.length === 0 && (
               <button
                 onClick={handleToggleCreateForm}
-                className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
+                className={`${BOTON} mt-6 px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm`}
               >
-                <span>+</span>
-                Crear Primer Docente
+                <PlusIcon className="w-5 h-5" />
+                <span>Crear primer docente</span>
               </button>
             )}
           </div>
@@ -2497,14 +2491,14 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       {/* Modal Crear/Editar */}
       {showModal && docenteSeleccionado && createPortal((
         <div
-          className="fixed top-0 right-0 bottom-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+          className="fixed top-0 right-0 bottom-0 z-50 flex items-center justify-center bg-blue-950/30 backdrop-blur-sm p-4 animate-fade-in"
           style={{ left: sidebarCollapsed ? '5rem' : '18rem' }}
         >
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="bg-azulado-50 rounded-3xl ring-1 ring-azulado-300 shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
             {/* Header */}
-            <div className="bg-[#2C4AAE] px-6 py-4">
+            <div className="px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <h2 className="text-xl font-bold text-blue-900 flex items-center gap-2">
                   {fichaSoloLectura ? 'Ficha del Docente' : 'Editar Docente'}
                 </h2>
                 <button
@@ -2523,14 +2517,14 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                   })}
                   className={`relative inline-flex h-8 w-14 items-center rounded-full border transition-all ${
                     formData.activo
-                      ? 'border-white bg-white/95'
-                      : 'border-white/70 bg-slate-900/25'
+                      ? 'border-blue-900 bg-blue-900'
+                      : 'border-azulado-300 bg-azulado-200'
                   }`}
                 >
                   <span
                     className={`inline-block h-6 w-6 transform rounded-full shadow-md transition-transform ${
                       formData.activo
-                        ? 'translate-x-7 bg-[#2C4AAE]'
+                        ? 'translate-x-7 bg-white'
                         : 'translate-x-1 bg-white'
                     }`}
                   />
@@ -2539,7 +2533,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
             </div>
 
             {/* Body */}
-            <form id="editar-docente-form" onSubmit={handleUpdateSubmit} noValidate className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50 dark:bg-slate-900 transition-all duration-300 ease-out">
+            <form id="editar-docente-form" onSubmit={handleUpdateSubmit} noValidate className="flex-1 overflow-y-auto p-6 space-y-6 transition-all duration-300 ease-out">
               <fieldset disabled={fichaSoloLectura} className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <InputField
                   label="Nombre completo"
@@ -2734,12 +2728,12 @@ function ListaDocentes({ sidebarCollapsed = false }) {
             </form>
 
             {/* Footer */}
-            <div className="px-6 py-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+            <div className="px-6 py-4 [border-top:1px_solid_#B8C9E1] flex flex-col-reverse sm:flex-row justify-end gap-2">
                 {!fichaSoloLectura && docenteVinculadoAUsuario && infoEdicionIndex === 0 && (
                   <button
                     type="button"
                     onClick={handleEditarEnUsuarios}
-                    className="px-6 py-2.5 rounded-xl font-semibold border-2 border-blue-600 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all"
+                    className={`${BOTON} px-5 py-2.5 bg-white/70 text-blue-900 ring-1 ring-inset ring-azulado-300 hover:bg-azulado-100`}
                   >
                     Editar en Usuarios
                   </button>
@@ -2747,7 +2741,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
-                className="px-6 py-2.5 rounded-xl font-bold text-slate-700 dark:text-slate-300 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
+                className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200`}
               >
                 {fichaSoloLectura ? 'Cerrar' : 'Cancelar'}
               </button>
@@ -2756,7 +2750,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                 type="submit"
                 form="editar-docente-form"
                 disabled={isSubmitting}
-                className="px-6 py-2.5 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all flex items-center gap-2 disabled:opacity-50"
+                className={`${BOTON} px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm disabled:opacity-50`}
               >
                 {isSubmitting ? (
                   <>

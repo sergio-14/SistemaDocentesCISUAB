@@ -1,26 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { getDocentes } from '../apis/api';
 import { ETIQUETAS_DEDICACION } from '../utils/dedicaciones';
+import { paginar } from '../utils/paginacion';
 import AsignarMateriaOtraCarrera from './AsignarMateriaOtraCarrera';
+import CampoBusqueda from './common/CampoBusqueda';
+import NumeroAnimado from './common/NumeroAnimado';
+import Paginacion from './common/Paginacion';
+import SelectorVista from './common/SelectorVista';
+import { BLOQUE, BOTON_CHICO } from './fondos/estilosFondo';
+import { Avatar, Etiqueta } from './fondos/ElementosFondo';
 
-// --- ICONOS ---
-const SearchIcon = (props) => (
+// Carga Horaria (Jefe de Estudios): los docentes de su carrera para entrar a gestionar su
+// Fondo de Tiempo y, aparte, la asignación de materias a docentes de otra carrera.
+
+const ClockIcon = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
   </svg>
 );
 
-const UserIcon = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-  </svg>
-);
+const ETIQUETAS_CATEGORIA = { catedratico: 'Catedrático', adjunto: 'Adjunto', asistente: 'Asistente' };
+const VISTA_CARGA_KEY = 'carga_horaria_vista';
 
-const BriefcaseIcon = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.67.38m-4.5-8.006c-1.572-.236-3.176-.387-4.812-.387s-3.24.15-4.812.387m4.812 0v4.5m0-4.5c.325 0 .649.01.976.029.935.058 1.848.179 2.735.357.811.16 1.596.374 2.343.633.587.204 1.144.457 1.66.754.516.336.991.75 1.39 1.238.358.397.667.857.914 1.368.204.42.36.877.463 1.352M6.75 14.15c-.194.165-.42.295-.67.38m0 0c-.877.294-1.593.766-2.09 1.337A2.18 2.18 0 003.75 17.385v2.866M6.75 14.15a2.18 2.18 0 01.75-1.661V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0M12 12.75h.008v.008H12v-.008z" />
-  </svg>
+const normalizar = (texto) => String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+const PildoraInactivo = () => (
+  <span className="inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-800 ring-1 ring-inset ring-red-200">
+    <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
+    Inactivo
+  </span>
 );
 
 const CargaHorariaGeneral = () => {
@@ -28,6 +37,15 @@ const CargaHorariaGeneral = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [vista, setVista] = useState(() => {
+    try {
+      return localStorage.getItem(VISTA_CARGA_KEY) === 'lista' ? 'lista' : 'tarjetas';
+    } catch {
+      return 'tarjetas';
+    }
+  });
+  const [pagina, setPagina] = useState(1);
+  const listaRef = useRef(null);
 
   useEffect(() => {
     const fetchDocentes = async () => {
@@ -43,39 +61,26 @@ const CargaHorariaGeneral = () => {
     fetchDocentes();
   }, []);
 
-  const getInitials = (name) => {
-    if (!name) return '??';
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .substring(0, 2)
-      .toUpperCase();
-  };
+  useEffect(() => {
+    setPagina(1);
+  }, [searchTerm]);
 
-  // Lógica robusta para obtener el email
-  const getEmail = (docente) => {
-    return docente.email || 
-           docente.usuario_email || 
-           docente.correo || 
-           docente.usuario?.email || 
-           docente.user?.email || 
-           'Sin email registrado';
+  const cambiarVista = (nuevaVista) => {
+    setVista(nuevaVista);
+    setPagina(1);
+    try {
+      localStorage.setItem(VISTA_CARGA_KEY, nuevaVista);
+    } catch {
+      // Sin almacenamiento disponible la vista simplemente no se recuerda.
+    }
   };
-
-  const filteredDocentes = docentes.filter(docente => {
-    // 🔒 PROTECCIÓN: Optional chaining para todos los accesos
-    const fullName = `${docente?.nombres || ''} ${docente?.apellido_paterno || ''} ${docente?.apellido_materno || ''}`.toLowerCase();
-    const ci = docente?.ci || '';
-    return fullName.includes(searchTerm.toLowerCase()) || ci.includes(searchTerm);
-  });
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-slate-900">
+      <div className="flex items-center justify-center h-full min-h-[50vh]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-slate-700 dark:text-slate-300">Cargando docentes...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-900 mx-auto"></div>
+          <p className="mt-4 text-slate-600">Cargando docentes...</p>
         </div>
       </div>
     );
@@ -83,126 +88,203 @@ const CargaHorariaGeneral = () => {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-slate-900 p-6">
-        <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4 rounded-xl shadow-md">
-          <p className="text-red-700 dark:text-red-400">{error}</p>
+      <div className="flex items-center justify-center h-full min-h-[50vh] p-6">
+        <div className={`${BLOQUE} p-6 max-w-md w-full text-center`}>
+          <p className="text-red-600 font-semibold">{error}</p>
         </div>
       </div>
     );
   }
 
+  // Búsqueda por nombre o C.I., sin importar mayúsculas ni tildes.
+  const texto = normalizar(searchTerm.trim());
+  const filteredDocentes = docentes.filter((docente) => {
+    if (!texto) return true;
+    const nombre = `${docente?.nombres || ''} ${docente?.apellido_paterno || ''} ${docente?.apellido_materno || ''} ${docente?.nombre_completo || ''}`;
+    return normalizar(nombre).includes(texto) || String(docente?.ci || '').includes(searchTerm.trim());
+  });
+  const totalActivos = docentes.filter((docente) => docente.activo).length;
+  const { paginaActual, totalPaginas, itemsPagina: docentesPagina } = paginar(filteredDocentes, pagina, vista);
+  const irAPagina = (nuevaPagina) => {
+    setPagina(nuevaPagina);
+    listaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const infoDocente = (docente) => {
+    const vinculo = docente?.vinculos?.[0];
+    return {
+      nombre: docente?.nombre_completo || `${docente?.nombres || ''} ${docente?.apellido_paterno || ''}`.trim() || 'Sin nombre',
+      email: docente.email || docente.usuario_email || docente.usuario?.email || docente.user?.email || null,
+      datos: [
+        { label: 'Categoría', valor: ETIQUETAS_CATEGORIA[vinculo?.categoria] || vinculo?.categoria || '—' },
+        { label: 'Dedicación', valor: ETIQUETAS_DEDICACION[vinculo?.dedicacion] || vinculo?.dedicacion || '—' },
+      ],
+    };
+  };
+
+  const botonGestionar = (docente) => (
+    <Link
+      to={`/fondo-tiempo/docentes/${docente.id}`}
+      className={`${BOTON_CHICO} bg-blue-900 hover:bg-blue-950 text-white`}
+    >
+      <ClockIcon className="w-3.5 h-3.5" />
+      <span>Gestionar fondo</span>
+    </Link>
+  );
+
+  const claveVista = `${searchTerm}-${paginaActual}`;
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6">
-      <div className="max-w-7xl mx-auto space-y-8">
-        
-        {/* Header */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-lg p-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
-                Gestión de Carga Horaria
-              </h1>
-              <p className="text-sm text-slate-700 dark:text-slate-400 mt-1">
-                Seleccione un docente para asignar su carga horaria anual.
-              </p>
-            </div>
-            
-            {/* Search Bar */}
-            <div className="relative w-full md:w-96">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <SearchIcon className="h-5 w-5 text-slate-400" />
+    <div className="min-h-full w-full max-w-[92rem] mx-auto px-3 sm:px-4 md:px-8 py-4 md:py-6 text-slate-800">
+      <div className="space-y-4">
+        {/* Bloque 1: encabezado y, al lado, el total (como el dashboard de fondos) */}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
+          <div className={`${BLOQUE} p-5 sm:p-6 flex items-center`}>
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="hidden sm:flex w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-50 to-azulado-200 ring-1 ring-inset ring-azulado-300 text-blue-900 items-center justify-center flex-shrink-0">
+                <ClockIcon className="w-7 h-7" />
               </div>
-              <input
-                type="text"
-                placeholder="Buscar por nombre o CI..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm"
-              />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                  Asignación de la carga horaria anual
+                </p>
+                <h2 className="text-2xl sm:text-3xl font-bold text-blue-900">
+                  Carga Horaria
+                </h2>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-3xl bg-gradient-to-br from-blue-900 to-blue-950 text-white p-5 sm:p-6 flex flex-col justify-between gap-4 shadow-[0_4px_14px_rgba(30,58,138,0.25)]">
+            <div className="flex items-start justify-between gap-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-blue-200">Docentes</p>
+              <span className="text-5xl font-bold tabular-nums leading-none">
+                <NumeroAnimado valor={docentes.length} />
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <NumeroAnimado valor={totalActivos} singular="activo" plural="activos" />
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                <NumeroAnimado valor={docentes.length - totalActivos} singular="inactivo" plural="inactivos" />
+              </span>
             </div>
           </div>
         </div>
 
+        {/* Bloque 2: materias de esta carrera para docentes de otra carrera */}
         <AsignarMateriaOtraCarrera />
 
-        {/* Grid of Cards */}
+        {/* Bloque 3: búsqueda y vista */}
+        <div className={`${BLOQUE} p-3 flex flex-wrap items-center gap-2 sm:gap-3`}>
+          <CampoBusqueda value={searchTerm} onChange={setSearchTerm} placeholder="Buscar por nombre o C.I." />
+          <SelectorVista vista={vista} onCambiar={cambiarVista} className="ml-auto" />
+        </div>
+
+        {/* Bloque 4: docentes en tarjetas o en lista (15 por página en lista y 9 en tarjetas) */}
+        <div ref={listaRef} className="scroll-mt-4" />
         {filteredDocentes.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredDocentes.map((docente) => (
-              <div 
-                key={docente.id} 
-                className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col overflow-hidden group"
-              >
-                {/* Card Header with Avatar */}
-                <div className="p-6 flex items-start gap-4">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-xl shadow-lg flex-shrink-0 group-hover:scale-105 transition-transform">
-                    {getInitials(docente?.nombre_completo || `${docente?.nombres || ''} ${docente?.apellido_paterno || ''}`)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-white truncate" title={docente?.nombre_completo || 'Sin nombre'}>
-                      {docente?.nombre_completo || `${docente?.nombres || ''} ${docente?.apellido_paterno || ''}`}
-                    </h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 truncate flex items-center gap-1 mt-1">
-                      <span className="text-xs">📧</span> {getEmail(docente)}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        docente.activo 
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' 
-                          : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                      }`}>
-                        {docente.activo ? 'Activo' : 'Inactivo'}
-                      </span>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                        {docente.vinculos?.[0]?.categoria || 'Docente'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card Body Info */}
-                <div className="px-6 pb-4 space-y-3 flex-1">
-                  <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
-                    <BriefcaseIcon className="w-5 h-5 text-slate-400" />
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Dedicación</p>
-                      <p className="font-medium text-slate-800 dark:text-slate-200 capitalize">
-                        {(() => {
-                            return ETIQUETAS_DEDICACION[docente?.vinculos?.[0]?.dedicacion] || docente?.vinculos?.[0]?.dedicacion || 'No especificada';
-                        })()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
-                    <UserIcon className="w-5 h-5 text-slate-400" />
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">CI</p>
-                      <p className="font-medium text-slate-800 dark:text-slate-200">{docente?.ci || 'N/A'}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card Footer Action */}
-                <div className="p-4 bg-slate-50 dark:bg-slate-700/30 border-t border-slate-100 dark:border-slate-700 mt-auto">
-                  <Link
-                    to={`/fondo-tiempo/docentes/${docente.id}`}
-                    className="block w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-center font-bold rounded-xl shadow-md hover:shadow-lg transition-all transform hover:scale-[1.02]"
-                  >
-                    Gestionar Fondo de Tiempo
-                  </Link>
-                </div>
+          vista === 'lista' ? (
+            // Cuadrícula en vez de <table>: el CSS del módulo POA da estilo a todas las tablas.
+            <div key={`lista-${claveVista}`} className={`${BLOQUE} p-2 sm:p-3`}>
+              <div className="hidden xl:grid xl:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_8rem_10rem_10rem] gap-4 px-3 pt-3 pb-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 [border-bottom:1px_solid_#B8C9E1]">
+                <span>Docente</span>
+                <span>Contacto</span>
+                <span>Categoría</span>
+                <span>Dedicación</span>
+                <span>Acción</span>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-16 bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-200 dark:border-slate-700 border-dashed">
-            <div className="w-20 h-20 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
-              <SearchIcon className="w-10 h-10 text-slate-400" />
+              <div className="divide-y divide-azulado-300">
+                {docentesPagina.map((docente, indice) => {
+                  const info = infoDocente(docente);
+                  return (
+                    <div
+                      key={docente.id}
+                      style={{ animationDelay: `${Math.min(indice, 8) * 35}ms` }}
+                      className={`animate-fondo-entrada grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_8rem_10rem_10rem] items-center gap-x-4 gap-y-3 px-3 py-4 rounded-2xl transition-colors ${
+                        docente.activo ? 'hover:bg-azulado-100/70' : 'bg-red-50/70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar nombre={info.nombre} size={`w-10 h-10 text-sm ${docente.activo ? '' : '!bg-red-700'}`} />
+                        <div className="min-w-0">
+                          <div className="font-bold text-blue-900 truncate" title={info.nombre}>{info.nombre}</div>
+                          {!docente.activo && <div className="text-sm font-semibold text-red-700">Inactivo</div>}
+                        </div>
+                      </div>
+                      <div className="min-w-0 text-tabla text-slate-700">
+                        <div className="tabular-nums">CI: {docente?.ci || '—'}</div>
+                        {info.email && <div className="truncate text-slate-600" title={info.email}>{info.email}</div>}
+                      </div>
+                      {info.datos.map((dato) => (
+                        <div key={dato.label} className="min-w-0 flex items-baseline justify-between gap-3 xl:block">
+                          <span className="xl:hidden text-xs font-semibold text-blue-800">{dato.label}</span>
+                          <span className="block text-tabla font-semibold text-slate-800 truncate">{dato.valor}</span>
+                        </div>
+                      ))}
+                      <div>{botonGestionar(docente)}</div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300">No se encontraron docentes</h3>
-            <p className="text-slate-500 dark:text-slate-400 mt-2">Intenta con otro término de búsqueda.</p>
+          ) : (
+            <div key={`tarjetas-${claveVista}`} className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+              {docentesPagina.map((docente, indice) => {
+                const info = infoDocente(docente);
+                return (
+                  <div
+                    key={docente.id}
+                    style={{ animationDelay: `${Math.min(indice, 8) * 35}ms` }}
+                    className={`${BLOQUE} animate-fondo-entrada p-5 flex flex-col gap-4 ${docente.activo ? '' : '!bg-red-50/70 !ring-red-200'}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar nombre={info.nombre} size={`w-12 h-12 ${docente.activo ? '' : '!bg-red-700'}`} />
+                        <h3 className="text-lg font-bold text-blue-900 leading-tight line-clamp-2" title={info.nombre}>{info.nombre}</h3>
+                      </div>
+                      {!docente.activo && <PildoraInactivo />}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 min-w-0">
+                      <Etiqueta>CI: {docente?.ci || '—'}</Etiqueta>
+                      {info.email && (
+                        <span className="min-w-0 max-w-full truncate"><Etiqueta>{info.email}</Etiqueta></span>
+                      )}
+                    </div>
+
+                    <dl className="grid grid-cols-2 divide-x divide-azulado-300 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 py-2.5">
+                      {info.datos.map((dato) => (
+                        <div key={dato.label} className="min-w-0 px-4">
+                          <dt className="text-xs font-semibold text-blue-800">{dato.label}</dt>
+                          <dd className="mt-0.5 text-[13px] font-semibold text-slate-800 truncate" title={dato.valor}>{dato.valor}</dd>
+                        </div>
+                      ))}
+                    </dl>
+
+                    <div className="mt-auto pt-3 flex justify-end [border-top:1px_solid_#B8C9E1]">
+                      {botonGestionar(docente)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          <div className={`${BLOQUE} p-10 sm:p-12 text-center`}>
+            <h3 className="text-xl font-bold text-slate-800 mb-2">
+              {docentes.length > 0 ? 'No se encontraron docentes' : 'No hay docentes en la carrera'}
+            </h3>
+            <p className="text-slate-600">
+              {docentes.length > 0 ? 'Intenta con otro nombre o C.I.' : 'Los docentes se registran en la sección Docentes.'}
+            </p>
           </div>
         )}
+
+        <Paginacion paginaActual={paginaActual} totalPaginas={totalPaginas} onCambiar={irAPagina} />
       </div>
     </div>
   );

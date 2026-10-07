@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import api, { obtenerTodos } from '../apis/api';
 import toast from 'react-hot-toast';
 import { puedeCrearFondoTiempo } from '../utils/fondoTiempoPermissions';
 import { ETIQUETAS_DEDICACION } from '../utils/dedicaciones';
 import { useActiveRole } from '../contexts/activeRole';
+import { BLOQUE, BOTON } from './fondos/estilosFondo';
+import { Avatar, BarraProgreso, EstadoPill, Etiqueta } from './fondos/ElementosFondo';
 
-// debug: ayuda a asegurar que esta versión se está usando
-console.log('FondoTiempoDocente component loaded (redesign v2).');
+const ETIQUETAS_CATEGORIA = { catedratico: 'Catedrático', adjunto: 'Adjunto', asistente: 'Asistente' };
+
 // --- ICONOS ---
 const PlusIcon = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
@@ -93,17 +95,12 @@ const FondoTiempoDocente = () => {
         };
     }, [id]);
 
-    const getInitials = (name) => {
-        if (!name) return '??';
-        return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-    };
-
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-slate-900">
+            <div className="flex items-center justify-center h-full min-h-[50vh]">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto"></div>
-                    <p className="mt-4 text-slate-700 dark:text-slate-300">Cargando información...</p>
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-900 mx-auto"></div>
+                    <p className="mt-4 text-slate-600">Cargando información...</p>
                 </div>
             </div>
         );
@@ -111,153 +108,123 @@ const FondoTiempoDocente = () => {
 
     if (!docente) {
         return (
-            <div className="flex flex-col items-center justify-center h-screen bg-slate-50 dark:bg-slate-900">
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Docente no encontrado</h2>
-                <button onClick={() => navigate(-1)} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                    Volver
-                </button>
+            <div className="flex items-center justify-center h-full min-h-[50vh] p-6">
+                <div className={`${BLOQUE} p-8 max-w-md w-full text-center`}>
+                    <h2 className="text-xl font-bold text-blue-900">Docente no encontrado</h2>
+                    <button onClick={() => navigate(-1)} className={`${BOTON} mt-4 px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white`}>
+                        Volver
+                    </button>
+                </div>
             </div>
         );
     }
 
-    // 🔒 PROTECCIÓN: Datos seguros con optional chaining
     const nombreCompleto = `${docente?.nombres || ''} ${docente?.apellido_paterno || ''} ${docente?.apellido_materno || ''}`.trim();
-    const iniciales = getInitials(nombreCompleto);
-    const ci = docente?.ci || 'N/A';
-    // categoria y dedicacion ahora vienen del primer vínculo
+    // categoría y dedicación vienen del primer vínculo
     const primerVinculo = docente?.vinculos?.[0] || null;
-    const categoria = primerVinculo?.categoria || 'N/A';
-    const dedicacion = primerVinculo?.dedicacion || 'N/A';
-    const dedicacionLabel = ETIQUETAS_DEDICACION[dedicacion] || dedicacion;
+    const categoria = ETIQUETAS_CATEGORIA[primerVinculo?.categoria] || primerVinculo?.categoria || '—';
+    const dedicacion = primerVinculo?.dedicacion;
+    const dedicacionLabel = ETIQUETAS_DEDICACION[dedicacion] || dedicacion || '—';
     const puedeCrear = puedeCrearFondoTiempo(user);
     const tieneFondoGestionActiva = Boolean(calendarioActivo?.id && fondos.length > 0);
     const puedeCrearNuevoFondo = puedeCrear && !tieneFondoGestionActiva;
+    const nuevoFondo = () => navigate('/fondo-tiempo/nuevo-fondo', { state: { docenteId: docente?.id, docenteNombre: nombreCompleto || 'Sin nombre' } });
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
-            {/* Header Compacto y Moderno */}
-            <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-20 shadow-sm">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex flex-col sm:flex-row items-center justify-between py-4 gap-4">
-                        {/* Info Docente + Botón Volver */}
-                        <div className="flex items-center gap-4 w-full sm:w-auto">
-                            <button
-                                onClick={() => navigate(-1)}
-                                className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                                title="Volver"
-                            >
-                                <ArrowLeftIcon className="w-5 h-5" />
-                            </button>
-
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-md">
-                                    {iniciales}
-                                </div>
-                                <div>
-                                    <h1 className="text-lg font-bold text-slate-800 dark:text-white leading-tight">
-                                        {nombreCompleto || 'Sin nombre'}
-                                    </h1>
-                                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                                        <span className="font-medium">{ci}</span>
-                                        <span>•</span>
-                                        <span className="capitalize">{categoria}</span>
-                                        <span>•</span>
-                                        <span className="text-sm font-medium">{dedicacionLabel}</span>
-                                    </div>
-                                </div>
+        <div className="min-h-full w-full max-w-[92rem] mx-auto px-3 sm:px-4 md:px-8 py-4 md:py-6 space-y-4 text-slate-800">
+            {/* Encabezado: volver, docente con sus datos y la acción */}
+            <div className={`${BLOQUE} p-5 sm:p-6`}>
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 min-w-0">
+                        <button
+                            type="button"
+                            onClick={() => navigate(-1)}
+                            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-azulado-100 text-blue-900 ring-1 ring-inset ring-azulado-300 hover:bg-azulado-200 transition-colors"
+                            title="Volver"
+                            aria-label="Volver"
+                        >
+                            <ArrowLeftIcon className="w-5 h-5" />
+                        </button>
+                        <span className="hidden sm:block"><Avatar nombre={nombreCompleto} size="w-14 h-14 text-lg" /></span>
+                        <div className="min-w-0">
+                            <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">Fondos de Tiempo del docente</p>
+                            <h2 className="text-xl sm:text-2xl font-bold text-blue-900 leading-tight">{nombreCompleto || 'Sin nombre'}</h2>
+                            <div className="mt-1.5 flex flex-wrap gap-2">
+                                <Etiqueta>CI: {docente?.ci || '—'}</Etiqueta>
+                                <Etiqueta>{categoria}</Etiqueta>
+                                <Etiqueta>{dedicacionLabel}</Etiqueta>
                             </div>
                         </div>
-
-                        {/* Botón Acción */}
-                        {puedeCrearNuevoFondo && (
-                            <button data-escritura
-                                onClick={() => navigate('/fondo-tiempo/nuevo-fondo', { state: { docenteId: docente?.id, docenteNombre: nombreCompleto || 'Sin nombre' } })}
-                                className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
-                            >
-                                <PlusIcon className="w-5 h-5" />
-                                <span>Nuevo Fondo</span>
-                            </button>
-                        )}
                     </div>
-                </div>
-            </div>
-
-            {/* Contenido Principal */}
-            <div className="max-w-5xl mx-auto px-4 py-8">
-                {/* Sección de Fondos (estilo timeline) */}
-                <div className="relative">
-                    {fondos.length > 0 ? (
-                        <div className="space-y-8 relative">
-                            {/* Línea vertical central */}
-                            <div className="absolute left-4 sm:left-1/2 top-0 bottom-0 w-0.5 bg-slate-200 dark:bg-slate-700 transform sm:-translate-x-1/2"></div>
-
-                            {fondos.map((fondo, index) => (
-                                <div key={fondo.id} className={`relative flex flex-col sm:flex-row items-center ${index % 2 === 0 ? 'sm:flex-row-reverse' : ''}`}>
-                                    
-                                    {/* Punto en la línea */}
-                                    <div className="absolute left-4 sm:left-1/2 w-4 h-4 bg-white dark:bg-slate-800 border-4 border-blue-500 rounded-full transform -translate-x-1/2 z-10"></div>
-
-                                    {/* Espacio vacío para alternancia */}
-                                    <div className="hidden sm:block w-1/2"></div>
-
-                                    {/* Tarjeta */}
-                                    <div className={`w-full sm:w-1/2 pl-12 sm:pl-0 ${index % 2 === 0 ? 'sm:pr-8' : 'sm:pl-8'}`}>
-                                        <Link
-                                            to={`/fondo-tiempo/fondo/${fondo.id}`}
-                                            className="block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all duration-200 p-5 group hover:border-blue-300 dark:hover:border-blue-700"
-                                        >
-                                            <div className="flex justify-between items-start mb-3">
-                                                <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800">
-                                                    Gestión {fondo.gestion}
-                                                </span>
-                                                <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
-                                                    fondo.estado === 'validado' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800' :
-                                                    fondo.estado === 'aprobado' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800' :
-                                                    'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-700/50 dark:text-slate-400 dark:border-slate-600'
-                                                }`}>
-                                                    {fondo.estado}
-                                                </span>
-                                            </div>
-
-                                            <h3 className="text-base font-bold text-slate-800 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
-                                                {fondo.descripcion}
-                                            </h3>
-
-                                            <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-                                                <div className="flex items-center gap-1">
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                    <span>{fondo.horas_efectivas} hrs</span>
-                                                </div>
-                                                {fondo.fecha_modificacion && (
-                                                    <div className="flex items-center gap-1">
-                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                                        <span>Actualizado: {new Date(fondo.fecha_modificacion).toLocaleDateString()}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </Link>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 border-dashed">
-                            <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mb-4">
-                                <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                            </div>
-                            <p className="text-slate-500 dark:text-slate-400 font-medium">No hay fondos registrados para este docente.</p>
-                            {puedeCrearNuevoFondo && (
-                                <button
-                                    onClick={() => navigate('/fondo-tiempo/nuevo-fondo', { state: { docenteId: docente.id, docenteNombre: docente.nombre_completo || docente.nombres } })}
-                                    className="mt-4 px-5 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-semibold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
-                                >
-                                    Crear el primero
-                                </button>
-                            )}
-                        </div>
+                    {puedeCrearNuevoFondo && (
+                        <button data-escritura
+                            type="button"
+                            onClick={nuevoFondo}
+                            className={`${BOTON} w-full sm:w-auto px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm`}
+                        >
+                            <PlusIcon className="w-5 h-5" />
+                            <span>Nuevo Fondo</span>
+                        </button>
                     )}
                 </div>
             </div>
+
+            {/* Fondos del docente */}
+            {fondos.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                    {fondos.map((fondo, indice) => {
+                        const avance = Math.min(100, Math.max(0, Math.round(fondo.porcentaje_completado || 0)));
+                        return (
+                            <Link
+                                key={fondo.id}
+                                to={`/fondo-tiempo/fondo/${fondo.id}`}
+                                style={{ animationDelay: `${Math.min(indice, 8) * 35}ms` }}
+                                className={`${BLOQUE} animate-fondo-entrada p-5 flex flex-col gap-4 hover:ring-blue-900/30 transition-colors`}
+                            >
+                                <div className="flex items-start justify-between gap-3">
+                                    <Etiqueta>Gestión {fondo.gestion}</Etiqueta>
+                                    <EstadoPill estado={fondo.estado} />
+                                </div>
+                                <h3 className="text-lg font-bold text-blue-900 leading-tight line-clamp-2">{fondo.descripcion || 'Fondo de Tiempo'}</h3>
+                                <div className="flex items-baseline justify-between px-4 py-2 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300">
+                                    <span className="text-xs font-medium text-slate-600">Horas asignadas</span>
+                                    <span className="tabular-nums whitespace-nowrap">
+                                        <span className="font-bold text-slate-800">{Math.round(fondo.total_asignado || 0)}</span>
+                                        <span className="text-sm text-slate-500"> / {Math.round(fondo.horas_efectivas || 0)} hrs</span>
+                                    </span>
+                                </div>
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <span className="text-xs font-medium text-slate-600">Progreso</span>
+                                        <span className="text-sm font-bold text-blue-900 tabular-nums">{avance}%</span>
+                                    </div>
+                                    <BarraProgreso valor={avance} />
+                                </div>
+                                {fondo.fecha_modificacion && (
+                                    <p className="mt-auto pt-3 text-xs text-slate-500 [border-top:1px_solid_#B8C9E1]">
+                                        Actualizado el {new Date(fondo.fecha_modificacion).toLocaleDateString('es-BO')}
+                                    </p>
+                                )}
+                            </Link>
+                        );
+                    })}
+                </div>
+            ) : (
+                <div className={`${BLOQUE} p-10 sm:p-12 text-center`}>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">No hay fondos registrados</h3>
+                    <p className="text-slate-600">Este docente todavía no tiene un Fondo de Tiempo.</p>
+                    {puedeCrearNuevoFondo && (
+                        <button
+                            type="button"
+                            onClick={nuevoFondo}
+                            className={`${BOTON} mt-6 px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm`}
+                        >
+                            <PlusIcon className="w-5 h-5" />
+                            <span>Crear el primero</span>
+                        </button>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

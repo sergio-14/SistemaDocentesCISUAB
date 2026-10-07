@@ -16,6 +16,8 @@ function FiltroDesplegable({
   emptyText = 'No hay coincidencias',
   permitirQuitar = true,
   invalido = false,
+  disabled = false,
+  id,
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -63,8 +65,10 @@ function FiltroDesplegable({
   return (
     <div ref={containerRef} className="relative">
       <input
+        id={id}
         type="text"
         role="combobox"
+        disabled={disabled}
         aria-expanded={open}
         aria-label={ariaLabel}
         aria-invalid={invalido || undefined}
@@ -73,8 +77,8 @@ function FiltroDesplegable({
           setSearch(e.target.value);
           setOpen(true);
         }}
-        onFocus={() => setOpen(true)}
-        onClick={() => setOpen(true)}
+        onFocus={() => !disabled && setOpen(true)}
+        onClick={() => !disabled && setOpen(true)}
         onKeyDown={(e) => {
           // Enter elige la primera coincidencia y no envía el formulario.
           if (e.key === 'Enter') {
@@ -84,12 +88,12 @@ function FiltroDesplegable({
           if (e.key === 'Tab') cerrar();
         }}
         placeholder={open ? (selectedLabel || 'Escribe para buscar...') : placeholder}
-        className={`w-full h-11 pl-4 pr-11 rounded-full ring-inset text-sm text-slate-800 placeholder:text-slate-500 outline-none !bg-azulado-100 ${
+        className={`w-full h-11 pl-4 pr-11 rounded-full ring-inset text-sm text-slate-800 placeholder:text-slate-500 outline-none !bg-azulado-100 disabled:!bg-slate-100 disabled:cursor-not-allowed ${
           invalido ? 'ring-2 ring-red-500' : 'ring-1 ring-azulado-300 focus:ring-2 focus:ring-blue-900/40'
         } ${!open && selectedLabel ? 'font-semibold' : ''}`}
         style={{ border: 'none' }}
       />
-      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center justify-center h-6 w-6 rounded-md bg-[#2C4AAE]">
+      <span className={`pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center justify-center h-6 w-6 rounded-md ${disabled ? 'bg-slate-400' : 'bg-[#2C4AAE]'}`}>
         <svg
           className={`w-3.5 h-3.5 text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
           fill="none"
@@ -99,7 +103,7 @@ function FiltroDesplegable({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
         </svg>
       </span>
-      {open && (
+      {open && !disabled && (
         <div role="listbox" className="absolute z-40 mt-2 w-full rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl max-h-72 overflow-auto p-2">
           {filteredOptions.map((option) => (
             <button

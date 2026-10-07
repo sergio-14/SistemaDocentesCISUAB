@@ -92,6 +92,16 @@ body:not(:has(.poa-app)) button {
   font-weight: 500;
 }
 
+/* El CSS del POA (cargado en toda la app) hace saltar y sombrear todos los botones al
+   pasar el cursor. Fuera del POA se anula: los botones conservan solo sus propias clases
+   (sombras y transformaciones de Tailwind, que se recomponen con sus variables). */
+body:not(:has(.poa-app)) button:not(:disabled):hover,
+body:not(:has(.poa-app)) button:active {
+  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow, 0 0 #0000);
+  filter: none;
+}
+
 /* En el celular los campos van a 16 px (evita el zoom automático de iOS al enfocarlos). */
 @media (max-width: 639px) {
   body:not(:has(.poa-app)) :is(input, select, textarea) {
@@ -138,28 +148,6 @@ html:not(.dark) .shadow-sm {
   border-color: #94a3b8;
 }
 
-html:not(.dark) .dedicacion-accent {
-  border-left-color: var(--dedicacion-accent-color) !important;
-}
-
-html:not(.dark) .gestion-warning-accent {
-  border-left-color: #1e40af !important;
-}
-
-html:not(.dark) .docente-inactivo-card {
-  border-color: #dc2626 !important;
-  background-color: #fef2f2 !important;
-}
-
-html:not(.dark) .docente-inactivo-badge {
-  border-color: #f87171 !important;
-  background-color: #fee2e2 !important;
-}
-
-html:not(.dark) .info-nav-button {
-  border-color: #60a5fa !important;
-  background-color: #dbeafe !important;
-}
 
 
 /* Ocultar scrollbar en Chrome/Safari/Edge */

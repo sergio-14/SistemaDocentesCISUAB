@@ -79,6 +79,20 @@ function validarFechaIngreso(fecha) {
   return null;
 }
 
+// Campos de los formularios de docentes con el estilo de la carga del fondo: píldora
+// azulada, etiqueta chica y sin sombras ni animaciones al pasar el cursor.
+const LABEL_CAMPO = 'block text-xs font-semibold text-slate-700 mb-1.5 pl-1';
+const CAMPO = 'w-full h-11 px-4 rounded-full text-sm text-slate-800 placeholder:text-slate-500 outline-none ring-inset';
+const CAMPO_NORMAL = 'ring-1 ring-azulado-300 focus:ring-2 focus:ring-blue-900/40';
+const CAMPO_ERROR = 'ring-2 ring-red-500';
+const CAMPO_BLOQUEADO = '!bg-slate-100 text-slate-500 cursor-not-allowed';
+
+const LockIcon = () => (
+  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M16 10V7a4 4 0 00-8 0v3m-2 0h12a1 1 0 011 1v8a1 1 0 01-1 1H6a1 1 0 01-1-1v-8a1 1 0 011-1z" />
+  </svg>
+);
+
 function FechaIngresoPicker({ value, onChange, error }) {
   const [open, setOpen] = useState(false);
   const [openQuickPicker, setOpenQuickPicker] = useState(null);
@@ -95,6 +109,8 @@ function FechaIngresoPicker({ value, onChange, error }) {
   const [hasSelectedMonth, setHasSelectedMonth] = useState(false);
   const [hasSelectedYear, setHasSelectedYear] = useState(false);
   const containerRef = React.useRef(null);
+  const popupRef = React.useRef(null);
+  const [popupStyle, setPopupStyle] = useState(null);
   const yearMenuRef = React.useRef(null);
   const currentYearOptionRef = React.useRef(null);
 
@@ -112,16 +128,45 @@ function FechaIngresoPicker({ value, onChange, error }) {
 
   React.useEffect(() => {
     const handleOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpen(false);
-      }
+      if (containerRef.current?.contains(event.target) || popupRef.current?.contains(event.target)) return;
+      setOpen(false);
+    };
+    // Fijo en pantalla: si se desplaza el modal o cambia el tamaño, se cierra.
+    const cerrarAlDesplazar = (event) => {
+      if (popupRef.current?.contains(event.target)) return;
+      setOpen(false);
     };
     if (open) {
       document.addEventListener('mousedown', handleOutside);
+      window.addEventListener('scroll', cerrarAlDesplazar, true);
+      window.addEventListener('resize', cerrarAlDesplazar);
     }
     return () => {
       document.removeEventListener('mousedown', handleOutside);
+      window.removeEventListener('scroll', cerrarAlDesplazar, true);
+      window.removeEventListener('resize', cerrarAlDesplazar);
     };
+  }, [open]);
+
+  React.useLayoutEffect(() => {
+    if (!open || !containerRef.current) {
+      setPopupStyle(null);
+      return;
+    }
+    const campo = containerRef.current.querySelector('[data-campo-fecha]') || containerRef.current;
+    const rect = campo.getBoundingClientRect();
+    const alto = 330;
+    const ancho = Math.min(280, window.innerWidth - 16);
+    const abrirArriba = window.innerHeight - rect.bottom - 12 < alto && rect.top > window.innerHeight - rect.bottom;
+    setPopupStyle({
+      position: 'fixed',
+      left: `${Math.max(8, Math.min(rect.left, window.innerWidth - ancho - 8))}px`,
+      width: `${ancho}px`,
+      ...(abrirArriba
+        ? { bottom: `${window.innerHeight - rect.top + 8}px` }
+        : { top: `${rect.bottom + 8}px` }),
+      zIndex: 99999,
+    });
   }, [open]);
 
   const year = visibleMonth.getFullYear();
@@ -199,8 +244,8 @@ function FechaIngresoPicker({ value, onChange, error }) {
 
   return (
     <div ref={containerRef} className="relative">
-      <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">Fecha de Ingreso <span className="text-red-500">*</span></label>
-      <div className={`relative w-full rounded-xl border-2 bg-slate-50 dark:bg-slate-700 shadow-sm ${error ? '!border-red-600 dark:!border-red-500 ring-1 ring-inset ring-red-500/50' : 'border-slate-300 dark:border-slate-600'} focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent ${isPulsing ? 'animate-field-error-shake' : ''}`}>
+      <label className={LABEL_CAMPO}>Fecha de Ingreso <span className="text-red-500">*</span></label>
+      <div data-campo-fecha className={`relative w-full rounded-full !bg-azulado-100 ring-inset ${error ? CAMPO_ERROR : 'ring-1 ring-azulado-300 focus-within:ring-2 focus-within:ring-blue-900/40'} ${isPulsing ? 'animate-field-error-shake' : ''}`}>
         <input
           type="text"
           inputMode="numeric"
@@ -208,24 +253,26 @@ function FechaIngresoPicker({ value, onChange, error }) {
           value={inputValue}
           onChange={handleManualInputChange}
           onBlur={handleManualInputBlur}
-          className="w-full bg-transparent text-slate-800 dark:text-white px-4 py-2.5 pr-12 rounded-xl focus:outline-none"
+          className="w-full h-11 !bg-transparent text-sm text-slate-800 placeholder:text-slate-500 px-4 pr-12 rounded-full outline-none"
           aria-label="Fecha de Ingreso"
         />
         <button
           type="button"
           onClick={() => setOpen((prev) => !prev)}
-          className="absolute right-1.5 top-1/2 h-8 w-8 rounded-lg border border-[#3A56AF]/40 bg-[#2C4AAE] text-white hover:bg-[#233C8F] transition-colors"
+          className="absolute right-2.5 top-1/2 flex h-6 w-6 items-center justify-center rounded-md bg-[#2C4AAE] text-white hover:bg-[#233C8F] transition-colors"
           style={{ transform: 'translateY(-50%)' }}
           aria-label="Abrir calendario de Fecha de Ingreso"
         >
-          <svg className="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10m-13 9h16a1 1 0 001-1V7a1 1 0 00-1-1H4a1 1 0 00-1 1v12a1 1 0 001 1z" />
           </svg>
         </button>
       </div>
-      {open && (
+      {open && popupStyle && createPortal(
         <div
-          className="absolute z-50 mt-2 w-[268px] max-w-[calc(100vw-2rem)] rounded-xl border border-[#7F97E8]/45 bg-[#2C4AAE] backdrop-blur-xl shadow-2xl p-2.5"
+          ref={popupRef}
+          style={popupStyle}
+          className="rounded-2xl bg-white ring-1 ring-azulado-300 shadow-xl p-3"
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
@@ -237,20 +284,20 @@ function FechaIngresoPicker({ value, onChange, error }) {
                   e.stopPropagation();
                   setOpenQuickPicker((prev) => (prev === 'month' ? null : 'month'));
                 }}
-                className={`w-full h-8 text-left pl-2.5 pr-8 rounded-xl border bg-white dark:bg-slate-800 text-xs shadow-sm ${openQuickPicker === 'month' ? 'border-cyan-500/80 dark:border-cyan-500 ring-2 ring-cyan-400/40 dark:ring-cyan-500/35 text-slate-900 dark:text-slate-100' : 'border-cyan-300/70 dark:border-cyan-700/80 hover:border-cyan-500/70 dark:hover:border-cyan-500/80 text-slate-800 dark:text-slate-100'}`}
+                className={`w-full h-8 text-left pl-3 pr-8 rounded-full text-xs text-slate-800 !bg-azulado-100 ring-inset ${openQuickPicker === 'month' ? 'ring-2 ring-blue-900/40' : 'ring-1 ring-azulado-300'}`}
                 aria-label="Seleccionar mes"
               >
                 <span className="block truncate font-semibold">{hasSelectedMonth && draftMonth !== null ? monthNames[draftMonth] : monthNames[month]}</span>
                 <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
-                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-md bg-cyan-50 dark:bg-cyan-900/30 ring-1 ring-cyan-200/70 dark:ring-cyan-700/70">
-                    <svg className={`w-2.5 h-2.5 text-cyan-700 dark:text-cyan-300 transition-transform duration-200 ${openQuickPicker === 'month' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-[#2C4AAE]">
+                    <svg className={`w-2.5 h-2.5 text-white transition-transform duration-200 ${openQuickPicker === 'month' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
                     </svg>
                   </span>
                 </span>
               </button>
               {openQuickPicker === 'month' && (
-                <div className="absolute z-40 mt-1.5 w-full max-h-40 overflow-auto rounded-xl border border-cyan-300 dark:border-cyan-700 bg-white dark:bg-slate-900 shadow-xl shadow-cyan-900/15 dark:shadow-black/35" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+                <div className="absolute z-40 mt-1.5 w-full max-h-40 overflow-auto rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl p-1" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
                   {monthOptions.map((opt) => {
                     const active = hasSelectedMonth && draftMonth !== null && opt.value === draftMonth;
                     return (
@@ -264,7 +311,7 @@ function FechaIngresoPicker({ value, onChange, error }) {
                           setVisibleMonth(new Date(year, opt.value, 1));
                           setOpenQuickPicker(null);
                         }}
-                        className={`w-full text-left px-3 py-1.5 text-xs border-l-2 ${active ? 'bg-cyan-50 dark:bg-cyan-900/30 border-cyan-500 text-cyan-800 dark:text-cyan-200 font-semibold' : 'bg-transparent border-transparent text-slate-700 dark:text-slate-200 hover:bg-[#2C4AAE] hover:text-white dark:hover:bg-[#2C4AAE]'}`}
+                        className={`w-full text-left px-3 py-1.5 text-xs rounded-lg ${active ? 'bg-sky-600 text-white font-semibold' : 'text-slate-700 hover:bg-[#2C4AAE] hover:text-white'}`}
                       >
                         <span className="block truncate">{opt.label}</span>
                       </button>
@@ -280,20 +327,20 @@ function FechaIngresoPicker({ value, onChange, error }) {
                   e.stopPropagation();
                   setOpenQuickPicker((prev) => (prev === 'year' ? null : 'year'));
                 }}
-                className={`w-full h-8 text-left pl-2.5 pr-8 rounded-xl border bg-white dark:bg-slate-800 text-xs shadow-sm ${openQuickPicker === 'year' ? 'border-cyan-500/80 dark:border-cyan-500 ring-2 ring-cyan-400/40 dark:ring-cyan-500/35 text-slate-900 dark:text-slate-100' : 'border-cyan-300/70 dark:border-cyan-700/80 hover:border-cyan-500/70 dark:hover:border-cyan-500/80 text-slate-800 dark:text-slate-100'}`}
+                className={`w-full h-8 text-left pl-3 pr-8 rounded-full text-xs text-slate-800 !bg-azulado-100 ring-inset ${openQuickPicker === 'year' ? 'ring-2 ring-blue-900/40' : 'ring-1 ring-azulado-300'}`}
                 aria-label="Seleccionar año"
               >
                 <span className="block truncate font-semibold">{hasSelectedYear && draftYear !== null ? draftYear : year}</span>
                 <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
-                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-md bg-cyan-50 dark:bg-cyan-900/30 ring-1 ring-cyan-200/70 dark:ring-cyan-700/70">
-                    <svg className={`w-2.5 h-2.5 text-cyan-700 dark:text-cyan-300 transition-transform duration-200 ${openQuickPicker === 'year' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-[#2C4AAE]">
+                    <svg className={`w-2.5 h-2.5 text-white transition-transform duration-200 ${openQuickPicker === 'year' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
                     </svg>
                   </span>
                 </span>
               </button>
               {openQuickPicker === 'year' && (
-                <div ref={yearMenuRef} className="absolute z-40 mt-1.5 w-full max-h-40 overflow-auto rounded-xl border border-cyan-300 dark:border-cyan-700 bg-white dark:bg-slate-900 shadow-xl shadow-cyan-900/15 dark:shadow-black/35" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+                <div ref={yearMenuRef} className="absolute z-40 mt-1.5 w-full max-h-40 overflow-auto rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl p-1" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
                   {yearOptions.map((y) => {
                     const active = hasSelectedYear && draftYear !== null && y === draftYear;
                     const isCurrentSystemYear = y === currentYearRef;
@@ -309,12 +356,12 @@ function FechaIngresoPicker({ value, onChange, error }) {
                           setVisibleMonth(new Date(y, draftMonth ?? month, 1));
                           setOpenQuickPicker(null);
                         }}
-                        className={`w-full text-left px-3 py-1.5 text-xs border-l-2 ${active ? 'bg-cyan-50 dark:bg-cyan-900/30 border-cyan-500 text-cyan-800 dark:text-cyan-200 font-semibold' : isCurrentSystemYear ? 'bg-blue-50 dark:bg-blue-900/25 border-blue-400 text-blue-800 dark:text-blue-200 font-semibold hover:bg-[#2C4AAE] hover:text-white dark:hover:bg-[#2C4AAE]' : 'bg-transparent border-transparent text-slate-700 dark:text-slate-200 hover:bg-[#2C4AAE] hover:text-white dark:hover:bg-[#2C4AAE]'}`}
+                        className={`w-full text-left px-3 py-1.5 text-xs rounded-lg ${active ? 'bg-sky-600 text-white font-semibold' : isCurrentSystemYear ? 'bg-azulado-100 text-blue-900 font-semibold hover:bg-[#2C4AAE] hover:text-white' : 'text-slate-700 hover:bg-[#2C4AAE] hover:text-white'}`}
                       >
                         <span className="flex items-center justify-between gap-2">
                           <span className="block truncate">{y}</span>
                           {isCurrentSystemYear && !active && (
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-blue-200/80 dark:bg-blue-800/50 text-blue-900 dark:text-blue-100">Actual</span>
+                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-azulado-200 text-blue-900">Actual</span>
                           )}
                         </span>
                       </button>
@@ -326,7 +373,7 @@ function FechaIngresoPicker({ value, onChange, error }) {
           </div>
           <div className="grid grid-cols-7 gap-0.5 mb-1">
             {weekDays.map((wd) => (
-              <div key={wd} className="text-center text-xs font-semibold text-slate-200/85 py-0.5">{wd}</div>
+              <div key={wd} className="text-center text-xs font-semibold text-slate-500 py-0.5">{wd}</div>
             ))}
           </div>
           <div className="grid grid-cols-7 gap-0.5">
@@ -346,17 +393,18 @@ function FechaIngresoPicker({ value, onChange, error }) {
                   disabled={isDisabled}
                   onClick={() => !isDisabled && handlePickDate(cellDate)}
                   className={`h-8 rounded-lg text-xs ${
-                    isDisabled ? 'opacity-30 cursor-not-allowed text-slate-500'
-                    : isSelected ? 'bg-[#4654E8] text-white font-semibold'
-                    : 'text-slate-100 hover:bg-white/15'
-                  } ${isToday && !isSelected && !isDisabled ? 'border border-white/55' : 'border border-transparent'}`}
+                    isDisabled ? 'opacity-30 cursor-not-allowed text-slate-400'
+                    : isSelected ? 'bg-blue-900 text-white font-semibold'
+                    : 'text-slate-700 hover:bg-azulado-100'
+                  } ${isToday && !isSelected && !isDisabled ? 'ring-1 ring-inset ring-blue-900/40' : ''}`}
                 >
                   {cellDate.getDate()}
                 </button>
               );
             })}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
     </div>
@@ -439,17 +487,17 @@ const SelectConDropdown = ({
 
   return (
     <div ref={containerRef} className="relative">
-      <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
+      <label className={LABEL_CAMPO}>
         <span className="inline-flex items-center gap-1.5">
           <span>{label}</span>
           {showLock && (
-            <span title={lockTooltip || 'No editable'} className="text-slate-500 dark:text-slate-400">🔒</span>
+            <span title={lockTooltip || 'No editable'} className="text-slate-400"><LockIcon /></span>
           )}
         </span>
       </label>
       
       {/* Botón principal */}
-      <div className={`relative w-full rounded-xl border-2 bg-slate-50 dark:bg-slate-700 shadow-sm ${disabled ? 'opacity-70' : ''} ${error ? '!border-red-600 dark:!border-red-500 ring-1 ring-inset ring-red-500/50' : open ? 'border-[#3A56AF] dark:border-[#3A56AF]' : 'border-slate-300 dark:border-slate-600'} ${containerClassName} ${isPulsing ? 'animate-field-error-shake' : ''}`}>
+      <div className={`relative w-full rounded-full ring-inset ${/!bg-/.test(containerClassName) ? '' : '!bg-azulado-100'} ${disabled ? 'opacity-70' : ''} ${error ? CAMPO_ERROR : open ? 'ring-2 ring-blue-900/40' : 'ring-1 ring-azulado-300'} ${containerClassName} ${isPulsing ? 'animate-field-error-shake' : ''}`}>
         <button
           type="button"
           onClick={() => {
@@ -457,10 +505,10 @@ const SelectConDropdown = ({
             setOpen((prev) => !prev);
           }}
           disabled={disabled}
-          className={`w-full text-left px-4 py-2.5 rounded-xl bg-transparent text-slate-800 dark:text-white flex items-center justify-between gap-2 ${disabled ? 'cursor-not-allowed' : ''}`}
+          className={`w-full h-11 text-left pl-4 pr-2.5 rounded-full bg-transparent text-sm text-slate-800 flex items-center justify-between gap-2 ${disabled ? 'cursor-not-allowed' : ''}`}
           title={disabled ? (lockTooltip || 'No editable') : undefined}
         >
-          <span className={`truncate ${!value ? 'text-slate-400 dark:text-slate-500' : ''}`}>{displayLabel}</span>
+          <span className={`truncate ${!value ? 'text-slate-500' : ''}`}>{displayLabel}</span>
           {!disabled ? (
             <span className="flex items-center justify-center h-6 w-6 rounded-md bg-[#2C4AAE] ring-1 ring-[#2C4AAE]">
               <svg className={`w-3.5 h-3.5 text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -479,7 +527,7 @@ const SelectConDropdown = ({
 
       {/* Menú desplegable */}
       {open && menuStyle && createPortal(
-        <div ref={menuRef} className="rounded-xl border-2 border-[#3A56AF] bg-white dark:bg-slate-900 shadow-xl" style={menuStyle}>
+        <div ref={menuRef} className="rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl" style={menuStyle}>
           <div className={`p-2 ${menuClassName}`}>
             {options.map((option) => (
               <button
@@ -490,12 +538,12 @@ const SelectConDropdown = ({
                   if (option.disabled) return;
                   handleSelect(option.value);
                 }}
-                className={`w-full text-left px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                className={`w-full text-left px-3 py-1.5 text-xs rounded-lg ${
                   option.value === value
-                    ? 'bg-cyan-50 dark:bg-cyan-900/30 shadow-[inset_2px_0_0_0_#06b6d4] text-cyan-800 dark:text-cyan-200 font-semibold'
+                    ? 'bg-sky-600 text-white font-semibold'
                     : option.disabled
-                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed'
-                    : 'bg-transparent text-slate-700 dark:text-slate-200 hover:bg-[#2C4AAE] hover:text-white hover:shadow-[inset_2px_0_0_0_#2C4AAE] dark:hover:bg-[#2C4AAE]'
+                    ? 'text-slate-400 cursor-not-allowed'
+                    : 'text-slate-700 hover:bg-[#2C4AAE] hover:text-white'
                 }`}
               >
                 <span className="block truncate">{option.label}</span>
@@ -543,11 +591,11 @@ const InputField = ({
 
   return (
   <div>
-    <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
+    <label className={LABEL_CAMPO}>
       <span className="inline-flex items-center gap-1.5">
         <span>{label} {required && <span className="text-red-500">*</span>}</span>
         {showLock && (
-          <span title={lockTooltip || 'No editable'} className="text-slate-500 dark:text-slate-400">🔒</span>
+          <span title={lockTooltip || 'No editable'} className="text-slate-400"><LockIcon /></span>
         )}
       </span>
     </label>
@@ -561,7 +609,7 @@ const InputField = ({
       readOnly={readOnly}
       title={(disabled || readOnly) ? (lockTooltip || 'No editable') : undefined}
       {...rest}
-      className={`w-full px-4 py-2.5 rounded-xl border-2 bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white italic focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm hover:shadow-md ${inputClassName} ${disabled ? 'cursor-not-allowed opacity-80' : ''} ${error ? '!border-red-600 dark:!border-red-500 ring-1 ring-inset ring-red-500/50' : 'border-slate-300 dark:border-slate-600'} ${isPulsing ? 'animate-field-error-shake' : ''}`}
+      className={`${CAMPO} ${error ? CAMPO_ERROR : CAMPO_NORMAL} ${disabled ? CAMPO_BLOQUEADO : /!bg-/.test(inputClassName) ? '' : '!bg-azulado-100'} ${inputClassName} ${isPulsing ? 'animate-field-error-shake' : ''}`}
     />
     {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
   </div>
@@ -718,7 +766,7 @@ const ETIQUETAS_CATEGORIA = { catedratico: 'Catedrático', adjunto: 'Adjunto', a
 const VISTA_DOCENTES_KEY = 'docentes_vista';
 
 const PildoraInactivo = () => (
-  <span className="docente-inactivo-badge inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-800 ring-1 ring-inset ring-red-200">
+  <span className="inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-800 ring-1 ring-inset ring-red-200">
     <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
     Inactivo
   </span>
@@ -736,56 +784,49 @@ const DEDICACIONES_FICHA = ['tiempo_completo', 'medio_tiempo', ...DEDICACIONES_H
 const dedicacionStyles = {
   tiempo_completo: {
     bg: 'bg-blue-50 dark:bg-blue-900/10',
-    accent: 'ring-1 ring-inset ring-blue-600/50 dark:ring-blue-400/50 border-l-[12px] !border-l-blue-800 dark:!border-l-blue-400',
-    leftBorder: '#1d4ed8',
+    accent: 'ring-1 ring-inset ring-blue-200',
     icon: 'text-blue-700',
     title: 'text-blue-900 dark:text-blue-300',
     text: 'text-blue-800 dark:text-blue-400',
   },
   medio_tiempo: {
     bg: 'bg-green-50 dark:bg-green-900/10',
-    accent: 'ring-1 ring-inset ring-green-600/50 dark:ring-green-400/50 border-l-[12px] !border-l-green-800 dark:!border-l-green-400',
-    leftBorder: '#15803d',
+    accent: 'ring-1 ring-inset ring-green-200',
     icon: 'text-green-700',
     title: 'text-green-900 dark:text-green-300',
     text: 'text-green-800 dark:text-green-400',
   },
   horario_16: {
     bg: 'bg-cyan-50 dark:bg-cyan-900/10',
-    accent: 'ring-1 ring-inset ring-cyan-600/50 dark:ring-cyan-400/50 border-l-[12px] !border-l-cyan-800 dark:!border-l-cyan-400',
-    leftBorder: '#0e7490',
+    accent: 'ring-1 ring-inset ring-cyan-200',
     icon: 'text-cyan-700',
     title: 'text-cyan-900 dark:text-cyan-300',
     text: 'text-cyan-800 dark:text-cyan-400',
   },
   horario_24: {
     bg: 'bg-emerald-50 dark:bg-emerald-900/10',
-    accent: 'ring-1 ring-inset ring-emerald-600/50 dark:ring-emerald-400/50 border-l-[12px] !border-l-emerald-800 dark:!border-l-emerald-400',
-    leftBorder: '#047857',
+    accent: 'ring-1 ring-inset ring-emerald-200',
     icon: 'text-emerald-700',
     title: 'text-emerald-900 dark:text-emerald-300',
     text: 'text-emerald-800 dark:text-emerald-400',
   },
   horario_40: {
     bg: 'bg-amber-50 dark:bg-amber-900/10',
-    accent: 'ring-1 ring-inset ring-amber-600/50 dark:ring-amber-400/50 border-l-[12px] !border-l-amber-800 dark:!border-l-amber-400',
-    leftBorder: '#b45309',
+    accent: 'ring-1 ring-inset ring-amber-200',
     icon: 'text-amber-700',
     title: 'text-amber-900 dark:text-amber-300',
     text: 'text-amber-800 dark:text-amber-400',
   },
   horario_48: {
     bg: 'bg-rose-50 dark:bg-rose-900/10',
-    accent: 'ring-1 ring-inset ring-rose-600/50 dark:ring-rose-400/50 border-l-[12px] !border-l-rose-800 dark:!border-l-rose-400',
-    leftBorder: '#be123c',
+    accent: 'ring-1 ring-inset ring-rose-200',
     icon: 'text-rose-700',
     title: 'text-rose-900 dark:text-rose-300',
     text: 'text-rose-800 dark:text-rose-400',
   },
   dedicacion_exclusiva: {
     bg: 'bg-violet-50 dark:bg-violet-900/10',
-    accent: 'ring-1 ring-inset ring-violet-600/50 dark:ring-violet-400/50 border-l-[12px] !border-l-violet-800 dark:!border-l-violet-400',
-    leftBorder: '#6d28d9',
+    accent: 'ring-1 ring-inset ring-violet-200',
     icon: 'text-violet-700',
     title: 'text-violet-900 dark:text-violet-300',
     text: 'text-violet-800 dark:text-violet-400',
@@ -1944,8 +1985,8 @@ function ListaDocentes({ sidebarCollapsed = false }) {
   const tooltipBloqueoHistorial = 'No editable: el docente tiene un Fondo de Tiempo presentado o informes';
   const tooltipBloqueoCarrera = 'No editable: el docente tiene fondos, cargas o saldos en su carrera';
   const tooltipDatosUsuarios = 'Estos datos se gestionan desde Usuarios';
-  const estiloBloqueado = 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-100 border-slate-500 dark:border-slate-600';
-  const estiloAdvertenciaEditable = 'border-amber-300 dark:border-amber-700';
+  const estiloBloqueado = CAMPO_BLOQUEADO;
+  const estiloAdvertenciaEditable = '!ring-amber-300';
 
   const handleEditarEnUsuarios = () => {
     const userId = docenteSeleccionado?.usuario_id || docenteSeleccionado?.user_id;
@@ -2003,7 +2044,12 @@ function ListaDocentes({ sidebarCollapsed = false }) {
     );
   }
 
-  const totalActivos = docentes.filter((docente) => docente.activo).length;
+  // El total sigue a la carrera elegida (al inicio, todas las carreras).
+  const docentesDeCarrera = selectedCarrera
+    ? docentes.filter((docente) => String(docente?.carrera_id || '') === String(selectedCarrera))
+    : docentes;
+  const totalActivos = docentesDeCarrera.filter((docente) => docente.activo).length;
+  const nombreCarreraElegida = carreras.find((carrera) => String(carrera.id) === String(selectedCarrera))?.nombre;
 
   // Columnas de la vista de lista (con o sin la de acciones).
   const columnasLista = esAdmin()
@@ -2102,13 +2148,16 @@ function ListaDocentes({ sidebarCollapsed = false }) {
           </div>
 
           <div className="rounded-3xl bg-gradient-to-br from-blue-900 to-blue-950 text-white p-5 sm:p-6 flex items-center justify-between gap-4 shadow-[0_4px_14px_rgba(30,58,138,0.25)]">
-            <div>
+            <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wider text-blue-200">Total docentes</p>
-              <p className="mt-1 text-sm text-blue-100">
+              <p className="mt-1 text-sm text-blue-100 truncate" title={nombreCarreraElegida || 'Todas las carreras'}>
+                {nombreCarreraElegida || 'Todas las carreras'}
+              </p>
+              <p className="text-sm text-blue-100">
                 {totalActivos} {totalActivos === 1 ? 'activo' : 'activos'}
               </p>
             </div>
-            <span className="text-5xl font-bold tabular-nums leading-none">{docentes.length}</span>
+            <span className="text-5xl font-bold tabular-nums leading-none">{docentesDeCarrera.length}</span>
           </div>
         </div>
 
@@ -2122,10 +2171,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
               options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
             />
           </div>
-          <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            <span className="px-1 text-sm text-slate-600 tabular-nums whitespace-nowrap">
-              {docentesFiltrados.length} {docentesFiltrados.length === 1 ? 'docente' : 'docentes'}
-            </span>
+          <div className="ml-auto">
             <div className="flex items-center gap-1 p-1 rounded-full bg-azulado-100 ring-1 ring-inset ring-azulado-300">
               {[
                 { id: 'tarjetas', label: 'Tarjetas', icon: GridIcon },
@@ -2172,7 +2218,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
               <form id="crear-docente-form" onSubmit={handleCreateSubmit} noValidate className="flex-1 overflow-hidden p-6 space-y-6 transition-all duration-300 ease-out">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
+                    <label className={LABEL_CAMPO}>
                       Buscar nombre o usuario
                     </label>
                     <div ref={userSearchContainerRef} className="relative overflow-visible">
@@ -2220,22 +2266,20 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                           setShowAutocomplete(true);
                         }}
                         placeholder="Buscar por nombre, correo o usuario..."
-                        className={`w-full px-4 py-3 rounded-xl border-2 bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white ${
-                          errors.user ? '!border-red-600 dark:!border-red-500 ring-1 ring-inset ring-red-500/50' : 'border-slate-300 dark:border-slate-600'
-                        } ${isUserSearchPulsing ? 'animate-field-error-shake' : ''}`}
+                        className={`${CAMPO} !bg-azulado-100 ${errors.user ? CAMPO_ERROR : CAMPO_NORMAL} ${isUserSearchPulsing ? 'animate-field-error-shake' : ''}`}
                       />
                       {showAutocomplete && buscarUsuario !== null && (
                         <>
                           <style>{`@keyframes slideDown{from{transform:translateY(-8px);opacity:0}to{transform:translateY(0);opacity:1}} .slide-down{animation:slideDown 220ms ease-out forwards}`}</style>
-                          <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 max-h-64 overflow-auto shadow-2xl slide-down">
+                          <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-xl border-2 border-[#3A56AF] bg-white max-h-64 overflow-auto shadow-xl p-2 slide-down">
                             {usuariosAutocomplete.map((usuarioItem) => (
                               <button
                                 key={usuarioItem.id}
                                 type="button"
                                 onClick={() => handleSeleccionUsuario(usuarioItem)}
-                                className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 border-b last:border-b-0 border-slate-100 dark:border-slate-700"
+                                className="w-full text-left px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-[#2C4AAE] hover:text-white"
                               >
-                                <div className="font-semibold text-slate-800 dark:text-white">
+                                <div className="font-medium">
                                   {`${usuarioItem.first_name || ''} ${usuarioItem.last_name || ''}`.trim() || usuarioItem.username}
                                 </div>
                               </button>
@@ -2250,7 +2294,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                         <button
                           type="button"
                           onClick={handleCrearUsuarioDesdeNuevoDocente}
-                          className="text-blue-600 dark:text-blue-400 font-semibold hover:underline"
+                          className="text-blue-900 font-semibold hover:underline"
                         >
                           Crea uno nuevo
                         </button>
@@ -2269,21 +2313,21 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                           : 'max-h-0 opacity-0 -translate-y-1 pointer-events-none'
                       }`}
                     >
-                      <div key={userInfoKey} className="slide-down rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm">
+                      <div key={userInfoKey} className="slide-down rounded-2xl bg-white/70 ring-1 ring-inset ring-azulado-300 p-4">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                           <div>
-                            <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
+                            <label className={LABEL_CAMPO}>
                               Cargo profesional
                             </label>
-                            <div className="w-full min-h-[46px] whitespace-pre-line px-4 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-sm italic text-slate-800 dark:text-white shadow-sm cursor-not-allowed opacity-80">
+                            <div className="w-full min-h-[2.75rem] whitespace-pre-line px-4 py-2.5 rounded-3xl text-sm text-slate-500 !bg-slate-100 ring-1 ring-inset ring-azulado-300 cursor-not-allowed">
                               {formData.cargo_profesional || ''}
                             </div>
                           </div>
                           <div>
-                            <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
+                            <label className={LABEL_CAMPO}>
                               Carrera
                             </label>
-                            <div className="w-full min-h-[46px] whitespace-pre-line px-4 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-sm italic text-slate-800 dark:text-white shadow-sm cursor-not-allowed opacity-80">
+                            <div className="w-full min-h-[2.75rem] whitespace-pre-line px-4 py-2.5 rounded-3xl text-sm text-slate-500 !bg-slate-100 ring-1 ring-inset ring-azulado-300 cursor-not-allowed">
                               {carreraSeleccionadaNombre}
                             </div>
                           </div>
@@ -2383,12 +2427,10 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                       {mostrarAdvertenciaGestion && (
                         <div
                           key={gestionWarningInfoKey}
-                          className="gestion-warning-accent slide-down rounded-xl p-3.5 shadow-sm bg-gradient-to-r from-blue-600/10 to-indigo-600/10 dark:from-blue-600/20 dark:to-indigo-600/20 ring-1 ring-inset ring-blue-600/50 dark:ring-blue-400/50 border-l-[12px] !border-l-blue-800 dark:!border-l-blue-400"
+                          className="slide-down rounded-2xl p-3.5 bg-blue-50 ring-1 ring-inset ring-blue-200"
                         >
                           <div className="flex items-start gap-3">
-                            <span className="text-xl">
-                              📋
-                            </span>
+                            <InfoIcon className="w-5 h-5 flex-shrink-0 mt-0.5 text-blue-800" />
                             <div className="space-y-1">
                               <p className="text-sm font-bold text-blue-900 dark:text-blue-300">
                                 Cargos de gestión solo compatibles con docencia a Tiempo Horario.
@@ -2412,8 +2454,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                       {showDedicacionInfo && formData.dedicacion && (
                         <div
                           key={dedicacionInfoKey}
-                          className={`dedicacion-accent slide-down rounded-xl p-3.5 shadow-sm ${dedicacionStyles[formData.dedicacion]?.bg} ${dedicacionStyles[formData.dedicacion]?.accent}`}
-                          style={{ '--dedicacion-accent-color': dedicacionStyles[formData.dedicacion]?.leftBorder }}
+                          className={`slide-down rounded-2xl p-3.5 ${dedicacionStyles[formData.dedicacion]?.bg} ${dedicacionStyles[formData.dedicacion]?.accent}`}
                         >
                           <div className="flex items-start gap-3">
                           <InfoIcon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${dedicacionStyles[formData.dedicacion]?.icon}`} />
@@ -2706,14 +2747,14 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                 />
                 {docenteTieneHistorial ? (
                   <div>
-                    <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">
+                    <label className={LABEL_CAMPO}>
                       <span className="inline-flex items-center gap-1.5">
                         <span>Fecha de Ingreso</span>
-                        <span title={tooltipBloqueoHistorial} className="text-slate-500 dark:text-slate-400">🔒</span>
+                        <span title={tooltipBloqueoHistorial} className="text-slate-400"><LockIcon /></span>
                       </span>
                     </label>
-                    <div className="relative w-full rounded-xl border-2 shadow-sm border-slate-500 dark:border-slate-600 bg-slate-300 dark:bg-slate-800">
-                      <div className="w-full text-left px-4 py-2.5 rounded-xl bg-transparent text-slate-500 dark:text-slate-400 flex items-center justify-between gap-2 cursor-not-allowed" title={tooltipBloqueoHistorial}>
+                    <div className="relative w-full rounded-full !bg-slate-100 ring-1 ring-inset ring-azulado-300">
+                      <div className="w-full h-11 text-left pl-4 pr-2.5 rounded-full text-sm text-slate-500 flex items-center justify-between gap-2 cursor-not-allowed" title={tooltipBloqueoHistorial}>
                         <span className="truncate">{formatDisplayDate(formData.fecha_ingreso) || formData.fecha_ingreso}</span>
                         <span className="flex items-center justify-center h-6 w-6 rounded-md bg-slate-500 ring-1 ring-slate-500">
                           <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2799,7 +2840,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                   </div>
                 </div>
                 {!fichaSoloLectura && (
-                <div className="gestion-warning-accent md:col-span-2 slide-down min-h-[180px] rounded-xl border border-blue-200 border-l-[12px] border-l-[#1E3A8A] bg-gradient-to-r from-blue-50 to-indigo-50 p-4 shadow-sm ring-1 ring-inset ring-blue-600/30 transition-all duration-300 dark:border-blue-900/40 dark:border-l-blue-400 dark:from-blue-600/20 dark:to-indigo-600/20 dark:ring-blue-400/50">
+                <div className="md:col-span-2 slide-down min-h-[180px] rounded-2xl bg-blue-50 p-4 ring-1 ring-inset ring-blue-200">
                   <div className="flex items-start gap-3">
                     <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-800 dark:text-blue-300" />
                     <div className="min-w-0 flex-1 space-y-3 text-sm leading-6 text-blue-900 dark:text-blue-200">
@@ -2813,7 +2854,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                           <button
                             type="button"
                             onClick={() => moverInfoEdicion('left')}
-                            className="info-nav-button flex h-8 w-8 items-center justify-center rounded-lg border text-blue-800 transition-colors hover:bg-blue-200 dark:border-blue-700 dark:bg-slate-900/40 dark:text-blue-200 dark:hover:bg-blue-900/40"
+                            className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-blue-900 ring-1 ring-inset ring-azulado-300 transition-colors hover:bg-azulado-200"
                             title="Mensaje anterior"
                             aria-label="Mensaje anterior"
                           >
@@ -2822,7 +2863,7 @@ function ListaDocentes({ sidebarCollapsed = false }) {
                           <button
                             type="button"
                             onClick={() => moverInfoEdicion('right')}
-                            className="info-nav-button flex h-8 w-8 items-center justify-center rounded-lg border text-blue-800 transition-colors hover:bg-blue-200 dark:border-blue-700 dark:bg-slate-900/40 dark:text-blue-200 dark:hover:bg-blue-900/40"
+                            className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-blue-900 ring-1 ring-inset ring-azulado-300 transition-colors hover:bg-azulado-200"
                             title="Mensaje siguiente"
                             aria-label="Mensaje siguiente"
                           >

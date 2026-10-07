@@ -106,6 +106,7 @@ const SECCIONES_INFORME = [
 // Botones del panel de acciones: a lo ancho y con el estilo de los botones del dashboard.
 const ACCION = `${BOTON} w-full py-2.5`;
 const ACCION_DESHABILITADA = 'bg-slate-200 text-slate-500 cursor-not-allowed';
+const ACCION_SECUNDARIA = 'bg-white/70 text-blue-900 ring-1 ring-inset ring-azulado-300 hover:bg-azulado-100';
 
 function DetalleFondo() {
   const { activeAssignment, activeRole, effectiveUser } = useActiveRole();
@@ -900,154 +901,151 @@ function DetalleFondo() {
               </div>
             </div>
 
-            {/* Derecha: estado y acciones */}
+            {/* Derecha: estado y acciones. Las etapas ocupan el alto disponible y las
+                acciones quedan abajo: primero las del trámite, al final el PDF. */}
             <div className={`${BLOQUE} p-6 xl:col-span-3 flex flex-col`}>
               <h3 className="text-base font-bold text-blue-900 mb-4">Estado y acciones</h3>
 
               {/* Arts. 15 y 18: presentado después de los plazos del calendario (no bloquea). */}
               {fondo.fuera_de_plazo?.length > 0 && (
-                <div className="mb-3 rounded-2xl bg-red-50 px-4 py-3 text-xs text-red-700 space-y-1">
+                <div className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-xs text-red-700 space-y-1">
                   {fondo.fuera_de_plazo.map((texto) => (
                     <p key={texto} className="font-semibold">{texto}</p>
                   ))}
                 </div>
               )}
 
-              <EstadoTimeline estado={fondo.estado} />
+              <EstadoTimeline estado={fondo.estado} className="flex-1" />
 
-              <div className="mt-auto pt-4 space-y-2">
-                <div className="pt-4 space-y-2 [border-top:1px_solid_#B8C9E1]">
-                  <button
-                    onClick={abrirPdfEnNuevaPestana}
-                    className={`${ACCION} bg-azulado-100 text-blue-900 hover:bg-azulado-200`}
+              <div className="mt-5 pt-5 space-y-2 [border-top:1px_solid_#B8C9E1]">
+                <p className="pb-1 text-xs font-semibold text-blue-800">Acciones</p>
+                {/* JEFATURA: acciones principales de flujo */}
+                {puedeVolverABorrador && (
+                  <button data-escritura
+                    onClick={volverABorrador}
+                    className={`${ACCION} bg-slate-500 hover:bg-slate-600 text-white`}
                   >
-                    Ver PDF del fondo
+                    Volver a borrador
                   </button>
+                )}
 
-                  {/* JEFATURA: acciones principales de flujo */}
-                  {puedeVolverABorrador && (
-                    <button data-escritura
-                      onClick={volverABorrador}
-                      className={`${ACCION} bg-slate-500 hover:bg-slate-600 text-white`}
-                    >
-                      Volver a borrador
-                    </button>
-                  )}
+                {/* JEFATURA: Presentar a Director */}
+                {puedePresentarADirector && (
+                  <button
+                    onClick={presentarADirector}
+                    disabled={!puedeConfirmarPresentacion}
+                    className={`${ACCION} ${puedeConfirmarPresentacion ? 'bg-blue-900 hover:bg-blue-950 text-white' : ACCION_DESHABILITADA}`}
+                    title={puedeConfirmarPresentacion ? 'Presentar al Director' : motivoPresentacionBloqueada}
+                  >
+                    Presentar al Director
+                  </button>
+                )}
 
-                  {/* JEFATURA: Presentar a Director */}
-                  {puedePresentarADirector && (
+                {/* JEFATURA: Volver a presentar a Director */}
+                {puedeReenviarADirector && (
+                  <button
+                    onClick={presentarADirector}
+                    disabled={!puedeConfirmarPresentacion}
+                    className={`${ACCION} ${puedeConfirmarPresentacion ? 'bg-amber-500 hover:bg-amber-600 text-white' : ACCION_DESHABILITADA}`}
+                    title={puedeConfirmarPresentacion ? 'Reenviar al Director' : motivoPresentacionBloqueada}
+                  >
+                    Reenviar al Director
+                  </button>
+                )}
+
+                {fondoPresentadoADirector && (
+                  <p className="flex items-center justify-center gap-2 rounded-full bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800 ring-1 ring-inset ring-amber-200">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    Esperando revisión del Director
+                  </p>
+                )}
+
+                {/* ADMIN/DIRECTOR: Revisar */}
+                {fondo.estado === 'presentado_director' && esRevisorDelFondo && (
+                  <div className="grid grid-cols-2 gap-2">
                     <button
-                      onClick={presentarADirector}
-                      disabled={!puedeConfirmarPresentacion}
-                      className={`${ACCION} ${puedeConfirmarPresentacion ? 'bg-blue-900 hover:bg-blue-950 text-white' : ACCION_DESHABILITADA}`}
-                      title={puedeConfirmarPresentacion ? 'Presentar al Director' : motivoPresentacionBloqueada}
+                      onClick={abrirFormularioObservar}
+                      className={`${ACCION} bg-amber-500 hover:bg-amber-600 text-white`}
                     >
-                      Presentar al Director
+                      Observar
                     </button>
-                  )}
-
-                  {/* JEFATURA: Volver a presentar a Director */}
-                  {puedeReenviarADirector && (
                     <button
-                      onClick={presentarADirector}
-                      disabled={!puedeConfirmarPresentacion}
-                      className={`${ACCION} ${puedeConfirmarPresentacion ? 'bg-amber-500 hover:bg-amber-600 text-white' : ACCION_DESHABILITADA}`}
-                      title={puedeConfirmarPresentacion ? 'Reenviar al Director' : motivoPresentacionBloqueada}
+                      onClick={() => setMostrarModalAprobar(true)}
+                      className={`${ACCION} bg-emerald-500 hover:bg-emerald-600 text-white`}
                     >
-                      Reenviar al Director
+                      Aprobar
                     </button>
-                  )}
+                  </div>
+                )}
 
-                  {/* Por qué no se puede presentar todavía */}
-                  {(puedePresentarADirector || puedeReenviarADirector) && !puedeConfirmarPresentacion && (
-                    <p className="rounded-2xl bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
-                      {motivoPresentacionBloqueada}
-                    </p>
-                  )}
+                {fondo.puede_iniciar_ejecucion && (
+                  <button
+                    onClick={() => setMostrarModalIniciarEjecucion(true)}
+                    className={`${ACCION} bg-sky-600 hover:bg-sky-700 text-white`}
+                  >
+                    Iniciar ejecución
+                  </button>
+                )}
 
-                  {fondoPresentadoADirector && (
-                    <p className="rounded-full bg-azulado-100 px-4 py-2.5 text-center text-sm font-semibold text-slate-600">
-                      Presentado al Director
-                    </p>
-                  )}
+                {/* DOCENTE: Presentar Informe - página dedicada, no modal */}
+                {/* Lo decide el backend con el rol activo (docente dueño, fondo en ejecución,
+                    informe sin enviar): User.is_staff no sirve, un Jefe también es docente. */}
+                {fondo.puede_editar_informe && (
+                  <button
+                    onClick={() => window.open(`/fondos/${fondo.id}/informe`, '_blank', 'noopener,noreferrer')}
+                    className={`${ACCION} bg-blue-900 hover:bg-blue-950 text-white`}
+                  >
+                    Redactar informe
+                  </button>
+                )}
 
-                  {/* ADMIN/DIRECTOR: Revisar */}
-                  {fondo.estado === 'presentado_director' && esRevisorDelFondo && (
+                {/* Informe presentado o aprobado: solo lectura y PDF para todo el que ve el
+                    fondo (el backend ya limita el detalle: docente dueño, Jefe, Director e
+                    Instituto de la carrera, superusuario). */}
+                {['informe_presentado', 'finalizado'].includes(fondo.estado) && (
+                  <button
+                    onClick={() => window.open(`/fondos/${fondo.id}/informe`, '_blank', 'noopener,noreferrer')}
+                    className={`${ACCION} bg-blue-900 hover:bg-blue-950 text-white`}
+                  >
+                    Ver informe
+                  </button>
+                )}
+
+                {/* ADMIN: Evaluar Informe */}
+                {fondo.estado === 'informe_presentado' && esRevisorDelFondo && (
+                  <>
+                    <button
+                      onClick={() => setMostrarModalInforme(true)}
+                      className={`${ACCION} ${ACCION_SECUNDARIA}`}
+                    >
+                      Revisar informe
+                    </button>
                     <div className="grid grid-cols-2 gap-2">
                       <button
-                        onClick={abrirFormularioObservar}
+                        onClick={() => setMostrarModalObservarInforme(true)}
                         className={`${ACCION} bg-amber-500 hover:bg-amber-600 text-white`}
                       >
-                        Observar
+                        Correcciones
                       </button>
                       <button
-                        onClick={() => setMostrarModalAprobar(true)}
+                        onClick={() => setMostrarFormEvaluarInforme(true)}
                         className={`${ACCION} bg-emerald-500 hover:bg-emerald-600 text-white`}
                       >
                         Aprobar
                       </button>
                     </div>
-                  )}
+                  </>
+                )}
 
-                  {fondo.puede_iniciar_ejecucion && (
-                    <button
-                      onClick={() => setMostrarModalIniciarEjecucion(true)}
-                      className={`${ACCION} bg-sky-600 hover:bg-sky-700 text-white`}
-                    >
-                      Iniciar ejecución
-                    </button>
-                  )}
-
-                  {/* DOCENTE: Presentar Informe - página dedicada, no modal */}
-                  {/* Lo decide el backend con el rol activo (docente dueño, fondo en ejecución,
-                      informe sin enviar): User.is_staff no sirve, un Jefe también es docente. */}
-                  {fondo.puede_editar_informe && (
-                    <button
-                      onClick={() => window.open(`/fondos/${fondo.id}/informe`, '_blank', 'noopener,noreferrer')}
-                      className={`${ACCION} bg-blue-900 hover:bg-blue-950 text-white`}
-                    >
-                      Redactar informe
-                    </button>
-                  )}
-
-                  {/* Informe presentado o aprobado: solo lectura y PDF para todo el que ve el
-                      fondo (el backend ya limita el detalle: docente dueño, Jefe, Director e
-                      Instituto de la carrera, superusuario). */}
-                  {['informe_presentado', 'finalizado'].includes(fondo.estado) && (
-                    <button
-                      onClick={() => window.open(`/fondos/${fondo.id}/informe`, '_blank', 'noopener,noreferrer')}
-                      className={`${ACCION} bg-blue-900 hover:bg-blue-950 text-white`}
-                    >
-                      Ver informe
-                    </button>
-                  )}
-
-                  {/* ADMIN: Evaluar Informe */}
-                  {fondo.estado === 'informe_presentado' && esRevisorDelFondo && (
-                    <>
-                      <button
-                        onClick={() => setMostrarModalInforme(true)}
-                        className={`${ACCION} bg-azulado-100 text-blue-900 hover:bg-azulado-200`}
-                      >
-                        Revisar informe
-                      </button>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => setMostrarModalObservarInforme(true)}
-                          className={`${ACCION} bg-amber-500 hover:bg-amber-600 text-white`}
-                        >
-                          Correcciones
-                        </button>
-                        <button
-                          onClick={() => setMostrarFormEvaluarInforme(true)}
-                          className={`${ACCION} bg-emerald-500 hover:bg-emerald-600 text-white`}
-                        >
-                          Aprobar
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
+                <button
+                  onClick={abrirPdfEnNuevaPestana}
+                  className={`${ACCION} ${ACCION_SECUNDARIA}`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                  </svg>
+                  Ver PDF del fondo
+                </button>
               </div>
             </div>
           </div>

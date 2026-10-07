@@ -20,20 +20,22 @@ const INDICE_POR_ESTADO = {
   finalizado: 5,
 };
 
-const EstadoTimeline = ({ estado }) => {
+// Con className="flex-1" las etapas se reparten el alto disponible (hasta un tope por
+// etapa, para que no queden demasiado separadas).
+const EstadoTimeline = ({ estado, className = '' }) => {
   const indiceActual = INDICE_POR_ESTADO[estado] ?? 0;
   const conProblema = ['observado', 'rechazado'].includes(estado);
 
   return (
-    <div>
+    <div className={`flex flex-col ${className}`}>
       {/* Etapas */}
-      <ol className="space-y-0">
+      <ol className="flex-1 flex flex-col">
         {ETAPAS.map((etapa, idx) => {
           const completa = idx < indiceActual || estado === 'finalizado';
           const actual = idx === indiceActual && estado !== 'finalizado';
           const ultima = idx === ETAPAS.length - 1;
           return (
-            <li key={etapa.key} className="relative flex items-start gap-3 pb-3 last:pb-0">
+            <li key={etapa.key} className={`relative flex items-start gap-3 ${ultima ? '' : 'flex-1 min-h-[2.25rem] max-h-[4.5rem] pb-3'}`}>
               {!ultima && (
                 <span className={`absolute left-[9px] top-5 bottom-0 w-0.5 rounded-full ${completa ? 'bg-sky-500' : 'bg-azulado-300'}`} />
               )}

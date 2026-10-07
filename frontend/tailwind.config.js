@@ -81,6 +81,8 @@ export default {
         'xl': ['var(--texto-xl)', { lineHeight: 'var(--interlineado-xl)' }],
         '2xl': ['var(--texto-2xl)', { lineHeight: 'var(--interlineado-2xl)' }],
         '3xl': ['var(--texto-3xl)', { lineHeight: 'var(--interlineado-3xl)' }],
+        // Celdas de tablas: un poco más chicas que el texto base.
+        'tabla': ['var(--texto-tabla)', { lineHeight: 'var(--interlineado-tabla)' }],
       },
       fontWeight: {
         'bold': 'var(--peso-bold)',

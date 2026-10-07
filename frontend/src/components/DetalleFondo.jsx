@@ -886,7 +886,7 @@ function DetalleFondo() {
                     {[...(fondo.categorias || [])]
                       .sort((a, b) => ORDEN_UNIDADES.indexOf(a.tipo) - ORDEN_UNIDADES.indexOf(b.tipo))
                       .map((categoria) => (
-                        <div key={categoria.tipo} className="grid grid-cols-[minmax(0,1fr)_5.5rem_4.5rem] items-center gap-3 px-3 py-2.5 text-sm">
+                        <div key={categoria.tipo} className="grid grid-cols-[minmax(0,1fr)_5.5rem_4.5rem] items-center gap-3 px-3 py-2.5 text-tabla">
                           <span className="flex items-center gap-2.5 text-slate-700 min-w-0">
                             <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: colorUnidad(categoria.tipo) }} />
                             <span className="truncate">{categoria.tipo_display}</span>
@@ -895,7 +895,7 @@ function DetalleFondo() {
                           <span className="text-right text-slate-600 tabular-nums">{Number(categoria.porcentaje || 0).toFixed(1)}%</span>
                         </div>
                       ))}
-                    <div className="grid grid-cols-[minmax(0,1fr)_5.5rem_4.5rem] items-center gap-3 px-3 py-2.5 text-sm font-bold text-blue-900">
+                    <div className="grid grid-cols-[minmax(0,1fr)_5.5rem_4.5rem] items-center gap-3 px-3 py-2.5 text-tabla font-bold text-blue-900">
                       <span>Total</span>
                       <span className="text-right tabular-nums">{totalUnidades}</span>
                       <span className="text-right tabular-nums">
@@ -1129,7 +1129,7 @@ function DetalleFondo() {
                         <div className="divide-y divide-azulado-300">
                           {detalles.map((detalle, dIdx) => {
                             const editando = edicionCarga?.id === detalle.id;
-                            const inputEdicion = 'h-9 rounded-full text-sm outline-none ring-1 ring-inset focus:ring-2 focus:ring-blue-900/40 !bg-azulado-100';
+                            const inputEdicion = 'h-9 rounded-full text-tabla outline-none ring-1 ring-inset focus:ring-2 focus:ring-blue-900/40 !bg-azulado-100';
                             const teclasEdicion = (e) => {
                               if (e.key === 'Enter') { e.preventDefault(); guardarEdicionCarga(); }
                               if (e.key === 'Escape') setEdicionCarga(null);
@@ -1139,7 +1139,7 @@ function DetalleFondo() {
                               key={detalle.id ?? dIdx}
                               className={`grid grid-cols-1 ${columnasActividades} transition-colors ${editando ? 'bg-azulado-50' : 'hover:bg-azulado-50'}`}
                             >
-                              <div className="px-5 pt-4 pb-1 lg:py-4 text-sm font-semibold text-slate-800 min-w-0">
+                              <div className="px-5 pt-4 pb-1 lg:py-4 text-tabla font-semibold text-slate-800 min-w-0">
                                 {editando && edicionCarga.esOtros ? (
                                   <input
                                     type="text"
@@ -1173,11 +1173,11 @@ function DetalleFondo() {
                                   />
                                 )}
                               </div>
-                              <div className="px-5 py-1 lg:py-4 text-sm text-slate-600">
+                              <div className="px-5 py-1 lg:py-4 text-tabla text-slate-600">
                                 <span className="lg:hidden font-semibold text-blue-800">Tipo: </span>
                                 {detalle.tipo_actividad_display || '-'}
                               </div>
-                              <div className="px-5 py-1 lg:py-4 text-sm font-bold text-blue-900 lg:text-center tabular-nums">
+                              <div className="px-5 py-1 lg:py-4 text-tabla font-bold text-blue-900 lg:text-center tabular-nums">
                                 <span className="lg:hidden font-semibold text-blue-800">Horas/año: </span>
                                 {editando ? (
                                   <input
@@ -1194,7 +1194,7 @@ function DetalleFondo() {
                                   />
                                 ) : detalle.horas}
                               </div>
-                              <div className="px-5 py-1 lg:py-4 text-sm text-slate-600 break-words">
+                              <div className="px-5 py-1 lg:py-4 text-tabla text-slate-600 break-words">
                                 <span className="lg:hidden font-semibold text-blue-800">Evidencias: </span>
                                 {detalle.evidencias || '-'}
                               </div>

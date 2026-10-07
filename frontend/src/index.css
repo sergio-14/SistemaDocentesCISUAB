@@ -20,7 +20,8 @@ body {
    font-bold, font-sans) y las reglas de abajo fijan la base.
    - Inter (Google Fonts, index.html) con respaldo system-ui.
    - Base 14 px; título de página 24 px (text-2xl/3xl); títulos
-     de sección 18 px (text-lg/xl); etiquetas y ayudas 12 px (text-xs).
+     de sección 18 px (text-lg/xl); celdas de tablas 13 px
+     (text-tabla); etiquetas y ayudas 12 px (text-xs).
    - Interlineado 1.5 en texto y 1.25 en títulos.
    - Títulos (h1-h6) en negrita 700; en el resto, bold y mayores
      = semibold 600; botones medium 500.
@@ -41,6 +42,8 @@ body {
   --interlineado-2xl: 1.25;
   --texto-3xl: 1.5rem;
   --interlineado-3xl: 1.25;
+  --texto-tabla: 0.8125rem;
+  --interlineado-tabla: 1.5;
   --peso-bold: 600;
   --peso-extrabold: 600;
   --peso-black: 600;

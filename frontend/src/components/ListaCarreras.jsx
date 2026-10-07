@@ -6,6 +6,7 @@ import api from '../apis/api';
 import { EVENTO_CARRERAS_ACTUALIZADAS } from './common/AvisoCarreraInactiva';
 import toast from 'react-hot-toast';
 import { hoyBolivia } from '../utils/fechas';
+import { CalendarioFlotante } from './common/CalendarioFecha';
 import { useActiveRole } from '../contexts/activeRole';
 import {
   ERROR_FIELD_BORDER_CLASS,
@@ -533,12 +534,6 @@ const SelectConDropdown = ({
   );
 };
 
-const weekDays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-const monthNames = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-];
-
 function parseIsoDate(iso) {
   if (!iso || typeof iso !== 'string') return null;
   const parts = iso.split('-').map(Number);
@@ -575,24 +570,13 @@ function parseDisplayDate(display) {
   return d;
 }
 
+const MENSAJE_FECHA_FUTURA = 'La fecha de resolución de creación (HCU) no puede ser futura.';
+
 const DatePickerField = ({ label, name, value, onDateChange, error, maxIsoDate, pulse = 0, disabled = false }) => {
   const [open, setOpen] = useState(false);
   const [isPulsing, setIsPulsing] = useState(false);
-  const [openQuickPicker, setOpenQuickPicker] = useState(null);
   const [inputValue, setInputValue] = useState(formatDisplayDate(value));
-  const [visibleMonth, setVisibleMonth] = useState(() => {
-    const selectedDate = parseIsoDate(value);
-    const today = new Date();
-    return selectedDate ? new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1) : new Date(today.getFullYear(), today.getMonth(), 1);
-  });
-  const [draftDay, setDraftDay] = useState(null);
-  const [draftMonth, setDraftMonth] = useState(null);
-  const [draftYear, setDraftYear] = useState(null);
-  const [hasSelectedMonth, setHasSelectedMonth] = useState(false);
-  const [hasSelectedYear, setHasSelectedYear] = useState(false);
-  const containerRef = useRef(null);
-  const yearMenuRef = useRef(null);
-  const currentYearOptionRef = useRef(null);
+  const campoRef = useRef(null);
 
   useEffect(() => {
     setInputValue(formatDisplayDate(value));
@@ -606,79 +590,10 @@ const DatePickerField = ({ label, name, value, onDateChange, error, maxIsoDate, 
     return () => { cancelAnimationFrame(frame); clearTimeout(to); };
   }, [error, pulse]);
 
-  useEffect(() => {
-    const handleOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-    if (open) {
-      document.addEventListener('mousedown', handleOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleOutside);
-    };
-  }, [open]);
-
-  const year = visibleMonth.getFullYear();
-  const month = visibleMonth.getMonth();
-  const today = new Date();
-  const currentYearRef = today.getFullYear();
-  const startYear = currentYearRef - 25;
-  const endYear = currentYearRef + 25;
-  const yearOptions = Array.from({ length: endYear - startYear + 1 }, (_, idx) => startYear + idx);
-  const monthOptions = monthNames.map((labelItem, valueIndex) => ({ value: valueIndex, label: labelItem }));
-  const firstDay = new Date(year, month, 1);
-  const offset = (firstDay.getDay() + 6) % 7;
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const calendarCells = [];
-  for (let i = 0; i < offset; i += 1) calendarCells.push(null);
-  for (let d = 1; d <= daysInMonth; d += 1) {
-    calendarCells.push(new Date(year, month, d));
-  }
-  while (calendarCells.length % 7 !== 0) calendarCells.push(null);
-
-  const isSameDate = (a, b) => (
-    a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
-  );
-
-  useEffect(() => {
-    if (openQuickPicker !== 'year') return;
-
-    const rafId = requestAnimationFrame(() => {
-      const menuEl = yearMenuRef.current;
-      const currentYearEl = currentYearOptionRef.current;
-      if (!menuEl || !currentYearEl) return;
-
-      const targetTop = currentYearEl.offsetTop - (menuEl.clientHeight / 2) + (currentYearEl.clientHeight / 2);
-      menuEl.scrollTop = Math.max(0, targetTop);
-    });
-
-    return () => cancelAnimationFrame(rafId);
-  }, [openQuickPicker]);
-
   const isOverMaxDate = (dateObj) => {
     const maxDateObj = parseIsoDate(maxIsoDate);
     if (!maxDateObj) return false;
     return dateObj > maxDateObj;
-  };
-
-  const commitDate = (dateObj) => {
-    if (isOverMaxDate(dateObj)) {
-      toast.error('La fecha de resolución de creación (HCU) no puede ser futura.');
-      return;
-    }
-    const iso = toIsoDate(dateObj);
-    onDateChange(name, iso);
-    setInputValue(formatDisplayDate(iso));
-    setOpen(false);
-  };
-
-  const handlePickDate = (dateObj) => {
-    setDraftDay(dateObj.getDate());
-    setHasSelectedMonth(true);
-    setHasSelectedYear(true);
-    commitDate(dateObj);
   };
 
   const handleManualInputChange = (e) => {
@@ -696,11 +611,10 @@ const DatePickerField = ({ label, name, value, onDateChange, error, maxIsoDate, 
       const parsed = parseDisplayDate(formatted);
       if (parsed) {
         if (isOverMaxDate(parsed)) {
-          toast.error('La fecha de resolución de creación (HCU) no puede ser futura.');
+          toast.error(MENSAJE_FECHA_FUTURA);
           return;
         }
         onDateChange(name, toIsoDate(parsed));
-        setVisibleMonth(new Date(parsed.getFullYear(), parsed.getMonth(), 1));
       }
     }
     if (!formatted) {
@@ -716,14 +630,13 @@ const DatePickerField = ({ label, name, value, onDateChange, error, maxIsoDate, 
     const parsed = parseDisplayDate(inputValue);
     if (parsed) {
       if (isOverMaxDate(parsed)) {
-        toast.error('La fecha de resolución de creación (HCU) no puede ser futura.');
+        toast.error(MENSAJE_FECHA_FUTURA);
         setInputValue(formatDisplayDate(value));
         return;
       }
       const iso = toIsoDate(parsed);
       onDateChange(name, iso);
       setInputValue(formatDisplayDate(iso));
-      setVisibleMonth(new Date(parsed.getFullYear(), parsed.getMonth(), 1));
       return;
     }
     onDateChange(name, '');
@@ -733,9 +646,9 @@ const DatePickerField = ({ label, name, value, onDateChange, error, maxIsoDate, 
   const errorMessage = Array.isArray(error) ? (error[0] || '') : error;
 
   return (
-    <div ref={containerRef} className={`relative ${error && isPulsing ? ERROR_MOTION_CLASS : ''}`}>
+    <div className={`relative ${error && isPulsing ? ERROR_MOTION_CLASS : ''}`}>
       <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">{label} {error && <span className="text-red-500">*</span>}</label>
-      <div className={`relative w-full rounded-xl border-2 bg-slate-50 dark:bg-slate-700 shadow-sm ${error ? ERROR_FIELD_BORDER_CLASS : 'border-slate-300 dark:border-slate-600'} focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent`}>
+      <div ref={campoRef} className={`relative w-full rounded-xl border-2 bg-slate-50 dark:bg-slate-700 shadow-sm ${error ? ERROR_FIELD_BORDER_CLASS : 'border-slate-300 dark:border-slate-600'} focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent`}>
         <input
           type="text"
           inputMode="numeric"
@@ -761,135 +674,23 @@ const DatePickerField = ({ label, name, value, onDateChange, error, maxIsoDate, 
         </button>
       </div>
 
-      {open && !disabled && (
-        <div
-          className="absolute z-50 mt-2 w-[268px] max-w-[calc(100vw-2rem)] rounded-xl border border-[#7F97E8]/45 bg-[#2C4AAE] backdrop-blur-xl shadow-2xl p-2.5"
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="grid grid-cols-2 gap-1.5 mb-2">
-            <div className="relative">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpenQuickPicker((prev) => (prev === 'month' ? null : 'month'));
-                }}
-                className={`w-full h-8 text-left pl-2.5 pr-8 rounded-xl border bg-white dark:bg-slate-800 text-xs shadow-sm ${openQuickPicker === 'month' ? 'border-cyan-500/80 dark:border-cyan-500 ring-2 ring-cyan-400/40 dark:ring-cyan-500/35 text-slate-900 dark:text-slate-100' : 'border-cyan-300/70 dark:border-cyan-700/80 hover:border-cyan-500/70 dark:hover:border-cyan-500/80 text-slate-800 dark:text-slate-100'}`}
-              >
-                <span className="block truncate font-semibold">{hasSelectedMonth && draftMonth !== null ? monthNames[draftMonth] : monthNames[month]}</span>
-                <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
-                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-md bg-cyan-50 dark:bg-cyan-900/30 ring-1 ring-cyan-200/70 dark:ring-cyan-700/70">
-                    <svg className={`w-2.5 h-2.5 text-cyan-700 dark:text-cyan-300 transition-transform duration-200 ${openQuickPicker === 'month' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </span>
-                </span>
-              </button>
-              {openQuickPicker === 'month' && (
-                <div className="absolute z-40 mt-1.5 w-full max-h-40 overflow-auto rounded-xl border border-cyan-300 dark:border-cyan-700 bg-white dark:bg-slate-900 shadow-xl shadow-cyan-900/15 dark:shadow-black/35" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-                  {monthOptions.map((opt) => {
-                    const active = hasSelectedMonth && draftMonth !== null && opt.value === draftMonth;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDraftMonth(opt.value);
-                          setHasSelectedMonth(true);
-                          setVisibleMonth(new Date(year, opt.value, 1));
-                          setOpenQuickPicker(null);
-                        }}
-                        className={`w-full text-left px-3 py-1.5 text-xs border-l-2 ${active ? 'bg-cyan-50 dark:bg-cyan-900/30 border-cyan-500 text-cyan-800 dark:text-cyan-200 font-semibold' : 'bg-transparent border-transparent text-slate-700 dark:text-slate-200 hover:bg-[#2C4AAE] hover:text-white dark:hover:bg-[#2C4AAE]'}`}
-                      >
-                        <span className="block truncate">{opt.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="relative">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpenQuickPicker((prev) => (prev === 'year' ? null : 'year'));
-                }}
-                className={`w-full h-8 text-left pl-2.5 pr-8 rounded-xl border bg-white dark:bg-slate-800 text-xs shadow-sm ${openQuickPicker === 'year' ? 'border-cyan-500/80 dark:border-cyan-500 ring-2 ring-cyan-400/40 dark:ring-cyan-500/35 text-slate-900 dark:text-slate-100' : 'border-cyan-300/70 dark:border-cyan-700/80 hover:border-cyan-500/70 dark:hover:border-cyan-500/80 text-slate-800 dark:text-slate-100'}`}
-              >
-                <span className="block truncate font-semibold">{hasSelectedYear && draftYear !== null ? draftYear : year}</span>
-                <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
-                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-md bg-cyan-50 dark:bg-cyan-900/30 ring-1 ring-cyan-200/70 dark:ring-cyan-700/70">
-                    <svg className={`w-2.5 h-2.5 text-cyan-700 dark:text-cyan-300 transition-transform duration-200 ${openQuickPicker === 'year' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </span>
-                </span>
-              </button>
-              {openQuickPicker === 'year' && (
-                <div ref={yearMenuRef} className="absolute z-40 mt-1.5 w-full max-h-40 overflow-auto rounded-xl border border-cyan-300 dark:border-cyan-700 bg-white dark:bg-slate-900 shadow-xl shadow-cyan-900/15 dark:shadow-black/35" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-                  {yearOptions.map((y) => {
-                    const active = hasSelectedYear && draftYear !== null && y === draftYear;
-                    const isCurrentSystemYear = y === currentYearRef;
-                    return (
-                      <button
-                        key={y}
-                        ref={isCurrentSystemYear ? currentYearOptionRef : null}
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDraftYear(y);
-                          setHasSelectedYear(true);
-                          setVisibleMonth(new Date(y, draftMonth ?? month, 1));
-                          setOpenQuickPicker(null);
-                        }}
-                        className={`w-full text-left px-3 py-1.5 text-xs border-l-2 ${active ? 'bg-cyan-50 dark:bg-cyan-900/30 border-cyan-500 text-cyan-800 dark:text-cyan-200 font-semibold' : isCurrentSystemYear ? 'bg-blue-50 dark:bg-blue-900/25 border-blue-400 text-blue-800 dark:text-blue-200 font-semibold hover:bg-[#2C4AAE] hover:text-white dark:hover:bg-[#2C4AAE]' : 'bg-transparent border-transparent text-slate-700 dark:text-slate-200 hover:bg-[#2C4AAE] hover:text-white dark:hover:bg-[#2C4AAE]'}`}
-                      >
-                        <span className="flex items-center justify-between gap-2">
-                          <span className="block truncate">{y}</span>
-                          {isCurrentSystemYear && !active && (
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-blue-200/80 dark:bg-blue-800/50 text-blue-900 dark:text-blue-100">Actual</span>
-                          )}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-7 gap-0.5 mb-1">
-            {weekDays.map((wd) => (
-              <div key={wd} className="text-center text-xs font-semibold text-slate-200/85 py-0.5">{wd}</div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-0.5">
-            {calendarCells.map((cellDate, idx) => {
-              if (!cellDate) {
-                return <div key={`empty-${idx}`} className="h-8" />;
-              }
-              const isToday = isSameDate(cellDate, today);
-              const isSelected = draftDay !== null && cellDate.getDate() === draftDay;
-              const isBlocked = isOverMaxDate(cellDate);
-              return (
-                <button
-                  key={toIsoDate(cellDate)}
-                  type="button"
-                  onClick={() => !isBlocked && handlePickDate(cellDate)}
-                  className={`h-8 rounded-lg text-xs ${isSelected ? 'bg-[#4654E8] text-white font-semibold' : isBlocked ? 'text-slate-300/60 cursor-not-allowed' : 'text-slate-100 hover:bg-white/15'} ${isToday && !isSelected ? 'border border-white/55' : 'border border-transparent'}`}
-                >
-                  {cellDate.getDate()}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      <CalendarioFlotante
+        abierto={open && !disabled}
+        anclaRef={campoRef}
+        onCerrar={() => setOpen(false)}
+        value={value}
+        max={maxIsoDate || undefined}
+        onElegir={(iso) => {
+          onDateChange(name, iso);
+          setInputValue(formatDisplayDate(iso));
+          setOpen(false);
+        }}
+        onNoPermitido={() => toast.error(MENSAJE_FECHA_FUTURA)}
+        onBorrar={() => {
+          onDateChange(name, '');
+          setOpen(false);
+        }}
+      />
 
       {errorMessage && <p className="text-xs text-red-600 mt-1">{errorMessage}</p>}
     </div>

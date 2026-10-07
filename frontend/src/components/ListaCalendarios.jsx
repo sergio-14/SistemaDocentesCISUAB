@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useActiveRole } from '../contexts/activeRole';
 import RuedaOpciones from './common/RuedaOpciones';
+import { CalendarioFlotante } from './common/CalendarioFecha';
 import {
   ERROR_FIELD_BORDER_CLASS,
   getErrorMessage,
@@ -608,15 +609,7 @@ const InputField = ({
 
 const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse = 0, minDate, invalidSelectionMessage, onInvalidSelection, showErrorText = true, onFieldInteraction, onClearError }) => {
   const [open, setOpen] = useState(false);
-  const [openQuickPicker, setOpenQuickPicker] = useState(null);
-  const [draftDay, setDraftDay] = useState(null);
-  const [draftMonth, setDraftMonth] = useState(null);
-  const [draftYear, setDraftYear] = useState(null);
-  const [hasSelectedMonth, setHasSelectedMonth] = useState(false);
-  const [hasSelectedYear, setHasSelectedYear] = useState(false);
-  const containerRef = useRef(null);
-  const yearMenuRef = useRef(null);
-  const currentYearOptionRef = useRef(null);
+  const campoRef = useRef(null);
   const errorMessage = getErrorMessage(error);
   const { motionClass } = useErrorPulse(errorMessage, errorPulse);
 
@@ -666,195 +659,17 @@ const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse =
     // eslint-disable-next-line react-hooks/exhaustive-deps -- formatDisplayDate es pura; solo depende de value.
   }, [value]);
 
-  const selectedDate = parseIsoDate(value);
   const minAllowedDate = parseIsoDate(minDate);
-  // Hoy en Bolivia (no en la zona horaria del navegador), como fecha local.
-  const today = parseIsoDate(hoyBolivia());
-  const [visibleMonth, setVisibleMonth] = useState(
-    selectedDate ? new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1) : new Date(today.getFullYear(), today.getMonth(), 1)
-  );
 
-  useEffect(() => {
-    if (open) {
-      // Sin fecha elegida se abre en el mes de la fecha mínima (p. ej. el inicio del periodo).
-      const base = selectedDate || minAllowedDate || today;
-      setVisibleMonth(new Date(base.getFullYear(), base.getMonth(), 1));
-      setDraftDay(null);
-      setDraftMonth(base.getMonth());
-      setDraftYear(base.getFullYear());
-      setHasSelectedMonth(false);
-      setHasSelectedYear(false);
-    } else {
-      setOpenQuickPicker(null);
-      setDraftDay(null);
-      setDraftMonth(null);
-      setDraftYear(null);
-      setHasSelectedMonth(false);
-      setHasSelectedYear(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- el mes visible se fija al abrir o cerrar el selector.
-  }, [open]);
-
-  useEffect(() => {
-    const handleOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-
-    if (open) {
-      document.addEventListener('mousedown', handleOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleOutside);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (openQuickPicker !== 'year') return;
-
-    const rafId = requestAnimationFrame(() => {
-      const menuEl = yearMenuRef.current;
-      const currentYearEl = currentYearOptionRef.current;
-      if (!menuEl || !currentYearEl) return;
-
-      const targetTop = currentYearEl.offsetTop - (menuEl.clientHeight / 2) + (currentYearEl.clientHeight / 2);
-      menuEl.scrollTop = Math.max(0, targetTop);
-    });
-
-    return () => cancelAnimationFrame(rafId);
-  }, [openQuickPicker]);
-
-  const weekDays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-  const monthNames = [
-    'Enero',
-    'Febrero',
-    'Marzo',
-    'Abril',
-    'Mayo',
-    'Junio',
-    'Julio',
-    'Agosto',
-    'Septiembre',
-    'Octubre',
-    'Noviembre',
-    'Diciembre',
-  ];
-
-  const year = visibleMonth.getFullYear();
-  const month = visibleMonth.getMonth();
-  const currentYearRef = today.getFullYear();
-  const startYear = currentYearRef - 25;
-  const endYear = currentYearRef + 25;
-  const yearOptions = Array.from({ length: endYear - startYear + 1 }, (_, idx) => startYear + idx);
-  const monthOptions = monthNames.map((label, valueIndex) => ({ value: valueIndex, label }));
-  const firstDay = new Date(year, month, 1);
-  const offset = (firstDay.getDay() + 6) % 7;
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  const calendarCells = [];
-  for (let i = 0; i < offset; i += 1) calendarCells.push(null);
-  for (let d = 1; d <= daysInMonth; d += 1) {
-    calendarCells.push(new Date(year, month, d));
-  }
-  while (calendarCells.length % 7 !== 0) calendarCells.push(null);
-
-  const isSameDate = (a, b) => (
-    a
-    && b
-    && a.getFullYear() === b.getFullYear()
-    && a.getMonth() === b.getMonth()
-    && a.getDate() === b.getDate()
-  );
-
-  const handlePickDate = (dateObj) => {
-    // El día se elige antes que el mes y el año: la fecha mínima se revisa con la fecha
-    // final armada, no con el día pulsado en el mes que se estaba mirando.
-    const nextDay = dateObj.getDate();
-    setDraftDay(nextDay);
-
-    const monthCandidate = draftMonth ?? month;
-    const yearCandidate = draftYear ?? year;
-    const canCommit = Boolean(nextDay && hasSelectedMonth && hasSelectedYear && monthCandidate !== null && yearCandidate !== null);
-    if (!canCommit) return;
-
-    const maxDayForMonth = new Date(yearCandidate, monthCandidate + 1, 0).getDate();
-    if (nextDay > maxDayForMonth) return;
-
-    const finalDate = new Date(yearCandidate, monthCandidate, nextDay);
-    if (minAllowedDate && finalDate < minAllowedDate) {
-      if (invalidSelectionMessage) toast.error(invalidSelectionMessage);
-      if (onInvalidSelection) onInvalidSelection();
-      return;
-    }
-    const iso = toIsoDate(finalDate);
-    onDateChange(name, iso, { skipRangeToast: true });
-    setInputValue(formatDisplayDate(iso));
-    setOpen(false);
-  };
-
-  const handleQuickPickMonth = (nextMonth) => {
-    const yearCandidate = draftYear ?? year;
-    setDraftMonth(nextMonth);
-    setHasSelectedMonth(true);
-    setVisibleMonth(new Date(yearCandidate, nextMonth, 1));
-    setOpenQuickPicker(null);
-
-    const dayCandidate = draftDay;
-    if (!dayCandidate || !hasSelectedYear || yearCandidate === null) return;
-
-    const maxDayForMonth = new Date(yearCandidate, nextMonth + 1, 0).getDate();
-    if (dayCandidate > maxDayForMonth) {
-      setDraftDay(null);
-      return;
-    }
-
-    const finalDate = new Date(yearCandidate, nextMonth, dayCandidate);
-    if (minAllowedDate && finalDate < minAllowedDate) {
-      if (invalidSelectionMessage) toast.error(invalidSelectionMessage);
-      if (onInvalidSelection) onInvalidSelection();
-      return;
-    }
-    const iso = toIsoDate(finalDate);
-    onDateChange(name, iso, { skipRangeToast: true });
-    setInputValue(formatDisplayDate(iso));
-    setOpen(false);
-  };
-
-  const handleQuickPickYear = (nextYear) => {
-    const monthCandidate = draftMonth ?? month;
-    setDraftYear(nextYear);
-    setHasSelectedYear(true);
-    setVisibleMonth(new Date(nextYear, monthCandidate, 1));
-    setOpenQuickPicker(null);
-
-    const dayCandidate = draftDay;
-    if (!dayCandidate || !hasSelectedMonth || monthCandidate === null) return;
-
-    const maxDayForMonth = new Date(nextYear, monthCandidate + 1, 0).getDate();
-    if (dayCandidate > maxDayForMonth) {
-      setDraftDay(null);
-      return;
-    }
-
-    const finalDate = new Date(nextYear, monthCandidate, dayCandidate);
-    if (minAllowedDate && finalDate < minAllowedDate) {
-      if (invalidSelectionMessage) toast.error(invalidSelectionMessage);
-      if (onInvalidSelection) onInvalidSelection();
-      return;
-    }
-    const iso = toIsoDate(finalDate);
-    onDateChange(name, iso, { skipRangeToast: true });
-    setInputValue(formatDisplayDate(iso));
-    setOpen(false);
+  const avisarFechaNoPermitida = () => {
+    if (invalidSelectionMessage) toast.error(invalidSelectionMessage);
+    if (onInvalidSelection) onInvalidSelection();
   };
 
   const handleManualInputChange = (e) => {
     onClearError?.();
     const rawValue = e.target.value;
     const onlyDigits = rawValue.replace(/\D/g, '').slice(0, 8);
-
     let formatted = onlyDigits;
     if (onlyDigits.length > 2) {
       formatted = `${onlyDigits.slice(0, 2)}/${onlyDigits.slice(2)}`;
@@ -862,7 +677,6 @@ const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse =
     if (onlyDigits.length > 4) {
       formatted = `${onlyDigits.slice(0, 2)}/${onlyDigits.slice(2, 4)}/${onlyDigits.slice(4)}`;
     }
-
     setInputValue(formatted);
 
     if (formatted.length === 10) {
@@ -874,7 +688,6 @@ const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse =
         }
 
         onDateChange(name, toIsoDate(parsed), { skipRangeToast: true });
-        setVisibleMonth(new Date(parsed.getFullYear(), parsed.getMonth(), 1));
       }
     }
 
@@ -892,8 +705,7 @@ const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse =
     const parsed = parseDisplayDate(inputValue);
     if (parsed) {
       if (minAllowedDate && parsed < minAllowedDate) {
-        if (invalidSelectionMessage) toast.error(invalidSelectionMessage);
-        if (onInvalidSelection) onInvalidSelection();
+        avisarFechaNoPermitida();
         const previousDisplay = formatDisplayDate(value);
         setInputValue(previousDisplay);
         return;
@@ -902,7 +714,6 @@ const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse =
       const iso = toIsoDate(parsed);
       onDateChange(name, iso, { skipRangeToast: true });
       setInputValue(formatDisplayDate(iso));
-      setVisibleMonth(new Date(parsed.getFullYear(), parsed.getMonth(), 1));
       return;
     }
 
@@ -911,9 +722,9 @@ const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse =
   };
 
   return (
-    <div ref={containerRef} className="relative">
+    <div className="relative">
       <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">{label} {errorMessage && <span className="text-red-500">*</span>}</label>
-      <div className={`relative w-full rounded-xl bg-slate-50 dark:bg-slate-700 shadow-sm ${
+      <div ref={campoRef} className={`relative w-full rounded-xl bg-slate-50 dark:bg-slate-700 shadow-sm ${
         errorMessage ? `${ERROR_FIELD_BORDER_CLASS} ${motionClass}` : 'border-2 border-slate-300 dark:border-slate-600'
       } focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent`}>
         <input
@@ -949,204 +760,24 @@ const DatePickerField = ({ label, name, value, onDateChange, error, errorPulse =
         </button>
       </div>
 
-      {open && (
-        <div
-          className="absolute z-50 mt-2 w-[268px] max-w-[calc(100vw-2rem)] rounded-xl border border-[#7F97E8]/45 bg-[#2C4AAE] backdrop-blur-xl shadow-2xl p-2.5"
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <button
-              type="button"
-              onClick={() => setVisibleMonth(new Date(year, month - 1, 1))}
-              className="h-7 w-7 rounded-lg text-slate-100 hover:bg-white/15"
-              aria-label="Mes anterior"
-            >
-              ‹
-            </button>
-            <p className="text-xs font-semibold text-slate-100">
-              {monthNames[month]} {year}
-            </p>
-            <button
-              type="button"
-              onClick={() => setVisibleMonth(new Date(year, month + 1, 1))}
-              className="h-7 w-7 rounded-lg text-slate-100 hover:bg-white/15"
-              aria-label="Mes siguiente"
-            >
-              ›
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-1.5 mb-2">
-            <div className="relative">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpenQuickPicker((prev) => (prev === 'month' ? null : 'month'));
-                }}
-                className={`w-full h-8 text-left pl-2.5 pr-8 rounded-xl border bg-white dark:bg-slate-800 text-xs shadow-sm ${
-                  openQuickPicker === 'month'
-                    ? 'border-cyan-500/80 dark:border-cyan-500 ring-2 ring-cyan-400/40 dark:ring-cyan-500/35 text-slate-900 dark:text-slate-100'
-                    : 'border-cyan-300/70 dark:border-cyan-700/80 hover:border-cyan-500/70 dark:hover:border-cyan-500/80 text-slate-800 dark:text-slate-100'
-                }`}
-                aria-label="Seleccionar mes"
-              >
-                <span className="block truncate font-semibold">{hasSelectedMonth && draftMonth !== null ? monthNames[draftMonth] : 'Seleccione'}</span>
-                <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
-                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-md bg-cyan-50 dark:bg-cyan-900/30 ring-1 ring-cyan-200/70 dark:ring-cyan-700/70">
-                    <svg
-                      className={`w-2.5 h-2.5 text-cyan-700 dark:text-cyan-300 transition-transform duration-200 ${openQuickPicker === 'month' ? 'rotate-180' : ''}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </span>
-                </span>
-              </button>
-
-              {openQuickPicker === 'month' && (
-                <div
-                  className="absolute z-40 mt-1.5 w-full max-h-40 overflow-auto rounded-xl border border-cyan-300 dark:border-cyan-700 bg-white dark:bg-slate-900 shadow-xl shadow-cyan-900/15 dark:shadow-black/35"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {monthOptions.map((opt) => {
-                    const active = hasSelectedMonth && draftMonth !== null && opt.value === draftMonth;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleQuickPickMonth(opt.value);
-                        }}
-                        className={`w-full text-left px-3 py-1.5 text-xs border-l-2 ${
-                          active
-                            ? 'bg-cyan-50 dark:bg-cyan-900/30 border-cyan-500 text-cyan-800 dark:text-cyan-200 font-semibold'
-                            : 'bg-transparent border-transparent text-slate-700 dark:text-slate-200 hover:bg-[#2C4AAE] hover:text-white dark:hover:bg-[#2C4AAE]'
-                        }`}
-                      >
-                        <span className="block truncate">{opt.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="relative">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpenQuickPicker((prev) => (prev === 'year' ? null : 'year'));
-                }}
-                className={`w-full h-8 text-left pl-2.5 pr-8 rounded-xl border bg-white dark:bg-slate-800 text-xs shadow-sm ${
-                  openQuickPicker === 'year'
-                    ? 'border-cyan-500/80 dark:border-cyan-500 ring-2 ring-cyan-400/40 dark:ring-cyan-500/35 text-slate-900 dark:text-slate-100'
-                    : 'border-cyan-300/70 dark:border-cyan-700/80 hover:border-cyan-500/70 dark:hover:border-cyan-500/80 text-slate-800 dark:text-slate-100'
-                }`}
-                aria-label="Seleccionar año"
-              >
-                <span className="block truncate font-semibold">{hasSelectedYear && draftYear !== null ? draftYear : 'Seleccione'}</span>
-                <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
-                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-md bg-cyan-50 dark:bg-cyan-900/30 ring-1 ring-cyan-200/70 dark:ring-cyan-700/70">
-                    <svg
-                      className={`w-2.5 h-2.5 text-cyan-700 dark:text-cyan-300 transition-transform duration-200 ${openQuickPicker === 'year' ? 'rotate-180' : ''}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </span>
-                </span>
-              </button>
-
-              {openQuickPicker === 'year' && (
-                <div
-                  ref={yearMenuRef}
-                  className="absolute z-40 mt-1.5 w-full max-h-40 overflow-auto rounded-xl border border-cyan-300 dark:border-cyan-700 bg-white dark:bg-slate-900 shadow-xl shadow-cyan-900/15 dark:shadow-black/35"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {yearOptions.map((y) => {
-                    const active = hasSelectedYear && draftYear !== null && y === draftYear;
-                    const isCurrentSystemYear = y === currentYearRef;
-                    return (
-                      <button
-                        key={y}
-                        ref={isCurrentSystemYear ? currentYearOptionRef : null}
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleQuickPickYear(y);
-                        }}
-                        className={`w-full text-left px-3 py-1.5 text-xs border-l-2 ${
-                          active
-                            ? 'bg-cyan-50 dark:bg-cyan-900/30 border-cyan-500 text-cyan-800 dark:text-cyan-200 font-semibold'
-                            : isCurrentSystemYear
-                              ? 'bg-blue-50 dark:bg-blue-900/25 border-blue-400 text-blue-800 dark:text-blue-200 font-semibold hover:bg-[#2C4AAE] hover:text-white dark:hover:bg-[#2C4AAE]'
-                              : 'bg-transparent border-transparent text-slate-700 dark:text-slate-200 hover:bg-[#2C4AAE] hover:text-white dark:hover:bg-[#2C4AAE]'
-                        }`}
-                      >
-                        <span className="flex items-center justify-between gap-2">
-                          <span className="block truncate">{y}</span>
-                          {isCurrentSystemYear && !active && (
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-blue-200/80 dark:bg-blue-800/50 text-blue-900 dark:text-blue-100">
-                              Actual
-                            </span>
-                          )}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-7 gap-0.5 mb-1">
-            {weekDays.map((wd) => (
-              <div key={wd} className="text-center text-xs font-semibold text-slate-200/85 py-0.5">
-                {wd}
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-0.5">
-            {calendarCells.map((cellDate, idx) => {
-              if (!cellDate) {
-                return <div key={`empty-${idx}`} className="h-8" />;
-              }
-
-              const isToday = isSameDate(cellDate, today);
-              const isSelected = draftDay !== null && cellDate.getDate() === draftDay;
-              const isDisabledByMinDate = Boolean(minAllowedDate && cellDate < minAllowedDate);
-
-              return (
-                <button
-                  key={toIsoDate(cellDate)}
-                  type="button"
-                  onClick={() => handlePickDate(cellDate)}
-                  className={`h-8 rounded-lg text-xs ${
-                    isSelected
-                      ? 'bg-[#4654E8] text-white font-semibold'
-                      : isDisabledByMinDate
-                        ? 'text-slate-300/50 cursor-not-allowed'
-                        : 'text-slate-100 hover:bg-white/15'
-                  } ${isToday && !isSelected ? 'border border-white/55' : 'border border-transparent'}`}
-                >
-                  {cellDate.getDate()}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* Sin fecha elegida se abre en el mes de la fecha mínima (p. ej. el inicio del periodo). */}
+      <CalendarioFlotante
+        abierto={open}
+        anclaRef={campoRef}
+        onCerrar={() => setOpen(false)}
+        value={value}
+        min={minDate || undefined}
+        onElegir={(iso) => {
+          onDateChange(name, iso, { skipRangeToast: true });
+          setInputValue(formatDisplayDate(iso));
+          setOpen(false);
+        }}
+        onNoPermitido={avisarFechaNoPermitida}
+        onBorrar={() => {
+          onDateChange(name, '');
+          setOpen(false);
+        }}
+      />
 
       {errorMessage && showErrorText && <p className={`text-xs text-red-600 dark:text-red-400 mt-1 ${motionClass}`}>{errorMessage}</p>}
     </div>

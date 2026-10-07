@@ -12,6 +12,7 @@ import {
 } from '../utils/formErrors';
 import { DEDICACIONES_HORARIO, ETIQUETAS_DEDICACION, describirDedicacion, horasSemanalesDedicacion } from '../utils/dedicaciones';
 import { hoyBolivia } from '../utils/fechas';
+import { CalendarioFlotante } from './common/CalendarioFecha';
 import { useActiveRole } from '../contexts/activeRole';
 import { BLOQUE, BOTON } from './fondos/estilosFondo';
 import { Avatar, Etiqueta } from './fondos/ElementosFondo';
@@ -27,12 +28,6 @@ const normalizeErrors = (errs) => sanitizeApiErrors(errs);
 // ============================================================================
 // COMPONENTE INTERNO: FechaIngresoPicker (Calendario personalizado)
 // ============================================================================
-const weekDays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-const monthNames = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-];
-
 function parseIsoDate(iso) {
   if (!iso || typeof iso !== 'string') return null;
   const parts = iso.split('-').map(Number);
@@ -95,24 +90,9 @@ const LockIcon = () => (
 
 function FechaIngresoPicker({ value, onChange, error }) {
   const [open, setOpen] = useState(false);
-  const [openQuickPicker, setOpenQuickPicker] = useState(null);
   const [inputValue, setInputValue] = useState(formatDisplayDate(value));
   const [isPulsing, setIsPulsing] = useState(false);
-  const [visibleMonth, setVisibleMonth] = useState(() => {
-    const selectedDate = parseIsoDate(value);
-    const today = parseIsoDate(hoyBolivia());
-    return selectedDate ? new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1) : new Date(today.getFullYear(), today.getMonth(), 1);
-  });
-  const [draftDay, setDraftDay] = useState(null);
-  const [draftMonth, setDraftMonth] = useState(null);
-  const [draftYear, setDraftYear] = useState(null);
-  const [hasSelectedMonth, setHasSelectedMonth] = useState(false);
-  const [hasSelectedYear, setHasSelectedYear] = useState(false);
-  const containerRef = React.useRef(null);
-  const popupRef = React.useRef(null);
-  const [popupStyle, setPopupStyle] = useState(null);
-  const yearMenuRef = React.useRef(null);
-  const currentYearOptionRef = React.useRef(null);
+  const campoRef = React.useRef(null);
 
   React.useEffect(() => {
     setInputValue(formatDisplayDate(value));
@@ -125,82 +105,6 @@ function FechaIngresoPicker({ value, onChange, error }) {
       return () => clearTimeout(t);
     }
   }, [error]);
-
-  React.useEffect(() => {
-    const handleOutside = (event) => {
-      if (containerRef.current?.contains(event.target) || popupRef.current?.contains(event.target)) return;
-      setOpen(false);
-    };
-    // Fijo en pantalla: si se desplaza el modal o cambia el tamaño, se cierra.
-    const cerrarAlDesplazar = (event) => {
-      if (popupRef.current?.contains(event.target)) return;
-      setOpen(false);
-    };
-    if (open) {
-      document.addEventListener('mousedown', handleOutside);
-      window.addEventListener('scroll', cerrarAlDesplazar, true);
-      window.addEventListener('resize', cerrarAlDesplazar);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleOutside);
-      window.removeEventListener('scroll', cerrarAlDesplazar, true);
-      window.removeEventListener('resize', cerrarAlDesplazar);
-    };
-  }, [open]);
-
-  React.useLayoutEffect(() => {
-    if (!open || !containerRef.current) {
-      setPopupStyle(null);
-      return;
-    }
-    const campo = containerRef.current.querySelector('[data-campo-fecha]') || containerRef.current;
-    const rect = campo.getBoundingClientRect();
-    const alto = 330;
-    const ancho = Math.min(280, window.innerWidth - 16);
-    const abrirArriba = window.innerHeight - rect.bottom - 12 < alto && rect.top > window.innerHeight - rect.bottom;
-    setPopupStyle({
-      position: 'fixed',
-      left: `${Math.max(8, Math.min(rect.left, window.innerWidth - ancho - 8))}px`,
-      width: `${ancho}px`,
-      ...(abrirArriba
-        ? { bottom: `${window.innerHeight - rect.top + 8}px` }
-        : { top: `${rect.bottom + 8}px` }),
-      zIndex: 99999,
-    });
-  }, [open]);
-
-  const year = visibleMonth.getFullYear();
-  const month = visibleMonth.getMonth();
-  const today = parseIsoDate(hoyBolivia());
-  const currentYearRef = today.getFullYear();
-  const minYear = 1967; // Año de fundación de la UABJB
-  const startYear = minYear;
-  const endYear = currentYearRef; // No permitir años futuros
-  const yearOptions = Array.from({ length: endYear - startYear + 1 }, (_, idx) => startYear + idx);
-  const monthOptions = monthNames.map((label, valueIndex) => ({ value: valueIndex, label }));
-  const firstDay = new Date(year, month, 1);
-  const offset = (firstDay.getDay() + 6) % 7;
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const calendarCells = [];
-  for (let i = 0; i < offset; i += 1) calendarCells.push(null);
-  for (let d = 1; d <= daysInMonth; d += 1) {
-    calendarCells.push(new Date(year, month, d));
-  }
-  while (calendarCells.length % 7 !== 0) calendarCells.push(null);
-
-  const isSameDate = (a, b) => (
-    a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
-  );
-
-  const handlePickDate = (dateObj) => {
-    setDraftDay(dateObj.getDate());
-    setHasSelectedMonth(true);
-    setHasSelectedYear(true);
-    const iso = toIsoDate(dateObj);
-    onChange(iso);
-    setInputValue(formatDisplayDate(iso));
-    setOpen(false);
-  };
 
   const handleManualInputChange = (e) => {
     const rawValue = e.target.value;
@@ -215,10 +119,7 @@ function FechaIngresoPicker({ value, onChange, error }) {
     setInputValue(formatted);
     if (formatted.length === 10) {
       const parsed = parseDisplayDate(formatted);
-      if (parsed) {
-        onChange(toIsoDate(parsed));
-        setVisibleMonth(new Date(parsed.getFullYear(), parsed.getMonth(), 1));
-      }
+      if (parsed) onChange(toIsoDate(parsed));
     }
     if (!formatted) {
       onChange('');
@@ -235,7 +136,6 @@ function FechaIngresoPicker({ value, onChange, error }) {
       const iso = toIsoDate(parsed);
       onChange(iso);
       setInputValue(formatDisplayDate(iso));
-      setVisibleMonth(new Date(parsed.getFullYear(), parsed.getMonth(), 1));
       return;
     }
     onChange('');
@@ -243,9 +143,9 @@ function FechaIngresoPicker({ value, onChange, error }) {
   };
 
   return (
-    <div ref={containerRef} className="relative">
+    <div className="relative">
       <label className={LABEL_CAMPO}>Fecha de Ingreso <span className="text-red-500">*</span></label>
-      <div data-campo-fecha className={`relative w-full rounded-full !bg-azulado-100 ring-inset ${error ? CAMPO_ERROR : 'ring-1 ring-azulado-300 focus-within:ring-2 focus-within:ring-blue-900/40'} ${isPulsing ? 'animate-field-error-shake' : ''}`}>
+      <div ref={campoRef} className={`relative w-full rounded-full !bg-azulado-100 ring-inset ${error ? CAMPO_ERROR : 'ring-1 ring-azulado-300 focus-within:ring-2 focus-within:ring-blue-900/40'} ${isPulsing ? 'animate-field-error-shake' : ''}`}>
         <input
           type="text"
           inputMode="numeric"
@@ -268,144 +168,23 @@ function FechaIngresoPicker({ value, onChange, error }) {
           </svg>
         </button>
       </div>
-      {open && popupStyle && createPortal(
-        <div
-          ref={popupRef}
-          style={popupStyle}
-          className="rounded-2xl bg-white ring-1 ring-azulado-300 shadow-xl p-3"
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="grid grid-cols-2 gap-1.5 mb-2">
-            <div className="relative">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpenQuickPicker((prev) => (prev === 'month' ? null : 'month'));
-                }}
-                className={`w-full h-8 text-left pl-3 pr-8 rounded-full text-xs text-slate-800 !bg-azulado-100 ring-inset ${openQuickPicker === 'month' ? 'ring-2 ring-blue-900/40' : 'ring-1 ring-azulado-300'}`}
-                aria-label="Seleccionar mes"
-              >
-                <span className="block truncate font-semibold">{hasSelectedMonth && draftMonth !== null ? monthNames[draftMonth] : monthNames[month]}</span>
-                <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
-                  <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-[#2C4AAE]">
-                    <svg className={`w-2.5 h-2.5 text-white transition-transform duration-200 ${openQuickPicker === 'month' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </span>
-                </span>
-              </button>
-              {openQuickPicker === 'month' && (
-                <div className="absolute z-40 mt-1.5 w-full max-h-40 overflow-auto rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl p-1" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-                  {monthOptions.map((opt) => {
-                    const active = hasSelectedMonth && draftMonth !== null && opt.value === draftMonth;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDraftMonth(opt.value);
-                          setHasSelectedMonth(true);
-                          setVisibleMonth(new Date(year, opt.value, 1));
-                          setOpenQuickPicker(null);
-                        }}
-                        className={`w-full text-left px-3 py-1.5 text-xs rounded-lg ${active ? 'bg-sky-600 text-white font-semibold' : 'text-slate-700 hover:bg-[#2C4AAE] hover:text-white'}`}
-                      >
-                        <span className="block truncate">{opt.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpenQuickPicker((prev) => (prev === 'year' ? null : 'year'));
-                }}
-                className={`w-full h-8 text-left pl-3 pr-8 rounded-full text-xs text-slate-800 !bg-azulado-100 ring-inset ${openQuickPicker === 'year' ? 'ring-2 ring-blue-900/40' : 'ring-1 ring-azulado-300'}`}
-                aria-label="Seleccionar año"
-              >
-                <span className="block truncate font-semibold">{hasSelectedYear && draftYear !== null ? draftYear : year}</span>
-                <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
-                  <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-[#2C4AAE]">
-                    <svg className={`w-2.5 h-2.5 text-white transition-transform duration-200 ${openQuickPicker === 'year' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </span>
-                </span>
-              </button>
-              {openQuickPicker === 'year' && (
-                <div ref={yearMenuRef} className="absolute z-40 mt-1.5 w-full max-h-40 overflow-auto rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl p-1" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-                  {yearOptions.map((y) => {
-                    const active = hasSelectedYear && draftYear !== null && y === draftYear;
-                    const isCurrentSystemYear = y === currentYearRef;
-                    return (
-                      <button
-                        key={y}
-                        ref={isCurrentSystemYear ? currentYearOptionRef : null}
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDraftYear(y);
-                          setHasSelectedYear(true);
-                          setVisibleMonth(new Date(y, draftMonth ?? month, 1));
-                          setOpenQuickPicker(null);
-                        }}
-                        className={`w-full text-left px-3 py-1.5 text-xs rounded-lg ${active ? 'bg-sky-600 text-white font-semibold' : isCurrentSystemYear ? 'bg-azulado-100 text-blue-900 font-semibold hover:bg-[#2C4AAE] hover:text-white' : 'text-slate-700 hover:bg-[#2C4AAE] hover:text-white'}`}
-                      >
-                        <span className="flex items-center justify-between gap-2">
-                          <span className="block truncate">{y}</span>
-                          {isCurrentSystemYear && !active && (
-                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-azulado-200 text-blue-900">Actual</span>
-                          )}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="grid grid-cols-7 gap-0.5 mb-1">
-            {weekDays.map((wd) => (
-              <div key={wd} className="text-center text-xs font-semibold text-slate-500 py-0.5">{wd}</div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 gap-0.5">
-            {calendarCells.map((cellDate, idx) => {
-              if (!cellDate) {
-                return <div key={`empty-${idx}`} className="h-8" />;
-              }
-              const isToday = isSameDate(cellDate, today);
-              const isSelected = draftDay !== null && cellDate.getDate() === draftDay;
-              const isFuture = cellDate > today;
-              const isBeforeFundacion = cellDate < new Date(1967, 10, 18); // 18 de noviembre de 1967
-              const isDisabled = isFuture || isBeforeFundacion;
-              return (
-                <button
-                  key={toIsoDate(cellDate)}
-                  type="button"
-                  disabled={isDisabled}
-                  onClick={() => !isDisabled && handlePickDate(cellDate)}
-                  className={`h-8 rounded-lg text-xs ${
-                    isDisabled ? 'opacity-30 cursor-not-allowed text-slate-400'
-                    : isSelected ? 'bg-blue-900 text-white font-semibold'
-                    : 'text-slate-700 hover:bg-azulado-100'
-                  } ${isToday && !isSelected && !isDisabled ? 'ring-1 ring-inset ring-blue-900/40' : ''}`}
-                >
-                  {cellDate.getDate()}
-                </button>
-              );
-            })}
-          </div>
-        </div>,
-        document.body
-      )}
+      {/* Desde la fundación de la UABJB hasta hoy */}
+      <CalendarioFlotante
+        abierto={open}
+        anclaRef={campoRef}
+        onCerrar={() => setOpen(false)}
+        value={value}
+        min={FECHA_FUNDACION_UABJB}
+        max={hoyBolivia()}
+        onElegir={(iso) => {
+          onChange(iso);
+          setOpen(false);
+        }}
+        onBorrar={() => {
+          onChange('');
+          setOpen(false);
+        }}
+      />
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
     </div>
   );
@@ -2064,7 +1843,8 @@ function ListaDocentes({ sidebarCollapsed = false }) {
       datos: [
         { label: 'Categoría', valor: ETIQUETAS_CATEGORIA[vinculo?.categoria] || '—' },
         { label: 'Dedicación', valor: vinculo ? (ETIQUETAS_DEDICACION[vinculo.dedicacion] || vinculo.dedicacion) : '—' },
-        { label: 'Cargo', valor: obtenerRolesDocente(docente) || '—' },
+        // Sin cargo de gestión (Director, Jefe de Estudios, Instituto) el docente solo tiene el de docente.
+        { label: 'Cargo', valor: obtenerRolesDocente(docente) || 'Docente' },
       ],
       bloqueoEditar: Boolean(docente?.tiene_historial),
       bloqueoEliminar: Boolean(docente?.tiene_registros),

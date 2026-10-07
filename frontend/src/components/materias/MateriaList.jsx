@@ -1,136 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { FaEdit, FaTrash, FaToggleOn, FaToggleOff } from 'react-icons/fa';
-import { X } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { FaEdit, FaTrash } from 'react-icons/fa';
 import api, { getCarreras } from '../../apis/api';
 import { Link, Outlet } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useActiveRole } from '../../contexts/activeRole';
-
-// Componente Select con diseño personalizado (mismo estilo que ListaDocentes)
-const SelectConDropdown = ({ label, value, onChange, options, name, placeholder = 'Buscar...', emptyText = 'Sin resultados' }) => {
-  const [open, setOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const containerRef = React.useRef(null);
-  const inputRef = React.useRef(null);
-  const optionRefs = React.useRef({});
-  const emptyValue = name === 'semestre' ? 'todos' : 'todas';
-  const hasSelection = Boolean(value && value !== emptyValue);
-
-  useEffect(() => {
-    const handleOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpen(false);
-        setSearchTerm('');
-      }
-    };
-    if (open) {
-      document.addEventListener('mousedown', handleOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleOutside);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    setSearchTerm('');
-    inputRef.current?.focus();
-    window.requestAnimationFrame(() => {
-      optionRefs.current[String(value)]?.scrollIntoView({ block: 'center' });
-    });
-  }, [open, value]);
-
-  const selectedLabel = value && options.find(opt => opt.value === value)?.label;
-  const query = searchTerm.trim().toLowerCase();
-  const visibleOptions = query
-    ? options.filter((option) => option.label.toLowerCase().includes(query))
-    : options;
-
-  const handleSelect = (optionValue) => {
-    onChange({ target: { name, value: optionValue } });
-    setSearchTerm('');
-    setOpen(false);
-  };
-
-  const clearSelection = (event) => {
-    event.stopPropagation();
-    onChange({ target: { name, value: emptyValue } });
-    setSearchTerm('');
-    setOpen(false);
-  };
-
-  return (
-    <div ref={containerRef} className="relative">
-      {label && <label className="block text-sm font-semibold mb-2 text-slate-800 dark:text-slate-300">{label}</label>}
-      
-      {/* Botón principal */}
-      <div className={`relative w-full min-w-[200px] rounded-xl border-2 bg-slate-50 dark:bg-slate-700 shadow-sm border-slate-300 dark:border-slate-600`}>
-        <div className="flex items-center gap-2 px-4 py-2.5">
-          <input
-            ref={inputRef}
-            type="text"
-            value={open ? searchTerm : (selectedLabel || '')}
-            onChange={(event) => {
-              setSearchTerm(event.target.value);
-              setOpen(true);
-            }}
-            onFocus={() => {
-              setSearchTerm('');
-              setOpen(true);
-            }}
-            placeholder={placeholder}
-            className="w-full bg-transparent text-slate-800 dark:text-white placeholder-slate-400/70 dark:placeholder-slate-400/60 focus:outline-none"
-          />
-          {hasSelection && (
-            <button
-              type="button"
-              onClick={clearSelection}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-600 dark:hover:text-white"
-              title="Limpiar filtro"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-          <span className="flex items-center justify-center h-6 w-6 rounded-md bg-[#2C4AAE] ring-1 ring-[#2C4AAE]">
-            <svg className={`w-3.5 h-3.5 text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-            </svg>
-          </span>
-        </div>
-      </div>
-
-      {/* Menú desplegable */}
-      {open && (
-        <div className="absolute z-50 mt-2 w-full rounded-xl border-2 border-[#3A56AF] bg-white dark:bg-slate-900 shadow-xl">
-          <div className="max-h-40 overflow-auto p-2">
-            {visibleOptions.length > 0 ? (
-              visibleOptions.map((option) => (
-                <button
-                  key={option.value}
-                  ref={(element) => {
-                    optionRefs.current[String(option.value)] = element;
-                  }}
-                  type="button"
-                  onClick={() => handleSelect(option.value)}
-                  className={`w-full text-left px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                    option.value === value
-                      ? 'bg-cyan-50 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-200 font-semibold'
-                      : 'bg-transparent text-slate-700 dark:text-slate-200 hover:bg-[#2C4AAE] hover:text-white dark:hover:bg-[#2C4AAE]'
-                  }`}
-                >
-                  <span className="block truncate">{option.label}</span>
-                </button>
-              ))
-            ) : (
-              <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">{emptyText}</div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
+import FiltroDesplegable from '../common/FiltroDesplegable';
+import Interruptor from '../common/Interruptor';
+import ModalCentrado from '../common/ModalCentrado';
+import NumeroAnimado from '../common/NumeroAnimado';
+import Paginacion from '../common/Paginacion';
+import SelectorVista from '../common/SelectorVista';
+import { BLOQUE, BOTON } from '../fondos/estilosFondo';
+import { paginar } from '../../utils/paginacion';
 
 // --- ICONOS ---
 const BookOpenIcon = (props) => (
@@ -142,30 +23,6 @@ const BookOpenIcon = (props) => (
 const PlusIcon = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-    </svg>
-);
-
-const ClockIcon = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-);
-
-const AcademicCapIcon = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.499 5.24 28.45 28.45 0 01-2.658.813m-15.482 0A28.33 28.33 0 0112 13.489a28.331 28.331 0 01-5.482-3.342z" />
-    </svg>
-);
-
-const PencilIcon = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
-    </svg>
-);
-
-const TrashIcon = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
     </svg>
 );
 
@@ -185,15 +42,37 @@ const getSemestreLabel = (semestre) => {
     return labels[Number(semestre)] || `${semestre} Semestre`;
 };
 
+const VISTA_MATERIAS_KEY = 'materias_vista';
+
+const PildoraEstado = ({ activa }) => (
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${
+        activa ? 'bg-emerald-50 text-emerald-800 ring-emerald-200' : 'bg-slate-100 text-slate-600 ring-slate-300'
+    }`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${activa ? 'bg-emerald-600' : 'bg-slate-400'}`} />
+        {activa ? 'Activa' : 'Inactiva'}
+    </span>
+);
+
 const MateriaList = () => {
     const [materias, setMaterias] = useState([]);
     const [carreras, setCarreras] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [semestreSeleccionado, setSemestreSeleccionado] = useState('todos');
-    const [carreraSeleccionada, setCarreraSeleccionada] = useState('todas');
+    // '' = todos los semestres / todas las carreras.
+    const [semestreSeleccionado, setSemestreSeleccionado] = useState('');
+    const [carreraSeleccionada, setCarreraSeleccionada] = useState('');
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [materiaToDelete, setMateriaToDelete] = useState(null);
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
+    // Tarjetas o lista, como en el dashboard (15 por página en lista y 9 en tarjetas).
+    const [vista, setVista] = useState(() => {
+        try {
+            return localStorage.getItem(VISTA_MATERIAS_KEY) === 'lista' ? 'lista' : 'tarjetas';
+        } catch {
+            return 'tarjetas';
+        }
+    });
+    const [pagina, setPagina] = useState(1);
+    const listaRef = useRef(null);
     // Rol y carrera ACTIVOS (contexto de rol), no el perfil base ni localStorage('user').
     const { activeRole, activeCareerId, effectiveUser } = useActiveRole();
 
@@ -205,6 +84,20 @@ const MateriaList = () => {
 
     const isSuperAdmin = effectiveUser?.is_superuser === true;
     const carreraPerfilId = obtenerId(activeCareerId);
+
+    const cambiarVista = (nuevaVista) => {
+        setVista(nuevaVista);
+        setPagina(1);
+        try {
+            localStorage.setItem(VISTA_MATERIAS_KEY, nuevaVista);
+        } catch {
+            // Sin almacenamiento disponible la vista simplemente no se recuerda.
+        }
+    };
+
+    useEffect(() => {
+        setPagina(1);
+    }, [semestreSeleccionado, carreraSeleccionada]);
 
     useEffect(() => {
         const fetchDatos = async () => {
@@ -295,20 +188,16 @@ const MateriaList = () => {
         .sort((a, b) => Number(b.id || 0) - Number(a.id || 0))
         .map(c => ({ value: c.id?.toString() || c.codigo, label: c.nombre || c.nombre_corto || c.codigo }));
 
-    const semestreOptions = [
-        { value: 'todos', label: 'Todos los semestres' },
-        ...Array.from({ length: 10 }, (_, index) => {
-            const semestre = index + 1;
-            return { value: semestre.toString(), label: getSemestreLabel(semestre) };
-        }),
-    ];
+    const semestreOptions = Array.from({ length: 10 }, (_, index) => {
+        const semestre = index + 1;
+        return { value: semestre.toString(), label: getSemestreLabel(semestre) };
+    });
 
     // Filtrar materias por semestre y carrera seleccionada
+    const carreraFiltro = debeOcultarFiltroCarrera ? carreraPerfilId : carreraSeleccionada;
     const materiasFiltradas = materias.filter(m => {
-        const coincideSemestre = semestreSeleccionado === 'todos' || m.semestre.toString() === semestreSeleccionado;
-        const carreraFiltro = debeOcultarFiltroCarrera ? carreraPerfilId : carreraSeleccionada;
-        const coincideCarrera = carreraFiltro === 'todas' ||
-                                !carreraFiltro ||
+        const coincideSemestre = !semestreSeleccionado || m.semestre.toString() === semestreSeleccionado;
+        const coincideCarrera = !carreraFiltro ||
                                 obtenerId(m.carrera) === carreraFiltro ||
                                 m.carrera_id?.toString() === carreraFiltro;
         return coincideSemestre && coincideCarrera;
@@ -316,215 +205,315 @@ const MateriaList = () => {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-slate-900">
+            <div className="flex items-center justify-center h-full min-h-[50vh]">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto"></div>
-                    <p className="mt-4 text-slate-700 dark:text-slate-300">Cargando materias...</p>
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-900 mx-auto"></div>
+                    <p className="mt-4 text-slate-600">Cargando materias...</p>
                 </div>
             </div>
         );
     }
 
+    const totalActivas = materiasFiltradas.filter((m) => m.activo !== false).length;
+    const nombreCarrera = carreraOptions.find((opt) => String(opt.value) === String(carreraSeleccionada))?.label;
+    const subtituloTotal = [
+        isSuperAdmin ? (nombreCarrera || 'Todas las carreras') : 'Tu carrera',
+        semestreSeleccionado ? getSemestreLabel(semestreSeleccionado) : null,
+    ].filter(Boolean).join(' · ');
+
+    const { paginaActual, totalPaginas, inicio, itemsPagina: materiasPagina } = paginar(materiasFiltradas, pagina, vista);
+    const irAPagina = (nuevaPagina) => {
+        setPagina(nuevaPagina);
+        listaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    const claveVista = `${carreraSeleccionada}-${semestreSeleccionado}-${paginaActual}`;
+
+    const horasTotales = (materia) => Number(materia.horas_teoricas || 0) + Number(materia.horas_practicas || 0);
+
+    const interruptorEstado = (materia) => (
+        <span data-escritura className="flex items-center gap-2.5">
+            <Interruptor
+                isActive={materia.activo !== false}
+                onChange={() => cambiarActivo(materia)}
+                etiqueta={materia.activo === false ? 'Activar materia' : 'Desactivar materia'}
+            />
+            <span className="text-sm text-slate-700">{materia.activo === false ? 'Inactiva' : 'Activa'}</span>
+        </span>
+    );
+
+    const botonesMateria = (materia) => (
+        <div className="flex flex-wrap gap-2">
+            <Link data-escritura
+                to={`/fondo-tiempo/materias/editar/${materia.id}`}
+                className={`${BOTON} bg-emerald-500 hover:bg-emerald-600 text-white`}
+            >
+                <FaEdit size={14} />
+                <span>Editar</span>
+            </Link>
+            <button data-escritura
+                type="button"
+                onClick={() => handleDelete(materia)}
+                className={`${BOTON} bg-red-400 hover:bg-red-500 text-white`}
+            >
+                <FaTrash size={13} />
+                <span>Eliminar</span>
+            </button>
+        </div>
+    );
+
+    const columnasLista = canEdit
+        ? 'xl:grid-cols-[minmax(0,2.4fr)_8rem_5rem_5rem_5rem_8.5rem_13rem]'
+        : 'xl:grid-cols-[minmax(0,2.4fr)_8rem_5rem_5rem_5rem_8.5rem]';
+
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6">
-            <div className="max-w-7xl mx-auto space-y-6">
-                {/* Header */}
-                <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-lg p-6">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div>
-                            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent flex items-center gap-3">
-                                <BookOpenIcon className="w-8 h-8 text-blue-600 dark:text-blue-400" />
-                                Materias y Asignaturas
-                            </h1>
-                            <p className="text-sm text-slate-700 dark:text-slate-400 mt-1">
-                                Gestión del catálogo de materias por carrera
-                            </p>
-                        </div>
-                        
-                        <div className="flex flex-col sm:flex-row gap-3 items-center">
-                            {/* Filtro por Carrera */}
-                            {isSuperAdmin && (
-                                <div className="w-full sm:flex-1">
-                                    <SelectConDropdown
-                                      name="carrera"
-                                      value={carreraSeleccionada}
-                                      onChange={(e) => setCarreraSeleccionada(e.target.value)}
-                                      options={[{ value: 'todas', label: 'Todas las carreras' }, ...carreraOptions]}
-                                      placeholder="Buscar carrera..."
-                                      emptyText="No hay carreras"
-                                    />
+        <div className="min-h-full px-3 sm:px-4 md:px-8 py-4 md:py-6 text-slate-800">
+            <div className="space-y-4">
+                {/* Bloque 1: encabezado con la acción y, al lado, el total (como el dashboard de fondos) */}
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
+                    <div className={`${BLOQUE} p-5 sm:p-6`}>
+                        <div className="flex flex-wrap items-center justify-between gap-5">
+                            <div className="flex items-center gap-4 min-w-0">
+                                <div className="hidden sm:flex w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-50 to-azulado-200 ring-1 ring-inset ring-azulado-300 text-blue-900 items-center justify-center flex-shrink-0">
+                                    <BookOpenIcon className="w-7 h-7" />
                                 </div>
-                            )}
-
-                            {/* Filtro por Semestre */}
-                            <div className="w-full sm:w-auto">
-                                <SelectConDropdown
-                                  name="semestre"
-                                  value={semestreSeleccionado}
-                                  onChange={(e) => setSemestreSeleccionado(e.target.value)}
-                                  options={semestreOptions}
-                                  placeholder="Buscar semestre..."
-                                  emptyText="No hay semestres"
-                                />
+                                <div className="min-w-0">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                                        Catálogo de materias por carrera
+                                    </p>
+                                    <h2 className="text-2xl sm:text-3xl font-bold text-blue-900">
+                                        Materias
+                                    </h2>
+                                </div>
                             </div>
-
                             {canEdit && (
                                 <Link data-escritura
                                     to="/fondo-tiempo/materias/nueva"
-                                    className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 flex items-center justify-center gap-2"
+                                    className={`${BOTON} w-full sm:w-auto px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm`}
                                 >
                                     <PlusIcon className="w-5 h-5" />
-                                    Nueva Materia
+                                    <span>Nueva Materia</span>
                                 </Link>
                             )}
                         </div>
                     </div>
+
+                    {/* Total según los filtros; al cambiarlos los números cuentan hasta el nuevo valor. */}
+                    <div className="rounded-3xl bg-gradient-to-br from-blue-900 to-blue-950 text-white p-5 sm:p-6 flex flex-col justify-between gap-4 shadow-[0_4px_14px_rgba(30,58,138,0.25)]">
+                        <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0">
+                                <p className="text-xs font-semibold uppercase tracking-wider text-blue-200">Materias</p>
+                                <p
+                                    key={subtituloTotal}
+                                    className="animate-campo-entrada mt-1.5 text-sm font-semibold text-white leading-snug line-clamp-2"
+                                    title={subtituloTotal}
+                                >
+                                    {subtituloTotal}
+                                </p>
+                            </div>
+                            <span className="text-5xl font-bold tabular-nums leading-none">
+                                <NumeroAnimado valor={materiasFiltradas.length} />
+                            </span>
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-xs">
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                                <NumeroAnimado valor={totalActivas} singular="activa" plural="activas" />
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
+                                <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+                                <NumeroAnimado valor={materiasFiltradas.length - totalActivas} singular="inactiva" plural="inactivas" />
+                            </span>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Grid de Materias */}
+                {/* Bloque 2: filtros (carrera solo para el superusuario) y vista */}
+                <div className={`${BLOQUE} p-3 flex flex-wrap items-center gap-2 sm:gap-3`}>
+                    {isSuperAdmin && (
+                        <div className="min-w-0 w-full sm:w-72">
+                            <FiltroDesplegable
+                                value={carreraSeleccionada}
+                                onChange={setCarreraSeleccionada}
+                                options={carreraOptions}
+                                placeholder="Todas las carreras"
+                                ariaLabel="Filtrar por carrera"
+                                emptyText="No hay carreras que coincidan"
+                            />
+                        </div>
+                    )}
+                    <div className="min-w-0 flex-1 sm:flex-none sm:w-56">
+                        <FiltroDesplegable
+                            value={semestreSeleccionado}
+                            onChange={setSemestreSeleccionado}
+                            options={semestreOptions}
+                            placeholder="Todos los semestres"
+                            ariaLabel="Filtrar por semestre"
+                            emptyText="No hay semestres que coincidan"
+                        />
+                    </div>
+                    <SelectorVista vista={vista} onCambiar={cambiarVista} className="ml-auto" />
+                </div>
+
+                {/* Bloque 3: materias en tarjetas o en lista; al cambiar de filtro, vista o página
+                    entran escalonadas */}
+                <div ref={listaRef} className="scroll-mt-4" />
                 {materiasFiltradas.length > 0 ? (
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        {materiasFiltradas.map((materia) => (
-                            <div 
-                                key={materia.id} 
-                                className="bg-white dark:bg-slate-800 rounded-xl border-2 border-slate-300 dark:border-slate-700 shadow-md hover:shadow-xl transition-all duration-300 hover:scale-[1.02] group"
-                            >
-                                <div className="p-5">
-                                    {/* Badges Superiores */}
-                                    <div className="flex justify-between items-start mb-3">
-                                        <span className="px-3 py-1 rounded-lg text-xs font-bold bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                                            {materia.sigla}
-                                        </span>
-                                        <div className="flex items-center gap-2">
-                                            {materia.activo === false && (
-                                                <span className="px-3 py-1 rounded-lg text-xs font-bold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
-                                                    Inactiva
-                                                </span>
-                                            )}
-                                            <span className="px-3 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
-                                                {getSemestreLabel(materia.semestre)}
-                                            </span>
+                    vista === 'lista' ? (
+                        // Cuadrícula en vez de <table>: el CSS del módulo POA da estilo a todas las tablas.
+                        <div key={`lista-${claveVista}`} className={`${BLOQUE} p-2 sm:p-3`}>
+                            <div className={`hidden xl:grid ${columnasLista} gap-4 px-3 pt-3 pb-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 [border-bottom:1px_solid_#B8C9E1]`}>
+                                <span>Materia</span>
+                                <span>Semestre</span>
+                                <span>H. teóricas</span>
+                                <span>H. prácticas</span>
+                                <span>Total</span>
+                                <span>Estado</span>
+                                {canEdit && <span>Acciones</span>}
+                            </div>
+                            <div className="divide-y divide-azulado-300">
+                                {materiasPagina.map((materia, indice) => {
+                                    const datos = [
+                                        { label: 'Semestre', valor: getSemestreLabel(materia.semestre) },
+                                        { label: 'H. teóricas', valor: materia.horas_teoricas },
+                                        { label: 'H. prácticas', valor: materia.horas_practicas },
+                                        { label: 'Total', valor: `${horasTotales(materia)} h/sem` },
+                                    ];
+                                    return (
+                                        <div
+                                            key={materia.id}
+                                            style={{ animationDelay: `${Math.min(indice, 8) * 35}ms` }}
+                                            className={`animate-fondo-entrada grid grid-cols-1 ${columnasLista} items-center gap-x-4 gap-y-3 px-3 py-4 rounded-2xl hover:bg-azulado-100/70 transition-colors`}
+                                        >
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="flex h-10 min-w-[3.5rem] flex-shrink-0 items-center justify-center rounded-xl bg-blue-900 px-2 text-white text-xs font-bold">
+                                                    {materia.sigla}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="font-bold text-blue-900 truncate" title={materia.nombre}>{materia.nombre}</div>
+                                                    <div className="text-sm text-slate-600 truncate">{materia.carrera_nombre || materia.carrera}</div>
+                                                </div>
+                                            </div>
+                                            {datos.map((dato) => (
+                                                <div key={dato.label} className="min-w-0 flex items-baseline justify-between gap-3 xl:block">
+                                                    <span className="xl:hidden text-xs font-semibold text-blue-800">{dato.label}</span>
+                                                    <span className="block text-tabla font-semibold text-slate-800 tabular-nums">{dato.valor}</span>
+                                                </div>
+                                            ))}
+                                            <div>{canEdit ? interruptorEstado(materia) : <PildoraEstado activa={materia.activo !== false} />}</div>
+                                            {canEdit && botonesMateria(materia)}
                                         </div>
-                                    </div>
-                                    
-                                    {/* Título */}
-                                    <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                                        {materia.nombre}
-                                    </h3>
-                                    
-                                    {/* Carrera */}
-                                    <div className="flex items-center gap-2 mb-4 text-sm text-slate-600 dark:text-slate-400">
-                                        <AcademicCapIcon className="w-4 h-4" />
-                                        <span className="truncate">{materia.carrera_nombre || materia.carrera}</span>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ) : (
+                        <div key={`tarjetas-${claveVista}`} className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                            {materiasPagina.map((materia, indice) => (
+                                <div
+                                    key={materia.id}
+                                    style={{ animationDelay: `${Math.min(indice, 8) * 35}ms` }}
+                                    className={`${BLOQUE} animate-fondo-entrada p-5 flex flex-col gap-4`}
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className="flex h-12 min-w-[3.5rem] flex-shrink-0 items-center justify-center rounded-2xl bg-blue-900 px-2 text-white text-xs font-bold">
+                                                {materia.sigla}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <h3 className="text-lg font-bold text-blue-900 leading-tight line-clamp-2" title={materia.nombre}>{materia.nombre}</h3>
+                                                <p className="text-sm text-slate-600 truncate">{materia.carrera_nombre || materia.carrera}</p>
+                                            </div>
+                                        </div>
+                                        <PildoraEstado activa={materia.activo !== false} />
                                     </div>
 
-                                    {/* Footer con Horas */}
-                                    <div className="pt-4 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                                        <div className="flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                                            <ClockIcon className="w-4 h-4" />
-                                            <span>Carga Horaria:</span>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <span className="px-2 py-1 rounded-md bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-100 dark:border-indigo-800" title="Horas Teóricas">
-                                                T: {materia.horas_teoricas}
-                                            </span>
-                                            <span className="px-2 py-1 rounded-md bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold border border-emerald-100 dark:border-emerald-800" title="Horas Prácticas">
-                                                P: {materia.horas_practicas}
-                                            </span>
-                                        </div>
-                                        {canEdit && (
-                                            <div className="flex gap-3 ml-4">
-                                                <Link data-escritura
-                                                    to={`/fondo-tiempo/materias/editar/${materia.id}`}
-                                                    className="text-blue-500 hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300 transition-all duration-200 hover:scale-110"
-                                                    title="Editar"
-                                                >
-                                                    <FaEdit size={18} />
-                                                </Link>
-                                                <button data-escritura
-                                                    onClick={() => cambiarActivo(materia)}
-                                                    className={`${materia.activo === false ? 'text-slate-400 hover:text-emerald-500' : 'text-emerald-500 hover:text-emerald-400'} transition-all duration-200 hover:scale-110`}
-                                                    title={materia.activo === false ? 'Activar' : 'Desactivar'}
-                                                >
-                                                    {materia.activo === false ? <FaToggleOff size={20} /> : <FaToggleOn size={20} />}
-                                                </button>
-                                                <button data-escritura
-                                                    onClick={() => handleDelete(materia)}
-                                                    className="text-red-500 hover:text-red-400 dark:text-red-400 dark:hover:text-red-300 transition-all duration-200 hover:scale-110"
-                                                    title="Eliminar"
-                                                >
-                                                    <FaTrash size={18} />
-                                                </button>
+                                    <dl className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-azulado-300 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 py-2.5">
+                                        {[
+                                            { label: 'Semestre', valor: `${materia.semestre}°` },
+                                            { label: 'Teóricas', valor: `${materia.horas_teoricas} h` },
+                                            { label: 'Prácticas', valor: `${materia.horas_practicas} h` },
+                                            { label: 'Total', valor: `${horasTotales(materia)} h/sem` },
+                                        ].map((dato) => (
+                                            <div key={dato.label} className="min-w-0 px-3 py-1 sm:py-0 text-center">
+                                                <dt className="text-xs font-semibold text-blue-800">{dato.label}</dt>
+                                                <dd className="mt-0.5 text-[13px] font-semibold text-slate-800 tabular-nums">{dato.valor}</dd>
                                             </div>
-                                        )}
-                                    </div>
+                                        ))}
+                                    </dl>
+
+                                    {canEdit && (
+                                        <div className="mt-auto pt-3 flex flex-wrap items-center justify-between gap-2 [border-top:1px_solid_#B8C9E1]">
+                                            {interruptorEstado(materia)}
+                                            {botonesMateria(materia)}
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-300 dark:border-slate-700 p-12 text-center shadow-md">
-                        <div className="w-20 h-20 rounded-full bg-slate-50 dark:bg-slate-700 border-2 border-slate-300 dark:border-slate-600 flex items-center justify-center mx-auto mb-4">
-                            <BookOpenIcon className="w-10 h-10 text-slate-400 dark:text-slate-500" />
+                            ))}
                         </div>
-                        <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
-                            {materias.length > 0 ? 'No hay materias en este semestre' : 'No hay materias registradas'}
+                    )
+                ) : (
+                    <div className={`${BLOQUE} p-10 sm:p-12 text-center`}>
+                        <h3 className="text-xl font-bold text-slate-800 mb-2">
+                            {materias.length > 0 ? 'No hay materias con estos filtros' : 'No hay materias registradas'}
                         </h3>
-                        <p className="text-slate-600 dark:text-slate-400 mb-6">
-                            {materias.length > 0 ? 'Intenta seleccionar otro semestre o "Todos".' : 'Comienza agregando tu primera materia al sistema.'}
+                        <p className="text-slate-600">
+                            {materias.length > 0 ? 'Prueba con otro semestre o carrera.' : 'Comienza agregando la primera materia.'}
                         </p>
-                        {canEdit && (
-                            <Link data-escritura 
-                                to="/fondo-tiempo/materias/nueva" 
-                                className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
+                        {canEdit && materias.length === 0 && (
+                            <Link data-escritura
+                                to="/fondo-tiempo/materias/nueva"
+                                className={`${BOTON} mt-6 px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm`}
                             >
                                 <PlusIcon className="w-5 h-5" />
-                                Crear Primera Materia
+                                <span>Crear primera materia</span>
                             </Link>
                         )}
                     </div>
                 )}
+
+                <Paginacion
+                    paginaActual={paginaActual}
+                    totalPaginas={totalPaginas}
+                    inicio={inicio}
+                    cantidad={materiasPagina.length}
+                    total={materiasFiltradas.length}
+                    nombre="materias"
+                    onCambiar={irAPagina}
+                />
             </div>
 
-            {/* Modal de Confirmación de Eliminación */}
+            {/* Confirmación de eliminación */}
             {showDeleteModal && (
-                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={closeDeleteModal} />
-                    <div className="relative w-full max-w-lg rounded-2xl border border-red-300/40 dark:border-red-700/50 bg-slate-900 shadow-2xl overflow-hidden animate-slide-up" style={{ animationDuration: '160ms' }}>
-                        <div className="px-5 py-4 border-b border-slate-700/70 bg-gradient-to-r from-red-900/30 to-slate-900">
-                            <h4 className="text-lg font-bold text-red-300 flex items-center gap-2">
-                                <span>🗑️</span>
-                                Confirmar Eliminación
-                            </h4>
-                        </div>
-                        <div className="px-5 py-4 space-y-3 text-slate-200">
-                            <p className="text-sm leading-relaxed">
-                                Se eliminará la materia <strong className="text-white">{materiaToDelete?.nombre}</strong> del sistema de forma permanente.
+                <ModalCentrado onClose={closeDeleteModal}>
+                    <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '160ms' }}>
+                        <div className="px-6 pt-6">
+                            <h4 className="text-xl font-bold text-red-700">Confirmar eliminación</h4>
+                            <p className="mt-1 text-sm text-slate-600">
+                                Se eliminará la materia <strong className="text-slate-900">{materiaToDelete?.nombre}</strong> de forma permanente.
                             </p>
-                            <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm">
-                                Acción irreversible: <strong className="text-red-300">la materia quedará eliminada definitivamente.</strong>
+                        </div>
+                        <div className="px-6 py-4 space-y-3 text-sm">
+                            <div className="rounded-2xl bg-red-50 ring-1 ring-inset ring-red-200 px-4 py-3 text-red-800">
+                                Acción irreversible: <strong>la materia quedará eliminada definitivamente.</strong>
                             </div>
                             <div>
-                                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                                <label className="block text-xs font-semibold text-slate-700 mb-1.5 pl-1">
                                     Escribe el nombre exacto de la materia para habilitar la eliminación:
                                 </label>
                                 <input
                                     type="text"
                                     value={deleteConfirmText}
                                     onChange={(e) => setDeleteConfirmText(e.target.value)}
-                                    placeholder="Escribe el nombre de la materia para confirmar"
-                                    className="w-full px-3 py-2 rounded-lg border border-red-400/40 bg-slate-800 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500/60"
+                                    placeholder={materiaToDelete?.nombre || ''}
+                                    className="w-full h-11 px-4 rounded-full text-sm text-slate-800 placeholder:text-slate-500 outline-none ring-1 ring-inset ring-azulado-300 focus:ring-2 focus:ring-red-400/50 !bg-azulado-100"
                                 />
                             </div>
-                            <p className="text-xs text-slate-400">
-                                Esta operación no se puede deshacer.
-                            </p>
                         </div>
-                        <div className="px-5 py-4 border-t border-slate-700/70 flex justify-end gap-3 bg-slate-950/70">
+                        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 pb-6">
                             <button
                                 type="button"
                                 onClick={closeDeleteModal}
-                                className="px-4 py-2 rounded-lg font-semibold text-slate-300 border border-slate-600 hover:bg-slate-800"
+                                className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200`}
                             >
                                 Cancelar
                             </button>
@@ -532,13 +521,13 @@ const MateriaList = () => {
                                 type="button"
                                 onClick={confirmarEliminar}
                                 disabled={deleteConfirmText !== (materiaToDelete?.nombre || '')}
-                                className="px-4 py-2 rounded-lg font-bold text-white bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 disabled:bg-red-900/40 disabled:text-slate-300 disabled:cursor-not-allowed"
+                                className={`${BOTON} px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-500`}
                             >
-                                🗑️ Eliminar
+                                Eliminar
                             </button>
                         </div>
                     </div>
-                </div>
+                </ModalCentrado>
             )}
             <Outlet />
         </div>

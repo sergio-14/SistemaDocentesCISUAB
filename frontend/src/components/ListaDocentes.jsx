@@ -14,6 +14,7 @@ import { DEDICACIONES_HORARIO, ETIQUETAS_DEDICACION, describirDedicacion, horasS
 import { hoyBolivia } from '../utils/fechas';
 import { CalendarioFlotante } from './common/CalendarioFecha';
 import NumeroAnimado from './common/NumeroAnimado';
+import FiltroDesplegable from './common/FiltroDesplegable';
 import Paginacion from './common/Paginacion';
 import SelectorVista from './common/SelectorVista';
 import { paginar } from '../utils/paginacion';
@@ -396,111 +397,6 @@ const InputField = ({
     />
     {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
   </div>
-  );
-};
-
-// Selector de carrera con el estilo del dashboard: píldora azulada y cuadrito azul con la
-// flecha que gira. El propio campo es el buscador: al pulsarlo se despliega la lista y lo
-// que se escribe la filtra. Volver a elegir la carrera seleccionada la quita.
-const SimpleDropdown = ({ value, onChange, options, placeholder = 'Todas las carreras' }) => {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const containerRef = React.useRef(null);
-
-  const cerrar = () => {
-    setOpen(false);
-    setSearch('');
-  };
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const handleOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) cerrar();
-    };
-    const handleEscape = (event) => {
-      if (event.key === 'Escape') cerrar();
-    };
-    document.addEventListener('mousedown', handleOutside);
-    document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.removeEventListener('mousedown', handleOutside);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [open]);
-
-  const selectedLabel = options.find((opt) => String(opt.value) === String(value))?.label;
-  const normalizar = (texto) => String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const filteredOptions = search.trim()
-    ? options.filter((option) => normalizar(option.label).includes(normalizar(search.trim())))
-    : options;
-
-  const elegir = (option) => {
-    onChange(String(value) === String(option.value) ? '' : option.value);
-    cerrar();
-  };
-
-  return (
-    <div ref={containerRef} className="relative">
-      <input
-        type="text"
-        role="combobox"
-        aria-expanded={open}
-        aria-label="Filtrar por carrera"
-        value={open ? search : (selectedLabel || '')}
-        onChange={(e) => {
-          setSearch(e.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onClick={() => setOpen(true)}
-        onKeyDown={(e) => {
-          // Enter elige la primera coincidencia.
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            if (open && filteredOptions.length > 0) elegir(filteredOptions[0]);
-          }
-          if (e.key === 'Tab') cerrar();
-        }}
-        placeholder={open ? (selectedLabel || 'Escribe para buscar...') : placeholder}
-        className="w-full h-11 pl-4 pr-11 rounded-full ring-1 ring-inset ring-azulado-300 text-sm text-slate-800 placeholder:text-slate-500 outline-none !bg-azulado-100 focus:ring-2 focus:ring-blue-900/40"
-        style={{ border: 'none' }}
-      />
-      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center justify-center h-6 w-6 rounded-md bg-[#2C4AAE]">
-        <svg
-          className={`w-3.5 h-3.5 text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-        </svg>
-      </span>
-      {open && (
-        <div role="listbox" className="absolute z-40 mt-2 w-full rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl max-h-72 overflow-auto p-2">
-          {filteredOptions.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="option"
-              aria-selected={String(value) === String(option.value)}
-              onClick={() => elegir(option)}
-              className={`w-full text-left px-3 py-1.5 text-xs rounded-lg ${
-                String(value) === String(option.value)
-                  ? 'bg-sky-600 text-white font-semibold hover:bg-sky-700'
-                  : 'bg-transparent text-slate-700 hover:bg-[#2C4AAE] hover:text-white'
-              }`}
-            >
-              <span className="block truncate">{option.label}</span>
-            </button>
-          ))}
-          {filteredOptions.length === 0 && (
-            <div className="px-3 py-2 text-xs text-slate-500">
-              No hay carreras que coincidan
-            </div>
-          )}
-        </div>
-      )}
-    </div>
   );
 };
 
@@ -1967,10 +1863,13 @@ function ListaDocentes() {
         <div className={`${BLOQUE} p-3 flex flex-wrap items-center gap-2 sm:gap-3`}>
           <SearchInput value={searchTerm} onChange={setSearchTerm} />
           <div className="min-w-0 flex-1 sm:flex-none sm:w-64">
-            <SimpleDropdown
+            <FiltroDesplegable
               value={selectedCarrera}
               onChange={setSelectedCarrera}
               options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
+              placeholder="Todas las carreras"
+              ariaLabel="Filtrar por carrera"
+              emptyText="No hay carreras que coincidan"
             />
           </div>
           <SelectorVista vista={vista} onCambiar={cambiarVista} className="ml-auto" />

@@ -10,6 +10,7 @@ import RuedaOpciones from './common/RuedaOpciones';
 import { CalendarioFlotante } from './common/CalendarioFecha';
 import ModalCentrado from './common/ModalCentrado';
 import NumeroAnimado from './common/NumeroAnimado';
+import Interruptor from './common/Interruptor';
 import Paginacion from './common/Paginacion';
 import SelectorVista from './common/SelectorVista';
 import { paginar } from '../utils/paginacion';
@@ -190,24 +191,6 @@ const PlayIcon = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
     </svg>
-);
-
-const ToggleSwitch = ({ isActive, onChange }) => (
-  <button
-    type="button"
-    onClick={onChange}
-    className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-      isActive
-        ? 'bg-sky-600 focus:ring-sky-400'
-        : 'bg-slate-300 focus:ring-slate-400'
-    }`}
-  >
-    <span
-      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-transform duration-300 ${
-        isActive ? 'translate-x-6' : 'translate-x-0.5'
-      }`}
-    />
-  </button>
 );
 
 const SegmentedOptions = ({ options, value, onChange, className = '', error, errorPulse = 0, onClearError }) => {
@@ -1452,7 +1435,7 @@ function ListaCalendarios() {
   );
   const interruptorEstado = (cal) => (
     <span data-escritura className="flex items-center gap-2.5">
-      <ToggleSwitch
+      <Interruptor
         isActive={cal.activo}
         onChange={() => handleToggleActivo(cal)}
       />
@@ -1883,7 +1866,7 @@ function ListaCalendarios() {
                 </div>
                 <div className="rounded-2xl bg-white/70 ring-1 ring-inset ring-azulado-300 px-4 py-3 md:self-end xl:col-span-2">
                   <div className="flex items-center gap-3">
-                    <ToggleSwitch
+                    <Interruptor
                       isActive={Boolean(formData.activo)}
                       onChange={handleActivoSwitchChange}
                     />

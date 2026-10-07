@@ -308,9 +308,9 @@ function App() {
               {/* Rutas de Administración (Integradas en el Sidebar) */}
               <Route path="docentes" element={<AnimatedRoute><ListaDocentes isDark={isDark} /></AnimatedRoute>} />
               <Route path="calendarios" element={<AnimatedRoute><ListaCalendarios /></AnimatedRoute>} />
-              <Route path="materias" element={<MateriaList isDark={isDark} sidebarCollapsed={sidebarCollapsed} />}>
-                <Route path="nueva" element={<MateriaForm sidebarCollapsed={sidebarCollapsed} />} />
-                <Route path="editar/:id" element={<MateriaForm sidebarCollapsed={sidebarCollapsed} />} />
+              <Route path="materias" element={<MateriaList />}>
+                <Route path="nueva" element={<MateriaForm />} />
+                <Route path="editar/:id" element={<MateriaForm />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/fondo-tiempo" replace />} />

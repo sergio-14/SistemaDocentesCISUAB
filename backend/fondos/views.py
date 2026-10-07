@@ -27,6 +27,7 @@ from .models import (
     FacultadCatalogo, DatosLaborales, DocenteCarrera, ProgramaAnalitico,
     AsignacionCarrera,
 )
+from .serializers import TIPO_ACTIVIDAD_OTROS
 from .serializers import (
     DocenteSerializer, CarreraSerializer, MateriaSerializer, FondoTiempoSerializer,
     FondoTiempoListSerializer, CargaHorariaSerializer,
@@ -1096,6 +1097,37 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
         self._validar_carrera_responsable(instance.fondo, instance.calendario)
         self._validar_estado_fondo(instance.fondo)
         instance.delete()
+
+    # Nombre de cada campo en el mensaje de "elimine y vuelva a agregar".
+    NOMBRES_CAMPOS_CARGA = {
+        'categoria': 'la unidad',
+        'tipo_actividad': 'el tipo de actividad',
+        'materia': 'la materia',
+        'calendario': 'el calendario',
+        'paralelo': 'el paralelo',
+        'docente': 'el docente',
+        'titulo_actividad': 'la descripción',
+    }
+
+    def partial_update(self, request, *args, **kwargs):
+        """Una carga ya registrada solo corrige sus horas (y su descripción si es "Otros").
+        Cambiar unidad, tipo, materia, calendario o paralelo es otra carga: se elimina y se
+        vuelve a agregar, así su programa analítico o documento (PDF) no queda desfasado."""
+        carga = self.get_object()
+        if carga.tipo_actividad == 'clases_aula':
+            raise drf_serializers.ValidationError({
+                'horas': 'Las horas de clases en aula son automáticas (salen de la materia y su calendario).'
+            })
+        permitidos = {'horas'}
+        if carga.tipo_actividad == TIPO_ACTIVIDAD_OTROS:
+            permitidos.add('titulo_actividad')
+        no_permitidos = [campo for campo in request.data if campo not in permitidos]
+        if no_permitidos:
+            nombres = ', '.join(self.NOMBRES_CAMPOS_CARGA.get(campo, campo) for campo in no_permitidos)
+            raise drf_serializers.ValidationError({
+                'detail': f'No se puede cambiar {nombres} de una carga registrada: elimínela y vuelva a agregarla.'
+            })
+        return super().partial_update(request, *args, **kwargs)
 
 # =====================================================
 # PROGRAMA ANALÍTICO (Art. 15 y 18)

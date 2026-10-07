@@ -1,26 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import api, { obtenerTodos } from '../apis/api';
 import toast from 'react-hot-toast';
-import { ERROR_FIELD_BORDER_CLASS } from '../utils/formErrors';
+import { ERROR_FIELD_BORDER_CLASS, getApiErrorMessage } from '../utils/formErrors';
 import MensajeErrorCampo from './common/MensajeErrorCampo';
-
-const PencilIcon = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
-    </svg>
-);
-
-const PlusIcon = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-    </svg>
-);
-
-const XMarkIcon = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-    </svg>
-);
 
 const PARALELOS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
@@ -214,21 +197,12 @@ const HORAS_ANUALES_OFICIALES = {
     },
 };
 
-const ChevronDown = ({ open = false }) => (
-    <div className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
-        <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-cyan-50 dark:bg-cyan-900/30 ring-1 ring-cyan-200/70 dark:ring-cyan-700/70">
-            <svg
-                className={`w-3 h-3 text-cyan-700 dark:text-cyan-300 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-            >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-            </svg>
-        </span>
-    </div>
-);
+// Compara sin mayúsculas ni tildes: "calculo" encuentra "Cálculo".
+const normalizar = (texto) => String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
+// Selector con el diseño del dashboard: campo azulado, cuadrito azul con la flecha que
+// gira y menú flotante (en <body>, para que no lo recorte el panel). Las listas largas
+// (más de 8 opciones) traen un buscador arriba.
 const CustomSelect = ({
     value,
     options,
@@ -236,86 +210,166 @@ const CustomSelect = ({
     placeholder,
     disabled = false,
     emptyText = 'Sin opciones disponibles',
-    menuMaxHeight = 'max-h-56'
 }) => {
     const [open, setOpen] = useState(false);
+    const [busqueda, setBusqueda] = useState('');
+    const [menuStyle, setMenuStyle] = useState(null);
     const containerRef = useRef(null);
+    const menuRef = useRef(null);
+    const busquedaRef = useRef(null);
     const selected = options.find(opt => opt.value?.toString() === value?.toString());
+    const conBusqueda = options.length > 8;
+
+    const cerrar = () => {
+        setOpen(false);
+        setBusqueda('');
+    };
 
     useEffect(() => {
+        if (!open) return undefined;
+        const cerrar = () => {
+            setOpen(false);
+            setBusqueda('');
+        };
         const handleClickOutside = (event) => {
-            if (containerRef.current && !containerRef.current.contains(event.target)) {
-                setOpen(false);
-            }
+            if (containerRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return;
+            cerrar();
         };
-
         const handleEscape = (event) => {
-            if (event.key === 'Escape') setOpen(false);
+            if (event.key === 'Escape') cerrar();
         };
-
+        // El menú está fijo en pantalla: si se desplaza la página o cambia el tamaño, se cierra.
+        const handleScroll = (event) => {
+            if (menuRef.current?.contains(event.target)) return;
+            cerrar();
+        };
         document.addEventListener('mousedown', handleClickOutside);
         document.addEventListener('keydown', handleEscape);
-
+        window.addEventListener('scroll', handleScroll, true);
+        window.addEventListener('resize', cerrar);
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('keydown', handleEscape);
+            window.removeEventListener('scroll', handleScroll, true);
+            window.removeEventListener('resize', cerrar);
         };
-    }, []);
+    }, [open]);
+
+    useLayoutEffect(() => {
+        if (!open || !containerRef.current) {
+            setMenuStyle(null);
+            return;
+        }
+        const rect = containerRef.current.getBoundingClientRect();
+        // Al menos 18rem de ancho para que se lean las materias, sin salirse de la pantalla.
+        const ancho = Math.min(Math.max(rect.width, 288), window.innerWidth - 16);
+        const izquierda = Math.max(8, Math.min(rect.left, window.innerWidth - ancho - 8));
+        const alturaMax = 320;
+        const espacioAbajo = window.innerHeight - rect.bottom - 12;
+        const abrirArriba = espacioAbajo < alturaMax && rect.top > espacioAbajo;
+        setMenuStyle({
+            position: 'fixed',
+            left: `${izquierda}px`,
+            width: `${ancho}px`,
+            ...(abrirArriba
+                ? { bottom: `${window.innerHeight - rect.top + 8}px` }
+                : { top: `${rect.bottom + 8}px` }),
+            zIndex: 99999,
+        });
+    }, [open]);
+
+    useEffect(() => {
+        if (open && conBusqueda) setTimeout(() => busquedaRef.current?.focus(), 0);
+    }, [open, conBusqueda]);
 
     const handlePick = (newValue) => {
         onChange(newValue);
-        setOpen(false);
+        cerrar();
     };
+
+    const filtradas = busqueda.trim()
+        ? options.filter((opt) => normalizar(opt.label).includes(normalizar(busqueda.trim())))
+        : options;
 
     return (
         <div ref={containerRef} className="relative">
             <button
                 type="button"
-                onClick={() => !disabled && setOpen(prev => !prev)}
+                onClick={() => !disabled && (open ? cerrar() : setOpen(true))}
                 disabled={disabled}
-                className={`w-full text-left pl-3.5 pr-10 py-2.5 rounded-xl border bg-white dark:bg-slate-800 text-sm shadow-sm transition-all ${
+                className={`relative w-full h-11 text-left pl-4 pr-11 rounded-full text-sm ring-inset transition-colors ${
                     disabled
-                        ? 'border-slate-300/80 dark:border-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-70'
+                        ? 'bg-slate-100 ring-1 ring-azulado-300 text-slate-400 cursor-not-allowed'
                         : open
-                            ? 'border-cyan-500/80 dark:border-cyan-500 ring-2 ring-cyan-400/40 dark:ring-cyan-500/35 text-slate-900 dark:text-slate-100'
-                            : 'border-cyan-300/70 dark:border-cyan-700/80 hover:border-cyan-500/70 dark:hover:border-cyan-500/80 text-slate-800 dark:text-slate-100'
+                            ? 'bg-azulado-100 ring-2 ring-blue-900/40 text-slate-900'
+                            : 'bg-azulado-100 ring-1 ring-azulado-300 text-slate-800'
                 }`}
             >
-                <span className="block truncate font-semibold">{selected ? selected.label : placeholder}</span>
-                <ChevronDown open={open} />
+                <span className={`block truncate ${selected ? 'font-semibold' : 'text-slate-500'}`}>
+                    {selected ? selected.label : placeholder}
+                </span>
+                <span className={`pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-md ${
+                    disabled ? 'bg-slate-400' : 'bg-[#2C4AAE]'
+                }`}>
+                    <svg
+                        className={`w-3.5 h-3.5 text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                    </svg>
+                </span>
             </button>
 
-            {open && !disabled && (
-                <div className={`absolute z-30 mt-1.5 w-full overflow-auto rounded-xl border border-cyan-300 dark:border-cyan-700 bg-white dark:bg-slate-900 shadow-xl shadow-cyan-900/15 dark:shadow-black/35 ${menuMaxHeight}`}>
-                    {options.length === 0 ? (
-                        <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">{emptyText}</div>
-                    ) : (
-                        options.map((opt) => {
-                            const active = opt.value?.toString() === value?.toString();
-                            return (
-                                <button
-                                    key={opt.value}
-                                    type="button"
-                                    onClick={() => handlePick(opt.value)}
-                                    className={`w-full text-left px-3 py-1.5 text-sm transition-colors border-l-2 ${
-                                        active
-                                            ? 'bg-cyan-50 dark:bg-cyan-900/30 border-cyan-500 text-cyan-800 dark:text-cyan-200 font-semibold'
-                                            : 'bg-transparent border-transparent text-slate-700 dark:text-slate-200 hover:bg-[#2C4AAE] hover:text-white dark:hover:bg-[#2C4AAE]'
-                                    }`}
-                                    title={opt.label}
-                                >
-                                    <span className="block truncate">{opt.label}</span>
-                                </button>
-                            );
-                        })
+            {open && !disabled && menuStyle && createPortal(
+                <div ref={menuRef} style={menuStyle} className="rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl overflow-hidden">
+                    {conBusqueda && (
+                        <div className="px-2 pt-2">
+                            <input
+                                ref={busquedaRef}
+                                type="text"
+                                value={busqueda}
+                                onChange={(e) => setBusqueda(e.target.value)}
+                                placeholder="Buscar..."
+                                className="w-full h-9 px-3 rounded-lg text-sm text-slate-800 placeholder:text-slate-500 outline-none !bg-azulado-100"
+                            />
+                        </div>
                     )}
-                </div>
+                    <div className="max-h-64 overflow-auto p-2">
+                        {filtradas.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-slate-500">
+                                {options.length === 0 ? emptyText : 'Sin resultados'}
+                            </div>
+                        ) : (
+                            filtradas.map((opt) => {
+                                const active = opt.value?.toString() === value?.toString();
+                                return (
+                                    <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => handlePick(opt.value)}
+                                        className={`w-full text-left px-3 py-2 text-sm rounded-lg ${
+                                            active
+                                                ? 'bg-sky-600 text-white font-semibold hover:bg-sky-700'
+                                                : 'bg-transparent text-slate-700 hover:bg-[#2C4AAE] hover:text-white'
+                                        }`}
+                                        title={opt.label}
+                                    >
+                                        <span className="block truncate">{opt.label}</span>
+                                    </button>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>,
+                document.body
             )}
         </div>
     );
 };
 
-const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], onCargaUpdate, cargaEdicion, onCancelarEdicion, readOnly = true, versionCargas = 0 }) => {
+const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], onCargaUpdate, readOnly = true, versionCargas = 0 }) => {
     const [cargas, setCargas] = useState([]);
     const [semestre, setSemestre] = useState('');
     const [materias, setMaterias] = useState([]);
@@ -406,22 +460,8 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
     }, [fondoId, versionCargas]);
 
     useEffect(() => {
-        if (cargaEdicion) {
-            setFormData({
-                categoria: cargaEdicion.categoria || 'academica',
-                calendario: cargaEdicion.calendario ? String(cargaEdicion.calendario) : '',
-                materia: cargaEdicion.materia || cargaEdicion.materia_id || '',
-                paralelo: cargaEdicion.paralelo || 'A',
-                titulo_actividad: cargaEdicion.titulo_actividad || '',
-                tipo_actividad: cargaEdicion.tipo_actividad || '',
-                horas: cargaEdicion.horas,
-                evidencias: cargaEdicion.evidencias || '',
-                documento_respaldo: cargaEdicion.respaldo || ''
-            });
-        } else {
-            setFormData({ categoria: 'academica', calendario: calendarioPorDefecto, materia: '', paralelo: 'A', titulo_actividad: '', tipo_actividad: '', horas: '', evidencias: '', documento_respaldo: '' });
-        }
-    }, [cargaEdicion, calendarioPorDefecto]);
+        setFormData((prev) => (prev.calendario ? prev : { ...prev, calendario: calendarioPorDefecto }));
+    }, [calendarioPorDefecto]);
 
     useEffect(() => {
         const fetchAllMaterias = async () => {
@@ -538,14 +578,8 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
             gestion,
         };
         try {
-            if (cargaEdicion) {
-                await api.put(`/cargas-horarias/${cargaEdicion.id}/`, payload);
-                toast.success("Asignación actualizada");
-                if (onCancelarEdicion) onCancelarEdicion();
-            } else {
-                await api.post('/cargas-horarias/', payload);
-                toast.success("Asignación agregada");
-            }
+            await api.post('/cargas-horarias/', payload);
+            toast.success("Asignación agregada");
             setFormData({ categoria: 'academica', calendario: calendarioPorDefecto, materia: '', paralelo: 'A', titulo_actividad: '', tipo_actividad: '', horas: '', evidencias: '', documento_respaldo: '' });
             setSemestre('');
             cargarCargas();
@@ -559,7 +593,8 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                 const validationMessage = extractValidationMessage(data);
                 toast.error(`ERROR DE VALIDACIÓN: ${validationMessage}`);
             } else {
-                toast.error("Error al guardar");
+                // 403 (fondo no editable, otra carrera) y demás: el mensaje del backend.
+                toast.error(getApiErrorMessage(error, 'No se pudo guardar la asignación'));
             }
         } finally {
             setIsSubmitting(false);
@@ -648,16 +683,14 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
     const tipoActividadOptions = (configCategoria?.opciones || []).filter((opt) => (
         !TIPOS_EJERCICIO_CARGO.includes(opt.value)
         || tiposCargoDelDocente.includes(opt.value)
-        || opt.value === cargaEdicion?.tipo_actividad
     ));
     // La unidad suma sus ítems; el fondo, todas sus unidades (horas por año) hasta las horas efectivas.
     const totalUnidad = cargas
-        .filter(carga => carga.categoria === formData.categoria && carga.id !== cargaEdicion?.id)
+        .filter(carga => carga.categoria === formData.categoria)
         .reduce((total, carga) => total + Number(carga.horas || 0), 0);
     const objetivoAnual = Math.round(Number(fondoDetalle?.horas_efectivas || 0));
     const horasFormulario = Number(formData.horas || 0);
     const totalAnualBase = cargas
-        .filter((carga) => carga.id !== cargaEdicion?.id)
         .reduce((total, carga) => total + Number(carga.horas || 0), 0);
     const totalAnualProyectado = totalAnualBase + horasFormulario;
     const excedeObjetivoAnual = objetivoAnual > 0 && totalAnualProyectado > objetivoAnual;
@@ -666,7 +699,6 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
     const esClaseAula = esAcademica && formData.tipo_actividad === 'clases_aula';
     const esEjercicioCargo = TIPOS_EJERCICIO_CARGO.includes(formData.tipo_actividad);
     const duplicadoTipoSeleccionado = Boolean(formData.tipo_actividad) && cargas.some((carga) => {
-        if (carga.id === cargaEdicion?.id) return false;
         if (esEjercicioCargo) return TIPOS_EJERCICIO_CARGO.includes(carga.tipo_actividad);
         if (carga.categoria !== formData.categoria
             || carga.tipo_actividad !== formData.tipo_actividad) return false;
@@ -696,285 +728,227 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
         || excedeObjetivoAnual
         || respaldoInvalido;
 
-    const inputCls = "w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-600 focus:border-transparent transition-all";
-    const labelCls = "block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5";
+    // Campos con el estilo del dashboard. El fondo va con "!" porque index.css pinta todos
+    // los inputs y textarea en modo claro.
+    const inputCls = "w-full h-11 px-4 rounded-full text-sm text-slate-800 placeholder:text-slate-500 outline-none ring-1 ring-inset ring-azulado-300 focus:ring-2 focus:ring-blue-900/40 !bg-azulado-100 disabled:!bg-slate-100 disabled:text-slate-400";
+    const textareaCls = "w-full min-h-[5rem] px-4 py-3 rounded-2xl text-sm text-slate-800 placeholder:text-slate-500 outline-none resize-y ring-1 ring-inset ring-azulado-300 focus:ring-2 focus:ring-blue-900/40 !bg-azulado-100 disabled:!bg-slate-100 disabled:text-slate-400";
+    const labelCls = "block text-xs font-semibold text-slate-600 mb-1.5 pl-1";
+    const horasAutomaticas = esAcademica && !esSubactividadAcademica;
 
     return (
-        <div className="h-full flex flex-col bg-white dark:bg-slate-800/95 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden transition-colors duration-300">
-            <div className="px-5 py-2 border-b border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/50 flex items-center justify-between shrink-0">
-                <h3 className="text-sm font-semibold tracking-wide text-slate-700 dark:text-slate-100">
-                    Asignacion de Carga Horaria
-                </h3>
-                <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                        Jefatura
-                    </span>
-                    {cargaEdicion && !isReadOnly && (
-                        <button
-                            type="button"
-                            onClick={onCancelarEdicion}
-                            className="flex items-center gap-1 text-[10px] font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-white bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 px-2 py-1 rounded-lg transition-colors"
-                        >
-                            <XMarkIcon className="w-3 h-3" /> Cancelar
-                        </button>
-                    )}
+        <div className="space-y-4">
+            {duplicadoTipoSeleccionado && (
+                <div className="animate-campo-entrada rounded-2xl bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700">
+                    {esClaseAula
+                        ? 'Esa materia ya está asignada en ese calendario y paralelo.'
+                        : 'Esa actividad ya está registrada en el Fondo de Tiempo.'}
                 </div>
-            </div>
+            )}
 
-            <div className="flex-1 flex flex-col p-4 sm:p-5 overflow-y-auto">
-                {duplicadoTipoSeleccionado && (
-                    <div className="mb-4 shrink-0 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
-                        {esClaseAula
-                            ? 'Esa materia ya está asignada en ese calendario y paralelo.'
-                            : 'Esa actividad ya está registrada en el Fondo de Tiempo.'}
-                    </div>
-                )}
+            <form onSubmit={handleSubmit} noValidate className="space-y-4">
+                <div>
+                    <label className={`${labelCls} flex items-center justify-between gap-2`}>
+                        <span>Unidad</span>
+                        <span className="font-medium text-slate-500 tabular-nums">Esta unidad: {totalUnidad} h/año</span>
+                    </label>
+                    <CustomSelect
+                        value={formData.categoria}
+                        options={categoriaOptions}
+                        onChange={handleCategoriaChange}
+                        placeholder="Seleccionar unidad"
+                        disabled={isReadOnly}
+                    />
+                </div>
 
-                {/* Banner edición */}
-                {cargaEdicion && (
-                    <div className="mb-3 shrink-0 flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
-                        <PencilIcon className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                        <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 truncate">
-                            Editando: <span className="font-bold">{cargaEdicion.titulo_actividad}</span>
-                        </p>
-                    </div>
-                )}
-
-                {/* Formulario - flex-1 + flex-col + justify-between */}
-                <form onSubmit={handleSubmit} noValidate className="flex-1 flex flex-col justify-between gap-0">
-
-                    {/* Campos superiores */}
-                    <div className="space-y-4">
-
-                        {/* Fila 1: Categoría + Calendario + Semestre */}
-                        <div className="grid grid-cols-2 gap-3">
+                {esAcademica ? (
+                    <div key="academica" className="animate-campo-entrada space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className={labelCls}>Categoría</label>
+                                <label className={labelCls}>Calendario</label>
                                 <CustomSelect
-                                    value={formData.categoria}
-                                    options={categoriaOptions}
-                                    onChange={handleCategoriaChange}
-                                    placeholder="Seleccionar categoría"
+                                    value={formData.calendario}
+                                    options={calendarioOptions}
+                                    onChange={handleCalendarioChange}
+                                    placeholder="Calendario"
                                     disabled={isReadOnly}
+                                    emptyText="La gestión no tiene calendarios académicos"
                                 />
                             </div>
-                            {esAcademica && (
-                                <div>
-                                    <label className={labelCls}>Calendario</label>
-                                    <CustomSelect
-                                        value={formData.calendario}
-                                        options={calendarioOptions}
-                                        onChange={handleCalendarioChange}
-                                        placeholder="-- Calendario --"
-                                        disabled={isReadOnly}
-                                        emptyText="La gestión no tiene calendarios académicos"
-                                    />
-                                </div>
-                            )}
-                            {esAcademica && (
-                                <div>
-                                    <label className={labelCls}>Semestre / Nivel</label>
-                                    <CustomSelect
-                                        value={semestre}
-                                        options={semestreOptions}
-                                        onChange={(newValue) => {
-                                            setSemestre(newValue);
-                                            setFormData(prev => ({ ...prev, materia: '', titulo_actividad: '', horas: '' }));
-                                        }}
-                                        placeholder={loadingMaterias ? 'Cargando...' : '-- Nivel --'}
-                                        disabled={loadingMaterias || isReadOnly}
-                                        emptyText={loadingMaterias ? 'Cargando niveles...' : 'No hay niveles disponibles'}
-                                    />
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="rounded-lg border border-cyan-200 bg-cyan-50/70 px-3 py-2 text-[11px] font-semibold text-cyan-800 dark:border-cyan-800/70 dark:bg-cyan-950/25 dark:text-cyan-200">
-                            Unidad: {totalUnidad} h/año | Fondo: {totalAnualBase} de {objetivoAnual} h/año (horas efectivas) | Por asignar: {objetivoAnual - totalAnualBase} h/año
-                        </div>
-
-                        {/* Fila 2: Materia o actividad */}
-                        {esAcademica ? (
                             <div>
-                                <div>
-                                    <label className={labelCls}>Sub-actividad academica</label>
-                                    <CustomSelect
-                                        value={formData.tipo_actividad}
-                                        options={tipoActividadOptions}
-                                        onChange={handleTipoActividadChange}
-                                        placeholder="Seleccionar sub-actividad"
-                                        disabled={isReadOnly}
-                                        emptyText="No hay sub-actividades configuradas"
-                                        menuMaxHeight="max-h-64"
-                                    />
-                                </div>
-                                {formData.tipo_actividad && (
-                                    <div className="mt-3">
-                                        <label className={labelCls}>Materia (Malla curricular)</label>
-                                        <CustomSelect
-                                            value={selectedMateriaId}
-                                            options={materiaOptions}
-                                            onChange={handleMateriaChange}
-                                            placeholder={!semestre ? 'Seleccione un nivel primero' : '-- Seleccionar Materia --'}
-                                            disabled={!semestre || isReadOnly}
-                                            emptyText={!semestre ? 'Selecciona primero un nivel' : 'No hay materias en este nivel'}
-                                            menuMaxHeight="max-h-64"
-                                        />
-                                    </div>
-                                )}
-                                {formData.tipo_actividad === TIPO_OTROS && (
-                                    <div className="mt-3">
-                                        <label className={labelCls}>Descripción de la actividad</label>
-                                        <input
-                                            type="text"
-                                            className={inputCls}
-                                            placeholder="Describa la actividad académica"
-                                            value={formData.titulo_actividad}
-                                            onChange={e => setFormData({ ...formData, titulo_actividad: e.target.value })}
-                                            disabled={isReadOnly}
-                                        />
-                                    </div>
-                                )}
-                                {formData.tipo_actividad === 'clases_aula' && (
-                                    <div className="mt-3">
-                                        <label className={labelCls}>Paralelo</label>
-                                        <CustomSelect
-                                            value={formData.paralelo}
-                                            options={paraleloOptions}
-                                            onChange={(paralelo) => setFormData(prev => ({ ...prev, paralelo }))}
-                                            placeholder="-- Paralelo --"
-                                            disabled={isReadOnly}
-                                        />
-                                    </div>
-                                )}
+                                <label className={labelCls}>Semestre / Nivel</label>
+                                <CustomSelect
+                                    value={semestre}
+                                    options={semestreOptions}
+                                    onChange={(newValue) => {
+                                        setSemestre(newValue);
+                                        setFormData(prev => ({ ...prev, materia: '', titulo_actividad: '', horas: '' }));
+                                    }}
+                                    placeholder={loadingMaterias ? 'Cargando...' : 'Nivel'}
+                                    disabled={loadingMaterias || isReadOnly}
+                                    emptyText={loadingMaterias ? 'Cargando niveles...' : 'No hay niveles disponibles'}
+                                />
                             </div>
-                        ) : (
-                            <div>
-                                <label className={labelCls}>Descripción de actividad</label>
+                        </div>
+
+                        <div>
+                            <label className={labelCls}>Sub-actividad académica</label>
+                            <CustomSelect
+                                value={formData.tipo_actividad}
+                                options={tipoActividadOptions}
+                                onChange={handleTipoActividadChange}
+                                placeholder="Seleccionar sub-actividad"
+                                disabled={isReadOnly}
+                                emptyText="No hay sub-actividades configuradas"
+                            />
+                        </div>
+
+                        {formData.tipo_actividad && (
+                            <div className="animate-campo-entrada">
+                                <label className={labelCls}>Materia (malla curricular)</label>
+                                <CustomSelect
+                                    value={selectedMateriaId}
+                                    options={materiaOptions}
+                                    onChange={handleMateriaChange}
+                                    placeholder={!semestre ? 'Seleccione un nivel primero' : 'Seleccionar materia'}
+                                    disabled={!semestre || isReadOnly}
+                                    emptyText={!semestre ? 'Selecciona primero un nivel' : 'No hay materias en este nivel'}
+                                />
+                            </div>
+                        )}
+
+                        {formData.tipo_actividad === TIPO_OTROS && (
+                            <div className="animate-campo-entrada">
+                                <label className={labelCls}>Descripción de la actividad</label>
                                 <input
                                     type="text"
                                     className={inputCls}
-                                    placeholder="Ej: Proyecto de investigación, extensión o gestión"
+                                    placeholder="Describa la actividad académica"
                                     value={formData.titulo_actividad}
                                     onChange={e => setFormData({ ...formData, titulo_actividad: e.target.value })}
                                     disabled={isReadOnly}
                                 />
-                                <div className="mt-3">
-                                    <label className={labelCls}>{configCategoria?.tipoLabel || 'Tipo'}</label>
-                                    <CustomSelect
-                                        value={formData.tipo_actividad}
-                                        options={tipoActividadOptions}
-                                        onChange={handleTipoActividadChange}
-                                        placeholder="Seleccionar tipo"
-                                        disabled={isReadOnly}
-                                        emptyText="No hay tipos configurados"
-                                        menuMaxHeight="max-h-64"
-                                    />
-                                </div>
-                                {configCategoria?.evidencias && (
-                                    <div className="mt-3">
-                                        <label className={labelCls}>Evidencias</label>
-                                        <textarea
-                                            className={`${inputCls} min-h-[5.5rem] resize-y`}
-                                            placeholder="Detalle evidencias, productos esperados o respaldo documental"
-                                            value={formData.evidencias}
-                                            onChange={e => setFormData({ ...formData, evidencias: e.target.value })}
-                                            disabled={isReadOnly}
-                                        />
-                                    </div>
-                                )}
                             </div>
                         )}
-
-                        {/* Fila 3: Horas calculadas - tarjeta destacada */}
-                        <div className={`rounded-xl border-2 transition-all p-4 ${formData.horas
-                            ? 'border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/30'}`}>
-                            <div className="flex items-center justify-between mb-1">
-                                <span className={`text-xs font-bold uppercase tracking-wider ${formData.horas ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'}`}>
-                                    Horas Anuales <span className="font-normal normal-case opacity-70">({esAcademica && !esSubactividadAcademica ? 'auto' : 'manual'})</span>
-                                </span>
-                                {formData.horas && (
-                                    <span className="text-[10px] font-bold bg-blue-500 text-white px-2 py-0.5 rounded-full">
-                                        CALCULADO
-                                    </span>
-                                )}
-                            </div>
-                            <div className="flex items-baseline gap-2">
-                                {esAcademica && !esSubactividadAcademica ? (
-                                    <span className={`text-3xl font-black leading-none ${formData.horas ? 'text-blue-600 dark:text-blue-400' : 'text-slate-300 dark:text-slate-600'}`}>
-                                        {formData.horas || '0'}
-                                    </span>
-                                ) : (
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        step="1"
-                                        className={`w-32 rounded-lg border border-blue-200 bg-white px-3 py-2 text-2xl font-black leading-none text-blue-600 outline-none focus:ring-2 focus:ring-blue-400 dark:border-blue-700 dark:bg-slate-800 dark:text-blue-400 ${horasInvalidas ? ERROR_FIELD_BORDER_CLASS : ''}`}
-                                        aria-invalid={horasInvalidas || undefined}
-                                        value={formData.horas}
-                                        onChange={e => setFormData({ ...formData, horas: e.target.value })}
-                                        disabled={isReadOnly}
-                                    />
-                                )}
-                                <span className={`text-sm font-bold ${formData.horas ? 'text-blue-400 dark:text-blue-500' : 'text-slate-300 dark:text-slate-600'}`}>
-                                    hrs/año
-                                </span>
-                            </div>
-                            <MensajeErrorCampo error={horasInvalidas ? 'Ingrese un número entero de horas mayor a 0.' : ''} />
-                            <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1.5 leading-tight">
-                                {esAcademica && !esSubactividadAcademica
-                                    ? `Total horas anuales = (HT + HP) x ${semanasDeClase(formData.calendario) || '20 (semestre) o 40 (anual)'} semanas`
-                                    : 'Horas por año del ítem: se suman al total de su unidad'}
-                            </p>
-                        </div>
-
-                        {/* Fila 4: Respaldo */}
+                    </div>
+                ) : (
+                    <div key={formData.categoria} className="animate-campo-entrada space-y-4">
                         <div>
-                            <label className={labelCls}>
-                                Respaldo <span className={`font-normal normal-case ${respaldoInvalido ? 'text-red-500 dark:text-red-400' : 'text-slate-400 dark:text-slate-500'}`}>
-                                    (opcional)
-                                </span>
-                            </label>
-                            <input type="text" className={`${inputCls} ${respaldoInvalido ? 'border-red-500 dark:border-red-400 focus:ring-red-400 dark:focus:ring-red-500' : ''}`} placeholder="Ej: Memo #123"
-                                value={formData.documento_respaldo}
-                                onChange={e => setFormData({ ...formData, documento_respaldo: e.target.value })}
-                                disabled={isReadOnly} />
+                            <label className={labelCls}>Descripción de la actividad</label>
+                            <input
+                                type="text"
+                                className={inputCls}
+                                placeholder="Ej: Proyecto de investigación, extensión o gestión"
+                                value={formData.titulo_actividad}
+                                onChange={e => setFormData({ ...formData, titulo_actividad: e.target.value })}
+                                disabled={isReadOnly}
+                            />
                         </div>
-                    </div>
-
-                    {/* Botón - pegado al fondo con mt-auto */}
-                    <div className="mt-5">
-                        {!isReadOnly && (
-                        <button data-escritura type="submit"
-                            disabled={submitDisabled}
-                            className={`w-full py-3 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-2 transition-all ${
-                                submitDisabled
-                                    ? 'bg-slate-400 dark:bg-slate-600 opacity-60 cursor-not-allowed shadow-none'
-                                    : `shadow-md hover:shadow-lg hover:scale-[1.01] ${cargaEdicion
-                                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-amber-500/20'
-                                        : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/25'
-                                    }`
-                            }`}>
-                            {isSubmitting ? (
-                                <>
-                                    <svg className="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                    </svg>
-                                    Guardando...
-                                </>
-                            ) : cargaEdicion ? (
-                                <><PencilIcon className="w-4 h-4" /> Actualizar Asignación</>
-                            ) : (
-                                <><PlusIcon className="w-4 h-4" /> Agregar Asignación</>
-                            )}
-                        </button>
+                        <div>
+                            <label className={labelCls}>{configCategoria?.tipoLabel || 'Tipo'}</label>
+                            <CustomSelect
+                                value={formData.tipo_actividad}
+                                options={tipoActividadOptions}
+                                onChange={handleTipoActividadChange}
+                                placeholder="Seleccionar tipo"
+                                disabled={isReadOnly}
+                                emptyText="No hay tipos configurados"
+                            />
+                        </div>
+                        {configCategoria?.evidencias && (
+                            <div className="animate-campo-entrada">
+                                <label className={labelCls}>Evidencias</label>
+                                <textarea
+                                    className={textareaCls}
+                                    placeholder="Detalle evidencias, productos esperados o respaldo documental"
+                                    value={formData.evidencias}
+                                    onChange={e => setFormData({ ...formData, evidencias: e.target.value })}
+                                    disabled={isReadOnly}
+                                />
+                            </div>
                         )}
                     </div>
+                )}
 
-                </form>
-            </div>
+                {/* Paralelo (solo clases en aula), horas y respaldo en una fila */}
+                <div className={`grid gap-4 ${esClaseAula ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                    {esClaseAula && (
+                        <div className="animate-campo-entrada">
+                            <label className={labelCls}>Paralelo</label>
+                            <CustomSelect
+                                value={formData.paralelo}
+                                options={paraleloOptions}
+                                onChange={(paralelo) => setFormData(prev => ({ ...prev, paralelo }))}
+                                placeholder="Paralelo"
+                                disabled={isReadOnly}
+                            />
+                        </div>
+                    )}
+                    <div>
+                        <label className={labelCls}>
+                            Horas/año <span className="font-normal text-slate-500">({horasAutomaticas ? 'auto' : 'manual'})</span>
+                        </label>
+                        {horasAutomaticas ? (
+                            <div key="auto" className="animate-campo-entrada flex h-11 items-center rounded-full bg-azulado-200 px-4 text-sm font-bold text-blue-900 tabular-nums">
+                                {formData.horas || 0} h
+                            </div>
+                        ) : (
+                            <input
+                                key="manual"
+                                type="number"
+                                min="1"
+                                step="1"
+                                className={`animate-campo-entrada ${inputCls} font-bold text-blue-900 tabular-nums ${horasInvalidas ? ERROR_FIELD_BORDER_CLASS : ''}`}
+                                aria-invalid={horasInvalidas || undefined}
+                                placeholder="0"
+                                value={formData.horas}
+                                onChange={e => setFormData({ ...formData, horas: e.target.value })}
+                                disabled={isReadOnly}
+                            />
+                        )}
+                    </div>
+                    <div>
+                        <label className={labelCls}>
+                            Respaldo <span className={`font-normal ${respaldoInvalido ? 'text-red-500' : 'text-slate-500'}`}>(opcional)</span>
+                        </label>
+                        <input
+                            type="text"
+                            className={`${inputCls} ${respaldoInvalido ? ERROR_FIELD_BORDER_CLASS : ''}`}
+                            placeholder="Ej: Memo #123"
+                            value={formData.documento_respaldo}
+                            onChange={e => setFormData({ ...formData, documento_respaldo: e.target.value })}
+                            disabled={isReadOnly}
+                        />
+                    </div>
+                </div>
+                <MensajeErrorCampo error={horasInvalidas ? 'Ingrese un número entero de horas mayor a 0.' : ''} />
+                <p className="pl-1 text-[11px] leading-tight text-slate-500">
+                    {horasAutomaticas
+                        ? `Horas anuales = (HT + HP) x ${semanasDeClase(formData.calendario) || '20 (semestre) o 40 (anual)'} semanas`
+                        : 'Horas por año del ítem: se suman al total de su unidad'}
+                </p>
+                {excedeObjetivoAnual && (
+                    <p className="animate-campo-entrada rounded-2xl bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-700">
+                        Con estas horas el fondo superaría las {objetivoAnual} horas efectivas.
+                    </p>
+                )}
+
+                {!isReadOnly && (
+                    <button data-escritura type="submit"
+                        disabled={submitDisabled}
+                        className={`inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-2.5 text-sm font-semibold transition-colors ${
+                            submitDisabled
+                                ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                                : 'bg-blue-900 hover:bg-blue-950 text-white shadow-sm'
+                        }`}>
+                        {isSubmitting ? (
+                            <>
+                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                Guardando...
+                            </>
+                        ) : 'Agregar asignación'}
+                    </button>
+                )}
+            </form>
         </div>
     );
 };

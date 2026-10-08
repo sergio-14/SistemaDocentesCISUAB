@@ -17,14 +17,14 @@ export const CandadoCampo = ({ className = '' }) => (
   </span>
 );
 
-// Advertencia de una sección o bloque, en su propio cuadro ámbar bien visible
-// (no una línea suelta): por qué algo está bloqueado o no se puede hacer.
+// Aviso de una sección o bloque en su propio cuadro, con la paleta de Fondo de
+// Tiempo: fondo celeste claro, texto azul y el candado en el bloque azulado de sus íconos.
 export const AvisoUsuario = ({ children }) => (
-  <div className="flex items-start gap-2.5 rounded-xl bg-amber-50 ring-1 ring-inset ring-amber-300 px-3 py-2.5 text-sm font-medium leading-snug text-amber-900 shadow-sm">
-    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-amber-500 text-white">
-      <CandadoIcon className="w-3.5 h-3.5" />
+  <div className="flex items-start gap-3 rounded-2xl bg-sky-50 px-4 py-3 text-sm leading-snug text-sky-900">
+    <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-50 to-azulado-200 ring-1 ring-inset ring-azulado-300 text-blue-900">
+      <CandadoIcon className="w-4 h-4" />
     </span>
-    <span className="pt-0.5">{children}</span>
+    <span className="pt-1">{children}</span>
   </div>
 );
 

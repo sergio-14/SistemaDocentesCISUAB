@@ -201,10 +201,7 @@ function PerfilUsuario({
                 <Dato etiqueta="Vacaciones">{perfil.dias_vacacion != null ? `${perfil.dias_vacacion} días` : '—'}</Dato>
               </dl>
             ) : (
-              <p className={`rounded-xl px-3 py-2.5 text-xs leading-snug ring-1 ring-inset ${
-                esDocente ? 'bg-amber-50 text-amber-900 ring-amber-200' : 'bg-azulado-100 text-slate-700 ring-azulado-300'
-              }`}
-              >
+              <p className={`rounded-2xl px-4 py-3 text-sm leading-snug ${esDocente ? 'bg-sky-50 text-sky-900' : 'bg-azulado-100 text-slate-700'}`}>
                 {esDocente
                   ? 'Tiene el rol Docente pero aún no tiene ficha: su parte docente (fondo de tiempo y carga horaria) queda pendiente. Se crea en Docentes > Nuevo docente.'
                   : 'No tiene ficha de docente: no tiene el rol Docente.'}
@@ -242,7 +239,7 @@ function PerfilUsuario({
         <div className="px-5 sm:px-6 py-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between [border-top:1px_solid_#B8C9E1]">
           <div className="min-w-0 space-y-1.5">
             {errorAccion ? (
-              <p role="alert" className="rounded-xl bg-red-50 ring-1 ring-inset ring-red-200 px-3 py-2.5 text-sm font-medium leading-snug text-red-700">{errorAccion}</p>
+              <p role="alert" className="rounded-2xl bg-red-50 px-4 py-3 text-sm leading-snug text-red-700">{errorAccion}</p>
             ) : (
               motivos.map((motivo) => <AvisoUsuario key={motivo}>{motivo}</AvisoUsuario>)
             )}

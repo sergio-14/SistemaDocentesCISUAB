@@ -596,6 +596,17 @@ class _InformeHTMLParser(HTMLParser):
         self._flush_parrafo()
         return self.flowables
 
+def _titulo_pdf(prefijo, fondo):
+    """Título del PDF (lo muestra la pestaña del navegador al abrirlo; sin él aparece
+    "(anónimo)"), p. ej. Fondo_de_Tiempo_Ana_Rojas."""
+    nombre = fondo.docente.nombre_completo.strip() if fondo.docente else 'Docente'
+    return f"{prefijo}_{'_'.join(nombre.split()) or 'Docente'}"
+
+
+def _autor_pdf(fondo):
+    return fondo.docente.nombre_completo.strip() if fondo.docente else ''
+
+
 class FondoPDFGenerator:
     def __init__(self, buffer):
         self.buffer = buffer
@@ -714,7 +725,9 @@ class FondoPDFGenerator:
             rightMargin=1.5*cm,
             leftMargin=1.5*cm,
             topMargin=1.5*cm,
-            bottomMargin=1.5*cm
+            bottomMargin=1.5*cm,
+            title=_titulo_pdf('Fondo_de_Tiempo', fondo),
+            author=_autor_pdf(fondo),
         )
         
         elementos = []
@@ -1406,6 +1419,8 @@ class InformePDFGenerator:
             rightMargin=self.margin_lateral,
             topMargin=self.margin_superior,
             bottomMargin=self.margin_inferior,
+            title=_titulo_pdf('Informe_Fondo_de_Tiempo', fondo),
+            author=_autor_pdf(fondo),
         )
 
         estilo_normal = self._estilo_normal()

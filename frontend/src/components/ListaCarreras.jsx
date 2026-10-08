@@ -10,6 +10,7 @@ import CampoBusqueda from './common/CampoBusqueda';
 import FiltroDesplegable from './common/FiltroDesplegable';
 import Interruptor from './common/Interruptor';
 import ModalCentrado from './common/ModalCentrado';
+import ModalConfirmar from './common/ModalConfirmar';
 import NumeroAnimado from './common/NumeroAnimado';
 import Paginacion from './common/Paginacion';
 import SelectorVista from './common/SelectorVista';
@@ -311,7 +312,9 @@ const CampoFecha = ({ label, name, value, onDateChange, error, maxIsoDate, pulse
 };
 
 // Facultad: el desplegable escribible de siempre y, para el superusuario, un panel para
-// agregar, renombrar y eliminar facultades del catálogo.
+// agregar, renombrar y eliminar facultades del catálogo. El panel se abre encima del
+// formulario (no lo empuja), bloquea el desplegable mientras está abierto y se cierra
+// con un clic fuera. Al marcar una facultad su lápiz pasa a ser el botón de eliminar.
 const CampoFacultad = ({
   value,
   onElegir,
@@ -330,6 +333,9 @@ const CampoFacultad = ({
   const [editando, setEditando] = useState(null);
   const [nombreEditado, setNombreEditado] = useState('');
   const [seleccionadas, setSeleccionadas] = useState([]);
+  // Facultades a eliminar, esperando la confirmación.
+  const [porEliminar, setPorEliminar] = useState(null);
+  const contenedorRef = useRef(null);
   const sacudiendo = useSacudidaError(error, pulse);
 
   const agregar = () => {
@@ -371,15 +377,10 @@ const CampoFacultad = ({
     setSeleccionadas((prev) => (prev.includes(nombre) ? prev.filter((item) => item !== nombre) : [...prev, nombre]));
   };
 
-  const eliminarSeleccionadas = async () => {
-    const aEliminar = seleccionadas.filter((nombre) => options.some((opt) => opt.value === nombre && opt.value !== ''));
-    if (aEliminar.length === 0) {
-      toast.error('No hay facultades válidas para eliminar.');
-      return;
-    }
-
-    // Se intenta cada una: una facultad con carreras no impide borrar las demás,
-    // y cada rechazo se informa con el motivo que da el backend.
+  // Se intenta cada una: una facultad con carreras no impide borrar las demás. Si no se
+  // pudo borrar ninguna, el motivo del backend queda en el modal de confirmación.
+  const eliminarFacultades = async () => {
+    const aEliminar = (porEliminar || []).filter((nombre) => options.some((opt) => opt.value === nombre && opt.value !== ''));
     let eliminadas = 0;
     const rechazos = [];
     for (const nombre of aEliminar) {
@@ -399,9 +400,11 @@ const CampoFacultad = ({
     } catch (err) {
       console.error('No se pudo recargar las facultades:', err);
     }
-    setSeleccionadas([]);
-    if (eliminadas > 0) toast.success(`${eliminadas} facultad(es) eliminada(s) correctamente.`);
-    rechazos.forEach((mensaje) => toast.error(mensaje, { duration: 6000 }));
+    if (eliminadas === 0) throw new Error(rechazos.join(' ') || 'No se pudo eliminar.');
+    setSeleccionadas((prev) => prev.filter((nombre) => !aEliminar.includes(nombre)));
+    setPorEliminar(null);
+    toast.success(eliminadas === 1 ? 'Facultad eliminada correctamente.' : `${eliminadas} facultades eliminadas correctamente.`);
+    rechazos.forEach((mensaje) => toast.error(mensaje));
   };
 
   const cerrarGestion = () => {
@@ -411,140 +414,185 @@ const CampoFacultad = ({
     cancelarEdicion();
   };
 
+  // Clic fuera del campo y su panel: se cierra la gestión (no si hay una confirmación abierta).
+  useEffect(() => {
+    if (!gestionando) return undefined;
+    const alPulsar = (event) => {
+      if (contenedorRef.current?.contains(event.target) || document.querySelector('[role="alertdialog"]')) return;
+      setGestionando(false);
+      setNuevaFacultad('');
+      setSeleccionadas([]);
+      setEditando(null);
+      setNombreEditado('');
+    };
+    document.addEventListener('pointerdown', alPulsar);
+    return () => document.removeEventListener('pointerdown', alPulsar);
+  }, [gestionando]);
+
   return (
     <div className={error && sacudiendo ? ERROR_MOTION_CLASS : ''}>
       <label htmlFor="carrera-facultad" className={LABEL_CAMPO}>Facultad</label>
-      <div className="flex items-center gap-2">
-        <div className="flex-1 min-w-0">
-          <FiltroDesplegable
-            id="carrera-facultad"
-            value={value}
-            onChange={onElegir}
-            options={options}
-            placeholder="Seleccione una facultad..."
-            ariaLabel="Facultad"
-            emptyText="No hay facultades que coincidan"
-            permitirQuitar={false}
-            invalido={Boolean(error)}
-            disabled={disabled}
-          />
+      <div ref={contenedorRef} className="relative">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <FiltroDesplegable
+              id="carrera-facultad"
+              value={value}
+              onChange={onElegir}
+              options={options}
+              placeholder="Seleccione una facultad..."
+              ariaLabel="Facultad"
+              emptyText="No hay facultades que coincidan"
+              permitirQuitar={false}
+              invalido={Boolean(error)}
+              disabled={disabled || gestionando}
+            />
+          </div>
+          {puedeGestionar && !disabled && (
+            <button
+              type="button"
+              onClick={() => (gestionando ? cerrarGestion() : setGestionando(true))}
+              title={gestionando ? 'Cerrar gestión de facultades' : 'Gestionar facultades'}
+              aria-label={gestionando ? 'Cerrar gestión de facultades' : 'Gestionar facultades'}
+              className={`h-11 w-11 flex-shrink-0 inline-flex items-center justify-center rounded-full transition-colors ${
+                gestionando ? 'bg-azulado-200 text-blue-900 hover:bg-azulado-300' : 'bg-blue-900 text-white hover:bg-blue-950'
+              }`}
+            >
+              {gestionando ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              ) : (
+                <MasIcon className="w-5 h-5" />
+              )}
+            </button>
+          )}
         </div>
-        {puedeGestionar && !disabled && (
-          <button
-            type="button"
-            onClick={() => (gestionando ? cerrarGestion() : setGestionando(true))}
-            title={gestionando ? 'Cerrar gestión de facultades' : 'Gestionar facultades'}
-            aria-label={gestionando ? 'Cerrar gestión de facultades' : 'Gestionar facultades'}
-            className={`h-11 w-11 flex-shrink-0 inline-flex items-center justify-center rounded-full transition-colors ${
-              gestionando ? 'bg-azulado-200 text-blue-900 hover:bg-azulado-300' : 'bg-blue-900 text-white hover:bg-blue-950'
-            }`}
-          >
-            {gestionando ? (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            ) : (
-              <MasIcon className="w-5 h-5" />
+
+        {gestionando && (
+          <div className="animate-campo-entrada absolute inset-x-0 top-full z-30 mt-2 rounded-2xl bg-white ring-1 ring-inset ring-azulado-300 shadow-xl p-3 space-y-2">
+            <p className="text-xs font-semibold text-blue-800 pl-1">Agregar, editar o eliminar facultades</p>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={nuevaFacultad}
+                onChange={(e) => setNuevaFacultad(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    agregar();
+                  }
+                }}
+                placeholder="Nueva facultad"
+                className={`${CAMPO} ${CAMPO_NORMAL} h-10`}
+                style={{ border: 'none' }}
+              />
+              <button
+                type="button"
+                onClick={agregar}
+                disabled={!nuevaFacultad.trim()}
+                className={`${BOTON_CHICO} h-10 px-4 bg-blue-900 hover:bg-blue-950 text-white disabled:opacity-50`}
+              >
+                Agregar
+              </button>
+            </div>
+
+            <div className="max-h-52 overflow-y-auto divide-y divide-azulado-200">
+              {options.length === 0 && <p className="px-2 py-3 text-xs text-slate-500">No hay facultades registradas.</p>}
+              {options.filter((opt) => opt.value !== '').map((option) => (
+                <div key={option.value} className="flex items-center gap-2.5 px-2 py-2">
+                  <input
+                    type="checkbox"
+                    checked={seleccionadas.includes(option.value)}
+                    onChange={() => alternarSeleccion(option.value)}
+                    aria-label={`Seleccionar ${option.label}`}
+                    className="w-4 h-4 flex-shrink-0 accent-blue-900"
+                  />
+                  {editando === option.value ? (
+                    <>
+                      <input
+                        type="text"
+                        value={nombreEditado}
+                        onChange={(e) => setNombreEditado(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            guardarEdicion();
+                          }
+                          if (e.key === 'Escape') cancelarEdicion();
+                        }}
+                        autoFocus
+                        className={`${CAMPO} ${CAMPO_NORMAL} h-8 px-3`}
+                        style={{ border: 'none' }}
+                      />
+                      <button type="button" onClick={guardarEdicion} title="Guardar" className="flex-shrink-0 text-emerald-600 hover:text-emerald-700">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                      </button>
+                      <button type="button" onClick={cancelarEdicion} title="Cancelar" className="flex-shrink-0 text-red-600 hover:text-red-700">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 min-w-0 text-sm text-slate-700 truncate">{option.label}</span>
+                      {/* Marcada: el lápiz pasa a ser el botón de eliminar, en el mismo lugar. */}
+                      {seleccionadas.includes(option.value) ? (
+                        <button
+                          type="button"
+                          onClick={() => setPorEliminar([option.value])}
+                          title="Eliminar facultad"
+                          aria-label={`Eliminar ${option.label}`}
+                          className="animate-campo-entrada flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-red-500 hover:bg-red-50 hover:text-red-600"
+                        >
+                          <FaTrash size={12} />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditando(option.value);
+                            setNombreEditado(option.label);
+                          }}
+                          title="Editar facultad"
+                          aria-label={`Editar ${option.label}`}
+                          className="animate-campo-entrada flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-blue-900 hover:bg-azulado-100 hover:text-sky-600"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {seleccionadas.length > 1 && (
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => setPorEliminar(seleccionadas)}
+                  className={`${BOTON_CHICO} bg-red-500 hover:bg-red-600 text-white`}
+                >
+                  <FaTrash size={11} />
+                  Eliminar seleccionadas ({seleccionadas.length})
+                </button>
+              </div>
             )}
-          </button>
+          </div>
         )}
       </div>
       <MensajeError error={error} />
 
-      {gestionando && (
-        <div className="animate-campo-entrada mt-2 rounded-2xl bg-white ring-1 ring-inset ring-azulado-300 p-3 space-y-2">
-          <p className="text-xs font-semibold text-blue-800 pl-1">Agregar, editar o eliminar facultades</p>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={nuevaFacultad}
-              onChange={(e) => setNuevaFacultad(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  agregar();
-                }
-              }}
-              placeholder="Nueva facultad"
-              className={`${CAMPO} ${CAMPO_NORMAL} h-10`}
-              style={{ border: 'none' }}
-            />
-            <button
-              type="button"
-              onClick={agregar}
-              disabled={!nuevaFacultad.trim()}
-              className={`${BOTON_CHICO} h-10 px-4 bg-blue-900 hover:bg-blue-950 text-white disabled:opacity-50`}
-            >
-              Agregar
-            </button>
-          </div>
-
-          <div className="max-h-52 overflow-y-auto divide-y divide-azulado-200">
-            {options.length === 0 && <p className="px-2 py-3 text-xs text-slate-500">No hay facultades registradas.</p>}
-            {options.filter((opt) => opt.value !== '').map((option) => (
-              <div key={option.value} className="flex items-center gap-2.5 px-2 py-2">
-                <input
-                  type="checkbox"
-                  checked={seleccionadas.includes(option.value)}
-                  onChange={() => alternarSeleccion(option.value)}
-                  aria-label={`Seleccionar ${option.label}`}
-                  className="w-4 h-4 flex-shrink-0 accent-blue-900"
-                />
-                {editando === option.value ? (
-                  <>
-                    <input
-                      type="text"
-                      value={nombreEditado}
-                      onChange={(e) => setNombreEditado(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          guardarEdicion();
-                        }
-                        if (e.key === 'Escape') cancelarEdicion();
-                      }}
-                      autoFocus
-                      className={`${CAMPO} ${CAMPO_NORMAL} h-8 px-3`}
-                      style={{ border: 'none' }}
-                    />
-                    <button type="button" onClick={guardarEdicion} title="Guardar" className="flex-shrink-0 text-emerald-600 hover:text-emerald-700">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                    </button>
-                    <button type="button" onClick={cancelarEdicion} title="Cancelar" className="flex-shrink-0 text-red-600 hover:text-red-700">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <span className="flex-1 min-w-0 text-sm text-slate-700 truncate">{option.label}</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditando(option.value);
-                        setNombreEditado(option.label);
-                      }}
-                      title="Editar facultad"
-                      className="flex-shrink-0 text-blue-900 hover:text-sky-600"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                    </button>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {seleccionadas.length > 0 && (
-            <div className="flex justify-end pt-1">
-              <button
-                type="button"
-                onClick={eliminarSeleccionadas}
-                className={`${BOTON_CHICO} bg-red-500 hover:bg-red-600 text-white`}
-              >
-                <FaTrash size={11} />
-                Eliminar seleccionadas ({seleccionadas.length})
-              </button>
-            </div>
-          )}
-        </div>
+      {porEliminar && (
+        <ModalConfirmar
+          tono="peligro"
+          etiqueta="Facultades"
+          titulo={porEliminar.length === 1 ? 'Eliminar facultad' : 'Eliminar facultades'}
+          mensaje="Se borrará del catálogo de forma permanente:"
+          detalle={porEliminar}
+          textoAccion="Eliminar"
+          textoTrabajando="Eliminando..."
+          onConfirmar={eliminarFacultades}
+          onCancelar={() => setPorEliminar(null)}
+        />
       )}
     </div>
   );

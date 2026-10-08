@@ -33,48 +33,6 @@ import {
   getApiErrorMessage,
 } from '../utils/formErrors';
 
-// Animaciones del aviso que brinca y del panel para elegir la carrera de un rol.
-const style = document.createElement('style');
-style.textContent = `
-  @keyframes toastPop {
-    0% {
-      transform: translateY(0) scale(1);
-    }
-    35% {
-      transform: translateY(-4px) scale(1.02);
-    }
-    70% {
-      transform: translateY(1px) scale(0.99);
-    }
-    100% {
-      transform: translateY(0) scale(1);
-    }
-  }
-
-  .toast-brinco {
-    animation: toastPop 240ms ease-out;
-  }
-  
-  @keyframes panelAsignacionSlideDown {
-    from {
-      opacity: 0;
-      transform: translateY(-14px);
-      max-height: 0;
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-      max-height: 240px;
-    }
-  }
-
-  .animate-panel-asignacion {
-    animation: panelAsignacionSlideDown 260ms ease-out;
-    transform-origin: top;
-  }
-`;
-document.head.appendChild(style);
-
 const UsuariosIcon = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
@@ -202,10 +160,10 @@ function GestionUsuarios({ user: usuarioSesion }) {
       const now = Date.now();
       if (last && (now - last) < TOAST_DEBOUNCE_MS) return;
       lastToastRef.current[msg] = now;
-      toast.error(msg, { className: 'toast-brinco' });
+      toast.error(msg);
     } catch {
       // en caso de fallo, fallar silenciosamente mostrando el toast normal
-      toast.error(msg, { className: 'toast-brinco' });
+      toast.error(msg);
     }
   };
 
@@ -742,7 +700,7 @@ const initialData = {
 
     const motivo = motivoNoAsignarRol(rolValue, rolesAsignadosLista);
     if (motivo) {
-      toast.error(motivo, { className: 'toast-brinco' });
+      toast.error(motivo);
       setErrors((prev) => ({ ...prev, rol: [motivo] }));
       pulseFieldErrors(['rol']);
       setSelectedRoleLeft(null);
@@ -909,7 +867,7 @@ const initialData = {
       const mismaCombinacion = primeraAsignacion.rol === segundaAsignacion.rol && primeraAsignacion.carrera === segundaAsignacion.carrera;
       if (mismaCombinacion) {
         // Safety net: la validación en caliente debería haber prevenido esto
-        toast.error(MENSAJE_DUPLICADO, { className: 'toast-brinco' });
+        toast.error(MENSAJE_DUPLICADO);
         setIsSubmitting(false);
         return;
       }
@@ -919,7 +877,7 @@ const initialData = {
 
       // Safety net: DOS roles de mando (Director, Jefe o Instituto) — prohibido por normativa UABJB
       if (primeraMando && segundaMando) {
-        toast.error(MENSAJE_AUTORIDAD_UNICA, { className: 'toast-brinco' });
+        toast.error(MENSAJE_AUTORIDAD_UNICA);
         setIsSubmitting(false);
         return;
       }
@@ -928,7 +886,7 @@ const initialData = {
     const combinaciones = asignacionesSeleccionadas.map(combinacionKey);
     // Solo validar duplicados si hay más de una asignación
     if (asignacionesSeleccionadas.length > 1 && new Set(combinaciones).size !== combinaciones.length) {
-      toast.error(MENSAJE_DUPLICADO, { className: 'toast-brinco' });
+      toast.error(MENSAJE_DUPLICADO);
       setIsSubmitting(false);
       return;
     }
@@ -974,7 +932,7 @@ const initialData = {
     if (designaJefe && !esArchivoPdf(resolucionJefe)) {
       const mensaje = resolucionJefe ? 'La resolución del Consejo de Carrera debe ser un PDF.' : MENSAJE_RESOLUCION_JEFE;
       setErrors((prev) => ({ ...prev, resolucion_jefe: [mensaje] }));
-      toast.error(mensaje, { className: 'toast-brinco' });
+      toast.error(mensaje);
       setIsSubmitting(false);
       return;
     }

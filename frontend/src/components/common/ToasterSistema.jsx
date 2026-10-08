@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import toast, { Toaster, resolveValue } from 'react-hot-toast';
 
-// Color, título e icono (relleno) de cada tipo de toast del módulo de Fondo de Tiempo.
+// Color, título e icono (relleno) de cada tipo de toast del sistema (diseño del dashboard de Fondo de Tiempo).
 // Sin bordes: el aviso se distingue por su color de fondo y su sombra.
 const TIPOS = {
   success: {
@@ -77,75 +77,72 @@ function ToastFondo({ t }) {
   );
 }
 
-// Toaster global. En el módulo de Fondo de Tiempo usa el diseño del dashboard y aparece
-// a la altura del bloque "Total fondos" (clase toaster-fondo en index.css); en el resto
-// del sistema conserva el estilo anterior.
+// Estilo anterior: solo lo conserva el módulo POA, que es de otro equipo.
+const estiloPoa = (isDark) => ({
+  style: {
+    background: isDark ? '#1e293b' : '#ffffff',
+    color: isDark ? '#f1f5f9' : '#0f172a',
+    borderRadius: '12px',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+    fontFamily: "'Inter', system-ui, sans-serif",
+    fontSize: '14px',
+    fontWeight: '500',
+    zIndex: 1000001,
+  },
+  success: {
+    style: {
+      background: isDark ? '#064e3b' : '#f0fdf4',
+      color: isDark ? '#a7f3d0' : '#166534',
+      border: '2px solid #10b981',
+      borderLeft: '4px solid #059669',
+    },
+    icon: '✅',
+    duration: 4000,
+  },
+  error: {
+    style: {
+      background: isDark ? '#7f1d1d' : '#fef2f2',
+      color: isDark ? '#fecaca' : '#991b1b',
+      border: '2px solid #ef4444',
+      borderLeft: '4px solid #f59e0b',
+    },
+    icon: '⚠️',
+    duration: 6000,
+  },
+});
+
+// Toaster global: el aviso del dashboard de Fondo de Tiempo en todo el sistema
+// (Usuarios, Carreras, el selector de módulos…). Aparece arriba a la derecha (clase
+// toaster-fondo en index.css) y un clic fuera del aviso lo cierra.
 function ToasterSistema({ isDark }) {
   const { pathname } = useLocation();
-  const enFondoTiempo = pathname.startsWith('/fondo-tiempo');
+  const enPoa = pathname.startsWith('/poa');
 
-  // En Fondo de Tiempo, un clic en cualquier parte fuera del aviso lo cierra.
   useEffect(() => {
-    if (!enFondoTiempo) return undefined;
+    if (enPoa) return undefined;
     const cerrarAvisos = (event) => {
       if (event.target.closest?.('.toaster-fondo')) return;
       toast.dismiss();
     };
     document.addEventListener('pointerdown', cerrarAvisos, true);
     return () => document.removeEventListener('pointerdown', cerrarAvisos, true);
-  }, [enFondoTiempo]);
+  }, [enPoa]);
 
-  if (enFondoTiempo) {
-    return (
-      <Toaster
-        position="top-right"
-        containerClassName="toaster-fondo"
-        gutter={10}
-        toastOptions={{
-          duration: DURACION_MS,
-        }}
-      >
-        {(t) => <ToastFondo t={t} />}
-      </Toaster>
-    );
+  if (enPoa) {
+    return <Toaster position="top-right" toastOptions={estiloPoa(isDark)} />;
   }
 
   return (
     <Toaster
       position="top-right"
+      containerClassName="toaster-fondo"
+      gutter={10}
       toastOptions={{
-        style: {
-          background: isDark ? '#1e293b' : '#ffffff',
-          color: isDark ? '#f1f5f9' : '#0f172a',
-          borderRadius: '12px',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-          fontFamily: "'Inter', system-ui, sans-serif",
-          fontSize: '14px',
-          fontWeight: '500',
-          zIndex: 1000001,
-        },
-        success: {
-          style: {
-            background: isDark ? '#064e3b' : '#f0fdf4',
-            color: isDark ? '#a7f3d0' : '#166534',
-            border: '2px solid #10b981',
-            borderLeft: '4px solid #059669',
-          },
-          icon: '✅',
-          duration: 4000,
-        },
-        error: {
-          style: {
-            background: isDark ? '#7f1d1d' : '#fef2f2',
-            color: isDark ? '#fecaca' : '#991b1b',
-            border: '2px solid #ef4444',
-            borderLeft: '4px solid #f59e0b',
-          },
-          icon: '⚠️',
-          duration: 6000,
-        },
+        duration: DURACION_MS,
       }}
-    />
+    >
+      {(t) => <ToastFondo t={t} />}
+    </Toaster>
   );
 }
 

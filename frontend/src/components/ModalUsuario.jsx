@@ -228,7 +228,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
   ].filter((item) => String(item.rol || '').trim());
 
   const marcarErrorRol = (mensaje) => {
-    toast.error(mensaje, { className: 'toast-brinco' });
+    toast.error(mensaje);
     setErrors((prev) => ({ ...prev, rol: [mensaje] }));
     setRepeticionRol((valor) => valor + 1);
     setRolElegidoIzquierda(null);

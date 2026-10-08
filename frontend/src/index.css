@@ -1665,7 +1665,7 @@ html.sin-elevacion-poa button:active {
   filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
 }
 
-/* Toasts del módulo de Fondo de Tiempo: salen a la altura del bloque "Total fondos"
+/* Toasts del sistema (fuera del POA): salen a la altura del bloque "Total fondos"
    del dashboard (padding superior del panel; en el celular, debajo de la barra azul). */
 .toaster-fondo {
   top: 72px !important;

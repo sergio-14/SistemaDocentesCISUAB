@@ -144,7 +144,6 @@ const ModuleSelector = ({ user, onLogout, theme, setTheme }) => {
         setRoleErrorPulse((pulse) => pulse + 1);
         toast.error('Selecciona un rol antes de ingresar al Fondo de Tiempo.', {
             id: 'role-selection-required',
-            className: 'toast-brinco',
         });
     };
 

@@ -282,7 +282,7 @@ function ListaFondos() {
       if (creados > 0) {
         toast.success(creados === 1 ? 'Se creó 1 fondo de tiempo.' : `Se crearon ${creados} fondos de tiempo.`);
       } else {
-        toast('No se creó ningún fondo nuevo.', { icon: 'ℹ️' });
+        toast('No se creó ningún fondo nuevo.');
       }
     } catch (err) {
       console.error(err);

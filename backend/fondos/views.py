@@ -2941,8 +2941,16 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
     def dependencias(self, request, pk=None):
-        """Datos registrados del usuario: si hay alguno no se puede eliminar y su identidad queda fija."""
-        return Response(datos_registrados_usuario(self.get_object()), status=status.HTTP_200_OK)
+        """Datos registrados del usuario: si hay alguno no se puede eliminar y su identidad queda fija.
+
+        ficha_docente: nombre de la ficha de docente que se borraría junto con el usuario, o None.
+        """
+        user = self.get_object()
+        ficha = self._ficha_que_se_borra(user)
+        return Response(
+            {**datos_registrados_usuario(user), 'ficha_docente': ficha.nombre_completo if ficha else None},
+            status=status.HTTP_200_OK,
+        )
 
     def destroy(self, request, *args, **kwargs):
         """
@@ -3055,20 +3063,26 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         return None
 
     @staticmethod
-    def _eliminar_usuario_sin_datos(user):
-        perfil = PerfilUsuario.objects.filter(user=user).select_related('docente').first()
+    def _ficha_que_se_borra(user):
+        """Ficha de docente que se borra con el usuario: la suya, salvo que otro usuario la use."""
         docente = docente_del_usuario(user)
-        datos_laborales_ids = {
-            perfil.datos_laborales_id if perfil else None,
-            docente.datos_laborales_id if docente else None,
-        } - {None}
-
-        # La ficha de docente es de esta persona salvo que otro usuario la use.
         if docente and (
             (docente.user_id and docente.user_id != user.id)
             or PerfilUsuario.objects.filter(docente=docente, user__isnull=False).exclude(user=user).exists()
         ):
-            docente = None
+            return None
+        return docente
+
+    @classmethod
+    def _eliminar_usuario_sin_datos(cls, user):
+        perfil = PerfilUsuario.objects.filter(user=user).select_related('docente').first()
+        vinculada = docente_del_usuario(user)
+        datos_laborales_ids = {
+            perfil.datos_laborales_id if perfil else None,
+            vinculada.datos_laborales_id if vinculada else None,
+        } - {None}
+
+        docente = cls._ficha_que_se_borra(user)
 
         AsignacionCarrera.objects.filter(user=user).delete()
         PerfilUsuario.objects.filter(user=user).delete()

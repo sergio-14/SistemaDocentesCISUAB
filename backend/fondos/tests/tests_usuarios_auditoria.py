@@ -301,7 +301,17 @@ class EliminarYEditarUsuarioTests(UsuariosBaseTestCase):
 
         response = self.client.get(f'/api/usuarios/{usuario.pk}/dependencias/')
 
-        self.assertEqual(response.data, {'detalle': [], 'tiene_datos': False, 'can_delete': True})
+        self.assertEqual(response.data, {'detalle': [], 'tiene_datos': False, 'can_delete': True, 'ficha_docente': None})
+
+    def test_dependencias_dice_que_ficha_de_docente_se_borra(self):
+        usuario = self.crear_usuario('con_ficha', 'docente', carrera=self.carrera)
+        docente = self.crear_docente('FICHA', usuario=usuario)
+        PerfilUsuario.objects.filter(user=usuario).update(docente=docente)
+
+        response = self.client.get(f'/api/usuarios/{usuario.pk}/dependencias/')
+
+        self.assertEqual(response.data['ficha_docente'], docente.nombre_completo)
+        self.assertTrue(response.data['can_delete'])
 
 
 class CIExistenteYAsignacionesTests(UsuariosBaseTestCase):

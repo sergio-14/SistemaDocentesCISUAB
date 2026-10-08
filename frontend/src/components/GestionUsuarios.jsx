@@ -18,6 +18,7 @@ import CampoBusqueda from './common/CampoBusqueda';
 import FiltroDesplegable from './common/FiltroDesplegable';
 import Interruptor from './common/Interruptor';
 import ModalCentrado from './common/ModalCentrado';
+import ModalConfirmar from './common/ModalConfirmar';
 import NumeroAnimado from './common/NumeroAnimado';
 import Paginacion from './common/Paginacion';
 import SelectorVista from './common/SelectorVista';
@@ -29,6 +30,7 @@ import {
   ERROR_SHAKE_DURATION_MS,
   sanitizeApiErrors,
   getBackendErrorMessage,
+  getApiErrorMessage,
 } from '../utils/formErrors';
 
 // Animaciones del aviso que brinca y del panel para elegir la carrera de un rol.
@@ -259,9 +261,10 @@ function GestionUsuarios({ user: usuarioSesion }) {
   const [vinculacionRapidaDocente, setVinculacionRapidaDocente] = useState(false);
   const [volverANuevoDocente, setVolverANuevoDocente] = useState(false);
 
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [usuarioToDelete, setUsuarioToDelete] = useState(null);
-  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  // Eliminar: { usuario, datos } con lo que responde /dependencias/ (si tiene datos
+  // se muestra "No se puede eliminar" en lugar de la confirmación).
+  const [eliminacion, setEliminacion] = useState(null);
+  const [verificandoEliminarId, setVerificandoEliminarId] = useState(null);
 
   const [showToggleModal, setShowToggleModal] = useState(false);
   const [usuarioToToggle, setUsuarioToToggle] = useState(null);
@@ -647,53 +650,37 @@ const initialData = {
     setShowToggleModal(true);
   };
 
-  const handleEliminar = (usuario) => {
-    setUsuarioToDelete(usuario);
-    setDeleteConfirmText('');
-    setShowDeleteModal(true);
-  };
-
-  const closeDeleteModal = () => {
-    setShowDeleteModal(false);
-    setUsuarioToDelete(null);
-    setDeleteConfirmText('');
+  // Antes de confirmar se pregunta al backend si el usuario tiene datos registrados.
+  const handleEliminar = async (usuario) => {
+    if (verificandoEliminarId) return;
+    setVerificandoEliminarId(usuario.id);
+    try {
+      const { data } = await api.get(`/usuarios/${usuario.id}/dependencias/`);
+      setEliminacion({ usuario, datos: data || {} });
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'No se pudo verificar si el usuario tiene datos registrados.'));
+    } finally {
+      setVerificandoEliminarId(null);
+    }
   };
 
   const confirmarEliminar = async () => {
-    if (!usuarioToDelete) return;
-    if (deleteConfirmText !== usuarioToDelete.username) {
-      toast.error('Debes escribir exactamente el nombre de usuario para confirmar');
-      return;
-    }
+    const { usuario } = eliminacion;
     try {
-      await api.delete(`/usuarios/${usuarioToDelete.id}/`);
-      toast.success('Usuario eliminado con éxito');
-      setUsuarios((prev) => prev.filter((usuario) => usuario.id !== usuarioToDelete.id));
-      closeDeleteModal();
+      await api.delete(`/usuarios/${usuario.id}/`);
     } catch (err) {
-      console.error('Error al eliminar usuario:', err);
-      console.log('Error response:', err.response);
-      console.log('Error data:', err.response?.data);
-
-      // Capturar mensaje de error específico del backend
-      let errorMessage = 'Error al eliminar el usuario';
-
-      if (err.response && err.response.data) {
-        // Backend devolvió un error específico
-        if (typeof err.response.data === 'object') {
-          // Puede ser { error: 'mensaje' } o { detail: 'mensaje' }
-          errorMessage = err.response.data.error || err.response.data.detail || JSON.stringify(err.response.data);
-        } else if (typeof err.response.data === 'string') {
-          errorMessage = err.response.data;
-        }
-      } else if (err.message) {
-        errorMessage = err.message;
+      // Datos registrados que aparecieron mientras tanto: se muestra el aviso.
+      if (err.response?.status === 409 && err.response.data?.dependencias) {
+        setEliminacion({ usuario, datos: err.response.data.dependencias });
+        return;
       }
-
-      console.error('Error message:', errorMessage);
-      toast.error(errorMessage);
+      throw new Error(getApiErrorMessage(err, 'No se pudo eliminar el usuario.'));
     }
+    toast.success('Usuario eliminado');
+    setUsuarios((prev) => prev.filter((item) => item.id !== usuario.id));
+    setEliminacion(null);
   };
+
   // --- FORM LOGIC FOR INLINE CREATION ---
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -1221,12 +1208,12 @@ const initialData = {
           <button data-escritura
             type="button"
             onClick={() => puedeBorrar && handleEliminar(usuario)}
-            disabled={!puedeBorrar}
+            disabled={!puedeBorrar || verificandoEliminarId === usuario.id}
             title={!puedeBorrar ? 'Acción deshabilitada: usuario protegido' : 'Eliminar'}
             className={`${BOTON_CHICO} bg-red-400 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-400`}
           >
             <FaTrash size={11} />
-            <span>Eliminar</span>
+            <span>{verificandoEliminarId === usuario.id ? 'Verificando...' : 'Eliminar'}</span>
           </button>
         )}
       </div>
@@ -1684,52 +1671,34 @@ const initialData = {
       )}
 
       {/* Confirmación de eliminación */}
-      {showDeleteModal && (
-        <ModalCentrado onClose={closeDeleteModal}>
-          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '160ms' }}>
-            <div className="px-6 pt-6">
-              <h4 className="text-xl font-bold text-red-700">Confirmar eliminación</h4>
-              <p className="mt-1 text-sm text-slate-600">
-                Se eliminará el usuario <strong className="text-slate-900">{usuarioToDelete?.username}</strong> de forma permanente.
-              </p>
-            </div>
-            <div className="px-6 py-4 space-y-3 text-sm">
-              <div className="rounded-2xl bg-red-50 ring-1 ring-inset ring-red-200 px-4 py-3 text-red-800">
-                Acción irreversible: <strong>el usuario perderá su acceso definitivamente.</strong>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5 pl-1">
-                  Escribe el nombre exacto de usuario para habilitar la eliminación:
-                </label>
-                <input
-                  type="text"
-                  value={deleteConfirmText}
-                  onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  placeholder={usuarioToDelete?.username || ''}
-                  className="w-full h-11 px-4 rounded-full text-sm text-slate-800 placeholder:text-slate-500 outline-none ring-1 ring-inset ring-azulado-300 focus:ring-2 focus:ring-red-400/50 !bg-azulado-100"
-                />
-              </div>
-            </div>
-            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 pb-6">
-              <button
-                type="button"
-                onClick={closeDeleteModal}
-                className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200`}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={confirmarEliminar}
-                disabled={deleteConfirmText !== (usuarioToDelete?.username || '')}
-                className={`${BOTON} px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-500`}
-              >
-                Eliminar
-              </button>
-            </div>
-          </div>
-        </ModalCentrado>
-      )}
+      {eliminacion && (eliminacion.datos.tiene_datos ? (
+        <ModalConfirmar
+          key={`no-${eliminacion.usuario.id}`}
+          informativo
+          titulo="No se puede eliminar"
+          mensaje={<><strong className="text-slate-900">{eliminacion.usuario.username}</strong> tiene datos registrados. Desactívelo en su lugar.</>}
+          detalle={(eliminacion.datos.detalle || []).map((item) => `${item.etiqueta}: ${item.cantidad}`)}
+          onCancelar={() => setEliminacion(null)}
+        />
+      ) : (
+        <ModalConfirmar
+          key={`si-${eliminacion.usuario.id}`}
+          tono="peligro"
+          titulo="Eliminar usuario"
+          mensaje={(
+            <>
+              Se eliminará <strong className="text-slate-900">{eliminacion.usuario.username}</strong> de forma permanente
+              {eliminacion.datos.ficha_docente
+                ? <>, junto con su ficha de docente (<strong className="text-slate-900">{eliminacion.datos.ficha_docente}</strong>).</>
+                : '. No tiene ficha de docente.'}
+            </>
+          )}
+          textoAccion="Eliminar"
+          textoTrabajando="Eliminando..."
+          onConfirmar={confirmarEliminar}
+          onCancelar={() => setEliminacion(null)}
+        />
+      ))}
     </div>
   );
 }

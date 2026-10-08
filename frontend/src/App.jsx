@@ -321,8 +321,8 @@ function App() {
               <Route index element={<AnimatedRoute><GestionUsuarios user={user} /></AnimatedRoute>} />
             </Route>
 
-            <Route path="/carreras" element={<SimpleLayout theme={theme} setTheme={setTheme} />}>
-              <Route index element={<AnimatedRoute><ListaCarreras isDark={isDark} hasSidebar={false} /></AnimatedRoute>} />
+            <Route path="/carreras" element={<SimpleLayout theme={theme} setTheme={setTheme} soloClaro />}>
+              <Route index element={<AnimatedRoute><ListaCarreras /></AnimatedRoute>} />
             </Route>
 
             {/* Módulo: POA - Usando el layout con sidebar y header propios */}

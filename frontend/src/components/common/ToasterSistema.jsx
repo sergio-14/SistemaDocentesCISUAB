@@ -48,7 +48,7 @@ function ToastFondo({ t }) {
       }`}
       {...t.ariaProps}
     >
-      <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/20">
+      <span className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/20 ${t.visible ? 'animate-toast-fondo-icono' : ''}`}>
         {t.type === 'loading' ? (
           <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
         ) : (
@@ -73,6 +73,10 @@ function ToastFondo({ t }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
+      {/* Lo que le queda al aviso de sus 4 s. */}
+      {t.type !== 'loading' && t.visible && (
+        <span aria-hidden="true" className="animate-toast-fondo-progreso absolute inset-x-0 bottom-0 h-1 bg-white/40" />
+      )}
     </div>
   );
 }

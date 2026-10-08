@@ -1691,22 +1691,68 @@ html.sin-elevacion-poa button:active {
   }
 }
 
+/* Toasts: entran desde la derecha con un pequeño rebote (el ícono hace un "pop") y
+   salen tomando impulso hacia la izquierda antes de irse por la derecha. La barra de
+   abajo marca los 4 s que dura cada aviso. */
 @keyframes toastFondoEntrada {
-  from { opacity: 0; transform: translateX(1.5rem); }
-  to { opacity: 1; transform: translateX(0); }
+  0% { opacity: 0; transform: translateX(115%) scale(0.9); }
+  60% { opacity: 1; transform: translateX(-8px) scale(1.02); }
+  80% { transform: translateX(3px) scale(0.995); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
 }
 
 @keyframes toastFondoSalida {
-  from { opacity: 1; transform: translateX(0); }
-  to { opacity: 0; transform: translateX(1.5rem); }
+  0% { opacity: 1; transform: translateX(0) scale(1); }
+  30% { opacity: 1; transform: translateX(-6px) scale(1); }
+  100% { opacity: 0; transform: translateX(115%) scale(0.92); }
+}
+
+@keyframes toastFondoIcono {
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes toastFondoProgreso {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
 }
 
 .animate-toast-fondo-entrada {
-  animation: toastFondoEntrada 260ms ease-out both;
+  animation: toastFondoEntrada 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .animate-toast-fondo-salida {
-  animation: toastFondoSalida 200ms ease-in both;
+  animation: toastFondoSalida 340ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.animate-toast-fondo-icono {
+  animation: toastFondoIcono 420ms cubic-bezier(0.34, 1.56, 0.64, 1) 120ms both;
+}
+
+.animate-toast-fondo-progreso {
+  transform-origin: left center;
+  animation: toastFondoProgreso 4000ms linear both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-toast-fondo-entrada,
+  .animate-toast-fondo-salida {
+    animation-name: fadeInSuave;
+    animation-duration: 160ms;
+  }
+  .animate-toast-fondo-salida {
+    animation-direction: reverse;
+  }
+  .animate-toast-fondo-icono,
+  .animate-toast-fondo-progreso {
+    animation: none;
+  }
+}
+
+@keyframes fadeInSuave {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* Dashboard de fondos: entrada suave y escalonada de cada fondo al cambiar entre

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FaEdit, FaTrash } from 'react-icons/fa';
 import api, { getCarreras, getDocentes, obtenerTodos } from '../apis/api';
 import ModalUsuario from './ModalUsuario';
 import { EVENTO_FOTO_PERFIL_ACTUALIZADA } from './ProfilePicture';
@@ -12,6 +11,7 @@ import {
 import CampoUsuario from './usuarios/CampoUsuario';
 import { SeccionUsuario } from './usuarios/PiezasFormularioUsuario';
 import ListaTransferenciaRoles from './usuarios/ListaTransferenciaRoles';
+import PerfilUsuario from './usuarios/PerfilUsuario';
 import { useActiveRole } from '../contexts/activeRole';
 import CampoResolucionJefe from './common/CampoResolucionJefe';
 import CampoBusqueda from './common/CampoBusqueda';
@@ -221,6 +221,8 @@ function GestionUsuarios({ user: usuarioSesion }) {
   // Eliminar: { usuario, datos } con lo que responde /dependencias/ (si tiene datos
   // se muestra "No se puede eliminar" en lugar de la confirmación).
   const [eliminacion, setEliminacion] = useState(null);
+  // Perfil abierto con "Ver" (el id: los datos salen siempre de la lista actualizada).
+  const [perfilId, setPerfilId] = useState(null);
   const [verificandoEliminarId, setVerificandoEliminarId] = useState(null);
 
   const [showToggleModal, setShowToggleModal] = useState(false);
@@ -636,6 +638,7 @@ const initialData = {
     toast.success('Usuario eliminado');
     setUsuarios((prev) => prev.filter((item) => item.id !== usuario.id));
     setEliminacion(null);
+    setPerfilId(null);
   };
 
   // --- FORM LOGIC FOR INLINE CREATION ---
@@ -1093,7 +1096,6 @@ const initialData = {
     if (tieneCargoDeDireccion(usuario)) return 'Al Jefe de Estudios solo lo elimina el superusuario: lo designa el Consejo de Carrera.';
     return '';
   };
-  const puedeEliminarUsuario = (usuario) => Boolean(usuario) && puedeEliminarUsuarios() && !motivoNoEliminar(usuario);
   const obtenerNombreUsuario = (usuario) => ((usuario?.first_name || usuario?.last_name)
     ? `${(usuario.first_name || '').trim()} ${(usuario.last_name || '').trim()}`.trim()
     : (usuario?.nombre_completo || '-'));
@@ -1162,43 +1164,26 @@ const initialData = {
     )
   );
 
+  // En la lista solo "Ver": Editar y Eliminar están dentro del perfil. El superusuario
+  // no tiene acciones: su estado ya dice "Protegido".
   const accionesUsuario = (usuario) => {
-    if (!puedeGestionarUsuarios()) return null;
-    const bloqueado = !puedeEditarUsuario(usuario);
-    const puedeBorrar = puedeEliminarUsuario(usuario);
-    const motivoEdicion = motivoNoEditar(usuario);
-    const motivoEliminacion = puedeEliminarUsuarios() ? motivoNoEliminar(usuario) : '';
-    const motivos = [...new Set([motivoEdicion, motivoEliminacion].filter(Boolean))];
+    if (!puedeGestionarUsuarios() || usuario.is_superuser) return null;
     return (
-      <div className="flex flex-wrap items-center gap-2">
-        <button data-escritura
-          type="button"
-          onClick={() => !bloqueado && abrirModalEditar(usuario)}
-          disabled={bloqueado}
-          title={motivoEdicion || 'Editar'}
-          className={`${BOTON_CHICO} bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-emerald-500`}
-        >
-          <FaEdit size={12} />
-          <span>Editar</span>
-        </button>
-        {puedeEliminarUsuarios() && (
-          <button data-escritura
-            type="button"
-            onClick={() => puedeBorrar && handleEliminar(usuario)}
-            disabled={!puedeBorrar || verificandoEliminarId === usuario.id}
-            title={motivoEliminacion || 'Eliminar'}
-            className={`${BOTON_CHICO} bg-red-400 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-400`}
-          >
-            <FaTrash size={11} />
-            <span>{verificandoEliminarId === usuario.id ? 'Verificando...' : 'Eliminar'}</span>
-          </button>
-        )}
-        {motivos.map((motivo) => (
-          <p key={motivo} className="basis-full text-xs text-slate-500">{motivo}</p>
-        ))}
-      </div>
+      <button
+        type="button"
+        onClick={() => setPerfilId(usuario.id)}
+        className={`${BOTON_CHICO} px-4 bg-blue-900 hover:bg-blue-950 text-white`}
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+        </svg>
+        <span>Ver</span>
+      </button>
     );
   };
+
+  const usuarioPerfil = perfilId ? usuarios.find((item) => item.id === perfilId) || null : null;
 
   // La carrera solo la ve el superusuario; el Director solo gestiona usuarios de la suya.
   // Anchos fijos para C.I., Carrera, Estado y Acciones, así el encabezado y las filas
@@ -1562,6 +1547,26 @@ const initialData = {
           </div>
         </div>
       ), document.body)}
+
+      {/* Perfil del usuario (Ver) con Editar y Eliminar */}
+      {usuarioPerfil && (
+        <PerfilUsuario
+          usuario={usuarioPerfil}
+          foto={fotoUsuario(usuarioPerfil, 'w-16 h-16')}
+          chipsRoles={chipsRoles(usuarioPerfil)}
+          mostrarCarrera={esSuperuserActual}
+          puedeEliminarUsuarios={puedeEliminarUsuarios()}
+          motivoEditar={motivoNoEditar(usuarioPerfil)}
+          motivoEliminar={motivoNoEliminar(usuarioPerfil)}
+          verificandoEliminar={verificandoEliminarId === usuarioPerfil.id}
+          onEditar={() => {
+            setPerfilId(null);
+            abrirModalEditar(usuarioPerfil);
+          }}
+          onEliminar={() => handleEliminar(usuarioPerfil)}
+          onCerrar={() => setPerfilId(null)}
+        />
+      )}
 
       {/* Edición */}
       <ModalUsuario

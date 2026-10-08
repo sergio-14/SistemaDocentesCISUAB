@@ -14,6 +14,7 @@ import CargaHorariaManager from './CargaHorariaManager';
 import ModalCentrado from './common/ModalCentrado';
 import EstadoTimeline from './fondos/EstadoTimeline';
 import FiltroUnidades from './fondos/FiltroUnidades';
+import Plegable from './fondos/Plegable';
 import ProgramaAnaliticoAccion from './fondos/ProgramaAnaliticoAccion';
 import DocumentoActividadAccion from './fondos/DocumentoActividadAccion';
 import { BLOQUE, BOTON } from './fondos/estilosFondo';
@@ -1069,194 +1070,203 @@ function DetalleFondo() {
                 <div className={`${BLOQUE} p-10 text-center text-sm text-slate-600`}>
                   Sin actividades planificadas para mostrar
                 </div>
-              ) : categoriasMostradas.length === 0 ? (
-                <div className={`${BLOQUE} p-10 text-center text-sm text-slate-600`}>
-                  Marque al menos una unidad en el desplegable para ver sus actividades.
-                </div>
-              ) : categoriasMostradas.map((categoria) => {
-                const color = colorUnidad(categoria.tipo);
-                const totalActual = Number(categoria.total_horas || 0);
-                const totalPrevio = Number(prevTotalesCategoriasRef.current[categoria.tipo] || 0);
-                const aparecioRecien = totalPrevio <= 0 && totalActual > 0;
-                const porcentajeUnidad = parseFloat(categoria.porcentaje) || 0;
-                const detalles = ordenarDetallesCarga(categoria);
-
-                return (
-                  <div key={categoria.tipo} className={`${BLOQUE} p-5 sm:p-6 ${aparecioRecien ? 'animate-fade-in' : ''}`}>
-                    {/* Encabezado de la unidad */}
-                    <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="h-3.5 w-3.5 flex-shrink-0 rounded-full" style={{ backgroundColor: color }} />
-                        <div className="min-w-0">
-                          <h4 className="text-lg font-bold text-slate-800 leading-tight">{categoria.tipo_display}</h4>
-                          <p className="text-sm text-slate-600">
-                            {detalles.length} {detalles.length === 1 ? 'actividad' : 'actividades'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <p className="text-lg font-bold text-blue-900 tabular-nums leading-tight">{Math.round(totalActual)} h/año</p>
-                          <p className="text-xs text-slate-600">{porcentajeUnidad.toFixed(1)}% de las horas efectivas</p>
-                        </div>
-                        <div className="hidden sm:block w-32">
-                          <div className="h-2 w-full rounded-full bg-azulado-200 overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${Math.min(100, porcentajeUnidad)}%`, backgroundColor: color }} />
-                          </div>
-                        </div>
-                      </div>
+              ) : (
+                // Las unidades no se quitan de golpe: cada tarjeta se pliega o despliega y
+                // lo de abajo se acomoda con animación.
+                <div className="-mb-4">
+                  <Plegable abierto={categoriasMostradas.length === 0}>
+                    <div className={`${BLOQUE} p-10 text-center text-sm text-slate-600`}>
+                      Marque al menos una unidad en el desplegable para ver sus actividades.
                     </div>
+                  </Plegable>
+                  {categoriasVisibles.map((categoria) => {
+                    const color = colorUnidad(categoria.tipo);
+                    const totalActual = Number(categoria.total_horas || 0);
+                    const totalPrevio = Number(prevTotalesCategoriasRef.current[categoria.tipo] || 0);
+                    const aparecioRecien = totalPrevio <= 0 && totalActual > 0;
+                    const porcentajeUnidad = parseFloat(categoria.porcentaje) || 0;
+                    const detalles = ordenarDetallesCarga(categoria);
 
-                    {/* Tabla de actividades (cuadrícula: el CSS del POA da estilo a todas las <table>) */}
-                    {detalles.length > 0 ? (
-                      <div className="rounded-2xl bg-white ring-1 ring-azulado-300 overflow-hidden">
-                        <div className={`hidden lg:grid ${columnasActividades} bg-azulado-50 text-xs font-semibold text-blue-800 [border-bottom:1px_solid_#D2DDEE]`}>
-                          <span className="px-5 py-3">Actividad asignada</span>
-                          <span className="px-5 py-3">Tipo</span>
-                          <span className="px-5 py-3 text-center">Horas/año</span>
-                          <span className="px-5 py-3">Evidencias</span>
-                          {mostrarAccionesCarga && <span className="px-5 py-3 text-center">Acciones</span>}
-                        </div>
-                        <div className="divide-y divide-azulado-300">
-                          {detalles.map((detalle, dIdx) => {
-                            const editando = edicionCarga?.id === detalle.id;
-                            const inputEdicion = 'h-9 rounded-full text-tabla outline-none ring-1 ring-inset focus:ring-2 focus:ring-blue-900/40 !bg-azulado-100';
-                            const teclasEdicion = (e) => {
-                              if (e.key === 'Enter') { e.preventDefault(); guardarEdicionCarga(); }
-                              if (e.key === 'Escape') setEdicionCarga(null);
-                            };
-                            return (
-                            <div
-                              key={detalle.id ?? dIdx}
-                              className={`grid grid-cols-1 ${columnasActividades} transition-colors ${editando ? 'bg-azulado-50' : 'hover:bg-azulado-50'}`}
-                            >
-                              <div className="px-5 pt-4 pb-1 lg:py-4 text-tabla font-semibold text-slate-800 min-w-0">
-                                {editando && edicionCarga.esOtros ? (
-                                  <input
-                                    type="text"
-                                    value={edicionCarga.titulo}
-                                    onChange={(e) => setEdicionCarga((prev) => ({ ...prev, titulo: e.target.value, error: '' }))}
-                                    onKeyDown={teclasEdicion}
-                                    disabled={edicionCarga.guardando}
-                                    aria-label="Descripción de la actividad"
-                                    className={`animate-campo-entrada w-full px-4 font-semibold text-slate-800 ${inputEdicion} ring-azulado-300`}
-                                  />
-                                ) : (
-                                  <ActividadAsignadaCell detalle={detalle} />
-                                )}
-                                {detalle.tipo_actividad === 'clases_aula' && (
-                                  <ProgramaAnaliticoAccion
-                                    fondoId={fondo.id}
-                                    materiaId={detalle.materia_id}
-                                    calendarioId={detalle.calendario_id}
-                                    url={detalle.programa_analitico_url}
-                                    puedeSubir={puedeModificarCarga(detalle)}
-                                    onSubido={() => cargarDetalle({ silencioso: true })}
-                                  />
-                                )}
-                                {detalle.requiere_documento && (
-                                  <DocumentoActividadAccion
-                                    cargaId={detalle.id}
-                                    clase={detalle.requiere_documento}
-                                    url={detalle.documento_url}
-                                    puedeSubir={puedeModificarCarga(detalle)}
-                                    onSubido={() => cargarDetalle({ silencioso: true })}
-                                  />
-                                )}
-                              </div>
-                              <div className="px-5 py-1 lg:py-4 text-tabla text-slate-600">
-                                <span className="lg:hidden font-semibold text-blue-800">Tipo: </span>
-                                {detalle.tipo_actividad_display || '-'}
-                              </div>
-                              <div className="px-5 py-1 lg:py-4 text-tabla font-bold text-blue-900 lg:text-center tabular-nums">
-                                <span className="lg:hidden font-semibold text-blue-800">Horas/año: </span>
-                                {editando ? (
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                    autoFocus={!edicionCarga.esOtros}
-                                    value={edicionCarga.horas}
-                                    onChange={(e) => setEdicionCarga((prev) => ({ ...prev, horas: e.target.value, error: '' }))}
-                                    onKeyDown={teclasEdicion}
-                                    disabled={edicionCarga.guardando}
-                                    aria-label="Horas por año"
-                                    className={`animate-campo-entrada w-24 px-3 text-center font-bold text-blue-900 tabular-nums ${inputEdicion} ${edicionCarga.error ? 'ring-red-400/80' : 'ring-azulado-300'}`}
-                                  />
-                                ) : detalle.horas}
-                              </div>
-                              <div className="px-5 py-1 lg:py-4 text-tabla text-slate-600 break-words">
-                                <span className="lg:hidden font-semibold text-blue-800">Evidencias: </span>
-                                {detalle.evidencias || '-'}
-                              </div>
-                              {mostrarAccionesCarga && (
-                                <div className="px-5 pt-1 pb-4 lg:py-3 flex items-center lg:justify-center">
-                                  {editando ? (
-                                    <div className="animate-campo-entrada flex flex-wrap gap-1.5 lg:justify-center">
-                                      <button
-                                        type="button"
-                                        onClick={guardarEdicionCarga}
-                                        disabled={edicionCarga.guardando}
-                                        className={`${BOTON} px-3 py-1.5 text-xs bg-blue-900 hover:bg-blue-950 text-white disabled:opacity-60`}
-                                      >
-                                        {edicionCarga.guardando ? 'Guardando...' : 'Guardar'}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => setEdicionCarga(null)}
-                                        disabled={edicionCarga.guardando}
-                                        className={`${BOTON} px-3 py-1.5 text-xs text-slate-600 hover:bg-azulado-200 disabled:opacity-60`}
-                                      >
-                                        Cancelar
-                                      </button>
-                                    </div>
-                                  ) : puedeModificarCarga(detalle) ? (
-                                    <div className="flex gap-1">
-                                      {/* Clases en aula: sus horas son automáticas (materia y calendario). */}
-                                      {detalle.tipo_actividad !== 'clases_aula' && (
-                                        <button
-                                          type="button"
-                                          onClick={() => iniciarEdicionCarga(detalle)}
-                                          className="p-2 rounded-full text-blue-900 hover:bg-azulado-200 transition-colors"
-                                          title={detalle.tipo_actividad === 'otros' ? 'Editar horas y descripción' : 'Editar horas'}
-                                          aria-label={detalle.tipo_actividad === 'otros' ? 'Editar horas y descripción' : 'Editar horas'}
-                                        >
-                                          <PencilIcon className="w-4 h-4" />
-                                        </button>
-                                      )}
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDeleteCarga(detalle.id)}
-                                        className="p-2 rounded-full text-red-500 hover:bg-red-50 transition-colors"
-                                        title="Eliminar asignación"
-                                        aria-label="Eliminar asignación"
-                                      >
-                                        <TrashIcon className="w-4 h-4" />
-                                      </button>
-                                    </div>
-                                  ) : detalle.es_de_otra_carrera ? (
-                                    <span className="text-xs text-slate-500 lg:text-center">
-                                      Jefatura de {detalle.carrera_calendario}
-                                    </span>
-                                  ) : null}
-                                </div>
-                              )}
-                              {editando && edicionCarga.error && (
-                                <p className="animate-campo-entrada col-span-full px-5 pb-3 text-xs font-semibold text-red-600 lg:!border-l-0">
-                                  {edicionCarga.error}
+                    return (
+                      <Plegable key={categoria.tipo} abierto={!unidadesOcultas.has(categoria.tipo)}>
+                        <div className={`${BLOQUE} p-5 sm:p-6 ${aparecioRecien ? 'animate-fade-in' : ''}`}>
+                          {/* Encabezado de la unidad */}
+                          <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className="h-3.5 w-3.5 flex-shrink-0 rounded-full" style={{ backgroundColor: color }} />
+                              <div className="min-w-0">
+                                <h4 className="text-lg font-bold text-slate-800 leading-tight">{categoria.tipo_display}</h4>
+                                <p className="text-sm text-slate-600">
+                                  {detalles.length} {detalles.length === 1 ? 'actividad' : 'actividades'}
                                 </p>
-                              )}
+                              </div>
                             </div>
-                            );
-                          })}
+                            <div className="flex items-center gap-4">
+                              <div className="text-right">
+                                <p className="text-lg font-bold text-blue-900 tabular-nums leading-tight">{Math.round(totalActual)} h/año</p>
+                                <p className="text-xs text-slate-600">{porcentajeUnidad.toFixed(1)}% de las horas efectivas</p>
+                              </div>
+                              <div className="hidden sm:block w-32">
+                                <div className="h-2 w-full rounded-full bg-azulado-200 overflow-hidden">
+                                  <div className="h-full rounded-full" style={{ width: `${Math.min(100, porcentajeUnidad)}%`, backgroundColor: color }} />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Tabla de actividades (cuadrícula: el CSS del POA da estilo a todas las <table>) */}
+                          {detalles.length > 0 ? (
+                            <div className="rounded-2xl bg-white ring-1 ring-azulado-300 overflow-hidden">
+                              <div className={`hidden lg:grid ${columnasActividades} bg-azulado-50 text-xs font-semibold text-blue-800 [border-bottom:1px_solid_#D2DDEE]`}>
+                                <span className="px-5 py-3">Actividad asignada</span>
+                                <span className="px-5 py-3">Tipo</span>
+                                <span className="px-5 py-3 text-center">Horas/año</span>
+                                <span className="px-5 py-3">Evidencias</span>
+                                {mostrarAccionesCarga && <span className="px-5 py-3 text-center">Acciones</span>}
+                              </div>
+                              <div className="divide-y divide-azulado-300">
+                                {detalles.map((detalle, dIdx) => {
+                                  const editando = edicionCarga?.id === detalle.id;
+                                  const inputEdicion = 'h-9 rounded-full text-tabla outline-none ring-1 ring-inset focus:ring-2 focus:ring-blue-900/40 !bg-azulado-100';
+                                  const teclasEdicion = (e) => {
+                                    if (e.key === 'Enter') { e.preventDefault(); guardarEdicionCarga(); }
+                                    if (e.key === 'Escape') setEdicionCarga(null);
+                                  };
+                                  return (
+                                  <div
+                                    key={detalle.id ?? dIdx}
+                                    className={`grid grid-cols-1 ${columnasActividades} transition-colors ${editando ? 'bg-azulado-50' : 'hover:bg-azulado-50'}`}
+                                  >
+                                    <div className="px-5 pt-4 pb-1 lg:py-4 text-tabla font-semibold text-slate-800 min-w-0">
+                                      {editando && edicionCarga.esOtros ? (
+                                        <input
+                                          type="text"
+                                          value={edicionCarga.titulo}
+                                          onChange={(e) => setEdicionCarga((prev) => ({ ...prev, titulo: e.target.value, error: '' }))}
+                                          onKeyDown={teclasEdicion}
+                                          disabled={edicionCarga.guardando}
+                                          aria-label="Descripción de la actividad"
+                                          className={`animate-campo-entrada w-full px-4 font-semibold text-slate-800 ${inputEdicion} ring-azulado-300`}
+                                        />
+                                      ) : (
+                                        <ActividadAsignadaCell detalle={detalle} />
+                                      )}
+                                      {detalle.tipo_actividad === 'clases_aula' && (
+                                        <ProgramaAnaliticoAccion
+                                          fondoId={fondo.id}
+                                          materiaId={detalle.materia_id}
+                                          calendarioId={detalle.calendario_id}
+                                          url={detalle.programa_analitico_url}
+                                          puedeSubir={puedeModificarCarga(detalle)}
+                                          onSubido={() => cargarDetalle({ silencioso: true })}
+                                        />
+                                      )}
+                                      {detalle.requiere_documento && (
+                                        <DocumentoActividadAccion
+                                          cargaId={detalle.id}
+                                          clase={detalle.requiere_documento}
+                                          url={detalle.documento_url}
+                                          puedeSubir={puedeModificarCarga(detalle)}
+                                          onSubido={() => cargarDetalle({ silencioso: true })}
+                                        />
+                                      )}
+                                    </div>
+                                    <div className="px-5 py-1 lg:py-4 text-tabla text-slate-600">
+                                      <span className="lg:hidden font-semibold text-blue-800">Tipo: </span>
+                                      {detalle.tipo_actividad_display || '-'}
+                                    </div>
+                                    <div className="px-5 py-1 lg:py-4 text-tabla font-bold text-blue-900 lg:text-center tabular-nums">
+                                      <span className="lg:hidden font-semibold text-blue-800">Horas/año: </span>
+                                      {editando ? (
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          step="1"
+                                          autoFocus={!edicionCarga.esOtros}
+                                          value={edicionCarga.horas}
+                                          onChange={(e) => setEdicionCarga((prev) => ({ ...prev, horas: e.target.value, error: '' }))}
+                                          onKeyDown={teclasEdicion}
+                                          disabled={edicionCarga.guardando}
+                                          aria-label="Horas por año"
+                                          className={`animate-campo-entrada w-24 px-3 text-center font-bold text-blue-900 tabular-nums ${inputEdicion} ${edicionCarga.error ? 'ring-red-400/80' : 'ring-azulado-300'}`}
+                                        />
+                                      ) : detalle.horas}
+                                    </div>
+                                    <div className="px-5 py-1 lg:py-4 text-tabla text-slate-600 break-words">
+                                      <span className="lg:hidden font-semibold text-blue-800">Evidencias: </span>
+                                      {detalle.evidencias || '-'}
+                                    </div>
+                                    {mostrarAccionesCarga && (
+                                      <div className="px-5 pt-1 pb-4 lg:py-3 flex items-center lg:justify-center">
+                                        {editando ? (
+                                          <div className="animate-campo-entrada flex flex-wrap gap-1.5 lg:justify-center">
+                                            <button
+                                              type="button"
+                                              onClick={guardarEdicionCarga}
+                                              disabled={edicionCarga.guardando}
+                                              className={`${BOTON} px-3 py-1.5 text-xs bg-blue-900 hover:bg-blue-950 text-white disabled:opacity-60`}
+                                            >
+                                              {edicionCarga.guardando ? 'Guardando...' : 'Guardar'}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setEdicionCarga(null)}
+                                              disabled={edicionCarga.guardando}
+                                              className={`${BOTON} px-3 py-1.5 text-xs text-slate-600 hover:bg-azulado-200 disabled:opacity-60`}
+                                            >
+                                              Cancelar
+                                            </button>
+                                          </div>
+                                        ) : puedeModificarCarga(detalle) ? (
+                                          <div className="flex gap-1">
+                                            {/* Clases en aula: sus horas son automáticas (materia y calendario). */}
+                                            {detalle.tipo_actividad !== 'clases_aula' && (
+                                              <button
+                                                type="button"
+                                                onClick={() => iniciarEdicionCarga(detalle)}
+                                                className="p-2 rounded-full text-blue-900 hover:bg-azulado-200 transition-colors"
+                                                title={detalle.tipo_actividad === 'otros' ? 'Editar horas y descripción' : 'Editar horas'}
+                                                aria-label={detalle.tipo_actividad === 'otros' ? 'Editar horas y descripción' : 'Editar horas'}
+                                              >
+                                                <PencilIcon className="w-4 h-4" />
+                                              </button>
+                                            )}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeleteCarga(detalle.id)}
+                                              className="p-2 rounded-full text-red-500 hover:bg-red-50 transition-colors"
+                                              title="Eliminar asignación"
+                                              aria-label="Eliminar asignación"
+                                            >
+                                              <TrashIcon className="w-4 h-4" />
+                                            </button>
+                                          </div>
+                                        ) : detalle.es_de_otra_carrera ? (
+                                          <span className="text-xs text-slate-500 lg:text-center">
+                                            Jefatura de {detalle.carrera_calendario}
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                    )}
+                                    {editando && edicionCarga.error && (
+                                      <p className="animate-campo-entrada col-span-full px-5 pb-3 text-xs font-semibold text-red-600 lg:!border-l-0">
+                                        {edicionCarga.error}
+                                      </p>
+                                    )}
+                                  </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="rounded-2xl bg-azulado-100 py-8 text-center text-sm text-slate-600">Sin actividades registradas</p>
+                          )}
                         </div>
-                      </div>
-                    ) : (
-                      <p className="rounded-2xl bg-azulado-100 py-8 text-center text-sm text-slate-600">Sin actividades registradas</p>
-                    )}
-                  </div>
-                );
-              })}
+                      </Plegable>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </>

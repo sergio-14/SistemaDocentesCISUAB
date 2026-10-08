@@ -461,7 +461,8 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
 
   if (!isOpen || !userToEdit) return null;
 
-  const passwordPorDefecto = `${formData.username || userToEdit.username}UABJB`;
+  // El restablecimiento usa el usuario guardado, no el que se está escribiendo.
+  const passwordPorDefecto = `${userToEdit.username}UABJB`;
   const textoErrorDocente = primerError(errors.docente);
 
   return createPortal(

@@ -36,6 +36,8 @@ const Dato = ({ etiqueta, children }) => (
 
 // Lo que dura el error de Editar o Eliminar: lo mismo que el toast que lo acompaña.
 const DURACION_ERROR_MS = 4000;
+// Lo máximo que el perfil espera sus datos registrados antes de aparecer.
+const ESPERA_MAXIMA_MS = 400;
 
 /**
  * Perfil de un usuario (botón "Ver" de la lista): cuenta, carrera y roles, ficha de
@@ -89,13 +91,22 @@ function PerfilUsuario({
     };
   }, [errorAccion]);
 
-  // Los datos registrados (lo que impide eliminarlo) se piden al abrir el perfil.
+  // Los datos registrados (lo que impide eliminarlo) se piden al abrir el perfil. El
+  // perfil espera a tenerlos para aparecer ya completo: si el cuadro creciera después,
+  // el modal cambiaría de alto y se recentraría a mitad de su animación de entrada.
+  // Si el servidor tarda, aparece igual y los datos llegan luego.
+  const [visible, setVisible] = useState(false);
   useEffect(() => {
     let vigente = true;
+    const espera = setTimeout(() => { if (vigente) setVisible(true); }, ESPERA_MAXIMA_MS);
     api.get(`/usuarios/${usuario.id}/dependencias/`)
       .then(({ data }) => { if (vigente) setDatos(data || {}); })
-      .catch(() => { if (vigente) setErrorDatos('No se pudo consultar si tiene datos registrados.'); });
-    return () => { vigente = false; };
+      .catch(() => { if (vigente) setErrorDatos('No se pudo consultar si tiene datos registrados.'); })
+      .finally(() => { if (vigente) setVisible(true); });
+    return () => {
+      vigente = false;
+      clearTimeout(espera);
+    };
   }, [usuario.id]);
 
   // Escape cierra el perfil (no si encima está abierta una confirmación: esa se cierra sola).
@@ -128,6 +139,8 @@ function PerfilUsuario({
     setErrorAccion(null);
     accion();
   };
+
+  if (!visible) return null;
 
   return (
     <ModalCentrado onClose={onCerrar}>

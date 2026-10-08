@@ -223,6 +223,8 @@ function GestionUsuarios({ user: usuarioSesion }) {
   const [eliminacion, setEliminacion] = useState(null);
   // Perfil abierto con "Ver" (el id: los datos salen siempre de la lista actualizada).
   const [perfilId, setPerfilId] = useState(null);
+  // Interruptor de estado que se movió y está volviendo a su lugar (el id del usuario).
+  const [estadoRebotando, setEstadoRebotando] = useState(null);
   const [verificandoEliminarId, setVerificandoEliminarId] = useState(null);
 
   const [showToggleModal, setShowToggleModal] = useState(false);
@@ -1079,12 +1081,35 @@ const initialData = {
     if (obtenerRolesUsuario(usuario).includes('director')) return 'A un Director solo lo edita el superusuario.';
     return '';
   };
-  const puedeEditarUsuario = (usuario) => puedeGestionarUsuarios() && !motivoNoEditar(usuario);
   // El Director no activa, desactiva ni elimina a un Director ni al Jefe de Estudios
   // (lo designa el Consejo de Carrera); sí a docentes y al Instituto. Igual que el backend.
   const tieneCargoDeDireccion = (usuario) => cargosDelUsuario(usuario).some((cargo) => ['director', 'jefe_estudios'].includes(cargo));
-  const puedeCambiarEstadoUsuario = (usuario) => puedeEditarUsuario(usuario)
-    && (esSuperuserActual || !tieneCargoDeDireccion(usuario));
+  // Motivo por el que no se puede activar o desactivar a un usuario ('' si se puede).
+  // Igual que el backend (_validar_gestion_por_director).
+  const motivoNoCambiarEstado = (usuario) => {
+    if (esSuperuserActual) return '';
+    if (!puedeGestionarUsuarios()) return 'No tienes permiso para activar ni desactivar usuarios.';
+    if (!usuarioPerteneceACarrerasGestionables(usuario)) return 'Es de otra carrera: no puedes activarlo ni desactivarlo.';
+    if (obtenerRolesUsuario(usuario).includes('director') || cargosDelUsuario(usuario).includes('director')) {
+      return 'No puedes activar ni desactivar a un Director de Carrera: solo lo hace el superusuario.';
+    }
+    if (tieneCargoDeDireccion(usuario)) {
+      return 'No puedes activar ni desactivar al Jefe de Estudios: lo designa el Consejo de Carrera.';
+    }
+    return '';
+  };
+  // El interruptor no se bloquea: si no se puede, se mueve, vuelve a su lugar y el
+  // toast dice por qué.
+  const intentarCambiarEstado = (usuario) => {
+    const motivo = motivoNoCambiarEstado(usuario);
+    if (!motivo) {
+      handleToggleActivo(usuario);
+      return;
+    }
+    toast.error(motivo);
+    setEstadoRebotando(usuario.id);
+    setTimeout(() => setEstadoRebotando((actual) => (actual === usuario.id ? null : actual)), 450);
+  };
   // Eliminar: nunca un superusuario ni a sí mismo. Con datos registrados el backend lo
   // rechaza (lo avisa el modal al pulsar Eliminar): solo se puede desactivar.
   const motivoNoEliminar = (usuario) => {
@@ -1152,9 +1177,8 @@ const initialData = {
       <span className="flex items-center gap-2.5">
         <Interruptor
           chico
-          isActive={usuario.is_active}
-          disabled={!puedeCambiarEstadoUsuario(usuario)}
-          onChange={() => puedeCambiarEstadoUsuario(usuario) && handleToggleActivo(usuario)}
+          isActive={estadoRebotando === usuario.id ? !usuario.is_active : usuario.is_active}
+          onChange={() => intentarCambiarEstado(usuario)}
           etiqueta={usuario.is_active ? 'Desactivar usuario' : 'Activar usuario'}
         />
         <span className={`text-xs ${usuario.is_active ? 'text-slate-700' : 'font-semibold text-red-700'}`}>
@@ -1199,9 +1223,8 @@ const initialData = {
       <span className="flex items-center gap-2.5">
         <Interruptor
           chico
-          isActive={usuario.is_active}
-          disabled={!puedeCambiarEstadoUsuario(usuario)}
-          onChange={() => puedeCambiarEstadoUsuario(usuario) && handleToggleActivo(usuario)}
+          isActive={estadoRebotando === usuario.id ? !usuario.is_active : usuario.is_active}
+          onChange={() => intentarCambiarEstado(usuario)}
           etiqueta={usuario.is_active ? 'Desactivar usuario' : 'Activar usuario'}
         />
         <span className={`${CHIP_ESTADO} ${usuario.is_active ? 'bg-emerald-50 text-emerald-700 ring-emerald-300' : 'bg-red-50 text-red-700 ring-red-300'}`}>
@@ -1625,7 +1648,7 @@ const initialData = {
                     )));
                   } catch (err) {
                     console.error('Error:', err);
-                    toast.error('Error al cambiar el estado del usuario');
+                    toast.error(getApiErrorMessage(err, 'No se pudo cambiar el estado del usuario.'));
                   }
                 }}
                 className={`${BOTON} px-5 py-2.5 text-white ${usuarioToToggle.is_active ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}

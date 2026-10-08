@@ -1692,8 +1692,7 @@ html.sin-elevacion-poa button:active {
 }
 
 /* Toasts: entran desde la derecha con un pequeño rebote (el ícono hace un "pop") y
-   salen tomando impulso hacia la izquierda antes de irse por la derecha. La barra de
-   abajo marca los 4 s que dura cada aviso. */
+   salen tomando impulso hacia la izquierda antes de irse por la derecha. */
 @keyframes toastFondoEntrada {
   0% { opacity: 0; transform: translateX(115%) scale(0.9); }
   60% { opacity: 1; transform: translateX(-8px) scale(1.02); }
@@ -1713,11 +1712,6 @@ html.sin-elevacion-poa button:active {
   100% { transform: scale(1); opacity: 1; }
 }
 
-@keyframes toastFondoProgreso {
-  from { transform: scaleX(1); }
-  to { transform: scaleX(0); }
-}
-
 .animate-toast-fondo-entrada {
   animation: toastFondoEntrada 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -1730,11 +1724,6 @@ html.sin-elevacion-poa button:active {
   animation: toastFondoIcono 420ms cubic-bezier(0.34, 1.56, 0.64, 1) 120ms both;
 }
 
-.animate-toast-fondo-progreso {
-  transform-origin: left center;
-  animation: toastFondoProgreso 4000ms linear both;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .animate-toast-fondo-entrada,
   .animate-toast-fondo-salida {
@@ -1744,8 +1733,7 @@ html.sin-elevacion-poa button:active {
   .animate-toast-fondo-salida {
     animation-direction: reverse;
   }
-  .animate-toast-fondo-icono,
-  .animate-toast-fondo-progreso {
+  .animate-toast-fondo-icono {
     animation: none;
   }
 }

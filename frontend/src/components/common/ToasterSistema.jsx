@@ -73,10 +73,6 @@ function ToastFondo({ t }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
-      {/* Lo que le queda al aviso de sus 4 s. */}
-      {t.type !== 'loading' && t.visible && (
-        <span aria-hidden="true" className="animate-toast-fondo-progreso absolute inset-x-0 bottom-0 h-1 bg-white/40" />
-      )}
     </div>
   );
 }

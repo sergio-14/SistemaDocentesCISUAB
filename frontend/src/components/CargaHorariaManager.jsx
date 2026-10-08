@@ -392,6 +392,28 @@ const CustomSelect = ({
     );
 };
 
+// Error que aparece en el formulario mientras se llena (no al guardar): cada vez que
+// aparece sale también en el toast de error y el mensaje rebota como los demás errores.
+// Devuelve si el mensaje está rebotando ahora.
+const useErrorEnVivo = (mensaje, idToast) => {
+    const [brinco, setBrinco] = useState(false);
+    useEffect(() => {
+        if (!mensaje) {
+            toast.dismiss(idToast);
+            return undefined;
+        }
+        toast.error(mensaje, { id: idToast });
+        setBrinco(false);
+        const cuadro = requestAnimationFrame(() => setBrinco(true));
+        const fin = setTimeout(() => setBrinco(false), ERROR_SHAKE_DURATION_MS);
+        return () => {
+            cancelAnimationFrame(cuadro);
+            clearTimeout(fin);
+        };
+    }, [mensaje, idToast]);
+    return brinco;
+};
+
 const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], onCargaUpdate, readOnly = true, versionCargas = 0 }) => {
     const [cargas, setCargas] = useState([]);
     const [semestre, setSemestre] = useState('');
@@ -455,6 +477,26 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
         evidencias: '',
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
+    // Error del backend al guardar: además del toast, sobre el botón (rebota y se pliega
+    // a los 4 s o con un clic en cualquier lado). { mensaje, vez }
+    const [errorGuardar, setErrorGuardar] = useState(null);
+    const [brincoGuardar, setBrincoGuardar] = useState(false);
+    useEffect(() => {
+        if (!errorGuardar) return undefined;
+        setBrincoGuardar(false);
+        const cuadro = requestAnimationFrame(() => setBrincoGuardar(true));
+        const fin = setTimeout(() => setBrincoGuardar(false), ERROR_SHAKE_DURATION_MS);
+        const quitar = () => setErrorGuardar(null);
+        const vence = setTimeout(quitar, 4000);
+        const escuchar = setTimeout(() => document.addEventListener('pointerdown', quitar), 0);
+        return () => {
+            cancelAnimationFrame(cuadro);
+            clearTimeout(fin);
+            clearTimeout(vence);
+            clearTimeout(escuchar);
+            document.removeEventListener('pointerdown', quitar);
+        };
+    }, [errorGuardar]);
     const isReadOnly = Boolean(readOnly);
 
     const CATEGORIA_OPCIONES = [
@@ -610,13 +652,12 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
             console.error(error);
             const statusCode = error.response?.status;
             const data = error.response?.data;
-            if (statusCode === 400) {
-                const validationMessage = extractValidationMessage(data);
-                toast.error(`ERROR DE VALIDACIÓN: ${validationMessage}`);
-            } else {
-                // 403 (fondo no editable, otra carrera) y demás: el mensaje del backend.
-                toast.error(getApiErrorMessage(error, 'No se pudo guardar la asignación'));
-            }
+            // 400 de validación; 403 (fondo no editable, otra carrera) y demás: el mensaje del backend.
+            const mensaje = statusCode === 400
+                ? `No se pudo guardar: ${extractValidationMessage(data)}`
+                : getApiErrorMessage(error, 'No se pudo guardar la asignación');
+            toast.error(mensaje);
+            setErrorGuardar({ mensaje, vez: Date.now() });
         } finally {
             setIsSubmitting(false);
         }
@@ -764,6 +805,10 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
     // Sin la validación nativa (noValidate): entero mayor a 0, con mensaje bajo el campo.
     const horasInvalidas = String(formData.horas ?? '') !== ''
         && (!Number.isInteger(Number(formData.horas)) || Number(formData.horas) < 1);
+    const mensajeHorasInvalidas = horasInvalidas ? 'Ingrese un número entero de horas mayor a 0.' : '';
+    const mensajeExcede = excedeObjetivoAnual ? `Con estas horas el fondo superaría las ${objetivoAnual} horas efectivas.` : '';
+    useErrorEnVivo(mensajeHorasInvalidas, 'carga-horas-invalidas');
+    const brincoExcede = useErrorEnVivo(mensajeExcede, 'carga-excede');
     const submitDisabled = isSubmitting
         || (requiereMateriaAcademica && !formData.calendario)
         || (requiereMateriaAcademica && !formData.materia)
@@ -963,17 +1008,33 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                         )}
                     </div>
                 </div>
-                <MensajeErrorCampo error={horasInvalidas ? 'Ingrese un número entero de horas mayor a 0.' : ''} />
+                <MensajeErrorCampo error={mensajeHorasInvalidas} />
                 <p className="pl-1 text-xs leading-tight text-slate-500">
                     {horasAutomaticas
                         ? `Horas anuales = (HT + HP) x ${semanasDeClase(formData.calendario) || '20 (semestre) o 40 (anual)'} semanas`
                         : 'Horas por año del ítem: se suman al total de su unidad'}
                 </p>
-                {excedeObjetivoAnual && (
-                    <p className="animate-campo-entrada rounded-2xl bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-700">
-                        Con estas horas el fondo superaría las {objetivoAnual} horas efectivas.
-                    </p>
-                )}
+                {/* Siempre montado: crece y se pliega con animación (el -mb-4 compensa el
+                    espacio entre bloques cuando está plegado). */}
+                <div className={`form-reveal-wrap -mb-4 ${mensajeExcede ? 'is-open' : ''}`} aria-hidden={!mensajeExcede}>
+                    <div>
+                        <div className="pb-4">
+                            <p className={`rounded-2xl bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-700 ${brincoExcede ? ERROR_MOTION_CLASS : ''}`}>
+                                {mensajeExcede || `Con estas horas el fondo superaría las ${objetivoAnual} horas efectivas.`}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className={`form-reveal-wrap -mb-4 ${errorGuardar ? 'is-open' : ''}`} aria-hidden={!errorGuardar}>
+                    <div>
+                        <div className="pb-4">
+                            <p role="alert" className={`rounded-2xl bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-700 ${brincoGuardar ? ERROR_MOTION_CLASS : ''}`}>
+                                {errorGuardar?.mensaje}
+                            </p>
+                        </div>
+                    </div>
+                </div>
 
                 {!isReadOnly && (
                     <div className="flex justify-end pt-1">

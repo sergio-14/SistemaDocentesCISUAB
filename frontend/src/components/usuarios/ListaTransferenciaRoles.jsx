@@ -47,7 +47,7 @@ const ListaTransferenciaRoles = ({
                 >
                   <span>{rol.label}</span>
                   {yaAsignado && (
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${elegido ? 'bg-white/25 text-white' : 'bg-sky-50 text-sky-700'}`}>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${elegido ? 'bg-white/25 text-white' : 'bg-sky-600 text-white'}`}>
                       Asignado
                     </span>
                   )}
@@ -82,10 +82,11 @@ const ListaTransferenciaRoles = ({
         </button>
       </div>
 
-      {/* Panel derecho: roles asignados */}
+      {/* Panel derecho: roles asignados, siempre en celeste (el color de "Generar Fondos
+          Masivamente"); el elegido para quitarlo lleva un borde azul marino. */}
       <div className={`rounded-2xl bg-white flex flex-col ring-1 ring-inset ${errorDerecha ? 'ring-2 ring-red-500' : 'ring-azulado-300'} ${pulsoDerecha ? ERROR_MOTION_CLASS : ''}`}>
         <p className="px-4 py-2.5 text-xs font-semibold text-blue-800 [border-bottom:1px_solid_#D2DDEE]">Roles asignados</p>
-        <div className="flex-1 overflow-y-auto max-h-72 min-h-[148px] p-1.5">
+        <div className="flex-1 overflow-y-auto max-h-72 min-h-[148px] p-1.5 space-y-1">
           {asignados.length === 0 ? (
             <p className="text-xs text-slate-500 text-center py-6">Use las flechas para asignar roles</p>
           ) : (
@@ -95,13 +96,13 @@ const ListaTransferenciaRoles = ({
                 type="button"
                 onClick={() => onSeleccionarDerecha(index)}
                 onDoubleClick={() => onMoverIzquierda(index)}
-                className={`w-full text-left px-3 py-2 rounded-xl text-sm flex items-center justify-between gap-2 ${
-                  seleccionDerecha === index ? 'bg-sky-600 text-white font-semibold' : 'text-slate-700 hover:bg-blue-900 hover:text-white'
+                className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold flex items-center justify-between gap-2 bg-sky-600 text-white hover:bg-sky-700 ${
+                  seleccionDerecha === index ? 'ring-2 ring-blue-900 ring-offset-1' : ''
                 }`}
               >
                 <span>{etiquetaRol(item.rol)}</span>
                 {index === 0 && asignados.length > 1 && (
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${seleccionDerecha === index ? 'bg-white/25 text-white' : 'bg-sky-50 text-sky-700'}`}>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/25 text-white">
                     Principal
                   </span>
                 )}

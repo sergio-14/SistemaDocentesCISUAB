@@ -733,15 +733,14 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
 
     // Duplicado: el mensaje aparece (el bloque crece con animación y el mensaje rebota) y
     // sale el toast de error. A los 4 s, o con un clic en cualquier lado, se cierra el
-    // toast y se vacía lo que choca (la materia de la clase o la actividad), así el
-    // mensaje se pliega solo.
+    // toast y se vacía todo el formulario (como después de agregar una asignación), así
+    // el mensaje se pliega solo.
     const [brincoDuplicado, setBrincoDuplicado] = useState(false);
     const limpiarDuplicadoRef = useRef(null);
     limpiarDuplicadoRef.current = () => {
         toast.dismiss('carga-duplicada');
-        setFormData((prev) => (esClaseAula
-            ? { ...prev, materia: '', titulo_actividad: '', horas: '' }
-            : { ...prev, tipo_actividad: '' }));
+        setFormData({ categoria: 'academica', calendario: calendarioPorDefecto, materia: '', paralelo: 'A', titulo_actividad: '', tipo_actividad: '', horas: '', evidencias: '' });
+        setSemestre('');
     };
     useEffect(() => {
         if (!duplicadoTipoSeleccionado) return undefined;

@@ -5,7 +5,12 @@ import { FaEdit, FaTrash } from 'react-icons/fa';
 import api, { getCarreras, getDocentes, obtenerTodos } from '../apis/api';
 import ModalUsuario from './ModalUsuario';
 import { EVENTO_FOTO_PERFIL_ACTUALIZADA } from './ProfilePicture';
-import { MENSAJE_RESOLUCION_JEFE, MENSAJE_UNA_SOLA_CARRERA, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf } from '../utils/asignacionesUsuario';
+import {
+  MAX_ASIGNACIONES_TOTAL, MENSAJE_AUTORIDAD_UNICA, MENSAJE_CARRERA_PENDIENTE, MENSAJE_DUPLICADO, MENSAJE_LIMITE_ASIGNACIONES,
+  MENSAJE_RESOLUCION_JEFE, MENSAJE_UNA_SOLA_CARRERA, ROLES_MANDO_UABJB, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf, validarAsignacion,
+} from '../utils/asignacionesUsuario';
+import CampoUsuario from './usuarios/CampoUsuario';
+import ListaTransferenciaRoles from './usuarios/ListaTransferenciaRoles';
 import { useActiveRole } from '../contexts/activeRole';
 import CampoResolucionJefe from './common/CampoResolucionJefe';
 import CampoBusqueda from './common/CampoBusqueda';
@@ -19,7 +24,6 @@ import { paginar } from '../utils/paginacion';
 import { BLOQUE, BOTON, BOTON_CHICO } from './fondos/estilosFondo';
 import toast from 'react-hot-toast';
 import {
-  ERROR_MOTION_CLASS,
   ERROR_FIELD_BORDER_CLASS,
   ERROR_SHAKE_DURATION_MS,
   sanitizeApiErrors,
@@ -91,14 +95,6 @@ const SiluetaUsuario = ({ className = '' }) => (
 
 const VISTA_USUARIOS_KEY = 'usuarios_vista';
 
-const MENSAJE_DUPLICADO = 'Esta combinación de Rol y Carrera ya se encuentra asignada.';
-const MENSAJE_LIMITE_ASIGNACIONES = 'Un usuario no puede tener más de 2 asignaciones en el sistema (Normativa de Fondo de Tiempo).';
-const MENSAJE_CONFLICTO_AUTORIDAD = 'Conflicto de Autoridad: Un usuario no puede tener dos cargos de mando (Director, Jefe de Estudios o Instituto) en la misma carrera.';
-const MENSAJE_AUTORIDAD_UNICA = 'Un usuario no puede tener más de un cargo de mando (Director, Jefe de Estudios o Instituto) en el sistema (Normativa UABJB).';
-const MENSAJE_CARRERA_PENDIENTE = 'Debe seleccionar una carrera para la asignación actual antes de agregar otra.';
-// Cargos de mando: un solo cargo por usuario, y solo pueden ser docentes de su misma carrera.
-const ROLES_MANDO_UABJB = ['director', 'jefe_estudios', 'iiisyp'];
-
 const ROL_LABELS = {
   iiisyp: 'Instituto de investigación',
   director: 'Director de Carrera',
@@ -165,90 +161,6 @@ const usuarioTieneRolDocente = (usuario) => obtenerRolesUsuario(usuario).include
 // Rol docente sin ficha de docente (lo calcula el backend). No desactiva al usuario:
 // sus cargos funcionan y solo su parte docente queda pendiente de ficha.
 const usuarioTienePerfilDocentePendiente = (usuario) => Boolean(usuario?.ficha_docente_pendiente);
-
-const AnimatedInlineMessage = ({ show, message, wrapperClassName = '', messageClassName = '' }) => {
-  const [shouldRender, setShouldRender] = useState(show);
-  const [isVisible, setIsVisible] = useState(show);
-
-  useEffect(() => {
-    if (show) {
-      setShouldRender(true);
-      const frameId = requestAnimationFrame(() => setIsVisible(true));
-      return () => cancelAnimationFrame(frameId);
-    }
-
-    setIsVisible(false);
-    const timeoutId = setTimeout(() => setShouldRender(false), 260);
-
-    return () => clearTimeout(timeoutId);
-  }, [show]);
-
-  if (!shouldRender) return null;
-
-  return (
-    <div
-      className={`overflow-hidden transition-all duration-300 ease-out ${isVisible ? 'max-h-20 opacity-100 translate-y-0' : 'max-h-0 opacity-0 -translate-y-2'} ${wrapperClassName}`}
-    >
-      <p className={`transition-all duration-300 ease-out ${isVisible ? 'translate-y-0' : '-translate-y-1'} ${messageClassName}`}>
-        {message}
-      </p>
-    </div>
-  );
-};
-
-const InputField = ({ label, name, type = 'text', value, onChange, onFocus, required, disabled, error, pulse = 0, clearError, ...rest }) => {
-  const [isPulsing, setIsPulsing] = useState(false);
-  const errorMessage = Array.isArray(error) ? (error[0] || '') : (typeof error === 'string' ? error : '');
-
-  useEffect(() => {
-    if (!error) {
-      setIsPulsing(false);
-      return;
-    }
-
-    setIsPulsing(false);
-    const frameId = requestAnimationFrame(() => setIsPulsing(true));
-    const timeoutId = setTimeout(() => setIsPulsing(false), ERROR_SHAKE_DURATION_MS);
-
-    return () => {
-      cancelAnimationFrame(frameId);
-      clearTimeout(timeoutId);
-    };
-  }, [error, pulse]);
-
-  // REGLA GLOBAL: limpiar el error de inmediato al hacer focus/clic en el campo.
-  const handleFocusClear = (e) => {
-    if (typeof clearError === 'function') {
-      clearError(name);
-    }
-    if (typeof onFocus === 'function') onFocus(e);
-  };
-
-  return (
-    <div className={error && isPulsing ? ERROR_MOTION_CLASS : ''}>
-      <label htmlFor={`usuario-${name}`} className="block text-xs font-semibold text-slate-700 mb-1.5 pl-1">{label}</label>
-      <input
-        id={`usuario-${name}`}
-        type={type}
-        name={name}
-        value={value}
-        onChange={onChange}
-        onFocus={handleFocusClear}
-        onClick={handleFocusClear}
-        disabled={disabled}
-        placeholder={required ? '' : ' '}
-        {...rest}
-        className={`w-full h-11 px-4 rounded-full text-sm text-slate-800 placeholder:text-slate-500 outline-none ring-inset !bg-azulado-100 ${error ? 'ring-2 ring-red-500' : 'ring-1 ring-azulado-300 focus:ring-2 focus:ring-blue-900/40'}`}
-      />
-      <AnimatedInlineMessage
-        show={Boolean(errorMessage)}
-        message={errorMessage}
-        wrapperClassName="mt-1 pl-1"
-        messageClassName="text-xs text-red-600"
-      />
-    </div>
-  );
-};
 
 function GestionUsuarios({ user: usuarioSesion }) {
   // Usuario con su rol ACTIVO (contexto de rol), no el guardado al iniciar sesión.
@@ -828,8 +740,6 @@ const initialData = {
     });
   };
 
-  const MAX_ASIGNACIONES_TOTAL = 2;
-
   // --- Transfer List de Roles y Carreras ---
   const rolesAsignadosLista = [
     { rol: formData.rol || '', carrera: formData.carrera || '' },
@@ -840,70 +750,20 @@ const initialData = {
   // Evita acumular filas vacías que deforman el modal verticalmente.
   const hayAsignacionPendiente = rolesAsignadosLista.some((item) => !String(item.carrera || '').trim());
 
-  const rolesAsignadosSet = new Set(rolesAsignadosLista.map((item) => item.rol));
   // Catálogo maestro permanente: la tabla izquierda SIEMPRE muestra todos los roles.
   // Esto permite reutilizar un mismo rol en distintas carreras (ej. Docente en Carrera A y B),
   // indispensable para el doble rol y la asignación múltiple de un docente.
   // Los roles ya asignados se marcan con un badge visual pero siguen siendo seleccionables.
   const rolesDisponiblesLista = roles;
 
-  // ============================================================
-  // VALIDACIÓN EN CALIENTE — Reglas UABJB de Fondo de Tiempo
-  // ============================================================
-  // Centraliza las 4 reglas de negocio para que se evalúen EN EL MOMENTO
-  // en que se asigna una combinación (rol + carrera), no al final.
-  // Retorna { valida: true } o { valida: false, mensaje: '...' }
-  const validarAsignacionEnCaliente = (nuevoRol, nuevaCarrera, excluirIndex = -1) => {
-    const rolTrim = String(nuevoRol || '').trim();
-    const carreraTrim = String(nuevaCarrera || '').trim();
-
-    // No validar si la carrera aún no se ha seleccionado (la regla se aplica al asignar carrera)
-    if (!rolTrim || !carreraTrim) return { valida: true };
-
-    // Construir snapshot de todas las asignaciones actuales (excluyendo el index que se edita)
-    const todasAsignaciones = [];
-    if (excluirIndex !== 0 && String(formData.rol || '').trim()) {
-      todasAsignaciones.push({ rol: String(formData.rol).trim(), carrera: String(formData.carrera || '').trim() });
-    }
-    asignacionesExtra.forEach((item, i) => {
-      const idx = i + 1;
-      if (idx !== excluirIndex && String(item.rol || '').trim()) {
-        todasAsignaciones.push({ rol: String(item.rol).trim(), carrera: String(item.carrera || '').trim() });
-      }
-    });
-
-    // --- Regla 0: UNA SOLA CARRERA ---
-    // Todas las asignaciones del usuario son de la carrera de su contrato.
-    if (todasAsignaciones.some((item) => item.carrera && item.carrera !== carreraTrim)) {
-      return { valida: false, mensaje: MENSAJE_UNA_SOLA_CARRERA };
-    }
-
-    // --- Regla 1: CONTROL DE DUPLICADOS IDÉNTICOS ---
-    const existeDuplicado = todasAsignaciones.some(
-      (item) => item.rol === rolTrim && item.carrera === carreraTrim
-    );
-    if (existeDuplicado) {
-      return { valida: false, mensaje: MENSAJE_DUPLICADO };
-    }
-
-    const esRolMando = ROLES_MANDO_UABJB.includes(rolTrim);
-
-    // --- Regla 4: CONFLICTO DE ROLES EN LA MISMA CARRERA ---
-    // No se puede ser Director Y Jefe de Estudios de la misma carrera simultáneamente.
-    if (esRolMando) {
-      const conflictoMismaCarrera = todasAsignaciones.some(
-        (item) =>
-          ROLES_MANDO_UABJB.includes(item.rol) &&
-          item.rol !== rolTrim &&
-          item.carrera === carreraTrim
-      );
-      if (conflictoMismaCarrera) {
-        return { valida: false, mensaje: MENSAJE_CONFLICTO_AUTORIDAD };
-      }
-    }
-
-    return { valida: true };
-  };
+  // Reglas UABJB (una sola carrera, sin duplicados, sin dos cargos de mando en la
+  // misma carrera): se evalúan al asignar la carrera, no al final.
+  const validarAsignacionEnCaliente = (nuevoRol, nuevaCarrera, excluirIndex = -1) => validarAsignacion(
+    nuevoRol,
+    nuevaCarrera,
+    [{ rol: formData.rol, carrera: formData.carrera }, ...asignacionesExtra],
+    excluirIndex,
+  );
 
   const moverRolDerecha = (rolValue) => {
     if (vinculacionRapidaDocente || !rolValue) return;
@@ -1733,9 +1593,9 @@ const initialData = {
                 <div className="p-4 sm:p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Fila 1: Usuario - Nombre completo */}
-                    <InputField label="Usuario" name="username" value={formData.username || ''} onChange={handleChange} clearError={clearFieldError} error={errors.username} required pulse={errorPulse.username || 0} />
+                    <CampoUsuario label="Usuario" name="username" value={formData.username || ''} onChange={handleChange} clearError={clearFieldError} error={errors.username} required pulse={errorPulse.username || 0} />
                     {mostrarNombreCompletoCreacion ? (
-                      <InputField
+                      <CampoUsuario
                         label="Nombre completo"
                         name="nombre_completo"
                         value={formData.nombre_completo || ''}
@@ -1763,125 +1623,34 @@ const initialData = {
 
                     {/* Lista de transferencia: roles disponibles y asignados (con su carrera) */}
                     <div className="md:col-span-2">
-                      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-3 items-stretch">
-                        {/* Panel izquierdo: roles disponibles */}
-                        <div className={`rounded-2xl bg-white flex flex-col ring-1 ring-inset ${errors?.rol ? 'ring-2 ring-red-500' : 'ring-azulado-300'} ${leftPanelPulsing ? ERROR_MOTION_CLASS : ''}`}>
-                          <p className="px-4 py-2.5 text-xs font-semibold text-blue-800 [border-bottom:1px_solid_#D2DDEE]">Roles disponibles</p>
-                          <div className="flex-1 overflow-y-auto max-h-72 min-h-[160px] p-1.5">
-                            {rolesDisponiblesLista.length === 0 ? (
-                              <p className="text-xs text-slate-500 text-center py-6">No hay roles disponibles</p>
-                            ) : (
-                              rolesDisponiblesLista.map((rol) => {
-                                const yaAsignado = rolesAsignadosSet.has(rol.value);
-                                const elegido = selectedRoleLeft === rol.value;
-                                return (
-                                  <button
-                                    key={rol.value}
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedRoleLeft(rol.value);
-                                      setErrors((prev) => prev?.rol ? { ...prev, rol: null } : prev);
-                                    }}
-                                    onDoubleClick={() => moverRolDerecha(rol.value)}
-                                    className={`w-full text-left px-3 py-2 rounded-xl text-sm flex items-center justify-between gap-2 ${
-                                      elegido ? 'bg-sky-600 text-white font-semibold' : 'text-slate-700 hover:bg-blue-900 hover:text-white'
-                                    }`}
-                                  >
-                                    <span>{rol.label}</span>
-                                    {yaAsignado && (
-                                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${elegido ? 'bg-white/25 text-white' : 'bg-emerald-50 text-emerald-700'}`}>
-                                        Asignado
-                                      </span>
-                                    )}
-                                  </button>
-                                );
-                              })
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Flechas centrales */}
-                        <div className="flex sm:flex-col items-center justify-center gap-2 px-1">
-                          <button
-                            type="button"
-                            onClick={() => selectedRoleLeft && moverRolDerecha(selectedRoleLeft)}
-                            disabled={!selectedRoleLeft || vinculacionRapidaDocente || hayAsignacionPendiente || (rolesAsignadosLista.length >= 2)}
-                            className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-900 text-white hover:bg-blue-950 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                            title={hayAsignacionPendiente ? 'Complete la carrera pendiente primero' : 'Asignar rol'}
-                            aria-label="Asignar rol"
-                          >
-                            <svg className="w-4 h-4 rotate-90 sm:rotate-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => selectedRoleRight !== null && moverRolIzquierda(selectedRoleRight)}
-                            disabled={selectedRoleRight === null || vinculacionRapidaDocente}
-                            className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-900 text-white hover:bg-blue-950 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                            title="Quitar rol"
-                            aria-label="Quitar rol"
-                          >
-                            <svg className="w-4 h-4 rotate-90 sm:rotate-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
-                          </button>
-                        </div>
-
-                        {/* Panel derecho: roles asignados con su carrera */}
-                        <div className={`rounded-2xl bg-white flex flex-col ring-1 ring-inset ${(errors?.asignaciones || errors?.rol) ? 'ring-2 ring-red-500' : 'ring-azulado-300'} ${rightPanelPulsing ? ERROR_MOTION_CLASS : ''}`}>
-                          <p className="px-4 py-2.5 text-xs font-semibold text-blue-800 [border-bottom:1px_solid_#D2DDEE]">Roles asignados</p>
-                          <div className="flex-1 overflow-y-auto max-h-80 min-h-[160px] p-1.5">
-                            {rolesAsignadosLista.length === 0 ? (
-                              <p className="text-xs text-slate-500 text-center py-6">Use las flechas para asignar roles</p>
-                            ) : (
-                              rolesAsignadosLista.map((item, index) => (
-                                <div key={`${item.rol}-${index}`}>
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedRoleRight(index)}
-                                    onDoubleClick={() => moverRolIzquierda(index)}
-                                    className={`w-full text-left px-3 py-2 rounded-xl text-sm flex items-center justify-between gap-2 ${
-                                      filaConflictoIndex === index
-                                        ? 'bg-red-50 text-red-700 font-semibold ring-1 ring-inset ring-red-300'
-                                        : selectedRoleRight === index
-                                          ? 'bg-sky-600 text-white font-semibold'
-                                          : 'text-slate-700 hover:bg-blue-900 hover:text-white'
-                                    }`}
-                                  >
-                                    <span>{obtenerRolLabel(item.rol)}</span>
-                                    {/* Carrera de la asignación: solo el superusuario la elige; al Director se le asigna la suya sola. */}
-                                    {esSuperuserActual && (
-                                      <span
-                                        onClick={(e) => { e.stopPropagation(); toggleExpandCarrera(index); }}
-                                        className={`cursor-pointer text-xs font-semibold px-2.5 py-1 rounded-full truncate max-w-[55%] ${
-                                          item.carrera ? 'bg-blue-900 text-white' : 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-300'
-                                        }`}
-                                      >
-                                        {item.carrera
-                                          ? `${expandedCarreraRoles[index] ? '▾' : '▸'} ${obtenerCarreraLabel(item.carrera)}`
-                                          : (expandedCarreraRoles[index] ? '▾ Carrera' : '▸ Carrera')}
-                                      </span>
-                                    )}
-                                  </button>
-                                  {esSuperuserActual && expandedCarreraRoles[index] && (
-                                    <div className="px-2 py-1.5 animate-panel-asignacion">
-                                      <div className="ml-auto w-[75%] max-w-[260px] rounded-2xl bg-white ring-1 ring-azulado-300 shadow-lg max-h-40 overflow-y-auto p-1.5">
-                                        {carrerasGestionables.map((carrera) => (
-                                          <button
-                                            key={carrera.id}
-                                            type="button"
-                                            onClick={() => asignarCarreraARol(index, String(carrera.id))}
-                                            className="w-full text-left px-3 py-1.5 rounded-xl text-xs text-slate-700 hover:bg-blue-900 hover:text-white"
-                                          >
-                                            {carrera.nombre}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                      <ListaTransferenciaRoles
+                        roles={rolesDisponiblesLista}
+                        asignados={rolesAsignadosLista}
+                        seleccionIzquierda={selectedRoleLeft}
+                        onSeleccionarIzquierda={(valor) => {
+                          setSelectedRoleLeft(valor);
+                          setErrors((prev) => prev?.rol ? { ...prev, rol: null } : prev);
+                        }}
+                        seleccionDerecha={selectedRoleRight}
+                        onSeleccionarDerecha={setSelectedRoleRight}
+                        onMoverDerecha={moverRolDerecha}
+                        onMoverIzquierda={moverRolIzquierda}
+                        bloquearAsignar={vinculacionRapidaDocente || hayAsignacionPendiente || (rolesAsignadosLista.length >= 2)}
+                        tituloAsignar={hayAsignacionPendiente ? 'Complete la carrera pendiente primero' : 'Asignar rol'}
+                        bloquearQuitar={vinculacionRapidaDocente}
+                        errorIzquierda={Boolean(errors?.rol)}
+                        errorDerecha={Boolean(errors?.asignaciones || errors?.rol)}
+                        pulsoIzquierda={leftPanelPulsing}
+                        pulsoDerecha={rightPanelPulsing}
+                        filaConflicto={filaConflictoIndex}
+                        mostrarCarrera={esSuperuserActual}
+                        carrerasAbiertas={expandedCarreraRoles}
+                        onAlternarCarrera={toggleExpandCarrera}
+                        carreras={carrerasGestionables}
+                        onAsignarCarrera={asignarCarreraARol}
+                        etiquetaRol={obtenerRolLabel}
+                        etiquetaCarrera={obtenerCarreraLabel}
+                      />
                       <p className="mt-2 pl-1 text-xs text-slate-600">
                         Todos los roles son de la carrera del contrato del usuario (ej. Director + Docente de la misma carrera). Máximo 2 asignaciones.{' '}
                         {esSuperuserActual
@@ -1902,7 +1671,7 @@ const initialData = {
                     </div>
 
                     {/* Fila 3: Correo institucional - C.I. */}
-                    <InputField
+                    <CampoUsuario
                       label="Correo institucional"
                       name="email"
                       type="text"
@@ -1917,7 +1686,7 @@ const initialData = {
                     />
 
                     {mostrarCiCreacion ? (
-                      <InputField
+                      <CampoUsuario
                         label="C.I."
                         name="ci"
                         type="text"

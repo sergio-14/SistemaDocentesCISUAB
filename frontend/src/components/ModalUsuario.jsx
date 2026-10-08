@@ -4,13 +4,39 @@ import api from '../apis/api';
 import toast from 'react-hot-toast';
 import { horasSemanalesDedicacion } from '../utils/dedicaciones';
 import {
-  MENSAJE_RESOLUCION_JEFE, MENSAJE_UNA_SOLA_CARRERA, asignacionesIniciales, asignacionesParaEnviar, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf,
+  MAX_ASIGNACIONES_TOTAL, MENSAJE_AUTORIDAD_UNICA, MENSAJE_CARRERA_PENDIENTE, MENSAJE_LIMITE_ASIGNACIONES,
+  MENSAJE_RESOLUCION_JEFE, MENSAJE_UNA_SOLA_CARRERA, ROLES_MANDO_UABJB,
+  asignacionesIniciales, asignacionesParaEnviar, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf, validarAsignacion,
 } from '../utils/asignacionesUsuario';
+import { ERROR_SHAKE_DURATION_MS } from '../utils/formErrors';
 import CampoResolucionJefe from './common/CampoResolucionJefe';
 import FiltroDesplegable from './common/FiltroDesplegable';
-import { BOTON, BOTON_CHICO } from './fondos/estilosFondo';
+import CampoUsuario, { MensajeAnimado } from './usuarios/CampoUsuario';
+import ListaTransferenciaRoles from './usuarios/ListaTransferenciaRoles';
+import { BOTON } from './fondos/estilosFondo';
 
 const LABEL_CAMPO = 'block text-xs font-semibold text-slate-700 mb-1.5 pl-1';
+
+// Brinco del panel de roles cuando aparece (o se repite) un error.
+const useBrinco = (activo, repeticion) => {
+  const [brinco, setBrinco] = useState(false);
+  useEffect(() => {
+    if (!activo) {
+      setBrinco(false);
+      return undefined;
+    }
+    setBrinco(false);
+    const frameId = requestAnimationFrame(() => setBrinco(true));
+    const timeoutId = setTimeout(() => setBrinco(false), ERROR_SHAKE_DURATION_MS);
+    return () => {
+      cancelAnimationFrame(frameId);
+      clearTimeout(timeoutId);
+    };
+  }, [activo, repeticion]);
+  return brinco;
+};
+
+const primerError = (error) => (Array.isArray(error) ? (error[0] || '') : (typeof error === 'string' ? error : ''));
 
 const obtenerNombreCompletoDocente = (docente) => {
   if (!docente) return '';
@@ -94,7 +120,15 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
   const [resettingPassword, setResettingPassword] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resolucionJefe, setResolucionJefe] = useState(null);
-  const [indiceAsignacionActiva, setIndiceAsignacionActiva] = useState(0);
+  // Lista de transferencia de roles (igual que en Nuevo usuario).
+  const [rolElegidoIzquierda, setRolElegidoIzquierda] = useState(null);
+  const [rolElegidoDerecha, setRolElegidoDerecha] = useState(null);
+  const [carrerasAbiertas, setCarrerasAbiertas] = useState({});
+  const [filaConflicto, setFilaConflicto] = useState(null);
+  const [repeticionRol, setRepeticionRol] = useState(0);
+  const [repeticionAsignaciones, setRepeticionAsignaciones] = useState(0);
+  const brincoIzquierda = useBrinco(Boolean(errors?.rol), repeticionRol);
+  const brincoDerecha = useBrinco(Boolean(errors?.asignaciones), repeticionAsignaciones);
   // Si el usuario ya tiene datos registrados, su identidad (usuario, nombre, C.I.)
   // no se puede cambiar. null = sin datos (o todavía sin verificar).
   const [identidadBloqueada, setIdentidadBloqueada] = useState(null);
@@ -152,14 +186,29 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
 
     setFormData(initialData);
     setAsignacionesExtra(extras);
-    setIndiceAsignacionActiva(0);
+    setRolElegidoIzquierda(null);
+    setRolElegidoDerecha(null);
+    setCarrerasAbiertas({});
+    setFilaConflicto(null);
     setErrors({});
     setShowResetConfirm(false);
     setResolucionJefe(null);
   }, [userToEdit, carreras, esDirectorEditor, carreraPropiaEditor]);
 
+  // Limpia el error de un campo al enfocarlo o al escribir en él.
+  const clearFieldError = (fieldName) => {
+    setErrors((prev) => {
+      const campos = fieldName === 'nombre_completo' ? ['nombre_completo', 'first_name', 'last_name'] : [fieldName];
+      if (!campos.some((campo) => prev?.[campo])) return prev;
+      const next = { ...prev };
+      campos.forEach((campo) => delete next[campo]);
+      return next;
+    });
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
+    clearFieldError(name);
     if (name === 'nombre_completo') {
       const split = splitNombreCompleto(value);
       setFormData((prev) => ({
@@ -176,77 +225,118 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     setFormData((prev) => ({ ...prev, [name]: normalizedValue }));
   };
 
-  const handleRolChange = (e) => {
-    const newRol = e.target.value;
-    setFormData((prev) => ({
-      ...prev,
-      rol: newRol,
-      carrera: carreraPropiaEditor || ((newRol === 'director' || newRol === 'jefe_estudios' || newRol === 'docente')
-        ? prev.carrera
-        : ''),
-      docente: newRol === 'docente' ? prev.docente : '',
-    }));
+  // --- Lista de transferencia de roles (las mismas reglas que en Nuevo usuario) ---
+  const rolesAsignadosLista = [
+    { rol: formData.rol || '', carrera: formData.carrera || '' },
+    ...asignacionesExtra,
+  ].filter((item) => String(item.rol || '').trim());
+  // Sin carrera elegida en una asignación no se puede agregar otra.
+  const hayAsignacionPendiente = rolesAsignadosLista.some((item) => !String(item.carrera || '').trim());
+
+  const marcarErrorRol = (mensaje) => {
+    toast.error(mensaje, { className: 'toast-brinco' });
+    setErrors((prev) => ({ ...prev, rol: [mensaje] }));
+    setRepeticionRol((valor) => valor + 1);
+    setRolElegidoIzquierda(null);
   };
 
-  const handleAsignacionChange = (index, field, value) => {
-    setAsignacionesExtra((prev) => prev.map((item, itemIndex) => (
-      itemIndex === index ? { ...item, [field]: value } : item
-    )));
+  const marcarErrorAsignaciones = (mensaje, fila = null) => {
+    toast.error(mensaje, { className: 'toast-brinco' });
+    setErrors((prev) => ({ ...prev, asignaciones: [mensaje] }));
+    setRepeticionAsignaciones((valor) => valor + 1);
+    if (fila !== null) {
+      setFilaConflicto(fila);
+      setTimeout(() => setFilaConflicto(null), 300);
+    }
   };
 
-  const MAX_ASIGNACIONES_TOTAL = 2;
-  const totalAsignaciones = 1 + asignacionesExtra.length;
-  const primeraAsignacionCompleta = Boolean(String(formData.rol || '').trim() && String(formData.carrera || '').trim());
-  const puedeAgregarAsignacion = primeraAsignacionCompleta && totalAsignaciones < MAX_ASIGNACIONES_TOTAL;
+  const moverRolDerecha = (rolValue) => {
+    if (!rolValue) return;
+    setErrors((prev) => ({ ...prev, rol: null, carrera: null, asignaciones: null }));
+
+    if (hayAsignacionPendiente) {
+      marcarErrorRol(MENSAJE_CARRERA_PENDIENTE);
+      return;
+    }
+    if (ROLES_MANDO_UABJB.includes(rolValue) && rolesAsignadosLista.some((item) => ROLES_MANDO_UABJB.includes(item.rol))) {
+      marcarErrorRol(MENSAJE_AUTORIDAD_UNICA);
+      return;
+    }
+    if (rolesAsignadosLista.length >= MAX_ASIGNACIONES_TOTAL) {
+      marcarErrorRol(MENSAJE_LIMITE_ASIGNACIONES);
+      return;
+    }
+
+    if (!formData.rol) {
+      setFormData((prev) => ({ ...prev, rol: rolValue, carrera: carreraPropiaEditor }));
+      if (!carreraPropiaEditor) setCarrerasAbiertas((prev) => ({ ...prev, 0: true }));
+    } else {
+      setAsignacionesExtra([{ rol: rolValue, carrera: carreraPropiaEditor, docente: '' }]);
+      if (!carreraPropiaEditor) setCarrerasAbiertas((prev) => ({ ...prev, 1: true }));
+    }
+    setRolElegidoIzquierda(null);
+  };
+
+  const moverRolIzquierda = (index) => {
+    setErrors((prev) => ({ ...prev, rol: null, carrera: null, asignaciones: null }));
+    if (index === 0) {
+      if (asignacionesExtra.length > 0) {
+        // El segundo rol pasa a ser el principal.
+        const extra = asignacionesExtra[0];
+        setFormData((prev) => ({ ...prev, rol: extra.rol, carrera: extra.carrera }));
+        setAsignacionesExtra([]);
+        setCarrerasAbiertas((prev) => (prev[1] ? { 0: true } : {}));
+      } else {
+        setFormData((prev) => ({ ...prev, rol: '', carrera: '' }));
+        setCarrerasAbiertas({});
+      }
+    } else {
+      setAsignacionesExtra([]);
+      setCarrerasAbiertas((prev) => {
+        const next = { ...prev };
+        delete next[index];
+        return next;
+      });
+    }
+    setRolElegidoDerecha(null);
+  };
+
+  const asignarCarreraARol = (index, carreraValue) => {
+    const rolObjetivo = index === 0 ? formData.rol : (asignacionesExtra[index - 1]?.rol || '');
+    const resultado = validarAsignacion(
+      rolObjetivo,
+      carreraValue,
+      [{ rol: formData.rol, carrera: formData.carrera }, ...asignacionesExtra],
+      index,
+    );
+    if (!resultado.valida) {
+      marcarErrorAsignaciones(resultado.mensaje, index);
+      return;
+    }
+
+    setErrors((prev) => ({ ...prev, rol: null, carrera: null, asignaciones: null }));
+    if (index === 0) {
+      setFormData((prev) => ({ ...prev, carrera: carreraValue }));
+    } else {
+      setAsignacionesExtra((prev) => prev.map((item, i) => (i === index - 1 ? { ...item, carrera: carreraValue } : item)));
+    }
+    setCarrerasAbiertas((prev) => {
+      const next = { ...prev };
+      delete next[index];
+      return next;
+    });
+  };
 
   // Un Jefe de Estudios nuevo (no lo era ya) exige la resolución del Consejo de Carrera.
   const designaJefeNuevo = [formData.rol, ...asignacionesExtra.map((item) => item.rol)].includes('jefe_estudios')
     && !(userToEdit?.asignaciones || []).some((item) => item.rol === 'jefe_estudios' && item.activo !== false);
 
-  const agregarAsignacion = () => {
-    if (!puedeAgregarAsignacion) return;
-    setAsignacionesExtra((prev) => (prev.length >= 1 ? prev : [...prev, { rol: '', carrera: carreraPropiaEditor, docente: '' }]));
-    setIndiceAsignacionActiva(1);
-  };
-
-  const eliminarAsignacion = (index) => {
-    setAsignacionesExtra((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
-    setIndiceAsignacionActiva(0);
-  };
-
-  const handleRolSeleccionActual = (e) => {
-    if (indiceAsignacionActiva === 0) {
-      handleRolChange(e);
-      return;
-    }
-    handleAsignacionChange(0, 'rol', e.target.value);
-  };
-
-  const handleCarreraSeleccionActual = (e) => {
-    if (indiceAsignacionActiva === 0) {
-      handleChange(e);
-      return;
-    }
-    handleAsignacionChange(0, 'carrera', e.target.value);
-  };
-
   const tieneDocenteVinculado = Boolean(userToEdit?.perfil?.docente_id);
   const nombreDocenteVinculado = userToEdit?.perfil?.docente_nombre || 'Sin nombre';
   const esSuperusuarioEditado = Boolean(userToEdit?.is_superuser);
-  const mostrarInfoDocente = formData.rol === 'docente' && tieneDocenteVinculado;
   const mostrarCiAutoridad = formData.rol === 'director' || formData.rol === 'jefe_estudios';
   const obtenerRolLabel = (rolValue) => roles.find((item) => item.value === rolValue)?.label || rolValue || 'Sin rol';
   const obtenerCarreraLabel = (carreraValue) => carreras.find((item) => String(item.id) === String(carreraValue))?.nombre || 'Sin carrera';
-  const obtenerResumenAsignacion = (item, index) => {
-    const rol = String(item?.rol || '').trim();
-    const carrera = String(item?.carrera || '').trim();
-    // La carrera solo la ve el superusuario; para los demás es siempre la suya.
-    if (!puedeElegirCarrera) return `#${index + 1} ${rol ? obtenerRolLabel(rol) : 'Selecciona rol'}`;
-    if (!rol && !carrera) return `#${index + 1} Selecciona rol y carrera`;
-    if (!rol) return `#${index + 1} Selecciona rol - ${obtenerCarreraLabel(carrera)}`;
-    if (!carrera) return `#${index + 1} ${obtenerRolLabel(rol)} - selecciona carrera`;
-    return `#${index + 1} ${obtenerRolLabel(rol)} - ${obtenerCarreraLabel(carrera)}`;
-  };
   const asignacionesActivas = [
     { rol: formData.rol || '', carrera: formData.carrera || '' },
     ...asignacionesExtra,
@@ -296,7 +386,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
         rol: !rolNormalizado ? ['Debe seleccionar un rol.'] : prev.rol,
         carrera: !carreraNormalizada ? ['Debe seleccionar una carrera.'] : prev.carrera,
       }));
-      setIndiceAsignacionActiva(0);
+      setRepeticionRol((valor) => valor + 1);
       toast.error(!rolNormalizado && !carreraNormalizada
         ? 'Debe seleccionar un rol y una carrera.'
         : (!rolNormalizado ? 'Debe seleccionar un rol.' : 'Debe seleccionar una carrera.'));
@@ -316,7 +406,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
           carrera: !segundaCarrera ? ['Debe seleccionar la carrera del segundo rol.'] : prev.carrera,
           asignaciones: ['Complete el segundo rol y su carrera antes de actualizar.'],
         }));
-        setIndiceAsignacionActiva(1);
+        setRepeticionAsignaciones((valor) => valor + 1);
         toast.error(!segundaRol && !segundaCarrera
           ? 'Debe seleccionar el segundo rol y su carrera.'
           : (!segundaRol ? 'Debe seleccionar el segundo rol.' : 'Debe seleccionar la carrera del segundo rol.'));
@@ -331,7 +421,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
           ...prev,
           asignaciones: ['No se puede repetir el mismo rol en la misma carrera.'],
         }));
-        setIndiceAsignacionActiva(1);
+        setRepeticionAsignaciones((valor) => valor + 1);
         toast.error('No se puede repetir el mismo rol en la misma carrera.');
         setLoading(false);
         return;
@@ -339,7 +429,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
 
       if (segundaCarrera !== carreraNormalizada) {
         setErrors((prev) => ({ ...prev, asignaciones: [MENSAJE_UNA_SOLA_CARRERA] }));
-        setIndiceAsignacionActiva(1);
+        setRepeticionAsignaciones((valor) => valor + 1);
         toast.error(MENSAJE_UNA_SOLA_CARRERA);
         setLoading(false);
         return;
@@ -478,188 +568,199 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
 
   if (!isOpen || !userToEdit) return null;
 
-  const rolActual = indiceAsignacionActiva === 0 ? (formData.rol || '') : (asignacionesExtra[0]?.rol || '');
-  const carreraActual = indiceAsignacionActiva === 0 ? (formData.carrera || '') : (asignacionesExtra[0]?.carrera || '');
+  const passwordPorDefecto = `${formData.username || userToEdit.username}UABJB`;
+  const textoErrorDocente = primerError(errors.docente);
 
   return createPortal(
     <div className="fixed inset-0 z-50 overflow-y-auto bg-blue-950/30 backdrop-blur-sm animate-fade-in" style={{ animationDuration: '160ms' }}>
       <div className="min-h-full flex items-center justify-center p-3 sm:p-6">
-        <div className="w-full max-w-4xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '180ms' }}>
+        <div className="w-full max-w-5xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '180ms' }}>
           <div className="px-5 sm:px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
-            <h3 className="text-xl font-bold text-blue-900">Editar Usuario</h3>
-            <p className="mt-0.5 text-sm text-slate-600">@{userToEdit.username}</p>
+            <h2 className="text-xl font-bold text-blue-900">Editar Usuario</h2>
+            <p className="mt-0.5 text-sm text-slate-600">
+              <span className="font-semibold text-slate-700">@{userToEdit.username}</span> · Cuenta de acceso, roles y carrera del usuario.
+            </p>
           </div>
 
-          <form id="user-form" onSubmit={handleSubmit} noValidate>
+          <form onSubmit={handleSubmit} noValidate>
             <div className="p-4 sm:p-6">
-              {identidadBloqueada && (
-                <div className="mb-4 rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-3 text-sm text-amber-900">
-                  Este usuario ya tiene datos registrados ({identidadBloqueada.map((item) => `${item.etiqueta}: ${item.cantidad}`).join(', ')}).
-                  El usuario, el nombre y el C.I. no se pueden cambiar, y solo se puede desactivar (no eliminar).
-                </div>
-              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InputField label="Usuario" name="username" value={formData.username} onChange={handleChange} disabled={Boolean(identidadBloqueada)} error={errors.username} />
-                <InputField label="Nombre completo" name="nombre_completo" value={formData.nombre_completo || ''} onChange={handleChange} disabled={Boolean(identidadBloqueada)} error={errors.nombre_completo || errors.first_name || errors.last_name} />
+                {identidadBloqueada && (
+                  <div className="md:col-span-2 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 px-4 py-3 text-sm text-slate-700">
+                    <span className="font-semibold text-blue-900">Usuario con datos registrados</span>
+                    {identidadBloqueada.length > 0 && (
+                      <> ({identidadBloqueada.map((item) => `${item.etiqueta}: ${item.cantidad}`).join(', ')})</>
+                    )}
+                    . El usuario, el nombre y el C.I. no se pueden cambiar; para retirarlo, desactívelo.
+                  </div>
+                )}
 
-                <div>
-                  <label htmlFor="editar-usuario-rol" className={LABEL_CAMPO}>Rol</label>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 min-w-0">
-                      <FiltroDesplegable
-                        id="editar-usuario-rol"
-                        value={rolActual}
-                        onChange={(valor) => handleRolSeleccionActual({ target: { name: 'rol', value: valor } })}
-                        options={rolesDisponiblesModal.map((rol) => ({ value: rol.value, label: rol.label }))}
-                        placeholder="Seleccione un rol"
-                        ariaLabel="Rol"
-                        permitirQuitar={false}
-                        invalido={Boolean(errors.rol)}
-                        disabled={esSuperusuarioEditado}
-                      />
+                {/* Fila 1: Usuario - Nombre completo */}
+                <CampoUsuario
+                  idPrefijo="editar-usuario"
+                  label="Usuario"
+                  name="username"
+                  value={formData.username || ''}
+                  onChange={handleChange}
+                  clearError={clearFieldError}
+                  error={errors.username}
+                  disabled={Boolean(identidadBloqueada)}
+                  required
+                />
+                <CampoUsuario
+                  idPrefijo="editar-usuario"
+                  label="Nombre completo"
+                  name="nombre_completo"
+                  value={formData.nombre_completo || ''}
+                  onChange={handleChange}
+                  clearError={clearFieldError}
+                  error={errors.nombre_completo || errors.first_name || errors.last_name}
+                  disabled={Boolean(identidadBloqueada)}
+                  required
+                />
+
+                <div className="md:col-span-2 rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-3 text-sm text-amber-900">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+                        <span className="font-semibold">Contraseña por defecto</span>
+                        <span className="font-mono font-semibold tracking-wide">{passwordPorDefecto}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-amber-800">
+                        Al restablecerla, el usuario vuelve a esta contraseña y deberá cambiarla al iniciar sesión.
+                      </p>
                     </div>
-                    {!esSuperusuarioEditado && (
+                    {puedeRestablecerPassword && (
                       <button
                         type="button"
-                        onClick={() => {
-                          if (!puedeAgregarAsignacion) {
-                            toast.error(asignacionesExtra.length > 0 ? 'Ya existe un segundo rol asignado.' : 'Primero selecciona rol y carrera.');
-                            return;
-                          }
-                          agregarAsignacion();
-                        }}
-                        disabled={!puedeAgregarAsignacion}
-                        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-900 text-white hover:bg-blue-950 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                        title="Agregar un segundo rol"
-                        aria-label="Agregar un segundo rol"
+                        onClick={() => setShowResetConfirm(true)}
+                        disabled={loading || resettingPassword}
+                        className={`${BOTON} flex-shrink-0 bg-white text-slate-700 ring-1 ring-inset ring-azulado-300 hover:bg-azulado-100 disabled:opacity-50 disabled:cursor-not-allowed`}
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                        {resettingPassword ? 'Restableciendo...' : 'Restablecer contraseña'}
                       </button>
                     )}
                   </div>
-                  <MensajeError error={errors.rol} />
                 </div>
 
-                {/* Solo el superusuario elige la carrera; para los demás es la suya. */}
-                {puedeElegirCarrera && (
-                  <div>
-                    <label htmlFor="editar-usuario-carrera" className={LABEL_CAMPO}>Carrera</label>
-                    <FiltroDesplegable
-                      id="editar-usuario-carrera"
-                      value={carreraActual}
-                      onChange={(valor) => handleCarreraSeleccionActual({ target: { name: 'carrera', value: valor } })}
-                      options={carreras.map((carrera) => ({ value: carrera.id, label: carrera.nombre }))}
-                      placeholder="Seleccione una carrera"
-                      ariaLabel="Carrera"
-                      emptyText="No hay carreras que coincidan"
-                      permitirQuitar={false}
-                      invalido={Boolean(errors.carrera)}
-                      disabled={esSuperusuarioEditado}
-                    />
-                    <MensajeError error={errors.carrera} />
-                  </div>
-                )}
-
-                {asignacionesExtra.length > 0 && (
-                  <div className="md:col-span-2 animate-panel-asignacion overflow-hidden">
-                    <div className="rounded-2xl bg-white ring-1 ring-inset ring-azulado-300 px-4 py-3">
-                      <div className="mb-2.5 flex items-center justify-between gap-3">
-                        <p className="text-sm font-bold text-blue-900">Roles del usuario</p>
-                        <button
-                          type="button"
-                          onClick={() => eliminarAsignacion(0)}
-                          className={`${BOTON_CHICO} bg-red-50 text-red-700 ring-1 ring-inset ring-red-200 hover:bg-red-100`}
-                        >
-                          Quitar el segundo rol
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {asignacionesActivas.map((item, index) => (
-                          <button
-                            key={`${item.rol || 'sin-rol'}-${item.carrera || 'sin-carrera'}-${index}`}
-                            type="button"
-                            onClick={() => setIndiceAsignacionActiva(index)}
-                            className={`${BOTON_CHICO} ${
-                              indiceAsignacionActiva === index
-                                ? 'bg-sky-600 text-white'
-                                : 'bg-azulado-100 text-blue-900 ring-1 ring-inset ring-azulado-300 hover:bg-blue-900 hover:text-white'
-                            }`}
-                          >
-                            {obtenerResumenAsignacion(item, index)}
-                          </button>
-                        ))}
-                      </div>
+                {/* Roles asignados con su carrera (igual que en Nuevo usuario) */}
+                <div className="md:col-span-2">
+                  {esSuperusuarioEditado ? (
+                    <div className="rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 px-4 py-3 text-sm text-slate-700">
+                      <span className="font-semibold text-blue-900">Superusuario.</span> No tiene roles de carrera: tiene acceso a todo el sistema.
                     </div>
-                  </div>
-                )}
-                {asignacionesError && (
-                  <p className="md:col-span-2 -mt-2 pl-1 text-xs font-semibold text-red-600">{asignacionesError}</p>
-                )}
-                {designaJefeNuevo && (
-                  <CampoResolucionJefe
-                    className="md:col-span-2"
-                    archivo={resolucionJefe}
-                    error={errors.resolucion_jefe}
-                    onChange={(archivo) => {
-                      setResolucionJefe(archivo);
-                      setErrors((prev) => ({ ...prev, resolucion_jefe: null }));
-                    }}
-                  />
-                )}
-                {errorFondoTiempo && (
-                  <p className="md:col-span-2 -mt-2 pl-1 text-sm font-semibold text-red-600">{errorFondoTiempo}</p>
-                )}
+                  ) : (
+                    <>
+                      <ListaTransferenciaRoles
+                        roles={rolesDisponiblesModal}
+                        asignados={rolesAsignadosLista}
+                        seleccionIzquierda={rolElegidoIzquierda}
+                        onSeleccionarIzquierda={(valor) => {
+                          setRolElegidoIzquierda(valor);
+                          setErrors((prev) => (prev?.rol ? { ...prev, rol: null } : prev));
+                        }}
+                        seleccionDerecha={rolElegidoDerecha}
+                        onSeleccionarDerecha={setRolElegidoDerecha}
+                        onMoverDerecha={moverRolDerecha}
+                        onMoverIzquierda={moverRolIzquierda}
+                        bloquearAsignar={hayAsignacionPendiente || rolesAsignadosLista.length >= MAX_ASIGNACIONES_TOTAL}
+                        tituloAsignar={hayAsignacionPendiente ? 'Complete la carrera pendiente primero' : 'Asignar rol'}
+                        errorIzquierda={Boolean(errors?.rol)}
+                        errorDerecha={Boolean(errors?.asignaciones || errors?.rol || errors?.carrera)}
+                        pulsoIzquierda={brincoIzquierda}
+                        pulsoDerecha={brincoDerecha}
+                        filaConflicto={filaConflicto}
+                        mostrarCarrera={puedeElegirCarrera}
+                        carrerasAbiertas={carrerasAbiertas}
+                        onAlternarCarrera={(index) => setCarrerasAbiertas((prev) => ({ ...prev, [index]: !prev[index] }))}
+                        carreras={carreras}
+                        onAsignarCarrera={asignarCarreraARol}
+                        etiquetaRol={obtenerRolLabel}
+                        etiquetaCarrera={obtenerCarreraLabel}
+                      />
+                      <MensajeAnimado
+                        show={Boolean(asignacionesError || errorFondoTiempo)}
+                        message={asignacionesError || errorFondoTiempo}
+                        wrapperClassName="mt-2 pl-1"
+                        messageClassName="text-xs text-red-600"
+                      />
+                      <p className="mt-2 pl-1 text-xs text-slate-600">
+                        Todos los roles son de la carrera del contrato del usuario (ej. Director + Docente de la misma carrera). Máximo 2 asignaciones.{' '}
+                        {puedeElegirCarrera
+                          ? <>Pulse <span className="font-semibold text-blue-900">Carrera</span> para asignarla.</>
+                          : 'La carrera es la tuya: se asigna sola.'}
+                      </p>
+                      {designaJefeNuevo && (
+                        <CampoResolucionJefe
+                          className="mt-3"
+                          archivo={resolucionJefe}
+                          error={errors.resolucion_jefe}
+                          onChange={(archivo) => {
+                            setResolucionJefe(archivo);
+                            setErrors((prev) => ({ ...prev, resolucion_jefe: null }));
+                          }}
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Fila 3: Correo institucional - C.I. (o la ficha de docente vinculada) */}
+                <CampoUsuario
+                  idPrefijo="editar-usuario"
+                  label="Correo institucional"
+                  name="email"
+                  type="text"
+                  value={formData.email || ''}
+                  onChange={handleChange}
+                  clearError={clearFieldError}
+                  error={errors.email}
+                  required
+                  autoComplete="email"
+                  inputMode="email"
+                />
 
                 {mostrarCiAutoridad ? (
-                  <InputField label="C.I." name="ci" value={formData.ci} onChange={handleChange} disabled={Boolean(identidadBloqueada)} error={errors.ci} maxLength={15} />
+                  <CampoUsuario
+                    idPrefijo="editar-usuario"
+                    label="C.I."
+                    name="ci"
+                    value={formData.ci || ''}
+                    onChange={handleChange}
+                    clearError={clearFieldError}
+                    error={errors.ci}
+                    disabled={Boolean(identidadBloqueada)}
+                    maxLength={15}
+                  />
                 ) : (
                   <div>
-                    <label htmlFor="editar-usuario-docente" className={LABEL_CAMPO}>Vincular a docente existente</label>
+                    <label htmlFor="editar-usuario-docente" className={LABEL_CAMPO}>
+                      {tieneDocenteVinculado ? 'Docente vinculado' : 'Vincular a docente existente'}
+                    </label>
                     <FiltroDesplegable
                       id="editar-usuario-docente"
                       value={formData.docente}
                       onChange={(valor) => handleChange({ target: { name: 'docente', value: valor } })}
                       options={docentes.map((docente) => ({ value: docente.id, label: obtenerNombreCompletoDocente(docente) }))}
                       placeholder={tieneDocenteVinculado ? nombreDocenteVinculado : 'Seleccione un docente'}
-                      ariaLabel="Vincular a docente existente"
+                      ariaLabel={tieneDocenteVinculado ? 'Docente vinculado' : 'Vincular a docente existente'}
                       emptyText="No hay docentes que coincidan"
                       permitirQuitar={false}
                       invalido={Boolean(errors.docente)}
                       disabled={tieneDocenteVinculado}
                     />
-                    <MensajeError error={errors.docente} />
-                    {mostrarInfoDocente && (
-                      <p className="mt-1 pl-1 text-xs text-emerald-700">Docente vinculado: {nombreDocenteVinculado}</p>
-                    )}
+                    <MensajeAnimado
+                      show={Boolean(textoErrorDocente)}
+                      message={textoErrorDocente}
+                      wrapperClassName="mt-1 pl-1"
+                      messageClassName="text-xs text-red-600"
+                    />
                   </div>
                 )}
-
-                <InputField label="Correo institucional" name="email" type="email" value={formData.email} onChange={handleChange} error={errors.email} />
-                <div>
-                  <span className={LABEL_CAMPO}>Contraseña inicial</span>
-                  <div className="flex h-11 items-center px-4 rounded-full bg-amber-50 ring-1 ring-inset ring-amber-200 text-sm font-mono font-semibold text-amber-900">
-                    {formData.username ? `${formData.username}UABJB` : 'usuarioUABJB'}
-                  </div>
-                </div>
               </div>
             </div>
-          </form>
 
-          <div className="px-5 sm:px-6 py-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 [border-top:1px_solid_#B8C9E1]">
-            <div>
-              {puedeRestablecerPassword && (
-                <button
-                  type="button"
-                  onClick={() => setShowResetConfirm(true)}
-                  disabled={loading || resettingPassword}
-                  className={`${BOTON} w-full sm:w-auto px-4 py-2.5 bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200 hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed`}
-                  title={`Restablecer contraseña a: ${userToEdit?.username}UABJB`}
-                >
-                  {resettingPassword ? 'Restableciendo...' : 'Restablecer contraseña'}
-                </button>
-              )}
-            </div>
-            <div className="flex flex-col-reverse sm:flex-row gap-2">
+            <div className="px-5 sm:px-6 py-4 flex flex-col-reverse sm:flex-row justify-end gap-2 [border-top:1px_solid_#B8C9E1]">
               <button
                 type="button"
                 onClick={onClose}
@@ -670,14 +771,13 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
               </button>
               <button
                 type="submit"
-                form="user-form"
                 disabled={loading}
                 className={`${BOTON} px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 {loading ? 'Guardando...' : 'Guardar cambios'}
               </button>
             </div>
-          </div>
+          </form>
         </div>
       </div>
 
@@ -692,16 +792,11 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
             <div className="px-6 pt-6">
               <h4 className="text-xl font-bold text-blue-900">Restablecer contraseña</h4>
               <p className="mt-1 text-sm text-slate-600">
-                Se restablecerá la contraseña de <strong className="text-slate-900">{userToEdit?.username}</strong> a la contraseña inicial.
+                La contraseña de <strong className="text-slate-900">{userToEdit.username}</strong> volverá a ser{' '}
+                <strong className="font-mono text-slate-900">{userToEdit.username}UABJB</strong> y deberá cambiarla al iniciar sesión.
               </p>
             </div>
-            <div className="px-6 py-4 space-y-2">
-              <div className="rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-3 text-sm text-amber-900">
-                Contraseña por defecto: <strong className="font-mono">{userToEdit?.username}UABJB</strong>
-              </div>
-              <p className="pl-1 text-xs text-slate-500">El usuario deberá cambiarla al iniciar sesión.</p>
-            </div>
-            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 pb-6">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 py-6">
               <button
                 type="button"
                 onClick={() => setShowResetConfirm(false)}
@@ -714,7 +809,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
                 type="button"
                 onClick={handleResetearPassword}
                 disabled={resettingPassword}
-                className={`${BOTON} px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50 disabled:cursor-not-allowed`}
+                className={`${BOTON} px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 {resettingPassword ? 'Restableciendo...' : 'Restablecer'}
               </button>
@@ -726,29 +821,5 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     document.body
   );
 };
-
-const MensajeError = ({ error }) => (
-  error ? <p className="mt-1 pl-1 text-xs text-red-600">{Array.isArray(error) ? error[0] : error}</p> : null
-);
-
-const InputField = ({ label, name, type = 'text', value, onChange, disabled, readOnly, error, ...rest }) => (
-  <div>
-    <label htmlFor={`editar-usuario-${name}`} className={LABEL_CAMPO}>{label}</label>
-    <input
-      id={`editar-usuario-${name}`}
-      type={type}
-      name={name}
-      value={value}
-      onChange={onChange}
-      disabled={disabled}
-      readOnly={readOnly}
-      {...rest}
-      className={`w-full h-11 px-4 rounded-full text-sm text-slate-800 placeholder:text-slate-500 outline-none ring-inset ${
-        error ? 'ring-2 ring-red-500' : 'ring-1 ring-azulado-300 focus:ring-2 focus:ring-blue-900/40'
-      } ${(disabled || readOnly) ? '!bg-slate-100 text-slate-500 cursor-not-allowed' : '!bg-azulado-100'}`}
-    />
-    <MensajeError error={error} />
-  </div>
-);
 
 export default ModalUsuario;

@@ -7,6 +7,43 @@
 // (cargo + docente), siempre en esa carrera. El backend aplica la misma regla.
 export const MENSAJE_UNA_SOLA_CARRERA = 'Un usuario pertenece a una sola carrera (la de su contrato): todos sus roles deben ser de esa carrera.';
 
+// Reglas de la lista de roles (crear y editar usuario).
+export const MENSAJE_DUPLICADO = 'Esta combinación de Rol y Carrera ya se encuentra asignada.';
+export const MENSAJE_LIMITE_ASIGNACIONES = 'Un usuario no puede tener más de 2 asignaciones en el sistema (Normativa de Fondo de Tiempo).';
+export const MENSAJE_CONFLICTO_AUTORIDAD = 'Conflicto de Autoridad: Un usuario no puede tener dos cargos de mando (Director, Jefe de Estudios o Instituto) en la misma carrera.';
+export const MENSAJE_AUTORIDAD_UNICA = 'Un usuario no puede tener más de un cargo de mando (Director, Jefe de Estudios o Instituto) en el sistema (Normativa UABJB).';
+export const MENSAJE_CARRERA_PENDIENTE = 'Debe seleccionar una carrera para la asignación actual antes de agregar otra.';
+export const MAX_ASIGNACIONES_TOTAL = 2;
+// Cargos de mando: un solo cargo por usuario, y solo pueden ser docentes de su misma carrera.
+export const ROLES_MANDO_UABJB = ['director', 'jefe_estudios', 'iiisyp'];
+
+// Valida una combinación rol + carrera contra las demás asignaciones del usuario
+// (todas, menos la de `excluirIndex`). Devuelve { valida, mensaje }.
+export const validarAsignacion = (nuevoRol, nuevaCarrera, asignaciones = [], excluirIndex = -1) => {
+  const rolTrim = String(nuevoRol || '').trim();
+  const carreraTrim = String(nuevaCarrera || '').trim();
+  // Sin carrera todavía no hay nada que validar: la regla se aplica al elegirla.
+  if (!rolTrim || !carreraTrim) return { valida: true };
+
+  const otras = asignaciones
+    .map((item, index) => ({ rol: String(item?.rol || '').trim(), carrera: String(item?.carrera || '').trim(), index }))
+    .filter((item) => item.index !== excluirIndex && item.rol);
+
+  if (otras.some((item) => item.carrera && item.carrera !== carreraTrim)) {
+    return { valida: false, mensaje: MENSAJE_UNA_SOLA_CARRERA };
+  }
+  if (otras.some((item) => item.rol === rolTrim && item.carrera === carreraTrim)) {
+    return { valida: false, mensaje: MENSAJE_DUPLICADO };
+  }
+  // No se puede ser Director y Jefe de Estudios de la misma carrera a la vez.
+  if (ROLES_MANDO_UABJB.includes(rolTrim) && otras.some((item) => (
+    ROLES_MANDO_UABJB.includes(item.rol) && item.rol !== rolTrim && item.carrera === carreraTrim
+  ))) {
+    return { valida: false, mensaje: MENSAJE_CONFLICTO_AUTORIDAD };
+  }
+  return { valida: true };
+};
+
 // Designar un Jefe de Estudios exige la resolución del Consejo de Carrera en PDF.
 export const MENSAJE_RESOLUCION_JEFE = 'Adjunte la resolución del Consejo de Carrera (PDF) que designa al Jefe de Estudios.';
 export const esArchivoPdf = (archivo) => Boolean(archivo) && /\.pdf$/i.test(archivo.name || '');

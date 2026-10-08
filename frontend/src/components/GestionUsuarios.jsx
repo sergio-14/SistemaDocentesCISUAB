@@ -1102,24 +1102,34 @@ const initialData = {
 
   const puedeGestionarUsuarios = () => esSuperuserActual || esDirectorCarreraActual;
   const puedeEliminarUsuarios = () => esSuperuserActual || esDirectorCarreraActual;
-  const puedeEditarUsuario = (usuario) => {
-    if (!puedeGestionarUsuarios() || usuario?.is_superuser) return false;
-    if (esSuperuserActual) return true;
-    if (!usuarioPerteneceACarrerasGestionables(usuario)) return false;
-    return !obtenerRolesUsuario(usuario).includes('director');
+  // Motivo por el que no se puede editar o eliminar a un usuario ('' si se puede); se
+  // muestra en pantalla bajo los botones. Las mismas reglas que el backend.
+  const MOTIVO_SUPERUSUARIO = 'Cuenta de superusuario: no se edita ni se elimina desde aquí.';
+  const motivoNoEditar = (usuario) => {
+    if (usuario?.is_superuser) return MOTIVO_SUPERUSUARIO;
+    if (esSuperuserActual) return '';
+    if (!usuarioPerteneceACarrerasGestionables(usuario)) return 'Es de otra carrera: no puedes editarlo.';
+    if (obtenerRolesUsuario(usuario).includes('director')) return 'A un Director solo lo edita el superusuario.';
+    return '';
   };
+  const puedeEditarUsuario = (usuario) => puedeGestionarUsuarios() && !motivoNoEditar(usuario);
   // El Director no activa, desactiva ni elimina a un Director ni al Jefe de Estudios
   // (lo designa el Consejo de Carrera); sí a docentes y al Instituto. Igual que el backend.
   const tieneCargoDeDireccion = (usuario) => cargosDelUsuario(usuario).some((cargo) => ['director', 'jefe_estudios'].includes(cargo));
   const puedeCambiarEstadoUsuario = (usuario) => puedeEditarUsuario(usuario)
     && (esSuperuserActual || !tieneCargoDeDireccion(usuario));
   // Eliminar: nunca un superusuario ni a sí mismo. Con datos registrados el backend lo
-  // rechaza: solo se puede desactivar.
-  const puedeEliminarUsuario = (usuario) => {
-    if (!usuario || usuario.is_superuser || !puedeEliminarUsuarios()) return false;
-    if (String(usuario.id) === String(user?.id)) return false;
-    return esSuperuserActual || (puedeEditarUsuario(usuario) && !tieneCargoDeDireccion(usuario));
+  // rechaza (lo avisa el modal al pulsar Eliminar): solo se puede desactivar.
+  const motivoNoEliminar = (usuario) => {
+    if (usuario?.is_superuser) return MOTIVO_SUPERUSUARIO;
+    if (String(usuario?.id) === String(user?.id)) return 'No puedes eliminar tu propia cuenta.';
+    if (esSuperuserActual) return '';
+    const motivoEdicion = motivoNoEditar(usuario);
+    if (motivoEdicion) return motivoEdicion;
+    if (tieneCargoDeDireccion(usuario)) return 'Al Jefe de Estudios solo lo elimina el superusuario: lo designa el Consejo de Carrera.';
+    return '';
   };
+  const puedeEliminarUsuario = (usuario) => Boolean(usuario) && puedeEliminarUsuarios() && !motivoNoEliminar(usuario);
   const obtenerNombreUsuario = (usuario) => ((usuario?.first_name || usuario?.last_name)
     ? `${(usuario.first_name || '').trim()} ${(usuario.last_name || '').trim()}`.trim()
     : (usuario?.nombre_completo || '-'));
@@ -1192,13 +1202,16 @@ const initialData = {
     if (!puedeGestionarUsuarios()) return null;
     const bloqueado = !puedeEditarUsuario(usuario);
     const puedeBorrar = puedeEliminarUsuario(usuario);
+    const motivoEdicion = motivoNoEditar(usuario);
+    const motivoEliminacion = puedeEliminarUsuarios() ? motivoNoEliminar(usuario) : '';
+    const motivos = [...new Set([motivoEdicion, motivoEliminacion].filter(Boolean))];
     return (
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button data-escritura
           type="button"
           onClick={() => !bloqueado && abrirModalEditar(usuario)}
           disabled={bloqueado}
-          title={bloqueado ? 'Acción deshabilitada: usuario protegido' : 'Editar'}
+          title={motivoEdicion || 'Editar'}
           className={`${BOTON_CHICO} bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-emerald-500`}
         >
           <FaEdit size={12} />
@@ -1209,13 +1222,16 @@ const initialData = {
             type="button"
             onClick={() => puedeBorrar && handleEliminar(usuario)}
             disabled={!puedeBorrar || verificandoEliminarId === usuario.id}
-            title={!puedeBorrar ? 'Acción deshabilitada: usuario protegido' : 'Eliminar'}
+            title={motivoEliminacion || 'Eliminar'}
             className={`${BOTON_CHICO} bg-red-400 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-400`}
           >
             <FaTrash size={11} />
             <span>{verificandoEliminarId === usuario.id ? 'Verificando...' : 'Eliminar'}</span>
           </button>
         )}
+        {motivos.map((motivo) => (
+          <p key={motivo} className="basis-full text-xs text-slate-500">{motivo}</p>
+        ))}
       </div>
     );
   };

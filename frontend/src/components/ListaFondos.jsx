@@ -161,6 +161,12 @@ function SelectorGestion({ value, onChange, options, placeholder }) {
   );
 }
 
+// Orden del dashboard: por fecha de creación, el más nuevo primero (a igual fecha, el id mayor).
+const masRecientePrimero = (a, b) => (
+  String(b.fecha_creacion || '').localeCompare(String(a.fecha_creacion || ''))
+  || (Number(b.id) || 0) - (Number(a.id) || 0)
+);
+
 function ListaFondos() {
   const { effectiveUser, activeAssignment } = useActiveRole();
   const esSuperusuario = effectiveUser?.is_superuser === true;
@@ -222,7 +228,8 @@ function ListaFondos() {
         setLoading(true);
       }
       const data = await getFondosTiempo();
-      setFondos(Array.isArray(data) ? data : []);
+      // Del más nuevo al más antiguo: un fondo recién creado aparece arriba.
+      setFondos(Array.isArray(data) ? [...data].sort(masRecientePrimero) : []);
       if (!silencioso) {
         setLoading(false);
       }

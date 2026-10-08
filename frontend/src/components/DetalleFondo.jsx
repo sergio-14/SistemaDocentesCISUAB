@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getFondoTiempoDetalle, presentarFondoADirector, aprobarFondo } from '../apis/api';
 import api from '../apis/api';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import toast from 'react-hot-toast';
 import { Pencil as PencilIcon, Trash2 as TrashIcon } from 'lucide-react';
 import { useActiveRole } from '../contexts/activeRole';
@@ -776,29 +776,39 @@ function DetalleFondo() {
                         className="absolute inset-0 flex transition-transform duration-500 ease-in-out"
                         style={{ transform: `translateX(-${slideGrafico * 100}%)` }}
                       >
-                        {/* Gráfico de anillo */}
-                        <div className="min-w-full h-full flex-shrink-0">
-                          <ResponsiveContainer width="100%" height="100%" minHeight={160}>
-                            <PieChart>
-                              <Pie
-                                data={datosGrafico}
-                                cx="50%"
-                                cy="45%"
-                                innerRadius={40}
-                                outerRadius={58}
-                                paddingAngle={2}
-                                stroke="#F7F9FD"
-                                strokeWidth={2}
-                                dataKey="value"
-                              >
-                                {datosGrafico.map((entry) => (
-                                  <Cell key={entry.tipo} fill={colorUnidad(entry.tipo)} />
-                                ))}
-                              </Pie>
-                              <Tooltip formatter={(value) => `${Math.round(value)} h`} />
-                              <Legend verticalAlign="bottom" height={18} iconSize={8} iconType="circle" wrapperStyle={{ fontSize: '10px', color: '#475569' }} />
-                            </PieChart>
-                          </ResponsiveContainer>
+                        {/* Gráfico de anillo: crece con el espacio del bloque y los nombres van
+                            justo debajo, sin hueco entre el anillo y su leyenda. */}
+                        <div className="min-w-full max-w-full w-full h-full flex-shrink-0 flex flex-col gap-2">
+                          <div className="flex-1 min-h-[8rem]">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie
+                                  data={datosGrafico}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius="62%"
+                                  outerRadius="92%"
+                                  paddingAngle={2}
+                                  stroke="#F7F9FD"
+                                  strokeWidth={2}
+                                  dataKey="value"
+                                >
+                                  {datosGrafico.map((entry) => (
+                                    <Cell key={entry.tipo} fill={colorUnidad(entry.tipo)} />
+                                  ))}
+                                </Pie>
+                                <Tooltip formatter={(value) => `${Math.round(value)} h`} />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+                          <ul className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-[10px] leading-tight text-slate-600">
+                            {datosGrafico.map((entry) => (
+                              <li key={entry.tipo} className="inline-flex items-center gap-1.5">
+                                <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: colorUnidad(entry.tipo) }} />
+                                {entry.name}
+                              </li>
+                            ))}
+                          </ul>
                         </div>
 
                         {/* Barras proporcionales */}

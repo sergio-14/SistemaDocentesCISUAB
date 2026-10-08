@@ -12,7 +12,7 @@ export const MENSAJE_UNA_SOLA_CARRERA = 'Un usuario pertenece a una sola carrera
 export const MENSAJE_DUPLICADO = 'Este rol ya está asignado al usuario.';
 export const MENSAJE_LIMITE_ASIGNACIONES = 'Un usuario no puede tener más de 2 asignaciones en el sistema (Normativa de Fondo de Tiempo).';
 export const MENSAJE_AUTORIDAD_UNICA = 'Un usuario no puede tener más de un cargo de mando (Director, Jefe de Estudios o Instituto) en el sistema (Normativa UABJB).';
-export const MAX_ASIGNACIONES_TOTAL = 2;
+const MAX_ASIGNACIONES_TOTAL = 2;
 // Cargos de mando: un solo cargo por usuario, y solo pueden ser docentes de su misma carrera.
 export const ROLES_MANDO_UABJB = ['director', 'jefe_estudios', 'iiisyp'];
 

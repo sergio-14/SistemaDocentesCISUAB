@@ -4,18 +4,17 @@ import api from '../apis/api';
 import toast from 'react-hot-toast';
 import { horasSemanalesDedicacion } from '../utils/dedicaciones';
 import {
-  MAX_ASIGNACIONES_TOTAL, MENSAJE_RESOLUCION_JEFE,
+  MENSAJE_RESOLUCION_JEFE,
   asignacionesIniciales, asignacionesParaEnviar, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf, motivoNoAsignarRol, textoErroresUsuario,
 } from '../utils/asignacionesUsuario';
-import { ERROR_SHAKE_DURATION_MS } from '../utils/formErrors';
+import { ERROR_MOTION_CLASS, ERROR_SHAKE_DURATION_MS } from '../utils/formErrors';
 import CampoResolucionJefe from './common/CampoResolucionJefe';
 import FiltroDesplegable from './common/FiltroDesplegable';
-import CampoUsuario, { MensajeAnimado } from './usuarios/CampoUsuario';
-import ListaTransferenciaRoles from './usuarios/ListaTransferenciaRoles';
+import CampoUsuario from './usuarios/CampoUsuario';
+import { CandadoIcon, NotaUsuario, SeccionUsuario, SelectorRoles } from './usuarios/PiezasFormularioUsuario';
+import ModalConfirmar from './common/ModalConfirmar';
 import SelectorCarreraUsuario from './usuarios/SelectorCarreraUsuario';
 import { BOTON } from './fondos/estilosFondo';
-
-const LABEL_CAMPO = 'block text-xs font-semibold text-slate-700 mb-1.5 pl-1';
 
 // Brinco del panel de roles cuando aparece (o se repite) un error.
 const useBrinco = (activo, repeticion) => {
@@ -117,16 +116,14 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
   const [asignacionesExtra, setAsignacionesExtra] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
-  const [resettingPassword, setResettingPassword] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resolucionJefe, setResolucionJefe] = useState(null);
-  // Lista de transferencia de roles (igual que en Nuevo usuario).
-  const [rolElegidoIzquierda, setRolElegidoIzquierda] = useState(null);
-  const [rolElegidoDerecha, setRolElegidoDerecha] = useState(null);
   const [repeticionRol, setRepeticionRol] = useState(0);
   const [repeticionAsignaciones, setRepeticionAsignaciones] = useState(0);
-  const brincoIzquierda = useBrinco(Boolean(errors?.rol || errors?.non_field_errors), repeticionRol);
-  const brincoDerecha = useBrinco(Boolean(errors?.asignaciones), repeticionAsignaciones);
+  const brincoRoles = useBrinco(
+    Boolean(errors?.rol || errors?.asignaciones || errors?.non_field_errors),
+    repeticionRol + repeticionAsignaciones,
+  );
   // Si el usuario ya tiene datos registrados, su identidad (usuario, nombre, C.I.)
   // no se puede cambiar. null = sin datos (o todavía sin verificar).
   const [identidadBloqueada, setIdentidadBloqueada] = useState(null);
@@ -184,8 +181,6 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
 
     setFormData(initialData);
     setAsignacionesExtra(extras);
-    setRolElegidoIzquierda(null);
-    setRolElegidoDerecha(null);
     setErrors({});
     setShowResetConfirm(false);
     setResolucionJefe(null);
@@ -221,17 +216,16 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     setFormData((prev) => ({ ...prev, [name]: normalizedValue }));
   };
 
-  // --- Lista de transferencia de roles (las mismas reglas que en Nuevo usuario) ---
+  // --- Roles (las mismas reglas que en Nuevo usuario) ---
   const rolesAsignadosLista = [
     { rol: formData.rol || '', carrera: formData.carrera || '' },
     ...asignacionesExtra,
   ].filter((item) => String(item.rol || '').trim());
 
+  // Las reglas de los roles se avisan bajo los botones, sin toast.
   const marcarErrorRol = (mensaje) => {
-    toast.error(mensaje);
     setErrors((prev) => ({ ...prev, rol: [mensaje] }));
     setRepeticionRol((valor) => valor + 1);
-    setRolElegidoIzquierda(null);
   };
 
   // Todos los roles del usuario van en su única carrera (la de su contrato).
@@ -250,7 +244,6 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     } else {
       setAsignacionesExtra([{ rol: rolValue, carrera: formData.carrera || carreraPropiaEditor, docente: '' }]);
     }
-    setRolElegidoIzquierda(null);
   };
 
   const moverRolIzquierda = (index) => {
@@ -264,7 +257,13 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     } else {
       setAsignacionesExtra([]);
     }
-    setRolElegidoDerecha(null);
+  };
+
+  // Clic en un rol: si ya lo tiene, se quita; si no, se agrega.
+  const alternarRol = (rolValue) => {
+    const indice = rolesAsignadosLista.findIndex((item) => item.rol === rolValue);
+    if (indice >= 0) moverRolIzquierda(indice);
+    else moverRolDerecha(rolValue);
   };
 
   // La carrera es del usuario: se aplica a todos sus roles.
@@ -282,8 +281,6 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
   const tieneDocenteVinculado = Boolean(userToEdit?.perfil?.docente_id);
   const nombreDocenteVinculado = userToEdit?.perfil?.docente_nombre || 'Sin nombre';
   const esSuperusuarioEditado = Boolean(userToEdit?.is_superuser);
-  const mostrarCiAutoridad = formData.rol === 'director' || formData.rol === 'jefe_estudios';
-  const obtenerRolLabel = (rolValue) => roles.find((item) => item.value === rolValue)?.label || rolValue || 'Sin rol';
   const asignacionesActivas = [
     { rol: formData.rol || '', carrera: formData.carrera || '' },
     ...asignacionesExtra,
@@ -303,22 +300,17 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     || (puedeElegirCarrera ? '' : primerError(errors?.carrera))
     || errorFondoTiempo;
 
+  // Lo confirma ModalConfirmar: si falla, el motivo se muestra en el mismo modal.
   const handleResetearPassword = async () => {
-    const passwordPorDefecto = `${userToEdit.username}UABJB`;
-    setResettingPassword(true);
-
     try {
       await api.post(`/usuarios/${userToEdit.id}/resetear_password/`);
-      toast.success(`Contraseña restablecida. Nueva contraseña: ${passwordPorDefecto}`);
-      setShowResetConfirm(false);
-      onSaveSuccess();
     } catch (err) {
-      toast.error(err?.response?.data?.error || err?.response?.data?.detail || 'No se pudo restablecer la contraseña');
-    } finally {
-      setResettingPassword(false);
+      throw new Error(err?.response?.data?.error || err?.response?.data?.detail || 'No se pudo restablecer la contraseña.');
     }
+    toast.success(`Contraseña restablecida. Nueva contraseña: ${userToEdit.username}UABJB`);
+    setShowResetConfirm(false);
+    onSaveSuccess();
   };
-
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -464,162 +456,86 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
   // El restablecimiento usa el usuario guardado, no el que se está escribiendo.
   const passwordPorDefecto = `${userToEdit.username}UABJB`;
   const textoErrorDocente = primerError(errors.docente);
+  const textoDatosRegistrados = identidadBloqueada && identidadBloqueada.length > 0
+    ? ` (${identidadBloqueada.map((item) => `${item.etiqueta}: ${item.cantidad}`).join(', ')})`
+    : '';
+  // La ficha de docente solo se elige si el rol principal es Docente y aún no tiene una.
+  const docenteEditable = formData.rol === 'docente' && !tieneDocenteVinculado;
+  const notaDocente = tieneDocenteVinculado
+    ? 'Ya está vinculado a su ficha de docente.'
+    : (formData.rol === 'docente' ? '' : 'Solo si el rol principal es Docente.');
+  const notaCarrera = !puedeElegirCarrera
+    ? 'Es tu carrera: se asigna sola.'
+    : (identidadBloqueada ? 'No se puede cambiar: el usuario tiene datos registrados.' : 'Todos los roles del usuario van en esta carrera.');
 
   return createPortal(
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-blue-950/30 backdrop-blur-sm animate-fade-in" style={{ animationDuration: '160ms' }}>
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-blue-950/30 backdrop-blur-sm">
       <div className="min-h-full flex items-center justify-center p-3 sm:p-6">
-        <div className="w-full max-w-5xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '180ms' }}>
-          <div className="px-5 sm:px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
-            <h2 className="text-xl font-bold text-blue-900">Editar Usuario</h2>
-            <p className="mt-0.5 text-sm text-slate-600">
-              <span className="font-semibold text-slate-700">@{userToEdit.username}</span> · Cuenta de acceso, roles y carrera del usuario.
-            </p>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="editar-usuario-titulo"
+          className="w-full max-w-3xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up"
+          style={{ animationDuration: '180ms' }}
+        >
+          <div className="flex items-start justify-between gap-4 px-5 sm:px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
+            <div className="min-w-0">
+              <h2 id="editar-usuario-titulo" className="text-xl font-bold text-blue-900">Editar usuario</h2>
+              <p className="mt-0.5 text-sm text-slate-600 truncate">
+                @{userToEdit.username}
+                {(userToEdit.first_name || userToEdit.last_name) && ` · ${`${userToEdit.first_name || ''} ${userToEdit.last_name || ''}`.trim()}`}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              aria-label="Cerrar"
+              className="flex-shrink-0 rounded-full p-2 -mr-2 text-slate-500 hover:text-blue-900 hover:bg-azulado-200 transition-colors disabled:opacity-50"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
           </div>
 
           <form onSubmit={handleSubmit} noValidate>
-            <div className="p-4 sm:p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {identidadBloqueada && (
-                  <div className="md:col-span-2 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 px-4 py-3 text-sm text-slate-700">
-                    <span className="font-semibold text-blue-900">Usuario con datos registrados</span>
-                    {identidadBloqueada.length > 0 && (
-                      <> ({identidadBloqueada.map((item) => `${item.etiqueta}: ${item.cantidad}`).join(', ')})</>
-                    )}
-                    . El usuario, el nombre y el C.I. no se pueden cambiar; para retirarlo, desactívelo.
-                  </div>
-                )}
-
-                {/* Fila 1: Usuario - Nombre completo */}
-                <CampoUsuario
-                  idPrefijo="editar-usuario"
-                  label="Usuario"
-                  name="username"
-                  value={formData.username || ''}
-                  onChange={handleChange}
-                  clearError={clearFieldError}
-                  error={errors.username}
-                  disabled={Boolean(identidadBloqueada)}
-                  required
-                />
-                <CampoUsuario
-                  idPrefijo="editar-usuario"
-                  label="Nombre completo"
-                  name="nombre_completo"
-                  value={formData.nombre_completo || ''}
-                  onChange={handleChange}
-                  clearError={clearFieldError}
-                  error={errors.nombre_completo || errors.first_name || errors.last_name}
-                  disabled={Boolean(identidadBloqueada)}
-                  required
-                />
-
-                <div className="md:col-span-2 rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-3 text-sm text-amber-900">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-                        <span className="font-semibold">Contraseña por defecto</span>
-                        <span className="font-mono font-semibold tracking-wide">{passwordPorDefecto}</span>
-                      </div>
-                      <p className="mt-1 text-xs text-amber-800">
-                        Al restablecerla, el usuario vuelve a esta contraseña y deberá cambiarla al iniciar sesión.
-                      </p>
-                    </div>
-                    {puedeRestablecerPassword && (
-                      <button
-                        type="button"
-                        onClick={() => setShowResetConfirm(true)}
-                        disabled={loading || resettingPassword}
-                        className={`${BOTON} flex-shrink-0 bg-white text-slate-700 ring-1 ring-inset ring-azulado-300 hover:bg-azulado-100 disabled:opacity-50 disabled:cursor-not-allowed`}
-                      >
-                        {resettingPassword ? 'Restableciendo...' : 'Restablecer contraseña'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Carrera del usuario (una sola para todos sus roles) y lista de roles, igual que en Nuevo usuario */}
-                <div className="md:col-span-2 space-y-3">
-                  {esSuperusuarioEditado ? (
-                    <div className="rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 px-4 py-3 text-sm text-slate-700">
-                      <span className="font-semibold text-blue-900">Superusuario.</span> No tiene roles de carrera: tiene acceso a todo el sistema.
-                    </div>
-                  ) : (
-                    <>
-                      {puedeElegirCarrera && (
-                        <div className="md:w-1/2 md:pr-2">
-                          <SelectorCarreraUsuario
-                            id="editar-usuario-carrera"
-                            value={formData.carrera}
-                            onChange={cambiarCarreraUsuario}
-                            carreras={carreras}
-                            error={errors.carrera}
-                            motivoBloqueo={identidadBloqueada
-                              ? `No se puede cambiar: el usuario tiene datos registrados${identidadBloqueada.length > 0 ? ` (${identidadBloqueada.map((item) => `${item.etiqueta}: ${item.cantidad}`).join(', ')})` : ''}.`
-                              : ''}
-                          />
-                        </div>
-                      )}
-                      <ListaTransferenciaRoles
-                        roles={rolesDisponiblesModal}
-                        asignados={rolesAsignadosLista}
-                        seleccionIzquierda={rolElegidoIzquierda}
-                        onSeleccionarIzquierda={(valor) => {
-                          setRolElegidoIzquierda(valor);
-                          setErrors((prev) => (prev?.rol ? { ...prev, rol: null } : prev));
-                        }}
-                        seleccionDerecha={rolElegidoDerecha}
-                        onSeleccionarDerecha={setRolElegidoDerecha}
-                        onMoverDerecha={moverRolDerecha}
-                        onMoverIzquierda={moverRolIzquierda}
-                        bloquearAsignar={rolesAsignadosLista.length >= MAX_ASIGNACIONES_TOTAL}
-                        errorIzquierda={Boolean(errors?.rol || errors?.non_field_errors)}
-                        errorDerecha={Boolean(errors?.asignaciones || errors?.rol || errors?.non_field_errors)}
-                        pulsoIzquierda={brincoIzquierda}
-                        pulsoDerecha={brincoDerecha}
-                        etiquetaRol={obtenerRolLabel}
-                      />
-                      <MensajeAnimado
-                        show={Boolean(errorBajoLista)}
-                        message={errorBajoLista}
-                        wrapperClassName="pl-1"
-                        messageClassName="text-xs text-red-600"
-                      />
-                      <p className="pl-1 text-xs text-slate-600">
-                        {puedeElegirCarrera
-                          ? 'Todos los roles del usuario son de su carrera (ej. Director + Docente de la misma carrera). Máximo 2 asignaciones.'
-                          : 'Todos los roles del usuario son de tu carrera: se asigna sola. Máximo 2 asignaciones.'}
-                      </p>
-                      {designaJefeNuevo && (
-                        <CampoResolucionJefe
-                          className="mt-3"
-                          archivo={resolucionJefe}
-                          error={errors.resolucion_jefe}
-                          onChange={(archivo) => {
-                            setResolucionJefe(archivo);
-                            setErrors((prev) => ({ ...prev, resolucion_jefe: null }));
-                          }}
-                        />
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {/* Fila 3: Correo institucional - C.I. (o la ficha de docente vinculada) */}
-                <CampoUsuario
-                  idPrefijo="editar-usuario"
-                  label="Correo institucional"
-                  name="email"
-                  type="text"
-                  value={formData.email || ''}
-                  onChange={handleChange}
-                  clearError={clearFieldError}
-                  error={errors.email}
-                  required
-                  autoComplete="email"
-                  inputMode="email"
-                />
-
-                {mostrarCiAutoridad ? (
+            <div className="divide-y divide-azulado-200">
+              <SeccionUsuario titulo="Cuenta">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4">
+                  <CampoUsuario
+                    idPrefijo="editar-usuario"
+                    label="Usuario"
+                    name="username"
+                    value={formData.username || ''}
+                    onChange={handleChange}
+                    clearError={clearFieldError}
+                    error={errors.username}
+                    disabled={Boolean(identidadBloqueada)}
+                    required
+                  />
+                  <CampoUsuario
+                    idPrefijo="editar-usuario"
+                    label="Nombre completo"
+                    name="nombre_completo"
+                    value={formData.nombre_completo || ''}
+                    onChange={handleChange}
+                    clearError={clearFieldError}
+                    error={errors.nombre_completo || errors.first_name || errors.last_name}
+                    disabled={Boolean(identidadBloqueada)}
+                    required
+                  />
+                  <CampoUsuario
+                    idPrefijo="editar-usuario"
+                    label="Correo institucional"
+                    name="email"
+                    type="text"
+                    value={formData.email || ''}
+                    onChange={handleChange}
+                    clearError={clearFieldError}
+                    error={errors.email}
+                    required
+                    autoComplete="email"
+                    inputMode="email"
+                  />
                   <CampoUsuario
                     idPrefijo="editar-usuario"
                     label="C.I."
@@ -631,32 +547,103 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
                     disabled={Boolean(identidadBloqueada)}
                     maxLength={15}
                   />
-                ) : (
-                  <div>
-                    <label htmlFor="editar-usuario-docente" className={LABEL_CAMPO}>
-                      {tieneDocenteVinculado ? 'Docente vinculado' : 'Vincular a docente existente'}
-                    </label>
-                    <FiltroDesplegable
-                      id="editar-usuario-docente"
-                      value={formData.docente}
-                      onChange={(valor) => handleChange({ target: { name: 'docente', value: valor } })}
-                      options={docentes.map((docente) => ({ value: docente.id, label: obtenerNombreCompletoDocente(docente) }))}
-                      placeholder={tieneDocenteVinculado ? nombreDocenteVinculado : 'Seleccione un docente'}
-                      ariaLabel={tieneDocenteVinculado ? 'Docente vinculado' : 'Vincular a docente existente'}
-                      emptyText="No hay docentes que coincidan"
-                      permitirQuitar={false}
-                      invalido={Boolean(errors.docente)}
-                      disabled={tieneDocenteVinculado}
-                    />
-                    <MensajeAnimado
-                      show={Boolean(textoErrorDocente)}
-                      message={textoErrorDocente}
-                      wrapperClassName="mt-1 pl-1"
-                      messageClassName="text-xs text-red-600"
-                    />
-                  </div>
+                </div>
+                {identidadBloqueada && (
+                  <NotaUsuario tipo="bloqueo">
+                    Usuario, nombre y C.I. no se pueden cambiar porque tiene datos registrados{textoDatosRegistrados}. Para retirarlo, desactívelo.
+                  </NotaUsuario>
                 )}
-              </div>
+              </SeccionUsuario>
+
+              <SeccionUsuario titulo="Carrera y roles">
+                {esSuperusuarioEditado ? (
+                  <p className="text-sm text-slate-600">
+                    Es el superusuario: no tiene carrera ni roles, tiene acceso a todo el sistema.
+                  </p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4">
+                      <SelectorCarreraUsuario
+                        id="editar-usuario-carrera"
+                        value={formData.carrera}
+                        onChange={cambiarCarreraUsuario}
+                        carreras={carreras}
+                        error={puedeElegirCarrera ? errors.carrera : null}
+                        deshabilitado={!puedeElegirCarrera || Boolean(identidadBloqueada)}
+                        nota={notaCarrera}
+                      />
+                      <div>
+                        <label htmlFor="editar-usuario-docente" className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 mb-1.5 pl-1">
+                          Ficha de docente
+                          {!docenteEditable && <CandadoIcon className="w-3 h-3 text-slate-400" />}
+                        </label>
+                        <FiltroDesplegable
+                          id="editar-usuario-docente"
+                          value={formData.docente}
+                          onChange={(valor) => handleChange({ target: { name: 'docente', value: valor } })}
+                          options={docentes.map((docente) => ({ value: docente.id, label: obtenerNombreCompletoDocente(docente) }))}
+                          placeholder={tieneDocenteVinculado ? nombreDocenteVinculado : (docenteEditable ? 'Seleccione un docente' : 'Sin ficha de docente')}
+                          ariaLabel="Ficha de docente"
+                          emptyText="No hay docentes que coincidan"
+                          permitirQuitar={false}
+                          invalido={Boolean(textoErrorDocente)}
+                          disabled={!docenteEditable}
+                        />
+                        {textoErrorDocente
+                          ? <NotaUsuario tipo="error">{textoErrorDocente}</NotaUsuario>
+                          : <NotaUsuario>{notaDocente}</NotaUsuario>}
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="block text-xs font-semibold text-slate-700 mb-1.5 pl-1">Roles</span>
+                      <div className={brincoRoles ? ERROR_MOTION_CLASS : ''}>
+                        <SelectorRoles
+                          roles={rolesDisponiblesModal}
+                          asignados={rolesAsignadosLista.map((item) => item.rol)}
+                          onAlternar={alternarRol}
+                          invalido={Boolean(errorBajoLista)}
+                        />
+                      </div>
+                      {errorBajoLista
+                        ? <NotaUsuario tipo="error">{errorBajoLista}</NotaUsuario>
+                        : <NotaUsuario>Máximo 2 roles y un solo cargo (Director, Jefe de Estudios o Instituto).</NotaUsuario>}
+                    </div>
+
+                    {designaJefeNuevo && (
+                      <CampoResolucionJefe
+                        archivo={resolucionJefe}
+                        error={errors.resolucion_jefe}
+                        onChange={(archivo) => {
+                          setResolucionJefe(archivo);
+                          setErrors((prev) => ({ ...prev, resolucion_jefe: null }));
+                        }}
+                      />
+                    )}
+                  </>
+                )}
+              </SeccionUsuario>
+
+              <SeccionUsuario titulo="Contraseña">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm text-slate-700">
+                      Contraseña inicial: <span className="font-semibold text-slate-900">{passwordPorDefecto}</span>
+                    </p>
+                    <NotaUsuario>Al restablecerla, el usuario entra con esta contraseña y debe cambiarla.</NotaUsuario>
+                  </div>
+                  {puedeRestablecerPassword && (
+                    <button
+                      type="button"
+                      onClick={() => setShowResetConfirm(true)}
+                      disabled={loading}
+                      className={`${BOTON} flex-shrink-0 px-5 py-2.5 bg-white text-slate-700 ring-1 ring-inset ring-azulado-300 hover:bg-azulado-100 disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      Restablecer contraseña
+                    </button>
+                  )}
+                </div>
+              </SeccionUsuario>
             </div>
 
             <div className="px-5 sm:px-6 py-4 flex flex-col-reverse sm:flex-row justify-end gap-2 [border-top:1px_solid_#B8C9E1]">
@@ -664,7 +651,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
                 type="button"
                 onClick={onClose}
                 disabled={loading}
-                className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200 disabled:opacity-50`}
+                className={`${BOTON} px-5 py-2.5 bg-white text-slate-700 ring-1 ring-inset ring-azulado-300 hover:bg-azulado-100 disabled:opacity-50`}
               >
                 Cancelar
               </button>
@@ -681,40 +668,14 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
       </div>
 
       {showResetConfirm && (
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-blue-950/30 backdrop-blur-sm"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !resettingPassword) setShowResetConfirm(false);
-          }}
-        >
-          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '160ms' }}>
-            <div className="px-6 pt-6">
-              <h4 className="text-xl font-bold text-blue-900">Restablecer contraseña</h4>
-              <p className="mt-1 text-sm text-slate-600">
-                La contraseña de <strong className="text-slate-900">{userToEdit.username}</strong> volverá a ser{' '}
-                <strong className="font-mono text-slate-900">{userToEdit.username}UABJB</strong> y deberá cambiarla al iniciar sesión.
-              </p>
-            </div>
-            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 py-6">
-              <button
-                type="button"
-                onClick={() => setShowResetConfirm(false)}
-                disabled={resettingPassword}
-                className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200 disabled:opacity-50`}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleResetearPassword}
-                disabled={resettingPassword}
-                className={`${BOTON} px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                {resettingPassword ? 'Restableciendo...' : 'Restablecer'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ModalConfirmar
+          titulo="Restablecer contraseña"
+          mensaje={<>La contraseña de <strong className="text-slate-900">{userToEdit.username}</strong> volverá a ser <strong className="text-slate-900">{passwordPorDefecto}</strong> y deberá cambiarla al iniciar sesión.</>}
+          textoAccion="Restablecer"
+          textoTrabajando="Restableciendo..."
+          onConfirmar={handleResetearPassword}
+          onCancelar={() => setShowResetConfirm(false)}
+        />
       )}
     </div>,
     document.body

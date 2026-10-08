@@ -6,11 +6,11 @@ import api, { getCarreras, getDocentes, obtenerTodos } from '../apis/api';
 import ModalUsuario from './ModalUsuario';
 import { EVENTO_FOTO_PERFIL_ACTUALIZADA } from './ProfilePicture';
 import {
-  MAX_ASIGNACIONES_TOTAL, MENSAJE_AUTORIDAD_UNICA, MENSAJE_DUPLICADO, MENSAJE_RESOLUCION_JEFE,
+  MENSAJE_AUTORIDAD_UNICA, MENSAJE_DUPLICADO, MENSAJE_RESOLUCION_JEFE,
   ROLES_MANDO_UABJB, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf, motivoNoAsignarRol, textoErroresUsuario,
 } from '../utils/asignacionesUsuario';
-import CampoUsuario, { MensajeAnimado } from './usuarios/CampoUsuario';
-import ListaTransferenciaRoles from './usuarios/ListaTransferenciaRoles';
+import CampoUsuario from './usuarios/CampoUsuario';
+import { NotaUsuario, SeccionUsuario, SelectorRoles } from './usuarios/PiezasFormularioUsuario';
 import SelectorCarreraUsuario from './usuarios/SelectorCarreraUsuario';
 import { useActiveRole } from '../contexts/activeRole';
 import CampoResolucionJefe from './common/CampoResolucionJefe';
@@ -26,7 +26,7 @@ import { paginar } from '../utils/paginacion';
 import { BLOQUE, BOTON, BOTON_CHICO } from './fondos/estilosFondo';
 import toast from 'react-hot-toast';
 import {
-  ERROR_FIELD_BORDER_CLASS,
+  ERROR_MOTION_CLASS,
   ERROR_SHAKE_DURATION_MS,
   sanitizeApiErrors,
   getBackendErrorMessage,
@@ -150,8 +150,6 @@ function GestionUsuarios({ user: usuarioSesion }) {
   const [formData, setFormData] = useState({});
   const [resolucionJefe, setResolucionJefe] = useState(null);
   const [asignacionesExtra, setAsignacionesExtra] = useState([]);
-  const [selectedRoleLeft, setSelectedRoleLeft] = useState(null);
-  const [selectedRoleRight, setSelectedRoleRight] = useState(null);
   const lastToastRef = useRef({});
   const TOAST_DEBOUNCE_MS = 1500;
   const showToastOnce = (msg) => {
@@ -183,7 +181,7 @@ function GestionUsuarios({ user: usuarioSesion }) {
   const [errors, setErrors] = useState({});
   const [errorPulse, setErrorPulse] = useState({});
 
-  // Pulse visual para el panel izquierdo (Roles disponibles)
+  // Brinco de los roles ante un error de rol
   // Debe declararse DESPUÉS de `errors` y `errorPulse` (temporal dead zone)
   const [leftPanelPulsing, setLeftPanelPulsing] = useState(false);
   useEffect(() => {
@@ -200,7 +198,7 @@ function GestionUsuarios({ user: usuarioSesion }) {
     };
   }, [errors?.rol, errorPulse.rol]);
 
-  // Pulse visual para el panel derecho (Roles asignados) ante un error de las asignaciones.
+  // Brinco de los roles ante un error de las asignaciones.
   const [rightPanelPulsing, setRightPanelPulsing] = useState(false);
   useEffect(() => {
     if (!errors?.asignaciones) {
@@ -689,8 +687,6 @@ const initialData = {
     ...asignacionesExtra,
   ].filter((item) => String(item.rol || '').trim());
 
-  // Catálogo maestro permanente: la tabla izquierda SIEMPRE muestra todos los roles;
-  // los ya asignados llevan la marca "Asignado".
   const rolesDisponiblesLista = roles;
 
   // Todos los roles del usuario van en su única carrera (la de su contrato).
@@ -699,11 +695,10 @@ const initialData = {
     setErrors((prev) => ({ ...prev, rol: null, asignaciones: null }));
 
     const motivo = motivoNoAsignarRol(rolValue, rolesAsignadosLista);
+    // Las reglas de los roles se avisan bajo los botones, sin toast.
     if (motivo) {
-      toast.error(motivo);
       setErrors((prev) => ({ ...prev, rol: [motivo] }));
       pulseFieldErrors(['rol']);
-      setSelectedRoleLeft(null);
       return;
     }
 
@@ -712,7 +707,6 @@ const initialData = {
     } else {
       setAsignacionesExtra([{ rol: rolValue, carrera: formData.carrera || carreraPropiaEditor }]);
     }
-    setSelectedRoleLeft(null);
   };
 
   const moverRolIzquierda = (index) => {
@@ -727,7 +721,13 @@ const initialData = {
     } else {
       setAsignacionesExtra([]);
     }
-    setSelectedRoleRight(null);
+  };
+
+  // Clic en un rol: si ya lo tiene, se quita; si no, se agrega.
+  const alternarRol = (rolValue) => {
+    const indice = rolesAsignadosLista.findIndex((item) => item.rol === rolValue);
+    if (indice >= 0) moverRolIzquierda(indice);
+    else moverRolDerecha(rolValue);
   };
 
   // La carrera es del usuario: se aplica a todos sus roles.
@@ -1014,9 +1014,17 @@ const initialData = {
             ? errors.first_name
             : (typeof errors?.last_name === 'string' ? errors.last_name : null)))));
 
-  const obtenerRolLabel = (rolValue) => roles.find((item) => item.value === rolValue)?.label || rolValue || 'Sin rol';
 
-  // Errores de los roles (y de la carrera si no hay selector) como texto bajo la lista.
+  const cancelarCreacion = () => {
+    setIsCreating(false);
+    setVinculacionRapidaDocente(false);
+    if (volverANuevoDocente) {
+      sessionStorage.setItem('abrirModalNuevoDocente', 'true');
+      navigate('/fondo-tiempo/docentes');
+    }
+  };
+
+  // Errores de los roles (y de la carrera si no hay selector) como texto bajo los roles.
   const textoDeError = (error) => (Array.isArray(error) ? (error[0] || '') : (typeof error === 'string' ? error : ''));
   const errorBajoListaCreacion = textoDeError(errors?.rol)
     || textoDeError(errors?.asignaciones)
@@ -1419,20 +1427,35 @@ const initialData = {
 
       {/* MODAL DE CREACIÓN DE USUARIO */}
       {isCreating && createPortal((
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-blue-950/30 backdrop-blur-sm animate-fade-in" style={{ animationDuration: '160ms' }}>
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-blue-950/30 backdrop-blur-sm">
           <div className="min-h-full flex items-center justify-center p-3 sm:p-6">
-            <div className="w-full max-w-5xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '180ms' }}>
-              <div className="px-5 sm:px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
-                <h2 className="text-xl font-bold text-blue-900">Nuevo Usuario</h2>
-                <p className="mt-0.5 text-sm text-slate-600">Cuenta de acceso, roles y carrera del usuario.</p>
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="nuevo-usuario-titulo"
+              className="w-full max-w-3xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up"
+              style={{ animationDuration: '180ms' }}
+            >
+              <div className="flex items-start justify-between gap-4 px-5 sm:px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
+                <div className="min-w-0">
+                  <h2 id="nuevo-usuario-titulo" className="text-xl font-bold text-blue-900">Nuevo usuario</h2>
+                  <p className="mt-0.5 text-sm text-slate-600">Cuenta de acceso, carrera y roles del usuario.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={cancelarCreacion}
+                  aria-label="Cerrar"
+                  className="flex-shrink-0 rounded-full p-2 -mr-2 text-slate-500 hover:text-blue-900 hover:bg-azulado-200 transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
               </div>
 
               <form onSubmit={handleSubmit} noValidate>
-                <div className="p-4 sm:p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Fila 1: Usuario - Nombre completo */}
-                    <CampoUsuario label="Usuario" name="username" value={formData.username || ''} onChange={handleChange} clearError={clearFieldError} error={errors.username} required pulse={errorPulse.username || 0} />
-                    {mostrarNombreCompletoCreacion ? (
+                <div className="divide-y divide-azulado-200">
+                  <SeccionUsuario titulo="Cuenta">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4">
+                      <CampoUsuario label="Usuario" name="username" value={formData.username || ''} onChange={handleChange} clearError={clearFieldError} error={errors.username} required pulse={errorPulse.username || 0} />
                       <CampoUsuario
                         label="Nombre completo"
                         name="nombre_completo"
@@ -1443,95 +1466,19 @@ const initialData = {
                         required
                         pulse={errorPulse.nombre_completo || errorPulse.first_name || errorPulse.last_name || 0}
                       />
-                    ) : (
-                      <div />
-                    )}
-
-                    <div className="md:col-span-2 rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-3 text-sm text-amber-900">
-                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                        <span className="font-semibold">Contraseña por defecto</span>
-                        <span className="font-mono font-semibold tracking-wide" aria-live="polite">
-                          {formData.username ? `${formData.username}UABJB` : 'usuarioUABJB'}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-amber-800">
-                        El usuario deberá cambiarla al iniciar sesión.
-                      </p>
-                    </div>
-
-                    {/* Carrera del usuario (una sola para todos sus roles) y lista de roles */}
-                    <div className="md:col-span-2 space-y-3">
-                      {esSuperuserActual && (
-                        <div className="md:w-1/2 md:pr-2">
-                          <SelectorCarreraUsuario
-                            id="usuario-carrera"
-                            value={formData.carrera}
-                            onChange={cambiarCarreraUsuario}
-                            carreras={carrerasGestionables}
-                            error={errors.carrera}
-                          />
-                        </div>
-                      )}
-                      <ListaTransferenciaRoles
-                        roles={rolesDisponiblesLista}
-                        asignados={rolesAsignadosLista}
-                        seleccionIzquierda={selectedRoleLeft}
-                        onSeleccionarIzquierda={(valor) => {
-                          setSelectedRoleLeft(valor);
-                          setErrors((prev) => prev?.rol ? { ...prev, rol: null } : prev);
-                        }}
-                        seleccionDerecha={selectedRoleRight}
-                        onSeleccionarDerecha={setSelectedRoleRight}
-                        onMoverDerecha={moverRolDerecha}
-                        onMoverIzquierda={moverRolIzquierda}
-                        bloquearAsignar={vinculacionRapidaDocente || rolesAsignadosLista.length >= MAX_ASIGNACIONES_TOTAL}
-                        bloquearQuitar={vinculacionRapidaDocente}
-                        errorIzquierda={Boolean(errors?.rol)}
-                        errorDerecha={Boolean(errors?.asignaciones || errors?.rol)}
-                        pulsoIzquierda={leftPanelPulsing}
-                        pulsoDerecha={rightPanelPulsing}
-                        etiquetaRol={obtenerRolLabel}
+                      <CampoUsuario
+                        label="Correo institucional"
+                        name="email"
+                        type="text"
+                        value={formData.email || ''}
+                        onChange={handleChange}
+                        clearError={clearFieldError}
+                        error={errors.email}
+                        required
+                        pulse={errorPulse.email || 0}
+                        autoComplete="email"
+                        inputMode="email"
                       />
-                      <MensajeAnimado
-                        show={Boolean(errorBajoListaCreacion)}
-                        message={errorBajoListaCreacion}
-                        wrapperClassName="pl-1"
-                        messageClassName="text-xs text-red-600"
-                      />
-                      <p className="pl-1 text-xs text-slate-600">
-                        {esSuperuserActual
-                          ? 'Todos los roles del usuario son de su carrera (ej. Director + Docente de la misma carrera). Máximo 2 asignaciones.'
-                          : 'Todos los roles del usuario son de tu carrera: se asigna sola. Máximo 2 asignaciones.'}
-                      </p>
-                      {[formData.rol, ...asignacionesExtra.map((item) => item.rol)].includes('jefe_estudios') && (
-                        <CampoResolucionJefe
-                          className="mt-3"
-                          archivo={resolucionJefe}
-                          error={errors.resolucion_jefe}
-                          onChange={(archivo) => {
-                            setResolucionJefe(archivo);
-                            setErrors((prev) => ({ ...prev, resolucion_jefe: null }));
-                          }}
-                        />
-                      )}
-                    </div>
-
-                    {/* Fila 3: Correo institucional - C.I. */}
-                    <CampoUsuario
-                      label="Correo institucional"
-                      name="email"
-                      type="text"
-                      value={formData.email || ''}
-                      onChange={handleChange}
-                      clearError={clearFieldError}
-                      error={errors.email}
-                      required
-                      pulse={errorPulse.email || 0}
-                      autoComplete="email"
-                      inputMode="email"
-                    />
-
-                    {mostrarCiCreacion ? (
                       <CampoUsuario
                         label="C.I."
                         name="ci"
@@ -1543,24 +1490,63 @@ const initialData = {
                         pulse={errorPulse.ci || 0}
                         maxLength={15}
                       />
-                    ) : (
-                      <div />
+                    </div>
+                  </SeccionUsuario>
+
+                  <SeccionUsuario titulo="Carrera y roles">
+                    <SelectorCarreraUsuario
+                      id="usuario-carrera"
+                      value={formData.carrera || carreraPropiaEditor}
+                      onChange={cambiarCarreraUsuario}
+                      carreras={carrerasGestionables}
+                      error={esSuperuserActual ? errors.carrera : null}
+                      deshabilitado={!esSuperuserActual}
+                      nota={esSuperuserActual ? 'Todos los roles del usuario van en esta carrera.' : 'Es tu carrera: se asigna sola.'}
+                    />
+
+                    <div>
+                      <span className="block text-xs font-semibold text-slate-700 mb-1.5 pl-1">Roles</span>
+                      <div className={leftPanelPulsing || rightPanelPulsing ? ERROR_MOTION_CLASS : ''}>
+                        <SelectorRoles
+                          roles={rolesDisponiblesLista}
+                          asignados={rolesAsignadosLista.map((item) => item.rol)}
+                          onAlternar={alternarRol}
+                          invalido={Boolean(errorBajoListaCreacion)}
+                          deshabilitado={vinculacionRapidaDocente}
+                        />
+                      </div>
+                      {errorBajoListaCreacion
+                        ? <NotaUsuario tipo="error">{errorBajoListaCreacion}</NotaUsuario>
+                        : <NotaUsuario>Máximo 2 roles y un solo cargo (Director, Jefe de Estudios o Instituto).</NotaUsuario>}
+                    </div>
+
+                    {[formData.rol, ...asignacionesExtra.map((item) => item.rol)].includes('jefe_estudios') && (
+                      <CampoResolucionJefe
+                        archivo={resolucionJefe}
+                        error={errors.resolucion_jefe}
+                        onChange={(archivo) => {
+                          setResolucionJefe(archivo);
+                          setErrors((prev) => ({ ...prev, resolucion_jefe: null }));
+                        }}
+                      />
                     )}
-                  </div>
+                  </SeccionUsuario>
+
+                  <SeccionUsuario titulo="Contraseña">
+                    <div>
+                      <p className="text-sm text-slate-700" aria-live="polite">
+                        Contraseña inicial: <span className="font-semibold text-slate-900">{formData.username ? `${formData.username}UABJB` : 'usuarioUABJB'}</span>
+                      </p>
+                      <NotaUsuario>El usuario deberá cambiarla al iniciar sesión.</NotaUsuario>
+                    </div>
+                  </SeccionUsuario>
                 </div>
 
                 <div className="px-5 sm:px-6 py-4 flex flex-col-reverse sm:flex-row justify-end gap-2 [border-top:1px_solid_#B8C9E1]">
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsCreating(false);
-                      setVinculacionRapidaDocente(false);
-                      if (volverANuevoDocente) {
-                        sessionStorage.setItem('abrirModalNuevoDocente', 'true');
-                        navigate('/fondo-tiempo/docentes');
-                      }
-                    }}
-                    className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200`}
+                    onClick={cancelarCreacion}
+                    className={`${BOTON} px-5 py-2.5 bg-white text-slate-700 ring-1 ring-inset ring-azulado-300 hover:bg-azulado-100`}
                   >
                     {volverANuevoDocente ? 'Cancelar y volver' : 'Cancelar'}
                   </button>

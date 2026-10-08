@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ERROR_MOTION_CLASS, ERROR_SHAKE_DURATION_MS } from '../../utils/formErrors';
+import { CandadoIcon } from './PiezasFormularioUsuario';
 
 // Mensaje bajo un campo que aparece y desaparece deslizándose.
 export const MensajeAnimado = ({ show, message, wrapperClassName = '', messageClassName = '' }) => {
@@ -66,7 +67,10 @@ const CampoUsuario = ({ idPrefijo = 'usuario', label, name, type = 'text', value
 
   return (
     <div className={error && isPulsing ? ERROR_MOTION_CLASS : ''}>
-      <label htmlFor={`${idPrefijo}-${name}`} className="block text-xs font-semibold text-slate-700 mb-1.5 pl-1">{label}</label>
+      <label htmlFor={`${idPrefijo}-${name}`} className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 mb-1.5 pl-1">
+        {label}
+        {disabled && <CandadoIcon className="w-3 h-3 text-slate-400" />}
+      </label>
       <input
         id={`${idPrefijo}-${name}`}
         type={type}
@@ -79,7 +83,7 @@ const CampoUsuario = ({ idPrefijo = 'usuario', label, name, type = 'text', value
         placeholder={required ? '' : ' '}
         {...rest}
         className={`w-full h-11 px-4 rounded-full text-sm placeholder:text-slate-500 outline-none ring-inset ${
-          disabled ? '!bg-azulado-200/60 text-slate-500 cursor-not-allowed' : '!bg-azulado-100 text-slate-800'
+          disabled ? '!bg-slate-100 text-slate-500 cursor-not-allowed' : '!bg-azulado-100 text-slate-800'
         } ${error ? 'ring-2 ring-red-500' : 'ring-1 ring-azulado-300 focus:ring-2 focus:ring-blue-900/40'}`}
       />
       <MensajeAnimado

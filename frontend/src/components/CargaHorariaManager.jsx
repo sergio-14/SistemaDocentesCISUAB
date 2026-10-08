@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import api, { obtenerTodos } from '../apis/api';
 import toast from 'react-hot-toast';
-import { ERROR_FIELD_BORDER_CLASS, getApiErrorMessage } from '../utils/formErrors';
+import { ERROR_FIELD_BORDER_CLASS, ERROR_MOTION_CLASS, ERROR_SHAKE_DURATION_MS, getApiErrorMessage } from '../utils/formErrors';
 import MensajeErrorCampo from './common/MensajeErrorCampo';
 import SelectorRueda from './common/SelectorRueda';
 
@@ -727,6 +727,41 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
             && String(carga.materia || carga.materia_id || '') === String(formData.materia || '')
             && carga.paralelo === formData.paralelo;
     });
+    const mensajeDuplicado = esClaseAula
+        ? 'Esa materia ya está asignada en ese calendario y paralelo.'
+        : 'Esa actividad ya está registrada en el Fondo de Tiempo.';
+
+    // Duplicado: el mensaje aparece (el bloque crece con animación y el mensaje rebota) y
+    // sale el toast de error. A los 4 s, o con un clic en cualquier lado, se cierra el
+    // toast y se vacía lo que choca (la materia de la clase o la actividad), así el
+    // mensaje se pliega solo.
+    const [brincoDuplicado, setBrincoDuplicado] = useState(false);
+    const limpiarDuplicadoRef = useRef(null);
+    limpiarDuplicadoRef.current = () => {
+        toast.dismiss('carga-duplicada');
+        setFormData((prev) => (esClaseAula
+            ? { ...prev, materia: '', titulo_actividad: '', horas: '' }
+            : { ...prev, tipo_actividad: '' }));
+    };
+    useEffect(() => {
+        if (!duplicadoTipoSeleccionado) return undefined;
+        toast.error(mensajeDuplicado, { id: 'carga-duplicada' });
+        setBrincoDuplicado(false);
+        const cuadro = requestAnimationFrame(() => setBrincoDuplicado(true));
+        const finBrinco = setTimeout(() => setBrincoDuplicado(false), ERROR_SHAKE_DURATION_MS);
+        const limpiar = () => limpiarDuplicadoRef.current?.();
+        const vence = setTimeout(limpiar, 4000);
+        // Después del clic que eligió la opción: ese clic no debe limpiar.
+        const escuchar = setTimeout(() => document.addEventListener('pointerdown', limpiar), 0);
+        return () => {
+            cancelAnimationFrame(cuadro);
+            clearTimeout(finBrinco);
+            clearTimeout(vence);
+            clearTimeout(escuchar);
+            document.removeEventListener('pointerdown', limpiar);
+        };
+    }, [duplicadoTipoSeleccionado, mensajeDuplicado]);
+
     // Sin la validación nativa (noValidate): entero mayor a 0, con mensaje bajo el campo.
     const horasInvalidas = String(formData.horas ?? '') !== ''
         && (!Number.isInteger(Number(formData.horas)) || Number(formData.horas) < 1);
@@ -754,13 +789,17 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
 
     return (
         <div className="space-y-4">
-            {duplicadoTipoSeleccionado && (
-                <div className="animate-campo-entrada rounded-2xl bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700">
-                    {esClaseAula
-                        ? 'Esa materia ya está asignada en ese calendario y paralelo.'
-                        : 'Esa actividad ya está registrada en el Fondo de Tiempo.'}
+            {/* Siempre montado para que el bloque crezca y se pliegue con animación; el
+                -mb-4 compensa el espacio entre bloques cuando está plegado. */}
+            <div className={`form-reveal-wrap -mb-4 ${duplicadoTipoSeleccionado ? 'is-open' : ''}`} aria-hidden={!duplicadoTipoSeleccionado}>
+                <div>
+                    <div className="pb-4">
+                        <div className={`rounded-2xl bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 ${brincoDuplicado ? ERROR_MOTION_CLASS : ''}`}>
+                            {mensajeDuplicado}
+                        </div>
+                    </div>
                 </div>
-            )}
+            </div>
 
             <form onSubmit={handleSubmit} noValidate className="space-y-4">
                 <div>

@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { FaEdit, FaTrash } from 'react-icons/fa';
 import api, { getCarreras, getDocentes, obtenerTodos } from '../apis/api';
 import ModalUsuario from './ModalUsuario';
+import { EVENTO_FOTO_PERFIL_ACTUALIZADA } from './ProfilePicture';
 import { MENSAJE_RESOLUCION_JEFE, MENSAJE_UNA_SOLA_CARRERA, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf } from '../utils/asignacionesUsuario';
 import { useActiveRole } from '../contexts/activeRole';
 import CampoResolucionJefe from './common/CampoResolucionJefe';
@@ -16,7 +17,6 @@ import Paginacion from './common/Paginacion';
 import SelectorVista from './common/SelectorVista';
 import { paginar } from '../utils/paginacion';
 import { BLOQUE, BOTON, BOTON_CHICO } from './fondos/estilosFondo';
-import { Avatar } from './fondos/ElementosFondo';
 import toast from 'react-hot-toast';
 import {
   ERROR_MOTION_CLASS,
@@ -80,6 +80,15 @@ const MasIcon = (props) => (
   </svg>
 );
 
+// Usuario sin foto propia: círculo gris claro con la silueta, como una cuenta sin foto.
+const SiluetaUsuario = ({ className = '' }) => (
+  <svg viewBox="0 0 40 40" aria-hidden="true" className={`rounded-full ${className}`}>
+    <circle cx="20" cy="20" r="19.5" fill="#E2E8F0" stroke="#CBD5E1" />
+    <circle cx="20" cy="15.5" r="6" fill="#94A3B8" />
+    <path d="M9.5 31.5v-1.5a10.5 9.5 0 0 1 21 0v1.5z" fill="#94A3B8" />
+  </svg>
+);
+
 const VISTA_USUARIOS_KEY = 'usuarios_vista';
 
 const MENSAJE_DUPLICADO = 'Esta combinación de Rol y Carrera ya se encuentra asignada.';
@@ -97,6 +106,7 @@ const ROL_LABELS = {
   docente: 'Docente',
 };
 
+const CHIP_ESTADO = 'inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded-md text-xs font-medium ring-1 ring-inset';
 const CHIP_ROL = 'inline-flex items-center whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset';
 const ROL_STYLES = {
   iiisyp: 'bg-sky-50 text-sky-800 ring-sky-200',
@@ -345,7 +355,6 @@ function GestionUsuarios({ user: usuarioSesion }) {
 
   const [showToggleModal, setShowToggleModal] = useState(false);
   const [usuarioToToggle, setUsuarioToToggle] = useState(null);
-  const [usuarioDetalle, setUsuarioDetalle] = useState(null);
   const [showOnlyOrphans, setShowOnlyOrphans] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCarrera, setSelectedCarrera] = useState('');
@@ -590,6 +599,17 @@ function GestionUsuarios({ user: usuarioSesion }) {
     cargarDatosRef.current();
   }, [user?.id, user?.perfil?.rol, user?.perfil?.carrera]);
 
+  // Si alguien cambia o quita su foto con la página abierta, la lista se actualiza.
+  useEffect(() => {
+    const recargarUsuarios = () => {
+      obtenerTodos('/usuarios/')
+        .then(setUsuarios)
+        .catch((err) => console.error('Error al recargar usuarios:', err));
+    };
+    window.addEventListener(EVENTO_FOTO_PERFIL_ACTUALIZADA, recargarUsuarios);
+    return () => window.removeEventListener(EVENTO_FOTO_PERFIL_ACTUALIZADA, recargarUsuarios);
+  }, []);
+
   const docentesPorId = new Map(docentes.map((docente) => [String(docente.id), docente]));
   const usuarioTieneDocenteInactivo = (usuario) => {
     if (!usuarioTieneRolDocente(usuario)) return false;
@@ -706,26 +726,6 @@ const initialData = {
     setUsuarioEditando(usuario);
     setShowModal(true);
     setIsCreating(false); // Hide create form if it was open
-  };
-
-  const abrirDetalleUsuario = (usuario) => {
-    setUsuarioDetalle(usuario);
-  };
-
-  const cerrarDetalleUsuario = () => setUsuarioDetalle(null);
-
-  const editarDesdeDetalle = () => {
-    if (!usuarioDetalle || !puedeEditarUsuario(usuarioDetalle)) return;
-    const usuario = usuarioDetalle;
-    cerrarDetalleUsuario();
-    abrirModalEditar(usuario);
-  };
-
-  const eliminarDesdeDetalle = () => {
-    if (!puedeEliminarUsuario(usuarioDetalle)) return;
-    const usuario = usuarioDetalle;
-    cerrarDetalleUsuario();
-    handleEliminar(usuario);
   };
 
   const handleToggleActivo = (usuario) => {
@@ -1398,43 +1398,12 @@ const initialData = {
   const obtenerNombreUsuario = (usuario) => ((usuario?.first_name || usuario?.last_name)
     ? `${(usuario.first_name || '').trim()} ${(usuario.last_name || '').trim()}`.trim()
     : (usuario?.nombre_completo || '-'));
-  const obtenerEstadoUsuario = (usuario) => {
-    if (!usuario) return '-';
-    if (usuario.is_superuser) return 'Protegido';
-    return usuario.is_active ? 'Activo' : 'Inactivo';
-  };
-  const obtenerTextoCarrerasDetalleUsuario = (usuario) => {
-    if (!usuario) return 'Sin carrera';
-
-    const nombres = [];
-    const agregarCarrera = (nombre, id, codigo) => {
-      const carreraCatalogo = id
-        ? carreras.find((carrera) => String(carrera.id) === String(id))
-        : carreras.find((carrera) => String(carrera.codigo) === String(codigo));
-      const texto = String(nombre || carreraCatalogo?.nombre || codigo || '').trim();
-      if (texto) nombres.push(texto);
-    };
-
-    agregarCarrera(
-      usuario?.perfil?.carrera_nombre || usuario?.perfil?.carrera?.nombre,
-      usuario?.perfil?.carrera,
-      usuario?.perfil?.carrera?.codigo || usuario?.carrera_codigo
-    );
-
-    if (Array.isArray(usuario.asignaciones)) {
-      usuario.asignaciones
-        .filter((item) => item?.activo !== false)
-        .forEach((item) => {
-          agregarCarrera(item?.carrera_nombre, item?.carrera, item?.carrera_codigo);
-        });
-    }
-
-    const carrerasUnicas = [...new Set(nombres)];
-    return carrerasUnicas.length > 0 ? carrerasUnicas.join(' / ') : 'Sin carrera';
-  };
-
-  // --- Piezas comunes de las vistas de tarjetas, lista y detalle ---
-  const totalActivosUsuarios = usuarios.filter((usuario) => usuario.is_active !== false).length;
+  // --- Piezas comunes de las vistas de tarjetas y lista ---
+  // El contador sigue a la carrera elegida (solo el superusuario puede elegirla).
+  const usuariosCarrera = selectedCarrera
+    ? usuarios.filter((usuario) => obtenerCarreraIdsUsuario(usuario).includes(String(selectedCarrera)))
+    : usuarios;
+  const totalActivosUsuarios = usuariosCarrera.filter((usuario) => usuario.is_active !== false).length;
   const nombreCarreraFiltro = carrerasGestionables.find((carrera) => String(carrera.id) === String(selectedCarrera))?.nombre;
   const { paginaActual, totalPaginas, itemsPagina: usuariosPagina } = paginar(usuariosFiltrados, pagina, vista);
   const irAPagina = (nuevaPagina) => {
@@ -1443,11 +1412,13 @@ const initialData = {
   };
   const claveVista = `${selectedCarrera}-${searchTerm}-${showOnlyOrphans}-${paginaActual}`;
 
+  // Solo la foto que el usuario se puso; sin ella (el backend manda el logo de la
+  // carrera en su lugar), la silueta gris de cuenta sin foto.
   const fotoUsuario = (usuario, tamano) => (
-    usuario?.perfil?.foto_perfil ? (
+    usuario?.perfil?.foto_perfil && usuario.perfil.foto_perfil_es_propia ? (
       <img src={usuario.perfil.foto_perfil} alt="" className={`${tamano} rounded-full object-cover flex-shrink-0`} />
     ) : (
-      <Avatar nombre={obtenerNombreUsuario(usuario) || usuario?.username} size={tamano} />
+      <SiluetaUsuario className={`${tamano} flex-shrink-0`} />
     )
   );
 
@@ -1477,7 +1448,7 @@ const initialData = {
     usuario.is_superuser ? (
       <span className="text-xs font-semibold text-amber-700">Protegido</span>
     ) : (
-      <span className="flex items-center gap-2.5" onClick={(event) => event.stopPropagation()}>
+      <span className="flex items-center gap-2.5">
         <Interruptor
           chico
           isActive={usuario.is_active}
@@ -1497,7 +1468,7 @@ const initialData = {
     const bloqueado = !puedeEditarUsuario(usuario);
     const puedeBorrar = puedeEliminarUsuario(usuario);
     return (
-      <div className="flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
+      <div className="flex flex-wrap gap-2">
         <button data-escritura
           type="button"
           onClick={() => !bloqueado && abrirModalEditar(usuario)}
@@ -1524,17 +1495,31 @@ const initialData = {
     );
   };
 
-  const abrirConTeclado = (usuario) => (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      abrirDetalleUsuario(usuario);
-    }
-  };
-
   // La carrera solo la ve el superusuario; el Director solo gestiona usuarios de la suya.
+  // Anchos fijos para C.I., Carrera, Estado y Acciones, así el encabezado y las filas
+  // quedan alineados; el espacio que sobra se lo reparten Usuario y Rol.
   const columnasLista = esSuperuserActual
-    ? 'xl:grid-cols-[minmax(0,2fr)_7rem_minmax(0,1.2fr)_minmax(0,1.6fr)_8rem_12rem]'
-    : 'xl:grid-cols-[minmax(0,2fr)_7rem_minmax(0,1.8fr)_8rem_12rem]';
+    ? 'xl:grid-cols-[minmax(0,1.4fr)_7rem_8rem_minmax(0,1.2fr)_10rem_12rem]'
+    : 'xl:grid-cols-[minmax(0,1.4fr)_7rem_minmax(0,1.2fr)_10rem_12rem]';
+
+  const estadoFilaLista = (usuario) => (
+    usuario.is_superuser ? (
+      <span className={`${CHIP_ESTADO} bg-amber-50 text-amber-700 ring-amber-300`}>Protegido</span>
+    ) : (
+      <span className="flex items-center gap-2.5">
+        <Interruptor
+          chico
+          isActive={usuario.is_active}
+          disabled={!puedeCambiarEstadoUsuario(usuario)}
+          onChange={() => puedeCambiarEstadoUsuario(usuario) && handleToggleActivo(usuario)}
+          etiqueta={usuario.is_active ? 'Desactivar usuario' : 'Activar usuario'}
+        />
+        <span className={`${CHIP_ESTADO} ${usuario.is_active ? 'bg-emerald-50 text-emerald-700 ring-emerald-300' : 'bg-red-50 text-red-700 ring-red-300'}`}>
+          {usuario.is_active ? 'Activo' : 'Inactivo'}
+        </span>
+      </span>
+    )
+  );
 
   return (
     <div className="min-h-screen bg-azulado-100 text-slate-800">
@@ -1578,7 +1563,7 @@ const initialData = {
                 )}
               </div>
               <span className="text-5xl font-bold tabular-nums leading-none">
-                <NumeroAnimado valor={usuarios.length} />
+                <NumeroAnimado valor={usuariosCarrera.length} />
               </span>
             </div>
             <div className="flex flex-wrap gap-2 text-xs">
@@ -1588,7 +1573,7 @@ const initialData = {
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
                 <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
-                <NumeroAnimado valor={usuarios.length - totalActivosUsuarios} singular="inactivo" plural="inactivos" />
+                <NumeroAnimado valor={usuariosCarrera.length - totalActivosUsuarios} singular="inactivo" plural="inactivos" />
               </span>
             </div>
           </div>
@@ -1626,8 +1611,8 @@ const initialData = {
         {usuariosFiltrados.length > 0 ? (
           vista === 'lista' ? (
             // Cuadrícula en vez de <table>: el CSS del módulo POA da estilo a todas las tablas.
-            <div key={`lista-${claveVista}`} className={`${BLOQUE} p-2 sm:p-3`}>
-              <div className={`hidden xl:grid ${columnasLista} gap-4 px-3 pt-3 pb-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 [border-bottom:1px_solid_#B8C9E1]`}>
+            <div key={`lista-${claveVista}`} className={`${BLOQUE} overflow-hidden`}>
+              <div className={`hidden xl:grid ${columnasLista} items-center gap-6 px-5 py-3 bg-azulado-100 text-xs font-medium text-slate-500 [border-bottom:1px_solid_#B8C9E1]`}>
                 <span>Usuario</span>
                 <span>C.I.</span>
                 {esSuperuserActual && <span>Carrera</span>}
@@ -1641,31 +1626,27 @@ const initialData = {
                   return (
                     <div
                       key={usuario.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => abrirDetalleUsuario(usuario)}
-                      onKeyDown={abrirConTeclado(usuario)}
                       style={{ animationDelay: `${Math.min(indice, 8) * 35}ms` }}
-                      className={`animate-fondo-entrada grid grid-cols-1 ${columnasLista} items-center gap-x-4 gap-y-3 px-3 py-4 rounded-2xl cursor-pointer transition-colors ${
-                        inactivo ? 'bg-red-50/70' : 'hover:bg-azulado-100/70'
+                      className={`animate-fondo-entrada grid grid-cols-1 ${columnasLista} items-center gap-x-6 gap-y-2 px-5 py-3 transition-colors ${
+                        inactivo ? 'bg-red-50/60 hover:bg-red-50' : 'hover:bg-azulado-100/70'
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        {fotoUsuario(usuario, 'w-10 h-10 text-sm')}
+                        {fotoUsuario(usuario, 'w-9 h-9 text-sm')}
                         <div className="min-w-0">
-                          <div className="font-bold text-blue-900 truncate">{obtenerNombreUsuario(usuario)}</div>
-                          <div className="text-sm text-slate-600 truncate">@{usuario.username}</div>
+                          <div className="text-sm font-semibold text-slate-900 truncate">{obtenerNombreUsuario(usuario)}</div>
+                          <div className="text-xs text-slate-500 truncate">@{usuario.username}</div>
                           <div className="flex flex-col">{avisosUsuario(usuario)}</div>
                         </div>
                       </div>
-                      <div className="text-tabla text-slate-700 tabular-nums">
-                        <span className="xl:hidden text-xs font-semibold text-blue-800">C.I.: </span>{usuario.ci || '—'}
+                      <div className="text-sm text-slate-500 tabular-nums">
+                        <span className="xl:hidden text-xs font-semibold text-slate-700">C.I.: </span>{usuario.ci || '—'}
                       </div>
                       {esSuperuserActual && (
-                        <div className="text-tabla font-semibold text-slate-800 truncate">{obtenerTextoCarrerasUsuario(usuario)}</div>
+                        <div className="text-sm font-semibold text-slate-800 truncate">{obtenerTextoCarrerasUsuario(usuario)}</div>
                       )}
                       <div className="flex flex-wrap gap-1.5">{chipsRoles(usuario)}</div>
-                      <div>{estadoUsuario(usuario)}</div>
+                      <div>{estadoFilaLista(usuario)}</div>
                       {accionesUsuario(usuario) || <span />}
                     </div>
                   );
@@ -1679,12 +1660,8 @@ const initialData = {
                 return (
                   <div
                     key={usuario.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => abrirDetalleUsuario(usuario)}
-                    onKeyDown={abrirConTeclado(usuario)}
                     style={{ animationDelay: `${Math.min(indice, 8) * 35}ms` }}
-                    className={`${BLOQUE} animate-fondo-entrada p-5 flex flex-col gap-4 cursor-pointer hover:ring-blue-900/30 transition-colors ${inactivo ? '!bg-red-50/70 !ring-red-200' : ''}`}
+                    className={`${BLOQUE} animate-fondo-entrada p-5 flex flex-col gap-4 ${inactivo ? '!bg-red-50/70 !ring-red-200' : ''}`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
@@ -2007,99 +1984,6 @@ const initialData = {
         roles={roles}
         currentUser={user}
       />
-
-      {/* Detalle del usuario */}
-      {usuarioDetalle && (() => {
-        const puedeEditarDetalle = puedeEditarUsuario(usuarioDetalle);
-        const puedeEliminarDetalle = puedeEliminarUsuario(usuarioDetalle);
-        const perfilDocentePendienteDetalle = usuarioTienePerfilDocentePendiente(usuarioDetalle);
-        const filasDetalle = [
-          ['C.I.', usuarioDetalle.ci || '—'],
-          ['Correo', usuarioDetalle.email || usuarioDetalle.correo || '—'],
-          // La carrera solo la ve el superusuario.
-          ...(esSuperuserActual ? [['Carrera', obtenerTextoCarrerasDetalleUsuario(usuarioDetalle)]] : []),
-          ['Estado', obtenerEstadoUsuario(usuarioDetalle)],
-        ];
-
-        return (
-          <ModalCentrado onClose={cerrarDetalleUsuario}>
-            <div className="w-full max-w-2xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '180ms' }}>
-              <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
-                <div className="flex items-center gap-4 min-w-0">
-                  {fotoUsuario(usuarioDetalle, 'w-16 h-16 text-xl')}
-                  <div className="min-w-0">
-                    <h3 className="text-xl font-bold text-blue-900 leading-tight break-words">{obtenerNombreUsuario(usuarioDetalle)}</h3>
-                    <p className="text-sm text-slate-600">@{usuarioDetalle.username || 'usuario'}</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={cerrarDetalleUsuario}
-                  className="flex-shrink-0 rounded-full p-2 -mr-2 text-slate-500 hover:text-blue-900 hover:bg-azulado-200 transition-colors"
-                  aria-label="Cerrar detalle"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              </div>
-
-              <div className="px-6 py-5 space-y-4">
-                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 px-4 py-3">
-                  {filasDetalle.map(([label, value]) => (
-                    <div key={label} className="min-w-0">
-                      <dt className="text-xs font-semibold text-blue-800">{label}</dt>
-                      <dd className="mt-0.5 text-sm font-semibold text-slate-800 break-words">{value}</dd>
-                    </div>
-                  ))}
-                </dl>
-
-                <div>
-                  <h4 className="mb-2 text-sm font-bold text-blue-900">Roles</h4>
-                  <div className="flex flex-wrap gap-1.5">{chipsRoles(usuarioDetalle)}</div>
-                </div>
-
-                {(!usuarioDetalle.perfil || perfilDocentePendienteDetalle) && (
-                  <div className="rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-3 text-sm text-amber-900">
-                    {!usuarioDetalle.perfil && <p>Sin perfil asignado.</p>}
-                    {perfilDocentePendienteDetalle && <p>Falta crear la ficha de docente: su parte docente (fondo de tiempo y carga horaria) queda pendiente. Sus demás roles funcionan normal.</p>}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 pb-6">
-                <button
-                  type="button"
-                  onClick={cerrarDetalleUsuario}
-                  className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200`}
-                >
-                  Cerrar
-                </button>
-                {puedeGestionarUsuarios() && (
-                  <button
-                    type="button"
-                    onClick={editarDesdeDetalle}
-                    disabled={!puedeEditarDetalle}
-                    className={`${BOTON} px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    <FaEdit size={13} />
-                    Editar
-                  </button>
-                )}
-                {puedeEliminarUsuarios() && (
-                  <button
-                    type="button"
-                    onClick={eliminarDesdeDetalle}
-                    disabled={!puedeEliminarDetalle}
-                    className={`${BOTON} px-5 py-2.5 bg-red-400 hover:bg-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    <FaTrash size={12} />
-                    Eliminar
-                  </button>
-                )}
-              </div>
-            </div>
-          </ModalCentrado>
-        );
-      })()}
 
       {/* Confirmación de pausa o reactivación */}
       {showToggleModal && usuarioToToggle && (

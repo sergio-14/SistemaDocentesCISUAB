@@ -3,6 +3,9 @@ import { uploadProfilePicture, deleteProfilePicture } from '../apis/api';
 import defaultProfileImg from '../assets/logoPre.jpg';
 import toast from 'react-hot-toast';
 
+// Avisa a otras pantallas (como la lista de usuarios) que la foto cambió.
+export const EVENTO_FOTO_PERFIL_ACTUALIZADA = 'foto-perfil-actualizada';
+
 const ProfilePicture = ({ user, onUpdate }) => {
   // Inicializar con la imagen predeterminada importada
   const [image, setImage] = useState(defaultProfileImg);
@@ -38,6 +41,7 @@ const ProfilePicture = ({ user, onUpdate }) => {
         // La imagen se ha subido. La URL de la vista previa es suficiente por ahora.
         // En una recarga de página, la URL vendrá del backend.
         toast.success('Foto de perfil actualizada');
+        window.dispatchEvent(new Event(EVENTO_FOTO_PERFIL_ACTUALIZADA));
         if (onUpdate) {
           onUpdate(); // Notificar al padre para que refresque los datos del usuario
         }
@@ -78,6 +82,7 @@ const ProfilePicture = ({ user, onUpdate }) => {
                 setIsCustomImage(false);
                 if (fileInputRef.current) fileInputRef.current.value = ''; // Asegurar limpieza del input
                 toast.success('Foto eliminada');
+                window.dispatchEvent(new Event(EVENTO_FOTO_PERFIL_ACTUALIZADA));
                 if (onUpdate) {
                   onUpdate(); // Notificar al padre para que refresque los datos del usuario
                 }

@@ -1382,6 +1382,18 @@ class CalendarioAcademicoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Model
         )
 
 
+def _sin_borradores_ajenos_para_director(queryset, user, perfil):
+    """El Director no ve los fondos en borrador de su carrera hasta que se presentan
+    (botón "Presentar al Director"); el suyo propio sí."""
+    if user.is_superuser or not perfil or perfil.rol != 'director':
+        return queryset
+    excluir = Q(estado='borrador')
+    propio = docente_del_usuario(user)
+    if propio:
+        excluir &= ~Q(docente=propio)
+    return queryset.exclude(excluir)
+
+
 class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     """
     ViewSet con sistema híbrido de permisos:
@@ -1426,10 +1438,13 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             return queryset.none()
 
         # Director, Jefe de Estudios e IIISYP ven los fondos de sus carreras activas
+        # (el Director, sin los borradores todavía no presentados).
         if perfil.rol in ['director', 'jefe_estudios', 'iiisyp']:
             carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
             if carreras_activas.exists():
-                return aplicar_filtros_query_params(queryset.filter(carrera__in=carreras_activas))
+                return aplicar_filtros_query_params(
+                    _sin_borradores_ajenos_para_director(queryset.filter(carrera__in=carreras_activas), user, perfil)
+                )
             return queryset.none()
 
         # Docente ve solo los suyos
@@ -1458,6 +1473,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
                 if perfil and perfil.rol in ['director', 'jefe_estudios', 'iiisyp']:
                     carreras_activas = _obtener_carreras_activas_usuario(self.request.user, self.request)
                     queryset = queryset.filter(carrera__in=carreras_activas) if carreras_activas.exists() else queryset.none()
+                    queryset = _sin_borradores_ajenos_para_director(queryset, self.request.user, perfil)
                 elif perfil and perfil.rol == 'docente' and perfil.docente:
                     queryset = queryset.filter(docente=perfil.docente)
                 else:
@@ -1478,7 +1494,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             elif perfil.rol in ['director', 'jefe_estudios', 'iiisyp']:
                 carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
                 if carreras_activas.exists():
-                    queryset = queryset.filter(carrera__in=carreras_activas)
+                    queryset = _sin_borradores_ajenos_para_director(queryset.filter(carrera__in=carreras_activas), user, perfil)
                 else:
                     queryset = queryset.none()
             elif perfil.rol == 'docente':
@@ -1805,6 +1821,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             if perfil and perfil.rol in ['director', 'jefe_estudios', 'iiisyp']:
                 carreras_activas = _obtener_carreras_activas_usuario(request.user, request)
                 queryset = queryset.filter(carrera__in=carreras_activas) if carreras_activas.exists() else queryset.none()
+                queryset = _sin_borradores_ajenos_para_director(queryset, request.user, perfil)
             elif perfil and perfil.rol == 'docente' and perfil.docente:
                 queryset = queryset.filter(docente=perfil.docente)
             else:

@@ -128,9 +128,10 @@ const obtenerCarrerasUsuario = (usuario) => {
   if (!usuario) return [];
 
   const carreraPrincipal = String(usuario?.perfil?.carrera?.codigo || usuario?.carrera_codigo || '').trim();
+  // Solo las asignaciones activas: las inactivas son historial (p. ej. una carrera anterior).
   const carrerasExtra = Array.isArray(usuario.asignaciones)
     ? usuario.asignaciones
-        .filter((item) => item?.carrera_codigo)
+        .filter((item) => item?.activo !== false && item?.carrera_codigo)
         .map((item) => String(item.carrera_codigo).trim())
     : [];
 

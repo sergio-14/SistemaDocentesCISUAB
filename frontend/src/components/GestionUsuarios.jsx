@@ -10,7 +10,8 @@ import {
   ROLES_MANDO_UABJB, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf, motivoNoAsignarRol, textoErroresUsuario,
 } from '../utils/asignacionesUsuario';
 import CampoUsuario from './usuarios/CampoUsuario';
-import { NotaUsuario, SeccionUsuario, SelectorRoles } from './usuarios/PiezasFormularioUsuario';
+import { NotaUsuario, SeccionUsuario } from './usuarios/PiezasFormularioUsuario';
+import ListaTransferenciaRoles from './usuarios/ListaTransferenciaRoles';
 import SelectorCarreraUsuario from './usuarios/SelectorCarreraUsuario';
 import { useActiveRole } from '../contexts/activeRole';
 import CampoResolucionJefe from './common/CampoResolucionJefe';
@@ -26,7 +27,6 @@ import { paginar } from '../utils/paginacion';
 import { BLOQUE, BOTON, BOTON_CHICO } from './fondos/estilosFondo';
 import toast from 'react-hot-toast';
 import {
-  ERROR_MOTION_CLASS,
   ERROR_SHAKE_DURATION_MS,
   sanitizeApiErrors,
   getBackendErrorMessage,
@@ -150,6 +150,8 @@ function GestionUsuarios({ user: usuarioSesion }) {
   const [formData, setFormData] = useState({});
   const [resolucionJefe, setResolucionJefe] = useState(null);
   const [asignacionesExtra, setAsignacionesExtra] = useState([]);
+  const [selectedRoleLeft, setSelectedRoleLeft] = useState(null);
+  const [selectedRoleRight, setSelectedRoleRight] = useState(null);
   const lastToastRef = useRef({});
   const TOAST_DEBOUNCE_MS = 1500;
   const showToastOnce = (msg) => {
@@ -699,6 +701,7 @@ const initialData = {
     if (motivo) {
       setErrors((prev) => ({ ...prev, rol: [motivo] }));
       pulseFieldErrors(['rol']);
+      setSelectedRoleLeft(null);
       return;
     }
 
@@ -707,6 +710,7 @@ const initialData = {
     } else {
       setAsignacionesExtra([{ rol: rolValue, carrera: formData.carrera || carreraPropiaEditor }]);
     }
+    setSelectedRoleLeft(null);
   };
 
   const moverRolIzquierda = (index) => {
@@ -721,13 +725,7 @@ const initialData = {
     } else {
       setAsignacionesExtra([]);
     }
-  };
-
-  // Clic en un rol: si ya lo tiene, se quita; si no, se agrega.
-  const alternarRol = (rolValue) => {
-    const indice = rolesAsignadosLista.findIndex((item) => item.rol === rolValue);
-    if (indice >= 0) moverRolIzquierda(indice);
-    else moverRolDerecha(rolValue);
+    setSelectedRoleRight(null);
   };
 
   // La carrera es del usuario: se aplica a todos sus roles.
@@ -1030,6 +1028,8 @@ const initialData = {
     || textoDeError(errors?.asignaciones)
     || textoDeError(errors?.non_field_errors)
     || (esSuperuserActual ? '' : textoDeError(errors?.carrera));
+
+  const obtenerRolLabel = (rolValue) => roles.find((item) => item.value === rolValue)?.label || rolValue || 'Sin rol';
 
   const mostrarNombreCompletoCreacion = true;
   const mostrarCiCreacion = true;
@@ -1433,7 +1433,7 @@ const initialData = {
               role="dialog"
               aria-modal="true"
               aria-labelledby="nuevo-usuario-titulo"
-              className="w-full max-w-3xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up"
+              className="w-full max-w-6xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up"
               style={{ animationDuration: '180ms' }}
             >
               <div className="flex items-start justify-between gap-4 px-5 sm:px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
@@ -1454,7 +1454,7 @@ const initialData = {
               <form onSubmit={handleSubmit} noValidate>
                 <div className="divide-y divide-azulado-200">
                   <SeccionUsuario titulo="Cuenta">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-x-4 gap-y-4">
                       <CampoUsuario label="Usuario" name="username" value={formData.username || ''} onChange={handleChange} clearError={clearFieldError} error={errors.username} required pulse={errorPulse.username || 0} />
                       <CampoUsuario
                         label="Nombre completo"
@@ -1494,30 +1494,43 @@ const initialData = {
                   </SeccionUsuario>
 
                   <SeccionUsuario titulo="Carrera y roles">
-                    <SelectorCarreraUsuario
-                      id="usuario-carrera"
-                      value={formData.carrera || carreraPropiaEditor}
-                      onChange={cambiarCarreraUsuario}
-                      carreras={carrerasGestionables}
-                      error={esSuperuserActual ? errors.carrera : null}
-                      deshabilitado={!esSuperuserActual}
-                      nota={esSuperuserActual ? 'Todos los roles del usuario van en esta carrera.' : 'Es tu carrera: se asigna sola.'}
-                    />
+                    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] gap-x-6 gap-y-4 items-start">
+                      <SelectorCarreraUsuario
+                        id="usuario-carrera"
+                        value={formData.carrera || carreraPropiaEditor}
+                        onChange={cambiarCarreraUsuario}
+                        carreras={carrerasGestionables}
+                        error={esSuperuserActual ? errors.carrera : null}
+                        deshabilitado={!esSuperuserActual}
+                        nota={esSuperuserActual ? 'Todos los roles del usuario van en esta carrera.' : 'Es tu carrera: se asigna sola.'}
+                      />
 
-                    <div>
-                      <span className="block text-xs font-semibold text-slate-700 mb-1.5 pl-1">Roles</span>
-                      <div className={leftPanelPulsing || rightPanelPulsing ? ERROR_MOTION_CLASS : ''}>
-                        <SelectorRoles
+                      <div>
+                        <span className="block text-xs font-semibold text-slate-700 mb-1.5 pl-1">Roles</span>
+                        <ListaTransferenciaRoles
                           roles={rolesDisponiblesLista}
-                          asignados={rolesAsignadosLista.map((item) => item.rol)}
-                          onAlternar={alternarRol}
-                          invalido={Boolean(errorBajoListaCreacion)}
-                          deshabilitado={vinculacionRapidaDocente}
+                          asignados={rolesAsignadosLista}
+                          seleccionIzquierda={selectedRoleLeft}
+                          onSeleccionarIzquierda={(valor) => {
+                            setSelectedRoleLeft(valor);
+                            setErrors((prev) => (prev?.rol ? { ...prev, rol: null } : prev));
+                          }}
+                          seleccionDerecha={selectedRoleRight}
+                          onSeleccionarDerecha={setSelectedRoleRight}
+                          onMoverDerecha={moverRolDerecha}
+                          onMoverIzquierda={moverRolIzquierda}
+                          bloquearAsignar={vinculacionRapidaDocente || rolesAsignadosLista.length >= 2}
+                          bloquearQuitar={vinculacionRapidaDocente}
+                          errorIzquierda={Boolean(errors?.rol)}
+                          errorDerecha={Boolean(errors?.asignaciones || errors?.rol)}
+                          pulsoIzquierda={leftPanelPulsing}
+                          pulsoDerecha={rightPanelPulsing}
+                          etiquetaRol={obtenerRolLabel}
                         />
+                        {errorBajoListaCreacion
+                          ? <NotaUsuario tipo="error">{errorBajoListaCreacion}</NotaUsuario>
+                          : <NotaUsuario>Elija un rol y use las flechas (o doble clic). Máximo 2 roles y un solo cargo (Director, Jefe de Estudios o Instituto).</NotaUsuario>}
                       </div>
-                      {errorBajoListaCreacion
-                        ? <NotaUsuario tipo="error">{errorBajoListaCreacion}</NotaUsuario>
-                        : <NotaUsuario>Máximo 2 roles y un solo cargo (Director, Jefe de Estudios o Instituto).</NotaUsuario>}
                     </div>
 
                     {[formData.rol, ...asignacionesExtra.map((item) => item.rol)].includes('jefe_estudios') && (

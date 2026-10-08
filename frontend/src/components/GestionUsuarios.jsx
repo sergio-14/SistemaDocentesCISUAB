@@ -1642,6 +1642,7 @@ const initialData = {
         <ModalConfirmar
           key={`no-${eliminacion.usuario.id}`}
           informativo
+          etiqueta="Usuarios"
           titulo="No se puede eliminar"
           mensaje={<><strong className="text-slate-900">{eliminacion.usuario.username}</strong> tiene datos registrados. Desactívelo en su lugar.</>}
           detalle={(eliminacion.datos.detalle || []).map((item) => `${item.etiqueta}: ${item.cantidad}`)}
@@ -1651,15 +1652,13 @@ const initialData = {
         <ModalConfirmar
           key={`si-${eliminacion.usuario.id}`}
           tono="peligro"
+          etiqueta="Usuarios"
           titulo="Eliminar usuario"
-          mensaje={(
-            <>
-              Se eliminará <strong className="text-slate-900">{eliminacion.usuario.username}</strong> de forma permanente
-              {eliminacion.datos.ficha_docente
-                ? <>, junto con su ficha de docente (<strong className="text-slate-900">{eliminacion.datos.ficha_docente}</strong>).</>
-                : '. No tiene ficha de docente.'}
-            </>
-          )}
+          mensaje={<>Se borrará de forma permanente lo siguiente de <strong className="text-slate-900">{obtenerNombreUsuario(eliminacion.usuario)}</strong>:</>}
+          detalle={[
+            `Su cuenta de acceso (@${eliminacion.usuario.username})`,
+            ...(eliminacion.datos.ficha_docente ? [`Su ficha de docente (${eliminacion.datos.ficha_docente})`] : []),
+          ]}
           textoAccion="Eliminar"
           textoTrabajando="Eliminando..."
           onConfirmar={confirmarEliminar}

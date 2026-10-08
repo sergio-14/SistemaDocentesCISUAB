@@ -676,6 +676,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
 
       {showResetConfirm && (
         <ModalConfirmar
+          etiqueta="Usuarios"
           titulo="Restablecer contraseña"
           mensaje={<>La contraseña de <strong className="text-slate-900">{userToEdit.username}</strong> volverá a ser <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-blue-50 ring-1 ring-inset ring-blue-200 font-bold text-blue-900">{passwordPorDefecto}</span> y deberá cambiarla al iniciar sesión.</>}
           textoAccion="Restablecer"

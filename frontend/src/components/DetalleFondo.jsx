@@ -12,6 +12,7 @@ import BotonFlotanteObservaciones from './BotonFlotanteObservaciones';
 import FormularioEvaluarInforme from './FormularioEvaluarInforme';
 import CargaHorariaManager from './CargaHorariaManager';
 import ModalCentrado from './common/ModalCentrado';
+import ModalConfirmar from './common/ModalConfirmar';
 import EstadoTimeline from './fondos/EstadoTimeline';
 import FiltroUnidades from './fondos/FiltroUnidades';
 import Plegable from './fondos/Plegable';
@@ -134,6 +135,8 @@ function DetalleFondo() {
   const [edicionCarga, setEdicionCarga] = useState(null);
   // Unidades desmarcadas en el filtro de "Actividades planificadas" (al inicio, ninguna).
   const [unidadesOcultas, setUnidadesOcultas] = useState(() => new Set());
+  // Carga esperando la confirmación para eliminarla: { detalle, categoria }.
+  const [cargaPorEliminar, setCargaPorEliminar] = useState(null);
   // Sube al eliminar una carga desde la tabla: el gestor recarga sus cargas y totales.
   const [versionCargas, setVersionCargas] = useState(0);
   const [slideGrafico, setSlideGrafico] = useState(0);
@@ -499,18 +502,20 @@ function DetalleFondo() {
     }
   };
 
-  const handleDeleteCarga = async (id) => {
-    if (!confirm("¿Eliminar esta asignación de carga horaria?")) return;
+  // Eliminar una carga: se confirma en el modal común (con la actividad y cómo quedan
+  // las horas de su unidad). Si el backend lo rechaza, el motivo queda en el modal.
+  const confirmarEliminarCarga = async () => {
+    const { detalle } = cargaPorEliminar;
     try {
-      await api.delete(`/cargas-horarias/${id}/`);
-      toast.success("Asignación eliminada");
-      if (edicionCarga?.id === id) setEdicionCarga(null);
-      setVersionCargas((version) => version + 1);
-      cargarDetalle({ silencioso: true });
+      await api.delete(`/cargas-horarias/${detalle.id}/`);
     } catch (err) {
-      console.error(err);
-      toast.error(getApiErrorMessage(err, 'No se pudo eliminar la asignación'));
+      throw new Error(getApiErrorMessage(err, 'No se pudo eliminar la asignación'));
     }
+    toast.success('Asignación eliminada');
+    if (edicionCarga?.id === detalle.id) setEdicionCarga(null);
+    setCargaPorEliminar(null);
+    setVersionCargas((version) => version + 1);
+    cargarDetalle({ silencioso: true });
   };
 
   if (loading) {
@@ -605,6 +610,22 @@ function DetalleFondo() {
   const puedeModificarCarga = (detalle) => (
     fondoEditable && (esSuperAdmin || (esJefeEstudios && !detalle.es_de_otra_carrera))
   );
+  // Antes de abrir la confirmación se revisa que la carga se pueda quitar (el fondo
+  // puede haber cambiado de estado mientras la pantalla estaba abierta).
+  const pedirEliminarCarga = (detalle, categoria) => {
+    if (!fondoEditable) {
+      toast.error('No se puede eliminar: el fondo ya no está en borrador ni con observaciones.');
+      return;
+    }
+    if (!puedeModificarCarga(detalle)) {
+      toast.error(detalle.es_de_otra_carrera
+        ? `No se puede eliminar aquí: la quita la Jefatura de ${detalle.carrera_calendario || 'la otra carrera'}.`
+        : 'No tienes permiso para eliminar esta asignación.');
+      return;
+    }
+    if (edicionCarga?.id === detalle.id) setEdicionCarga(null);
+    setCargaPorEliminar({ detalle, categoria });
+  };
   const mostrarAccionesCarga = puedeGestionarCarga && fondoEditable;
 
   const ocultarDetallePorBorradorDirector = esDirector && !esSuperAdmin && fondo.estado === 'borrador';
@@ -1233,7 +1254,7 @@ function DetalleFondo() {
                                             )}
                                             <button
                                               type="button"
-                                              onClick={() => handleDeleteCarga(detalle.id)}
+                                              onClick={() => pedirEliminarCarga(detalle, categoria)}
                                               className="p-2 rounded-full text-red-500 hover:bg-red-50 transition-colors"
                                               title="Eliminar asignación"
                                               aria-label="Eliminar asignación"
@@ -1310,6 +1331,29 @@ function DetalleFondo() {
           onCancelar={() => setMostrarFormEvaluarInforme(false)}
         />
       )}
+
+      {cargaPorEliminar && (() => {
+        const { detalle, categoria } = cargaPorEliminar;
+        const horas = Number(detalle.horas || 0);
+        const totalUnidad = Number(categoria?.total_horas || 0);
+        return (
+          <ModalConfirmar
+            tono="peligro"
+            etiqueta="Fondo de tiempo"
+            titulo="Eliminar asignación"
+            mensaje={<>Se quitará esta actividad del fondo de <strong className="text-slate-900">{fondo.docente?.nombre_completo || 'el docente'}</strong> y de su Carga Horaria (es la misma asignación):</>}
+            detalle={[
+              `Actividad: ${detalle.titulo_actividad || '-'}${detalle.calendario_nombre ? ` · ${detalle.calendario_nombre}` : ''}`,
+              `Tipo: ${detalle.tipo_actividad_display || '-'}`,
+              `${categoria?.tipo_display || 'Unidad'}: ${Math.round(totalUnidad)} → ${Math.round(Math.max(0, totalUnidad - horas))} h/año (−${Math.round(horas)})`,
+            ]}
+            textoAccion="Eliminar"
+            textoTrabajando="Eliminando..."
+            onConfirmar={confirmarEliminarCarga}
+            onCancelar={() => setCargaPorEliminar(null)}
+          />
+        );
+      })()}
 
       {/* Modal de confirmación para aprobar */}
       {fondo && mostrarModalAprobar && (

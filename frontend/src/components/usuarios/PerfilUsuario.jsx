@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import api from '../../apis/api';
 import ModalCentrado from '../common/ModalCentrado';
 import { BOTON } from '../fondos/estilosFondo';
@@ -23,6 +24,21 @@ const Cuadro = ({ titulo, children, className = '' }) => (
     <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-blue-700">{titulo}</h3>
     {children}
   </section>
+);
+
+// Mensaje que aparece al pasar el cursor (o con el foco) sobre un botón que no se puede usar.
+const ConMensaje = ({ mensaje, children }) => (
+  <div className="relative group">
+    {children}
+    {mensaje && (
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute bottom-full right-0 z-10 mb-2 hidden w-72 rounded-xl bg-slate-800 px-3 py-2 text-xs font-medium leading-snug text-white shadow-lg group-hover:block group-focus-within:block"
+      >
+        {mensaje}
+      </span>
+    )}
+  </div>
 );
 
 const Dato = ({ etiqueta, children }) => (
@@ -81,6 +97,19 @@ function PerfilUsuario({
   const motivoNoEliminar = motivoEliminar
     || (datos?.tiene_datos ? 'No se puede eliminar: tiene datos registrados. Desactívelo en su lugar.' : '');
   const motivos = [...new Set([motivoEditar, puedeEliminarUsuarios ? motivoNoEliminar : ''].filter(Boolean))];
+
+  // Editar y Eliminar siempre se pueden pulsar: si no se puede, el motivo sale como
+  // error en el perfil y en el toast.
+  const [errorAccion, setErrorAccion] = useState('');
+  const intentar = (motivo, accion) => {
+    if (motivo) {
+      setErrorAccion(motivo);
+      toast.error(motivo);
+      return;
+    }
+    setErrorAccion('');
+    accion();
+  };
 
   return (
     <ModalCentrado onClose={onCerrar}>
@@ -197,7 +226,9 @@ function PerfilUsuario({
                     </li>
                   ))}
                 </ul>
-                <p className="mt-3 text-xs leading-snug text-slate-600">Por estos datos no se puede eliminar ni cambiar su usuario, nombre, C.I. ni carrera.</p>
+                <div className="mt-3">
+                  <AvisoUsuario>Por estos datos no se puede eliminar ni cambiar su usuario, nombre, C.I. ni carrera.</AvisoUsuario>
+                </div>
               </>
             ) : (
               <p className="text-sm text-slate-700">
@@ -210,7 +241,11 @@ function PerfilUsuario({
 
         <div className="px-5 sm:px-6 py-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between [border-top:1px_solid_#B8C9E1]">
           <div className="min-w-0 space-y-1.5">
-            {motivos.map((motivo) => <AvisoUsuario key={motivo}>{motivo}</AvisoUsuario>)}
+            {errorAccion ? (
+              <p role="alert" className="rounded-xl bg-red-50 ring-1 ring-inset ring-red-200 px-3 py-2.5 text-sm font-medium leading-snug text-red-700">{errorAccion}</p>
+            ) : (
+              motivos.map((motivo) => <AvisoUsuario key={motivo}>{motivo}</AvisoUsuario>)
+            )}
           </div>
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 flex-shrink-0">
             <button
@@ -221,25 +256,28 @@ function PerfilUsuario({
               Cerrar
             </button>
             {puedeEliminarUsuarios && (
+              <ConMensaje mensaje={motivoNoEliminar}>
+                <button
+                  data-escritura
+                  type="button"
+                  onClick={() => intentar(motivoNoEliminar, onEliminar)}
+                  disabled={verificandoEliminar}
+                  className={`${BOTON} w-full px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white disabled:opacity-60 ${motivoNoEliminar ? 'opacity-70' : ''}`}
+                >
+                  {verificandoEliminar ? 'Verificando...' : 'Eliminar'}
+                </button>
+              </ConMensaje>
+            )}
+            <ConMensaje mensaje={motivoEditar}>
               <button
                 data-escritura
                 type="button"
-                onClick={onEliminar}
-                disabled={Boolean(motivoNoEliminar) || verificandoEliminar}
-                className={`${BOTON} px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-500`}
+                onClick={() => intentar(motivoEditar, onEditar)}
+                className={`${BOTON} w-full px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm ${motivoEditar ? 'opacity-70' : ''}`}
               >
-                {verificandoEliminar ? 'Verificando...' : 'Eliminar'}
+                Editar
               </button>
-            )}
-            <button
-              data-escritura
-              type="button"
-              onClick={onEditar}
-              disabled={Boolean(motivoEditar)}
-              className={`${BOTON} px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              Editar
-            </button>
+            </ConMensaje>
           </div>
         </div>
       </div>

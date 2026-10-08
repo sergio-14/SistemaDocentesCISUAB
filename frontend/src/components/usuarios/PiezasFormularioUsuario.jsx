@@ -17,10 +17,13 @@ export const CandadoCampo = ({ className = '' }) => (
   </span>
 );
 
-// Aviso de una sección o bloque, en su propio cuadro (no una línea suelta).
+// Advertencia de una sección o bloque, en su propio cuadro ámbar bien visible
+// (no una línea suelta): por qué algo está bloqueado o no se puede hacer.
 export const AvisoUsuario = ({ children }) => (
-  <div className="flex items-start gap-2.5 rounded-xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 px-3 py-2.5 text-xs leading-snug text-slate-700">
-    <CandadoCampo className="!h-6 !w-6 flex-shrink-0" />
+  <div className="flex items-start gap-2.5 rounded-xl bg-amber-50 ring-1 ring-inset ring-amber-300 px-3 py-2.5 text-sm font-medium leading-snug text-amber-900 shadow-sm">
+    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-amber-500 text-white">
+      <CandadoIcon className="w-3.5 h-3.5" />
+    </span>
     <span className="pt-0.5">{children}</span>
   </div>
 );

@@ -1552,7 +1552,7 @@ const initialData = {
       {usuarioPerfil && (
         <PerfilUsuario
           usuario={usuarioPerfil}
-          foto={fotoUsuario(usuarioPerfil, 'w-16 h-16')}
+          foto={fotoUsuario(usuarioPerfil, 'w-24 h-24 ring-4 ring-white shadow-md')}
           chipsRoles={chipsRoles(usuarioPerfil)}
           mostrarCarrera={esSuperuserActual}
           puedeEliminarUsuarios={puedeEliminarUsuarios()}

@@ -18,27 +18,12 @@ const fecha = (valor) => {
   return Number.isNaN(dia.getTime()) ? '—' : dia.toLocaleDateString('es-BO', { day: 'numeric', month: 'long', year: 'numeric' });
 };
 
-// Cuadro del perfil con su título.
-const Cuadro = ({ titulo, children, className = '' }) => (
-  <section className={`rounded-2xl bg-white ring-1 ring-inset ring-azulado-300 p-4 ${className}`}>
+// Cuadro del perfil con su título; resaltado (borde rojo) cuando es el motivo de un error.
+const Cuadro = ({ titulo, children, resaltado = false }) => (
+  <section className={`rounded-2xl bg-white ring-inset p-4 ${resaltado ? 'ring-2 ring-red-400/80' : 'ring-1 ring-azulado-300'}`}>
     <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-blue-700">{titulo}</h3>
     {children}
   </section>
-);
-
-// Mensaje que aparece al pasar el cursor (o con el foco) sobre un botón que no se puede usar.
-const ConMensaje = ({ mensaje, children }) => (
-  <div className="relative group">
-    {children}
-    {mensaje && (
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute bottom-full right-0 z-10 mb-2 hidden w-72 rounded-xl bg-slate-800 px-3 py-2 text-xs font-medium leading-snug text-white shadow-lg group-hover:block group-focus-within:block"
-      >
-        {mensaje}
-      </span>
-    )}
-  </div>
 );
 
 const Dato = ({ etiqueta, children }) => (
@@ -48,10 +33,15 @@ const Dato = ({ etiqueta, children }) => (
   </div>
 );
 
+// Lo que dura el error de Editar o Eliminar: lo mismo que el toast que lo acompaña.
+const DURACION_ERROR_MS = 4000;
+
 /**
  * Perfil de un usuario (botón "Ver" de la lista): cuenta, carrera y roles, ficha de
- * docente y datos registrados, con Editar y Eliminar. Si alguno no se puede usar, el
- * motivo se muestra en un cuadro junto a los botones.
+ * docente y datos registrados, con Editar y Eliminar. Si se pulsa uno que no se puede
+ * usar, el motivo sale como error junto a los botones y en el toast (y, si son los
+ * datos registrados, ese cuadro se marca en rojo); se quita al irse el toast o con un
+ * clic en otro lado.
  */
 function PerfilUsuario({
   usuario,
@@ -68,6 +58,19 @@ function PerfilUsuario({
 }) {
   const [datos, setDatos] = useState(null);
   const [errorDatos, setErrorDatos] = useState('');
+  // Error al pulsar Editar o Eliminar sin poder: { mensaje, porDatos }.
+  const [errorAccion, setErrorAccion] = useState(null);
+
+  useEffect(() => {
+    if (!errorAccion) return undefined;
+    const temporizador = setTimeout(() => setErrorAccion(null), DURACION_ERROR_MS);
+    const quitar = () => setErrorAccion(null);
+    document.addEventListener('pointerdown', quitar);
+    return () => {
+      clearTimeout(temporizador);
+      document.removeEventListener('pointerdown', quitar);
+    };
+  }, [errorAccion]);
 
   // Los datos registrados (lo que impide eliminarlo) se piden al abrir el perfil.
   useEffect(() => {
@@ -93,21 +96,19 @@ function PerfilUsuario({
   const nombre = usuario.nombre_completo || `${usuario.first_name || ''} ${usuario.last_name || ''}`.trim() || usuario.username;
   const tieneDocente = Boolean(perfil.docente_id);
   const esDocente = perfil.rol === 'docente' || asignaciones.some((item) => item.rol === 'docente');
-  // Con datos registrados el backend no lo deja eliminar: se avisa antes de pulsar.
-  const motivoNoEliminar = motivoEliminar
-    || (datos?.tiene_datos ? 'No se puede eliminar: tiene datos registrados. Desactívelo en su lugar.' : '');
-  const motivos = [...new Set([motivoEditar, puedeEliminarUsuarios ? motivoNoEliminar : ''].filter(Boolean))];
+  // Con datos registrados el backend no lo deja eliminar.
+  const porDatos = !motivoEliminar && Boolean(datos?.tiene_datos);
+  const motivoNoEliminar = motivoEliminar || (porDatos ? 'No se puede eliminar: tiene datos registrados. Desactívelo en su lugar.' : '');
 
   // Editar y Eliminar siempre se pueden pulsar: si no se puede, el motivo sale como
   // error en el perfil y en el toast.
-  const [errorAccion, setErrorAccion] = useState('');
-  const intentar = (motivo, accion) => {
+  const intentar = (motivo, accion, deDatos = false) => {
     if (motivo) {
-      setErrorAccion(motivo);
+      setErrorAccion({ mensaje: motivo, porDatos: deDatos });
       toast.error(motivo);
       return;
     }
-    setErrorAccion('');
+    setErrorAccion(null);
     accion();
   };
 
@@ -209,7 +210,7 @@ function PerfilUsuario({
             )}
           </Cuadro>
 
-          <Cuadro titulo="Datos registrados">
+          <Cuadro titulo="Datos registrados" resaltado={Boolean(errorAccion?.porDatos)}>
             {errorDatos ? (
               <p className="rounded-xl bg-red-50 ring-1 ring-inset ring-red-200 px-3 py-2 text-xs text-red-700">{errorDatos}</p>
             ) : !datos ? (
@@ -238,10 +239,8 @@ function PerfilUsuario({
 
         <div className="px-5 sm:px-6 py-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between [border-top:1px_solid_#B8C9E1]">
           <div className="min-w-0 space-y-1.5">
-            {errorAccion ? (
-              <p role="alert" className="rounded-2xl bg-red-50 px-4 py-3 text-sm leading-snug text-red-700">{errorAccion}</p>
-            ) : (
-              motivos.map((motivo) => <AvisoUsuario key={motivo}>{motivo}</AvisoUsuario>)
+            {errorAccion && (
+              <p role="alert" className="rounded-2xl bg-red-50 px-4 py-3 text-sm leading-snug text-red-700">{errorAccion.mensaje}</p>
             )}
           </div>
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 flex-shrink-0">
@@ -253,28 +252,24 @@ function PerfilUsuario({
               Cerrar
             </button>
             {puedeEliminarUsuarios && (
-              <ConMensaje mensaje={motivoNoEliminar}>
-                <button
-                  data-escritura
-                  type="button"
-                  onClick={() => intentar(motivoNoEliminar, onEliminar)}
-                  disabled={verificandoEliminar}
-                  className={`${BOTON} w-full px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white disabled:opacity-60 ${motivoNoEliminar ? 'opacity-70' : ''}`}
-                >
-                  {verificandoEliminar ? 'Verificando...' : 'Eliminar'}
-                </button>
-              </ConMensaje>
-            )}
-            <ConMensaje mensaje={motivoEditar}>
               <button
                 data-escritura
                 type="button"
-                onClick={() => intentar(motivoEditar, onEditar)}
-                className={`${BOTON} w-full px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm ${motivoEditar ? 'opacity-70' : ''}`}
+                onClick={() => intentar(motivoNoEliminar, onEliminar, porDatos)}
+                disabled={verificandoEliminar}
+                className={`${BOTON} px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white disabled:opacity-60 ${motivoNoEliminar ? 'opacity-70' : ''}`}
               >
-                Editar
+                {verificandoEliminar ? 'Verificando...' : 'Eliminar'}
               </button>
-            </ConMensaje>
+            )}
+            <button
+              data-escritura
+              type="button"
+              onClick={() => intentar(motivoEditar, onEditar)}
+              className={`${BOTON} px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm ${motivoEditar ? 'opacity-70' : ''}`}
+            >
+              Editar
+            </button>
           </div>
         </div>
       </div>

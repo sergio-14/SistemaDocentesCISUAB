@@ -1189,8 +1189,8 @@ const initialData = {
   // Anchos fijos para C.I., Carrera, Estado y Acciones, así el encabezado y las filas
   // quedan alineados; el espacio que sobra se lo reparten Usuario y Rol.
   const columnasLista = esSuperuserActual
-    ? 'xl:grid-cols-[minmax(0,1.4fr)_7rem_8rem_minmax(0,1.2fr)_10rem_12rem]'
-    : 'xl:grid-cols-[minmax(0,1.4fr)_7rem_minmax(0,1.2fr)_10rem_12rem]';
+    ? 'xl:grid-cols-[minmax(0,1.4fr)_7rem_8rem_minmax(0,1.2fr)_10rem_4.5rem]'
+    : 'xl:grid-cols-[minmax(0,1.4fr)_7rem_minmax(0,1.2fr)_10rem_4.5rem]';
 
   const estadoFilaLista = (usuario) => (
     usuario.is_superuser ? (

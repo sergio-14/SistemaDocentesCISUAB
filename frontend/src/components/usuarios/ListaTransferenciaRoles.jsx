@@ -1,9 +1,9 @@
 import { ERROR_MOTION_CLASS } from '../../utils/formErrors';
 
 // Lista de transferencia de los formularios de usuario (crear y editar): a la
-// izquierda todos los roles, a la derecha los asignados con su carrera.
-// Las reglas (máximo 2, un solo cargo de mando, una sola carrera) las aplica quien
-// la usa en onMoverDerecha y onAsignarCarrera.
+// izquierda todos los roles, a la derecha los asignados. La carrera es una sola para
+// todos los roles y se elige aparte. Las reglas (máximo 2, un solo cargo de mando)
+// las aplica quien la usa en onMoverDerecha.
 const ListaTransferenciaRoles = ({
   roles,
   asignados,
@@ -14,20 +14,12 @@ const ListaTransferenciaRoles = ({
   onMoverDerecha,
   onMoverIzquierda,
   bloquearAsignar = false,
-  tituloAsignar = 'Asignar rol',
   bloquearQuitar = false,
   errorIzquierda = false,
   errorDerecha = false,
   pulsoIzquierda = false,
   pulsoDerecha = false,
-  filaConflicto = null,
-  mostrarCarrera = false,
-  carrerasAbiertas = {},
-  onAlternarCarrera,
-  carreras = [],
-  onAsignarCarrera,
   etiquetaRol,
-  etiquetaCarrera,
 }) => {
   const rolesAsignados = new Set(asignados.map((item) => item.rol));
 
@@ -73,7 +65,7 @@ const ListaTransferenciaRoles = ({
           onClick={() => seleccionIzquierda && onMoverDerecha(seleccionIzquierda)}
           disabled={!seleccionIzquierda || bloquearAsignar}
           className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-900 text-white hover:bg-blue-950 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          title={tituloAsignar}
+          title="Asignar rol"
           aria-label="Asignar rol"
         >
           <svg className="w-4 h-4 rotate-90 sm:rotate-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
@@ -90,7 +82,7 @@ const ListaTransferenciaRoles = ({
         </button>
       </div>
 
-      {/* Panel derecho: roles asignados con su carrera */}
+      {/* Panel derecho: roles asignados */}
       <div className={`rounded-2xl bg-white flex flex-col ring-1 ring-inset ${errorDerecha ? 'ring-2 ring-red-500' : 'ring-azulado-300'} ${pulsoDerecha ? ERROR_MOTION_CLASS : ''}`}>
         <p className="px-4 py-2.5 text-xs font-semibold text-blue-800 [border-bottom:1px_solid_#D2DDEE]">Roles asignados</p>
         <div className="flex-1 overflow-y-auto max-h-80 min-h-[160px] p-1.5">
@@ -98,51 +90,17 @@ const ListaTransferenciaRoles = ({
             <p className="text-xs text-slate-500 text-center py-6">Use las flechas para asignar roles</p>
           ) : (
             asignados.map((item, index) => (
-              <div key={`${item.rol}-${index}`}>
-                <button
-                  type="button"
-                  onClick={() => onSeleccionarDerecha(index)}
-                  onDoubleClick={() => onMoverIzquierda(index)}
-                  className={`w-full text-left px-3 py-2 rounded-xl text-sm flex items-center justify-between gap-2 ${
-                    filaConflicto === index
-                      ? 'bg-red-50 text-red-700 font-semibold ring-1 ring-inset ring-red-300'
-                      : seleccionDerecha === index
-                        ? 'bg-sky-600 text-white font-semibold'
-                        : 'text-slate-700 hover:bg-blue-900 hover:text-white'
-                  }`}
-                >
-                  <span>{etiquetaRol(item.rol)}</span>
-                  {/* Carrera de la asignación: solo el superusuario la elige; a los demás se les asigna la suya. */}
-                  {mostrarCarrera && (
-                    <span
-                      onClick={(e) => { e.stopPropagation(); onAlternarCarrera(index); }}
-                      className={`cursor-pointer text-xs font-semibold px-2.5 py-1 rounded-full truncate max-w-[55%] ${
-                        item.carrera ? 'bg-blue-900 text-white' : 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-300'
-                      }`}
-                    >
-                      {item.carrera
-                        ? `${carrerasAbiertas[index] ? '▾' : '▸'} ${etiquetaCarrera(item.carrera)}`
-                        : (carrerasAbiertas[index] ? '▾ Carrera' : '▸ Carrera')}
-                    </span>
-                  )}
-                </button>
-                {mostrarCarrera && carrerasAbiertas[index] && (
-                  <div className="px-2 py-1.5 animate-panel-asignacion">
-                    <div className="ml-auto w-[75%] max-w-[260px] rounded-2xl bg-white ring-1 ring-azulado-300 shadow-lg max-h-40 overflow-y-auto p-1.5">
-                      {carreras.map((carrera) => (
-                        <button
-                          key={carrera.id}
-                          type="button"
-                          onClick={() => onAsignarCarrera(index, String(carrera.id))}
-                          className="w-full text-left px-3 py-1.5 rounded-xl text-xs text-slate-700 hover:bg-blue-900 hover:text-white"
-                        >
-                          {carrera.nombre}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <button
+                key={`${item.rol}-${index}`}
+                type="button"
+                onClick={() => onSeleccionarDerecha(index)}
+                onDoubleClick={() => onMoverIzquierda(index)}
+                className={`w-full text-left px-3 py-2 rounded-xl text-sm flex items-center justify-between gap-2 ${
+                  seleccionDerecha === index ? 'bg-sky-600 text-white font-semibold' : 'text-slate-700 hover:bg-blue-900 hover:text-white'
+                }`}
+              >
+                <span>{etiquetaRol(item.rol)}</span>
+              </button>
             ))
           )}
         </div>

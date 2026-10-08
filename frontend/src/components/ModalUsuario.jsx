@@ -4,15 +4,15 @@ import api from '../apis/api';
 import toast from 'react-hot-toast';
 import { horasSemanalesDedicacion } from '../utils/dedicaciones';
 import {
-  MAX_ASIGNACIONES_TOTAL, MENSAJE_AUTORIDAD_UNICA, MENSAJE_CARRERA_PENDIENTE, MENSAJE_LIMITE_ASIGNACIONES,
-  MENSAJE_RESOLUCION_JEFE, MENSAJE_UNA_SOLA_CARRERA, ROLES_MANDO_UABJB,
-  asignacionesIniciales, asignacionesParaEnviar, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf, validarAsignacion,
+  MAX_ASIGNACIONES_TOTAL, MENSAJE_RESOLUCION_JEFE,
+  asignacionesIniciales, asignacionesParaEnviar, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf, motivoNoAsignarRol,
 } from '../utils/asignacionesUsuario';
 import { ERROR_SHAKE_DURATION_MS } from '../utils/formErrors';
 import CampoResolucionJefe from './common/CampoResolucionJefe';
 import FiltroDesplegable from './common/FiltroDesplegable';
 import CampoUsuario, { MensajeAnimado } from './usuarios/CampoUsuario';
 import ListaTransferenciaRoles from './usuarios/ListaTransferenciaRoles';
+import SelectorCarreraUsuario from './usuarios/SelectorCarreraUsuario';
 import { BOTON } from './fondos/estilosFondo';
 
 const LABEL_CAMPO = 'block text-xs font-semibold text-slate-700 mb-1.5 pl-1';
@@ -123,8 +123,6 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
   // Lista de transferencia de roles (igual que en Nuevo usuario).
   const [rolElegidoIzquierda, setRolElegidoIzquierda] = useState(null);
   const [rolElegidoDerecha, setRolElegidoDerecha] = useState(null);
-  const [carrerasAbiertas, setCarrerasAbiertas] = useState({});
-  const [filaConflicto, setFilaConflicto] = useState(null);
   const [repeticionRol, setRepeticionRol] = useState(0);
   const [repeticionAsignaciones, setRepeticionAsignaciones] = useState(0);
   const brincoIzquierda = useBrinco(Boolean(errors?.rol), repeticionRol);
@@ -188,8 +186,6 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     setAsignacionesExtra(extras);
     setRolElegidoIzquierda(null);
     setRolElegidoDerecha(null);
-    setCarrerasAbiertas({});
-    setFilaConflicto(null);
     setErrors({});
     setShowResetConfirm(false);
     setResolucionJefe(null);
@@ -230,8 +226,6 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     { rol: formData.rol || '', carrera: formData.carrera || '' },
     ...asignacionesExtra,
   ].filter((item) => String(item.rol || '').trim());
-  // Sin carrera elegida en una asignación no se puede agregar otra.
-  const hayAsignacionPendiente = rolesAsignadosLista.some((item) => !String(item.carrera || '').trim());
 
   const marcarErrorRol = (mensaje) => {
     toast.error(mensaje, { className: 'toast-brinco' });
@@ -240,91 +234,45 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     setRolElegidoIzquierda(null);
   };
 
-  const marcarErrorAsignaciones = (mensaje, fila = null) => {
-    toast.error(mensaje, { className: 'toast-brinco' });
-    setErrors((prev) => ({ ...prev, asignaciones: [mensaje] }));
-    setRepeticionAsignaciones((valor) => valor + 1);
-    if (fila !== null) {
-      setFilaConflicto(fila);
-      setTimeout(() => setFilaConflicto(null), 300);
-    }
-  };
-
+  // Todos los roles del usuario van en su única carrera (la de su contrato).
   const moverRolDerecha = (rolValue) => {
     if (!rolValue) return;
-    setErrors((prev) => ({ ...prev, rol: null, carrera: null, asignaciones: null }));
+    setErrors((prev) => ({ ...prev, rol: null, asignaciones: null }));
 
-    if (hayAsignacionPendiente) {
-      marcarErrorRol(MENSAJE_CARRERA_PENDIENTE);
-      return;
-    }
-    if (ROLES_MANDO_UABJB.includes(rolValue) && rolesAsignadosLista.some((item) => ROLES_MANDO_UABJB.includes(item.rol))) {
-      marcarErrorRol(MENSAJE_AUTORIDAD_UNICA);
-      return;
-    }
-    if (rolesAsignadosLista.length >= MAX_ASIGNACIONES_TOTAL) {
-      marcarErrorRol(MENSAJE_LIMITE_ASIGNACIONES);
+    const motivo = motivoNoAsignarRol(rolValue, rolesAsignadosLista);
+    if (motivo) {
+      marcarErrorRol(motivo);
       return;
     }
 
     if (!formData.rol) {
-      setFormData((prev) => ({ ...prev, rol: rolValue, carrera: carreraPropiaEditor }));
-      if (!carreraPropiaEditor) setCarrerasAbiertas((prev) => ({ ...prev, 0: true }));
+      setFormData((prev) => ({ ...prev, rol: rolValue, carrera: prev.carrera || carreraPropiaEditor }));
     } else {
-      setAsignacionesExtra([{ rol: rolValue, carrera: carreraPropiaEditor, docente: '' }]);
-      if (!carreraPropiaEditor) setCarrerasAbiertas((prev) => ({ ...prev, 1: true }));
+      setAsignacionesExtra([{ rol: rolValue, carrera: formData.carrera || carreraPropiaEditor, docente: '' }]);
     }
     setRolElegidoIzquierda(null);
   };
 
   const moverRolIzquierda = (index) => {
-    setErrors((prev) => ({ ...prev, rol: null, carrera: null, asignaciones: null }));
-    if (index === 0) {
-      if (asignacionesExtra.length > 0) {
-        // El segundo rol pasa a ser el principal.
-        const extra = asignacionesExtra[0];
-        setFormData((prev) => ({ ...prev, rol: extra.rol, carrera: extra.carrera }));
-        setAsignacionesExtra([]);
-        setCarrerasAbiertas((prev) => (prev[1] ? { 0: true } : {}));
-      } else {
-        setFormData((prev) => ({ ...prev, rol: '', carrera: '' }));
-        setCarrerasAbiertas({});
-      }
+    setErrors((prev) => ({ ...prev, rol: null, asignaciones: null }));
+    if (index === 0 && asignacionesExtra.length > 0) {
+      // El segundo rol pasa a ser el principal; la carrera no cambia.
+      setFormData((prev) => ({ ...prev, rol: asignacionesExtra[0].rol }));
+      setAsignacionesExtra([]);
+    } else if (index === 0) {
+      setFormData((prev) => ({ ...prev, rol: '' }));
     } else {
       setAsignacionesExtra([]);
-      setCarrerasAbiertas((prev) => {
-        const next = { ...prev };
-        delete next[index];
-        return next;
-      });
     }
     setRolElegidoDerecha(null);
   };
 
-  const asignarCarreraARol = (index, carreraValue) => {
-    const rolObjetivo = index === 0 ? formData.rol : (asignacionesExtra[index - 1]?.rol || '');
-    const resultado = validarAsignacion(
-      rolObjetivo,
-      carreraValue,
-      [{ rol: formData.rol, carrera: formData.carrera }, ...asignacionesExtra],
-      index,
-    );
-    if (!resultado.valida) {
-      marcarErrorAsignaciones(resultado.mensaje, index);
-      return;
-    }
-
-    setErrors((prev) => ({ ...prev, rol: null, carrera: null, asignaciones: null }));
-    if (index === 0) {
-      setFormData((prev) => ({ ...prev, carrera: carreraValue }));
-    } else {
-      setAsignacionesExtra((prev) => prev.map((item, i) => (i === index - 1 ? { ...item, carrera: carreraValue } : item)));
-    }
-    setCarrerasAbiertas((prev) => {
-      const next = { ...prev };
-      delete next[index];
-      return next;
-    });
+  // La carrera es del usuario: se aplica a todos sus roles.
+  const cambiarCarreraUsuario = (carreraValue) => {
+    const carrera = String(carreraValue || '');
+    setFormData((prev) => ({ ...prev, carrera }));
+    setAsignacionesExtra((prev) => prev.map((item) => ({ ...item, carrera })));
+    setErrors((prev) => ({ ...prev, carrera: null, asignaciones: null }));
   };
 
   // Un Jefe de Estudios nuevo (no lo era ya) exige la resolución del Consejo de Carrera.
@@ -336,7 +284,6 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
   const esSuperusuarioEditado = Boolean(userToEdit?.is_superuser);
   const mostrarCiAutoridad = formData.rol === 'director' || formData.rol === 'jefe_estudios';
   const obtenerRolLabel = (rolValue) => roles.find((item) => item.value === rolValue)?.label || rolValue || 'Sin rol';
-  const obtenerCarreraLabel = (carreraValue) => carreras.find((item) => String(item.id) === String(carreraValue))?.nombre || 'Sin carrera';
   const asignacionesActivas = [
     { rol: formData.rol || '', carrera: formData.carrera || '' },
     ...asignacionesExtra,
@@ -394,46 +341,13 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
       return;
     }
 
-    const segundaAsignacion = asignacionesExtra[0] || null;
-    if (segundaAsignacion) {
-      const segundaRol = String(segundaAsignacion.rol || '').trim();
-      const segundaCarrera = String(segundaAsignacion.carrera || '').trim();
-
-      if (!segundaRol || !segundaCarrera) {
-        setErrors((prev) => ({
-          ...prev,
-          rol: !segundaRol ? ['Debe seleccionar el segundo rol.'] : prev.rol,
-          carrera: !segundaCarrera ? ['Debe seleccionar la carrera del segundo rol.'] : prev.carrera,
-          asignaciones: ['Complete el segundo rol y su carrera antes de actualizar.'],
-        }));
-        setRepeticionAsignaciones((valor) => valor + 1);
-        toast.error(!segundaRol && !segundaCarrera
-          ? 'Debe seleccionar el segundo rol y su carrera.'
-          : (!segundaRol ? 'Debe seleccionar el segundo rol.' : 'Debe seleccionar la carrera del segundo rol.'));
-        setLoading(false);
-        return;
-      }
-
-      const primeraClave = `${rolNormalizado}::${carreraNormalizada}`;
-      const segundaClave = `${segundaRol}::${segundaCarrera}`;
-      if (primeraClave === segundaClave) {
-        setErrors((prev) => ({
-          ...prev,
-          asignaciones: ['No se puede repetir el mismo rol en la misma carrera.'],
-        }));
-        setRepeticionAsignaciones((valor) => valor + 1);
-        toast.error('No se puede repetir el mismo rol en la misma carrera.');
-        setLoading(false);
-        return;
-      }
-
-      if (segundaCarrera !== carreraNormalizada) {
-        setErrors((prev) => ({ ...prev, asignaciones: [MENSAJE_UNA_SOLA_CARRERA] }));
-        setRepeticionAsignaciones((valor) => valor + 1);
-        toast.error(MENSAJE_UNA_SOLA_CARRERA);
-        setLoading(false);
-        return;
-      }
+    const segundaRol = String(asignacionesExtra[0]?.rol || '').trim();
+    if (segundaRol && segundaRol === rolNormalizado) {
+      setErrors((prev) => ({ ...prev, asignaciones: ['No se puede repetir el mismo rol.'] }));
+      setRepeticionAsignaciones((valor) => valor + 1);
+      toast.error('No se puede repetir el mismo rol.');
+      setLoading(false);
+      return;
     }
 
     if (errorFondoTiempo) {
@@ -482,18 +396,15 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
       delete payload.rol;
     }
 
+    // Una sola carrera para todos los roles, también si el principal es Instituto.
     if (!esSuperusuarioEditado) {
-      payload.asignaciones = asignacionesParaEnviar(asignacionesExtra);
-    }
-
-    // Director y Jefe de Estudios deben enviar carrera
-    if ((formData.rol === 'director' || formData.rol === 'jefe_estudios') && !esSuperusuarioEditado) {
       payload.carrera = carreraNormalizada;
-    } else if (formData.rol === 'docente') {
+      payload.asignaciones = asignacionesParaEnviar(
+        asignacionesExtra.map((item) => ({ ...item, carrera: carreraNormalizada })),
+      );
+    }
+    if (formData.rol === 'docente') {
       payload.docente = docenteId;
-      if (carreraNormalizada) {
-        payload.carrera = carreraNormalizada;
-      }
     }
 
     if (designaJefeNuevo && !esArchivoPdf(resolucionJefe)) {
@@ -643,14 +554,28 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
                   </div>
                 </div>
 
-                {/* Roles asignados con su carrera (igual que en Nuevo usuario) */}
-                <div className="md:col-span-2">
+                {/* Carrera del usuario (una sola para todos sus roles) y lista de roles, igual que en Nuevo usuario */}
+                <div className="md:col-span-2 space-y-3">
                   {esSuperusuarioEditado ? (
                     <div className="rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 px-4 py-3 text-sm text-slate-700">
                       <span className="font-semibold text-blue-900">Superusuario.</span> No tiene roles de carrera: tiene acceso a todo el sistema.
                     </div>
                   ) : (
                     <>
+                      {puedeElegirCarrera && (
+                        <div className="md:w-1/2 md:pr-2">
+                          <SelectorCarreraUsuario
+                            id="editar-usuario-carrera"
+                            value={formData.carrera}
+                            onChange={cambiarCarreraUsuario}
+                            carreras={carreras}
+                            error={errors.carrera}
+                            motivoBloqueo={identidadBloqueada
+                              ? `No se puede cambiar: el usuario tiene datos registrados${identidadBloqueada.length > 0 ? ` (${identidadBloqueada.map((item) => `${item.etiqueta}: ${item.cantidad}`).join(', ')})` : ''}.`
+                              : ''}
+                          />
+                        </div>
+                      )}
                       <ListaTransferenciaRoles
                         roles={rolesDisponiblesModal}
                         asignados={rolesAsignadosLista}
@@ -663,32 +588,23 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
                         onSeleccionarDerecha={setRolElegidoDerecha}
                         onMoverDerecha={moverRolDerecha}
                         onMoverIzquierda={moverRolIzquierda}
-                        bloquearAsignar={hayAsignacionPendiente || rolesAsignadosLista.length >= MAX_ASIGNACIONES_TOTAL}
-                        tituloAsignar={hayAsignacionPendiente ? 'Complete la carrera pendiente primero' : 'Asignar rol'}
+                        bloquearAsignar={rolesAsignadosLista.length >= MAX_ASIGNACIONES_TOTAL}
                         errorIzquierda={Boolean(errors?.rol)}
-                        errorDerecha={Boolean(errors?.asignaciones || errors?.rol || errors?.carrera)}
+                        errorDerecha={Boolean(errors?.asignaciones || errors?.rol)}
                         pulsoIzquierda={brincoIzquierda}
                         pulsoDerecha={brincoDerecha}
-                        filaConflicto={filaConflicto}
-                        mostrarCarrera={puedeElegirCarrera}
-                        carrerasAbiertas={carrerasAbiertas}
-                        onAlternarCarrera={(index) => setCarrerasAbiertas((prev) => ({ ...prev, [index]: !prev[index] }))}
-                        carreras={carreras}
-                        onAsignarCarrera={asignarCarreraARol}
                         etiquetaRol={obtenerRolLabel}
-                        etiquetaCarrera={obtenerCarreraLabel}
                       />
                       <MensajeAnimado
                         show={Boolean(asignacionesError || errorFondoTiempo)}
                         message={asignacionesError || errorFondoTiempo}
-                        wrapperClassName="mt-2 pl-1"
+                        wrapperClassName="pl-1"
                         messageClassName="text-xs text-red-600"
                       />
-                      <p className="mt-2 pl-1 text-xs text-slate-600">
-                        Todos los roles son de la carrera del contrato del usuario (ej. Director + Docente de la misma carrera). Máximo 2 asignaciones.{' '}
+                      <p className="pl-1 text-xs text-slate-600">
                         {puedeElegirCarrera
-                          ? <>Pulse <span className="font-semibold text-blue-900">Carrera</span> para asignarla.</>
-                          : 'La carrera es la tuya: se asigna sola.'}
+                          ? 'Todos los roles del usuario son de su carrera (ej. Director + Docente de la misma carrera). Máximo 2 asignaciones.'
+                          : 'Todos los roles del usuario son de tu carrera: se asigna sola. Máximo 2 asignaciones.'}
                       </p>
                       {designaJefeNuevo && (
                         <CampoResolucionJefe

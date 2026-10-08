@@ -6,11 +6,12 @@ import api, { getCarreras, getDocentes, obtenerTodos } from '../apis/api';
 import ModalUsuario from './ModalUsuario';
 import { EVENTO_FOTO_PERFIL_ACTUALIZADA } from './ProfilePicture';
 import {
-  MAX_ASIGNACIONES_TOTAL, MENSAJE_AUTORIDAD_UNICA, MENSAJE_CARRERA_PENDIENTE, MENSAJE_DUPLICADO, MENSAJE_LIMITE_ASIGNACIONES,
-  MENSAJE_RESOLUCION_JEFE, MENSAJE_UNA_SOLA_CARRERA, ROLES_MANDO_UABJB, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf, validarAsignacion,
+  MAX_ASIGNACIONES_TOTAL, MENSAJE_AUTORIDAD_UNICA, MENSAJE_DUPLICADO, MENSAJE_RESOLUCION_JEFE,
+  ROLES_MANDO_UABJB, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf, motivoNoAsignarRol,
 } from '../utils/asignacionesUsuario';
 import CampoUsuario from './usuarios/CampoUsuario';
 import ListaTransferenciaRoles from './usuarios/ListaTransferenciaRoles';
+import SelectorCarreraUsuario from './usuarios/SelectorCarreraUsuario';
 import { useActiveRole } from '../contexts/activeRole';
 import CampoResolucionJefe from './common/CampoResolucionJefe';
 import CampoBusqueda from './common/CampoBusqueda';
@@ -191,7 +192,6 @@ function GestionUsuarios({ user: usuarioSesion }) {
   const [asignacionesExtra, setAsignacionesExtra] = useState([]);
   const [selectedRoleLeft, setSelectedRoleLeft] = useState(null);
   const [selectedRoleRight, setSelectedRoleRight] = useState(null);
-  const [expandedCarreraRoles, setExpandedCarreraRoles] = useState({});
   const lastToastRef = useRef({});
   const TOAST_DEBOUNCE_MS = 1500;
   const showToastOnce = (msg) => {
@@ -240,11 +240,8 @@ function GestionUsuarios({ user: usuarioSesion }) {
     };
   }, [errors?.rol, errorPulse.rol]);
 
-  // Pulse visual para el panel derecho (Roles asignados) ante conflictos de combinación.
-  // Debe reaccionar a errores del panel derecho (no del izquierdo) y resaltar la fila conflictiva.
-  const [rightPanelPulse, setRightPanelPulse] = useState(0);
+  // Pulse visual para el panel derecho (Roles asignados) ante un error de las asignaciones.
   const [rightPanelPulsing, setRightPanelPulsing] = useState(false);
-  const [filaConflictoIndex, setFilaConflictoIndex] = useState(null);
   useEffect(() => {
     if (!errors?.asignaciones) {
       setRightPanelPulsing(false);
@@ -257,7 +254,7 @@ function GestionUsuarios({ user: usuarioSesion }) {
       cancelAnimationFrame(frameId);
       clearTimeout(timeoutId);
     };
-  }, [errors?.asignaciones, rightPanelPulse]);
+  }, [errors?.asignaciones, errorPulse.asignaciones]);
 
   const [vinculacionRapidaDocente, setVinculacionRapidaDocente] = useState(false);
   const [volverANuevoDocente, setVolverANuevoDocente] = useState(false);
@@ -747,164 +744,53 @@ const initialData = {
     ...asignacionesExtra,
   ].filter((item) => String(item.rol || '').trim());
 
-  // Flujo secuencial: si hay una asignación pendiente (sin carrera), bloquear nuevas.
-  // Evita acumular filas vacías que deforman el modal verticalmente.
-  const hayAsignacionPendiente = rolesAsignadosLista.some((item) => !String(item.carrera || '').trim());
-
-  // Catálogo maestro permanente: la tabla izquierda SIEMPRE muestra todos los roles.
-  // Esto permite reutilizar un mismo rol en distintas carreras (ej. Docente en Carrera A y B),
-  // indispensable para el doble rol y la asignación múltiple de un docente.
-  // Los roles ya asignados se marcan con un badge visual pero siguen siendo seleccionables.
+  // Catálogo maestro permanente: la tabla izquierda SIEMPRE muestra todos los roles;
+  // los ya asignados llevan la marca "Asignado".
   const rolesDisponiblesLista = roles;
 
-  // Reglas UABJB (una sola carrera, sin duplicados, sin dos cargos de mando en la
-  // misma carrera): se evalúan al asignar la carrera, no al final.
-  const validarAsignacionEnCaliente = (nuevoRol, nuevaCarrera, excluirIndex = -1) => validarAsignacion(
-    nuevoRol,
-    nuevaCarrera,
-    [{ rol: formData.rol, carrera: formData.carrera }, ...asignacionesExtra],
-    excluirIndex,
-  );
-
+  // Todos los roles del usuario van en su única carrera (la de su contrato).
   const moverRolDerecha = (rolValue) => {
     if (vinculacionRapidaDocente || !rolValue) return;
-    setErrors((prev) => ({ ...prev, rol: null, carrera: null, asignaciones: null }));
+    setErrors((prev) => ({ ...prev, rol: null, asignaciones: null }));
 
-    // --- Flujo secuencial obligatorio ---
-    // No se permite pasar un nuevo rol si existe una asignación pendiente (sin carrera).
-    // Esto mantiene el modal compacto y obliga al operador a completar la carrera actual.
-    if (hayAsignacionPendiente) {
-      toast.error(MENSAJE_CARRERA_PENDIENTE, { className: 'toast-brinco' });
-      setErrors((prev) => ({ ...prev, rol: [MENSAJE_CARRERA_PENDIENTE] }));
-      pulseFieldErrors(['rol']);
-      setSelectedRoleLeft(null);
-      return;
-    }
-
-    // --- Candado estricto: UN SOLO cargo de autoridad por usuario ---
-    // La normativa UABJB prohíbe tener Director Y Jefe simultáneamente, incluso
-    // con carrera vacía. Se evalúa en el clic de la flecha →, frenando ANTES de
-    // insertar la fila. Esto evita acumular basura visual en la tabla derecha.
-    if (ROLES_MANDO_UABJB.includes(rolValue)) {
-      const yaTieneMando = rolesAsignadosLista.some((item) => ROLES_MANDO_UABJB.includes(item.rol));
-      if (yaTieneMando) {
-        toast.error(MENSAJE_AUTORIDAD_UNICA, { className: 'toast-brinco' });
-        setErrors((prev) => ({ ...prev, rol: [MENSAJE_AUTORIDAD_UNICA] }));
-        pulseFieldErrors(['rol']);
-        setSelectedRoleLeft(null);
-        return;
-      }
-    }
-
-    // --- Regla 2: LÍMITE DE ASIGNACIONES (Máximo 2) ---
-    const totalActual = (formData.rol ? 1 : 0) + asignacionesExtra.length;
-    if (totalActual >= MAX_ASIGNACIONES_TOTAL) {
-      toast.error(MENSAJE_LIMITE_ASIGNACIONES, { className: 'toast-brinco' });
-      setErrors((prev) => ({ ...prev, rol: [MENSAJE_LIMITE_ASIGNACIONES] }));
+    const motivo = motivoNoAsignarRol(rolValue, rolesAsignadosLista);
+    if (motivo) {
+      toast.error(motivo, { className: 'toast-brinco' });
+      setErrors((prev) => ({ ...prev, rol: [motivo] }));
       pulseFieldErrors(['rol']);
       setSelectedRoleLeft(null);
       return;
     }
 
     if (!formData.rol) {
-      setFormData((prev) => ({ ...prev, rol: rolValue, carrera: carreraPropiaEditor }));
-      if (!carreraPropiaEditor) setExpandedCarreraRoles((prev) => ({ ...prev, 0: true }));
-    } else if (asignacionesExtra.length === 0) {
-      setAsignacionesExtra([{ rol: rolValue, carrera: carreraPropiaEditor }]);
-      if (!carreraPropiaEditor) setExpandedCarreraRoles((prev) => ({ ...prev, 1: true }));
+      setFormData((prev) => ({ ...prev, rol: rolValue, carrera: prev.carrera || carreraPropiaEditor }));
     } else {
-      toast.error(MENSAJE_LIMITE_ASIGNACIONES, { className: 'toast-brinco' });
-      setErrors((prev) => ({ ...prev, rol: [MENSAJE_LIMITE_ASIGNACIONES] }));
-      pulseFieldErrors(['rol']);
+      setAsignacionesExtra([{ rol: rolValue, carrera: formData.carrera || carreraPropiaEditor }]);
     }
     setSelectedRoleLeft(null);
   };
 
   const moverRolIzquierda = (index) => {
     if (vinculacionRapidaDocente) return;
-    setErrors((prev) => ({ ...prev, rol: null, carrera: null, asignaciones: null }));
-    if (index === 0) {
-      if (asignacionesExtra.length > 0) {
-        const extra = asignacionesExtra[0];
-        setFormData((prev) => ({ ...prev, rol: extra.rol, carrera: extra.carrera }));
-        setAsignacionesExtra([]);
-        setExpandedCarreraRoles((prev) => {
-          const next = {};
-          if (prev[1]) next[0] = true;
-          return next;
-        });
-      } else {
-        setFormData((prev) => ({
-          ...prev,
-          rol: '',
-          carrera: '',
-          docente: '',
-        }));
-        setExpandedCarreraRoles((prev) => {
-          const next = { ...prev };
-          delete next[0];
-          return next;
-        });
-      }
+    setErrors((prev) => ({ ...prev, rol: null, asignaciones: null }));
+    if (index === 0 && asignacionesExtra.length > 0) {
+      // El segundo rol pasa a ser el principal; la carrera no cambia.
+      setFormData((prev) => ({ ...prev, rol: asignacionesExtra[0].rol }));
+      setAsignacionesExtra([]);
+    } else if (index === 0) {
+      setFormData((prev) => ({ ...prev, rol: '', docente: '' }));
     } else {
-      setAsignacionesExtra((prev) => prev.filter((_, i) => i !== index - 1));
-      setExpandedCarreraRoles((prev) => {
-        const next = { ...prev };
-        delete next[index];
-        return next;
-      });
+      setAsignacionesExtra([]);
     }
     setSelectedRoleRight(null);
   };
 
-  const toggleExpandCarrera = (index) => {
-    setExpandedCarreraRoles((prev) => ({ ...prev, [index]: !prev[index] }));
-  };
-
-  const asignarCarreraARol = (index, carreraValue) => {
-    // Determinar el rol correspondiente a este índice
-    const rolObjetivo = index === 0
-      ? formData.rol
-      : (asignacionesExtra[index - 1]?.rol || '');
-
-    // --- Validación en caliente: reglas 1, 3 y 4 (UABJB) ---
-    // Se evalúa la combinación COMPLETA (rol + carrera) en el momento de asignar la carrera.
-    if (rolObjetivo && carreraValue) {
-      const resultado = validarAsignacionEnCaliente(rolObjetivo, carreraValue, index);
-      if (!resultado.valida) {
-        toast.error(resultado.mensaje, { className: 'toast-brinco' });
-        // Activar feedback visual en el panel derecho (Roles asignados):
-        // borde rojo + efecto rebote + resaltado de la fila conflictiva.
-        setFilaConflictoIndex(index);
-        setErrors((prev) => ({ ...prev, asignaciones: [resultado.mensaje] }));
-        setRightPanelPulse((p) => p + 1);
-        // Limpiar el marcador de fila conflictiva tras la animación
-        setTimeout(() => setFilaConflictoIndex(null), 300);
-        return;
-      }
-    }
-
-    setErrors((prev) => {
-      const next = { ...prev };
-      delete next.carrera;
-      delete next.asignaciones;
-      delete next.rol;
-      return next;
-    });
-    if (index === 0) {
-      setFormData((prev) => ({ ...prev, carrera: carreraValue }));
-    } else {
-      setAsignacionesExtra((prev) =>
-        prev.map((item, i) => (i === index - 1 ? { ...item, carrera: carreraValue } : item))
-      );
-    }
-
-    // Cerrar el dropdown de carrera inmediatamente tras la selección
-    setExpandedCarreraRoles((prev) => {
-      const next = { ...prev };
-      delete next[index];
-      return next;
-    });
+  // La carrera es del usuario: se aplica a todos sus roles.
+  const cambiarCarreraUsuario = (carreraValue) => {
+    const carrera = String(carreraValue || '');
+    setFormData((prev) => ({ ...prev, carrera }));
+    setAsignacionesExtra((prev) => prev.map((item) => ({ ...item, carrera })));
+    setErrors((prev) => ({ ...prev, carrera: null, asignaciones: null }));
   };
 
   // REGLA GLOBAL: limpia el error de un campo al recibir focus/clic.
@@ -1041,20 +927,12 @@ const initialData = {
         return;
       }
 
-      const mismaCarrera = primeraAsignacion.carrera === segundaAsignacion.carrera;
       const primeraMando = esRolMando(primeraAsignacion.rol);
       const segundaMando = esRolMando(segundaAsignacion.rol);
 
       // Safety net: DOS roles de mando (Director, Jefe o Instituto) — prohibido por normativa UABJB
       if (primeraMando && segundaMando) {
         toast.error(MENSAJE_AUTORIDAD_UNICA, { className: 'toast-brinco' });
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Safety net: una sola carrera (la del contrato) para todos los roles.
-      if (!mismaCarrera) {
-        toast.error(MENSAJE_UNA_SOLA_CARRERA, { className: 'toast-brinco' });
         setIsSubmitting(false);
         return;
       }
@@ -1091,7 +969,7 @@ const initialData = {
     payload.asignaciones = asignacionesExtra.map((item) => {
       const asignacion = {
         rol: String(item.rol || '').trim(),
-        carrera: String(item.carrera || '').trim(),
+        carrera: carreraNormalizada,
       };
       if (asignacion.rol === 'docente' && docenteSeleccionado) {
         asignacion.docente = docenteSeleccionado;
@@ -1200,7 +1078,6 @@ const initialData = {
             : (typeof errors?.last_name === 'string' ? errors.last_name : null)))));
 
   const obtenerRolLabel = (rolValue) => roles.find((item) => item.value === rolValue)?.label || rolValue || 'Sin rol';
-  const obtenerCarreraLabel = (carreraValue) => carreras.find((item) => String(item.id) === String(carreraValue))?.nombre || 'Sin carrera';
 
   const mostrarNombreCompletoCreacion = true;
   const mostrarCiCreacion = true;
@@ -1622,8 +1499,19 @@ const initialData = {
                       </p>
                     </div>
 
-                    {/* Lista de transferencia: roles disponibles y asignados (con su carrera) */}
-                    <div className="md:col-span-2">
+                    {/* Carrera del usuario (una sola para todos sus roles) y lista de roles */}
+                    <div className="md:col-span-2 space-y-3">
+                      {esSuperuserActual && (
+                        <div className="md:w-1/2 md:pr-2">
+                          <SelectorCarreraUsuario
+                            id="usuario-carrera"
+                            value={formData.carrera}
+                            onChange={cambiarCarreraUsuario}
+                            carreras={carrerasGestionables}
+                            error={errors.carrera}
+                          />
+                        </div>
+                      )}
                       <ListaTransferenciaRoles
                         roles={rolesDisponiblesLista}
                         asignados={rolesAsignadosLista}
@@ -1636,27 +1524,18 @@ const initialData = {
                         onSeleccionarDerecha={setSelectedRoleRight}
                         onMoverDerecha={moverRolDerecha}
                         onMoverIzquierda={moverRolIzquierda}
-                        bloquearAsignar={vinculacionRapidaDocente || hayAsignacionPendiente || (rolesAsignadosLista.length >= 2)}
-                        tituloAsignar={hayAsignacionPendiente ? 'Complete la carrera pendiente primero' : 'Asignar rol'}
+                        bloquearAsignar={vinculacionRapidaDocente || rolesAsignadosLista.length >= MAX_ASIGNACIONES_TOTAL}
                         bloquearQuitar={vinculacionRapidaDocente}
                         errorIzquierda={Boolean(errors?.rol)}
                         errorDerecha={Boolean(errors?.asignaciones || errors?.rol)}
                         pulsoIzquierda={leftPanelPulsing}
                         pulsoDerecha={rightPanelPulsing}
-                        filaConflicto={filaConflictoIndex}
-                        mostrarCarrera={esSuperuserActual}
-                        carrerasAbiertas={expandedCarreraRoles}
-                        onAlternarCarrera={toggleExpandCarrera}
-                        carreras={carrerasGestionables}
-                        onAsignarCarrera={asignarCarreraARol}
                         etiquetaRol={obtenerRolLabel}
-                        etiquetaCarrera={obtenerCarreraLabel}
                       />
-                      <p className="mt-2 pl-1 text-xs text-slate-600">
-                        Todos los roles son de la carrera del contrato del usuario (ej. Director + Docente de la misma carrera). Máximo 2 asignaciones.{' '}
+                      <p className="pl-1 text-xs text-slate-600">
                         {esSuperuserActual
-                          ? <>Pulse <span className="font-semibold text-blue-900">Carrera</span> para asignarla.</>
-                          : 'La carrera es la tuya: se asigna sola.'}
+                          ? 'Todos los roles del usuario son de su carrera (ej. Director + Docente de la misma carrera). Máximo 2 asignaciones.'
+                          : 'Todos los roles del usuario son de tu carrera: se asigna sola. Máximo 2 asignaciones.'}
                       </p>
                       {[formData.rol, ...asignacionesExtra.map((item) => item.rol)].includes('jefe_estudios') && (
                         <CampoResolucionJefe

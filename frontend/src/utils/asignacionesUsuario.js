@@ -25,6 +25,44 @@ export const motivoNoAsignarRol = (rol, asignados = []) => {
   return '';
 };
 
+// Nombre legible de cada campo del usuario en los mensajes de error (nunca "ci:" o "username:").
+const ETIQUETAS_CAMPOS_USUARIO = {
+  username: 'Usuario',
+  first_name: 'Nombre',
+  last_name: 'Nombre',
+  nombre_completo: 'Nombre',
+  ci: 'C.I.',
+  email: 'Correo',
+  carrera: 'Carrera',
+  rol: 'Rol',
+  asignaciones: 'Roles',
+  docente: 'Docente',
+  resolucion_jefe: 'Resolución del Jefe de Estudios',
+  is_active: 'Estado',
+  password: 'Contraseña',
+  password_confirm: 'Contraseña',
+};
+
+// Hasta dos errores del backend con el nombre legible de su campo, p. ej.
+// "C.I.: El CI ya está registrado…". Los campos sin nombre conocido van sin prefijo.
+export const textoErroresUsuario = (apiErrors, fallback = 'Revisa los campos marcados en rojo.') => {
+  if (!apiErrors || typeof apiErrors !== 'object') return fallback;
+  if (typeof apiErrors.detail === 'string' && apiErrors.detail.trim()) return apiErrors.detail.trim();
+  if (typeof apiErrors.error === 'string' && apiErrors.error.trim()) return apiErrors.error.trim();
+  const partes = [];
+  const vistos = new Set();
+  Object.entries(apiErrors).forEach(([campo, mensajes]) => {
+    (Array.isArray(mensajes) ? mensajes : [mensajes]).forEach((mensaje) => {
+      const texto = typeof mensaje === 'string' ? mensaje.trim() : String(mensaje?.message || '').trim();
+      if (!texto || vistos.has(texto)) return;
+      vistos.add(texto);
+      const etiqueta = ETIQUETAS_CAMPOS_USUARIO[campo];
+      partes.push(etiqueta ? `${etiqueta}: ${texto}` : texto);
+    });
+  });
+  return partes.slice(0, 2).join(' · ') || fallback;
+};
+
 // Designar un Jefe de Estudios exige la resolución del Consejo de Carrera en PDF.
 export const MENSAJE_RESOLUCION_JEFE = 'Adjunte la resolución del Consejo de Carrera (PDF) que designa al Jefe de Estudios.';
 export const esArchivoPdf = (archivo) => Boolean(archivo) && /\.pdf$/i.test(archivo.name || '');

@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { horasSemanalesDedicacion } from '../utils/dedicaciones';
 import {
   MAX_ASIGNACIONES_TOTAL, MENSAJE_RESOLUCION_JEFE,
-  asignacionesIniciales, asignacionesParaEnviar, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf, motivoNoAsignarRol,
+  asignacionesIniciales, asignacionesParaEnviar, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf, motivoNoAsignarRol, textoErroresUsuario,
 } from '../utils/asignacionesUsuario';
 import { ERROR_SHAKE_DURATION_MS } from '../utils/formErrors';
 import CampoResolucionJefe from './common/CampoResolucionJefe';
@@ -125,7 +125,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
   const [rolElegidoDerecha, setRolElegidoDerecha] = useState(null);
   const [repeticionRol, setRepeticionRol] = useState(0);
   const [repeticionAsignaciones, setRepeticionAsignaciones] = useState(0);
-  const brincoIzquierda = useBrinco(Boolean(errors?.rol), repeticionRol);
+  const brincoIzquierda = useBrinco(Boolean(errors?.rol || errors?.non_field_errors), repeticionRol);
   const brincoDerecha = useBrinco(Boolean(errors?.asignaciones), repeticionAsignaciones);
   // Si el usuario ya tiene datos registrados, su identidad (usuario, nombre, C.I.)
   // no se puede cambiar. null = sin datos (o todavía sin verificar).
@@ -296,9 +296,12 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     asignaciones: asignacionesActivas,
     docentes,
   });
-  const asignacionesError = Array.isArray(errors?.asignaciones)
-    ? errors.asignaciones[0]
-    : (typeof errors?.asignaciones === 'string' ? errors.asignaciones : null);
+  // Errores de los roles (y de la carrera si no hay selector) como texto bajo la lista.
+  const errorBajoLista = primerError(errors?.rol)
+    || primerError(errors?.asignaciones)
+    || primerError(errors?.non_field_errors)
+    || (puedeElegirCarrera ? '' : primerError(errors?.carrera))
+    || errorFondoTiempo;
 
   const handleResetearPassword = async () => {
     const passwordPorDefecto = `${userToEdit.username}UABJB`;
@@ -437,30 +440,9 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
 
       if (apiErrors && typeof apiErrors === 'object') {
         setErrors(apiErrors);
-        const rolError = Array.isArray(apiErrors?.rol)
-          ? apiErrors.rol[0]
-          : (typeof apiErrors?.rol === 'string' ? apiErrors.rol : null);
-        if (rolError) {
-          errorMsg = rolError;
-        }
-
-        const errorMessages = [];
-        
-        Object.entries(apiErrors).forEach(([field, messages]) => {
-          const msgs = Array.isArray(messages) ? messages : [messages];
-          msgs.forEach(msg => {
-            const msgStr = typeof msg === 'object' ? (msg.message || JSON.stringify(msg)) : String(msg);
-            if (msgStr.trim()) {
-              const fieldLabel = field === 'non_field_errors' ? '' : `${field}: `;
-              errorMessages.push(`${fieldLabel}${msgStr.trim()}`);
-            }
-          });
-        });
-        
-        // Limitar a los primeros 2 errores
-        if (!rolError) {
-          errorMsg = errorMessages.slice(0, 2).join('; ') || 'Error de validación.';
-        }
+        if (apiErrors.rol || apiErrors.non_field_errors) setRepeticionRol((valor) => valor + 1);
+        if (apiErrors.asignaciones) setRepeticionAsignaciones((valor) => valor + 1);
+        errorMsg = textoErroresUsuario(apiErrors, 'Error de validación.');
       } else if (err.response?.data && typeof err.response.data === 'string') {
         if (err.response.data.includes('<!DOCTYPE html>') || err.response.data.includes('<html')) {
           errorMsg = 'Error interno del servidor al actualizar usuario. Vuelve a intentar o reporta este caso.';
@@ -589,15 +571,15 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
                         onMoverDerecha={moverRolDerecha}
                         onMoverIzquierda={moverRolIzquierda}
                         bloquearAsignar={rolesAsignadosLista.length >= MAX_ASIGNACIONES_TOTAL}
-                        errorIzquierda={Boolean(errors?.rol)}
-                        errorDerecha={Boolean(errors?.asignaciones || errors?.rol)}
+                        errorIzquierda={Boolean(errors?.rol || errors?.non_field_errors)}
+                        errorDerecha={Boolean(errors?.asignaciones || errors?.rol || errors?.non_field_errors)}
                         pulsoIzquierda={brincoIzquierda}
                         pulsoDerecha={brincoDerecha}
                         etiquetaRol={obtenerRolLabel}
                       />
                       <MensajeAnimado
-                        show={Boolean(asignacionesError || errorFondoTiempo)}
-                        message={asignacionesError || errorFondoTiempo}
+                        show={Boolean(errorBajoLista)}
+                        message={errorBajoLista}
                         wrapperClassName="pl-1"
                         messageClassName="text-xs text-red-600"
                       />

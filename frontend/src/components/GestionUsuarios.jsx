@@ -7,9 +7,9 @@ import ModalUsuario from './ModalUsuario';
 import { EVENTO_FOTO_PERFIL_ACTUALIZADA } from './ProfilePicture';
 import {
   MAX_ASIGNACIONES_TOTAL, MENSAJE_AUTORIDAD_UNICA, MENSAJE_DUPLICADO, MENSAJE_RESOLUCION_JEFE,
-  ROLES_MANDO_UABJB, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf, motivoNoAsignarRol,
+  ROLES_MANDO_UABJB, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf, motivoNoAsignarRol, textoErroresUsuario,
 } from '../utils/asignacionesUsuario';
-import CampoUsuario from './usuarios/CampoUsuario';
+import CampoUsuario, { MensajeAnimado } from './usuarios/CampoUsuario';
 import ListaTransferenciaRoles from './usuarios/ListaTransferenciaRoles';
 import SelectorCarreraUsuario from './usuarios/SelectorCarreraUsuario';
 import { useActiveRole } from '../contexts/activeRole';
@@ -1025,22 +1025,14 @@ const initialData = {
               : sanitizeApiErrors(apiErrors)
           );
         }
-        const ciMsg = Array.isArray(apiErrors?.ci)
-          ? apiErrors.ci[0]
-          : (typeof apiErrors?.ci === 'string' ? apiErrors.ci : null);
-        const docenteMsg = Array.isArray(apiErrors?.docente)
-          ? apiErrors.docente[0]
-          : (typeof apiErrors?.docente === 'string' ? apiErrors.docente : null);
-        if (ciMsg) {
-          toast.error(`C.I.: ${ciMsg}`);
-        } else if (docenteMsg) {
-          toast.error(docenteMsg);
-        } else if (typeof apiErrors === 'string' && apiErrors.includes('<!DOCTYPE')) {
+        if (typeof apiErrors === 'string' && apiErrors.includes('<!DOCTYPE')) {
           // El backend devolvió HTML (error 500 de Django), no un ValidationError JSON.
           // Ya no enmascaramos el error con un mensaje falso de "docente": informamos al
           // operador que ocurrió un fallo del servidor y lo registramos en consola.
           console.error('Error 500 del servidor (HTML en lugar de JSON):', err.response?.status, err.response?.statusText);
           toast.error('Error interno del servidor. Revise la consola o contacte al administrador.');
+        } else if (typeof apiErrors === 'object') {
+          toast.error(textoErroresUsuario(apiErrors, 'Ocurrió un error inesperado al crear el usuario.'));
         } else {
           toast.error(getBackendErrorMessage(apiErrors, 'Ocurrió un error inesperado al crear el usuario.'));
         }
@@ -1065,6 +1057,13 @@ const initialData = {
             : (typeof errors?.last_name === 'string' ? errors.last_name : null)))));
 
   const obtenerRolLabel = (rolValue) => roles.find((item) => item.value === rolValue)?.label || rolValue || 'Sin rol';
+
+  // Errores de los roles (y de la carrera si no hay selector) como texto bajo la lista.
+  const textoDeError = (error) => (Array.isArray(error) ? (error[0] || '') : (typeof error === 'string' ? error : ''));
+  const errorBajoListaCreacion = textoDeError(errors?.rol)
+    || textoDeError(errors?.asignaciones)
+    || textoDeError(errors?.non_field_errors)
+    || (esSuperuserActual ? '' : textoDeError(errors?.carrera));
 
   const mostrarNombreCompletoCreacion = true;
   const mostrarCiCreacion = true;
@@ -1534,6 +1533,12 @@ const initialData = {
                         pulsoIzquierda={leftPanelPulsing}
                         pulsoDerecha={rightPanelPulsing}
                         etiquetaRol={obtenerRolLabel}
+                      />
+                      <MensajeAnimado
+                        show={Boolean(errorBajoListaCreacion)}
+                        message={errorBajoListaCreacion}
+                        wrapperClassName="pl-1"
+                        messageClassName="text-xs text-red-600"
                       />
                       <p className="pl-1 text-xs text-slate-600">
                         {esSuperuserActual

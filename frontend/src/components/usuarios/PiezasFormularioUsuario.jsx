@@ -7,20 +7,30 @@ export const CandadoIcon = ({ className = 'w-3.5 h-3.5' }) => (
   </svg>
 );
 
-// Sección del formulario: título corto en mayúsculas y, a su derecha, un aviso que
-// vale para toda la sección (p. ej. por qué hay campos bloqueados). El contenedor las
-// separa con una línea.
+// Candado de un campo bloqueado: círculo oscuro con el candado blanco, bien visible.
+export const CandadoCampo = ({ className = '' }) => (
+  <span
+    title="Bloqueado"
+    className={`pointer-events-none flex h-7 w-7 items-center justify-center rounded-full bg-slate-600 text-white shadow-sm ${className}`}
+  >
+    <CandadoIcon className="w-3.5 h-3.5" />
+  </span>
+);
+
+// Aviso de una sección o bloque, en su propio cuadro (no una línea suelta).
+export const AvisoUsuario = ({ children }) => (
+  <div className="flex items-start gap-2.5 rounded-xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 px-3 py-2.5 text-xs leading-snug text-slate-700">
+    <CandadoCampo className="!h-6 !w-6 flex-shrink-0" />
+    <span className="pt-0.5">{children}</span>
+  </div>
+);
+
+// Sección del formulario: título corto en mayúsculas, su aviso (si lo hay) en un
+// cuadro propio y el contenido. El contenedor las separa con una línea.
 export const SeccionUsuario = ({ titulo, aviso, children }) => (
   <section className="px-5 sm:px-6 py-4 space-y-3">
-    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-blue-700">{titulo}</h3>
-      {aviso && (
-        <p className="flex items-start gap-1.5 text-xs leading-snug text-slate-600 sm:text-right">
-          <CandadoIcon className="w-3.5 h-3.5 mt-px flex-shrink-0" />
-          <span>{aviso}</span>
-        </p>
-      )}
-    </div>
+    <h3 className="text-xs font-semibold uppercase tracking-wider text-blue-700">{titulo}</h3>
+    {aviso && <AvisoUsuario>{aviso}</AvisoUsuario>}
     {children}
   </section>
 );

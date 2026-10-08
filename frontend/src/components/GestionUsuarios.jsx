@@ -1530,10 +1530,12 @@ const initialData = {
                   </SeccionUsuario>
 
                   <SeccionUsuario titulo="Contraseña">
-                    <p className="text-sm text-slate-700" aria-live="polite">
-                      Contraseña inicial: <span className="font-semibold text-slate-900">{formData.username ? `${formData.username}UABJB` : 'usuarioUABJB'}</span>
-                      <span className="text-slate-500"> · el usuario deberá cambiarla al iniciar sesión.</span>
-                    </p>
+                    <div className="rounded-2xl bg-white ring-1 ring-inset ring-azulado-300 px-4 py-3">
+                      <p className="text-sm text-slate-700" aria-live="polite">
+                        Contraseña inicial: <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-blue-50 ring-1 ring-inset ring-blue-200 font-bold text-blue-900">{formData.username ? `${formData.username}UABJB` : 'usuarioUABJB'}</span>
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">El usuario deberá cambiarla al iniciar sesión.</p>
+                    </div>
                   </SeccionUsuario>
                 </div>
 

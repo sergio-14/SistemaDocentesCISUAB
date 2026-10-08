@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { ERROR_MOTION_CLASS } from '../../utils/formErrors';
-import { CandadoIcon } from './PiezasFormularioUsuario';
+import { AvisoUsuario, CandadoIcon } from './PiezasFormularioUsuario';
 
 // Lista de transferencia de los formularios de usuario (crear y editar): a la
-// izquierda todos los roles, a la derecha los asignados (siempre en celeste, el color
-// de "Generar Fondos Masivamente"), cada uno con la carrera del usuario.
+// izquierda todos los roles, a la derecha los asignados (siempre en celeste, un tono
+// más suave que "Generar Fondos Masivamente"), cada uno con la carrera del usuario.
 //
 // La carrera es UNA para todos los roles (la del contrato): el superusuario la elige
 // en la fila de cualquier rol asignado y se aplica a todos. Al pasar el primer rol sin
@@ -74,12 +74,12 @@ const ListaTransferenciaRoles = ({
                   onClick={() => onSeleccionarIzquierda(rol.value)}
                   onDoubleClick={() => onMoverDerecha(rol.value)}
                   className={`w-full text-left px-3 py-2 rounded-xl text-sm flex items-center justify-between gap-2 ${
-                    elegido ? 'bg-sky-600 text-white font-semibold' : 'text-slate-700 hover:bg-blue-900 hover:text-white'
+                    elegido ? 'bg-sky-600/80 text-white font-semibold' : 'text-slate-700 hover:bg-blue-900 hover:text-white'
                   }`}
                 >
                   <span>{rol.label}</span>
                   {yaAsignado && (
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${elegido ? 'bg-white/25 text-white' : 'bg-sky-600 text-white'}`}>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${elegido ? 'bg-white/25 text-white' : 'bg-sky-600/80 text-white'}`}>
                       Asignado
                     </span>
                   )}
@@ -116,7 +116,7 @@ const ListaTransferenciaRoles = ({
 
       {/* Panel derecho: roles asignados, con su carrera y sus avisos al pie */}
       {/* Borde por fuera (no inset): el pie con fondo no lo tapa. */}
-      <div className={`rounded-2xl bg-white flex flex-col overflow-hidden ${error ? 'ring-2 ring-red-500' : 'ring-1 ring-azulado-300'}`}>
+      <div className={`rounded-2xl bg-white flex flex-col overflow-hidden ${error ? 'ring-2 ring-red-400/80' : 'ring-1 ring-azulado-300'}`}>
         <div className="flex items-center justify-between gap-3 px-4 py-2.5 [border-bottom:1px_solid_#D2DDEE]">
           <p className="text-xs font-semibold text-blue-800">Roles asignados</p>
           <span className="text-xs font-medium text-slate-500 tabular-nums">{asignados.length} de {maximo}</span>
@@ -140,7 +140,7 @@ const ListaTransferenciaRoles = ({
                       onSeleccionarDerecha(index);
                     }
                   }}
-                  className={`w-full cursor-pointer px-3 py-2 rounded-xl text-sm font-semibold flex items-center justify-between gap-2 bg-sky-600 text-white hover:bg-sky-700 ${
+                  className={`w-full cursor-pointer px-3 py-2 rounded-xl text-sm font-semibold flex items-center justify-between gap-2 bg-sky-600/80 text-white hover:bg-sky-600 ${
                     seleccionDerecha === index ? 'ring-2 ring-blue-900 ring-offset-1' : ''
                   }`}
                 >
@@ -160,11 +160,15 @@ const ListaTransferenciaRoles = ({
                       }}
                       onDoubleClick={(event) => event.stopPropagation()}
                       aria-expanded={carreraAbierta === index}
-                      className={`flex-shrink-0 max-w-[60%] inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold truncate ${
-                        nombreCarrera ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-white text-red-600'
-                      } disabled:cursor-not-allowed disabled:hover:bg-white/20`}
+                      className={`flex-shrink-0 max-w-[60%] inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold truncate ${
+                        carreraBloqueada
+                          ? 'bg-white text-slate-700 cursor-not-allowed'
+                          : (nombreCarrera ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-white text-red-600')
+                      }`}
                     >
-                      {carreraBloqueada ? <CandadoIcon className="w-3 h-3 flex-shrink-0" /> : <span aria-hidden="true">{carreraAbierta === index ? '▾' : '▸'}</span>}
+                      {carreraBloqueada
+                        ? <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-slate-600 text-white"><CandadoIcon className="w-2.5 h-2.5" /></span>
+                        : <span aria-hidden="true">{carreraAbierta === index ? '▾' : '▸'}</span>}
                       <span className="truncate">{nombreCarrera || 'Elegir carrera'}</span>
                     </button>
                   ) : (
@@ -182,7 +186,7 @@ const ListaTransferenciaRoles = ({
                           aria-selected={String(opcion.id) === String(carrera)}
                           onClick={() => elegir(opcion.id)}
                           className={`w-full text-left px-3 py-1.5 rounded-xl text-xs ${
-                            String(opcion.id) === String(carrera) ? 'bg-sky-600 text-white font-semibold' : 'text-slate-700 hover:bg-blue-900 hover:text-white'
+                            String(opcion.id) === String(carrera) ? 'bg-sky-600/80 text-white font-semibold' : 'text-slate-700 hover:bg-blue-900 hover:text-white'
                           }`}
                         >
                           {opcion.nombre}
@@ -197,13 +201,13 @@ const ListaTransferenciaRoles = ({
           )}
         </div>
         {(error || aviso) && (
-          <p
-            role={error ? 'alert' : undefined}
-            className={`flex items-start gap-1.5 px-4 py-2 text-xs leading-snug [border-top:1px_solid_#D2DDEE] ${error ? 'bg-red-50 text-red-700' : 'bg-azulado-50 text-slate-600'}`}
-          >
-            {!error && <CandadoIcon className="w-3.5 h-3.5 mt-px flex-shrink-0" />}
-            <span>{error || aviso}</span>
-          </p>
+          <div className="p-1.5 pt-0">
+            {error ? (
+              <p role="alert" className="rounded-xl bg-red-50 ring-1 ring-inset ring-red-200 px-3 py-2 text-xs leading-snug text-red-700">{error}</p>
+            ) : (
+              <AvisoUsuario>{aviso}</AvisoUsuario>
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -11,7 +11,7 @@ import { ERROR_SHAKE_DURATION_MS } from '../utils/formErrors';
 import CampoResolucionJefe from './common/CampoResolucionJefe';
 import FiltroDesplegable from './common/FiltroDesplegable';
 import CampoUsuario from './usuarios/CampoUsuario';
-import { CandadoIcon, NotaUsuario, SeccionUsuario } from './usuarios/PiezasFormularioUsuario';
+import { CandadoCampo, NotaUsuario, SeccionUsuario } from './usuarios/PiezasFormularioUsuario';
 import ListaTransferenciaRoles from './usuarios/ListaTransferenciaRoles';
 import ModalConfirmar from './common/ModalConfirmar';
 import { BOTON } from './fondos/estilosFondo';
@@ -489,10 +489,14 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
       );
     }
     return (
-      <p className="flex items-center gap-1.5 px-3 pt-1 pb-0.5 text-xs text-slate-600">
-        {tieneDocenteVinculado && <CandadoIcon className="w-3 h-3 flex-shrink-0" />}
-        {tieneDocenteVinculado ? <>Ficha de docente: <span className="font-semibold text-slate-800">{nombreDocenteVinculado}</span></> : 'Sin ficha de docente: se vincula si Docente es el rol principal.'}
-      </p>
+      <div className="px-1 pt-1.5 pb-1">
+        <div className="flex items-center gap-2.5 rounded-xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 px-3 py-2 text-xs text-slate-700">
+          {tieneDocenteVinculado && <CandadoCampo className="!h-6 !w-6 flex-shrink-0" />}
+          {tieneDocenteVinculado
+            ? <span>Ficha de docente: <span className="font-semibold text-slate-900">{nombreDocenteVinculado}</span></span>
+            : <span>Sin ficha de docente: se vincula si Docente es el rol principal.</span>}
+        </div>
+      </div>
     );
   };
 
@@ -628,17 +632,19 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
               </SeccionUsuario>
 
               <SeccionUsuario titulo="Contraseña">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="min-w-0 text-sm text-slate-700">
-                    Contraseña inicial: <span className="font-semibold text-slate-900">{passwordPorDefecto}</span>
-                    <span className="text-slate-500"> · al restablecerla, el usuario entra con ella y debe cambiarla.</span>
-                  </p>
+                <div className="flex flex-col gap-3 rounded-2xl bg-white ring-1 ring-inset ring-azulado-300 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm text-slate-700">
+                      Contraseña inicial: <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-blue-50 ring-1 ring-inset ring-blue-200 font-bold text-blue-900">{passwordPorDefecto}</span>
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">Al restablecerla, el usuario entra con esta contraseña y debe cambiarla.</p>
+                  </div>
                   {puedeRestablecerPassword && (
                     <button
                       type="button"
                       onClick={() => setShowResetConfirm(true)}
                       disabled={loading}
-                      className={`${BOTON} flex-shrink-0 px-5 py-2.5 bg-white text-slate-700 ring-1 ring-inset ring-azulado-300 hover:bg-azulado-100 disabled:opacity-50 disabled:cursor-not-allowed`}
+                      className={`${BOTON} flex-shrink-0 px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
                       Restablecer contraseña
                     </button>
@@ -671,7 +677,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
       {showResetConfirm && (
         <ModalConfirmar
           titulo="Restablecer contraseña"
-          mensaje={<>La contraseña de <strong className="text-slate-900">{userToEdit.username}</strong> volverá a ser <strong className="text-slate-900">{passwordPorDefecto}</strong> y deberá cambiarla al iniciar sesión.</>}
+          mensaje={<>La contraseña de <strong className="text-slate-900">{userToEdit.username}</strong> volverá a ser <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-blue-50 ring-1 ring-inset ring-blue-200 font-bold text-blue-900">{passwordPorDefecto}</span> y deberá cambiarla al iniciar sesión.</>}
           textoAccion="Restablecer"
           textoTrabajando="Restableciendo..."
           onConfirmar={handleResetearPassword}

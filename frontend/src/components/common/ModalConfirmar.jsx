@@ -2,6 +2,9 @@ import { useEffect, useId, useRef, useState } from 'react';
 import ModalCentrado from './ModalCentrado';
 import { BOTON } from '../fondos/estilosFondo';
 
+// Foco visible con un anillo azul suave en lugar del contorno negro del navegador.
+const FOCO = 'outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-900/40';
+
 const FOCUSABLES = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
@@ -129,7 +132,7 @@ function ModalConfirmar({
               ref={cancelarRef}
               type="button"
               onClick={onCancelar}
-              className={`${BOTON} px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white`}
+              className={`${BOTON} ${FOCO} px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white`}
             >
               Entendido
             </button>
@@ -140,7 +143,7 @@ function ModalConfirmar({
                 type="button"
                 onClick={cancelar}
                 disabled={trabajando}
-                className={`${BOTON} px-5 py-2.5 bg-white text-slate-700 ring-1 ring-inset ring-azulado-300 hover:bg-azulado-100 disabled:opacity-50`}
+                className={`${BOTON} ${FOCO} px-5 py-2.5 bg-white text-slate-700 ring-1 ring-inset ring-azulado-300 hover:bg-azulado-100 disabled:opacity-50`}
               >
                 Cancelar
               </button>
@@ -148,7 +151,7 @@ function ModalConfirmar({
                 type="button"
                 onClick={confirmar}
                 disabled={trabajando}
-                className={`${BOTON} px-5 py-2.5 text-white disabled:opacity-60 disabled:cursor-not-allowed ${
+                className={`${BOTON} ${FOCO} px-5 py-2.5 text-white disabled:opacity-60 disabled:cursor-not-allowed ${
                   peligro ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-900 hover:bg-blue-950'
                 }`}
               >

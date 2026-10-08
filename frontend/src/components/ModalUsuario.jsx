@@ -14,7 +14,6 @@ import CampoUsuario from './usuarios/CampoUsuario';
 import { CandadoIcon, NotaUsuario, SeccionUsuario } from './usuarios/PiezasFormularioUsuario';
 import ListaTransferenciaRoles from './usuarios/ListaTransferenciaRoles';
 import ModalConfirmar from './common/ModalConfirmar';
-import SelectorCarreraUsuario from './usuarios/SelectorCarreraUsuario';
 import { BOTON } from './fondos/estilosFondo';
 
 // Brinco del panel de roles cuando aparece (o se repite) un error.
@@ -125,7 +124,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
   const [repeticionRol, setRepeticionRol] = useState(0);
   const [repeticionAsignaciones, setRepeticionAsignaciones] = useState(0);
   const brincoRoles = useBrinco(
-    Boolean(errors?.rol || errors?.asignaciones || errors?.non_field_errors),
+    Boolean(errors?.rol || errors?.asignaciones || errors?.non_field_errors || errors?.carrera),
     repeticionRol + repeticionAsignaciones,
   );
   // Si el usuario ya tiene datos registrados, su identidad (usuario, nombre, C.I.)
@@ -300,7 +299,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
   const errorBajoLista = primerError(errors?.rol)
     || primerError(errors?.asignaciones)
     || primerError(errors?.non_field_errors)
-    || (puedeElegirCarrera ? '' : primerError(errors?.carrera))
+    || primerError(errors?.carrera)
     || errorFondoTiempo;
 
   // Lo confirma ModalConfirmar: si falla, el motivo se muestra en el mismo modal.
@@ -464,12 +463,38 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     : '';
   // La ficha de docente solo se elige si el rol principal es Docente y aún no tiene una.
   const docenteEditable = formData.rol === 'docente' && !tieneDocenteVinculado;
-  const notaDocente = tieneDocenteVinculado
-    ? 'Ya está vinculado a su ficha de docente.'
-    : (formData.rol === 'docente' ? '' : 'Solo si el rol principal es Docente.');
-  const notaCarrera = !puedeElegirCarrera
-    ? 'Es tu carrera: se asigna sola.'
-    : (identidadBloqueada ? 'No se puede cambiar: tiene datos registrados.' : 'Todos los roles del usuario van en esta carrera.');
+  const avisoRoles = !puedeElegirCarrera
+    ? 'La carrera es la tuya: se asigna sola.'
+    : (identidadBloqueada ? 'La carrera no se puede cambiar: el usuario tiene datos registrados.' : '');
+
+  // Debajo de la fila "Docente": su ficha de docente.
+  const fichaDocente = (item, index) => {
+    if (item.rol !== 'docente') return null;
+    if (docenteEditable && index === 0) {
+      return (
+        <div className="px-1 pt-1.5 pb-1">
+          <FiltroDesplegable
+            id="editar-usuario-docente"
+            value={formData.docente}
+            onChange={(valor) => handleChange({ target: { name: 'docente', value: valor } })}
+            options={docentes.map((docente) => ({ value: docente.id, label: obtenerNombreCompletoDocente(docente) }))}
+            placeholder="Vincular su ficha de docente"
+            ariaLabel="Ficha de docente"
+            emptyText="No hay docentes que coincidan"
+            permitirQuitar={false}
+            invalido={Boolean(textoErrorDocente)}
+          />
+          {textoErrorDocente && <NotaUsuario tipo="error">{textoErrorDocente}</NotaUsuario>}
+        </div>
+      );
+    }
+    return (
+      <p className="flex items-center gap-1.5 px-3 pt-1 pb-0.5 text-xs text-slate-600">
+        {tieneDocenteVinculado && <CandadoIcon className="w-3 h-3 flex-shrink-0" />}
+        {tieneDocenteVinculado ? <>Ficha de docente: <span className="font-semibold text-slate-800">{nombreDocenteVinculado}</span></> : 'Sin ficha de docente: se vincula si Docente es el rol principal.'}
+      </p>
+    );
+  };
 
   return createPortal(
     <div className="fixed inset-0 z-50 overflow-y-auto bg-blue-950/30 backdrop-blur-sm">
@@ -502,7 +527,10 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
 
           <form onSubmit={handleSubmit} noValidate>
             <div className="divide-y divide-azulado-200">
-              <SeccionUsuario titulo="Cuenta">
+              <SeccionUsuario
+                titulo="Cuenta"
+                aviso={identidadBloqueada ? `Usuario, nombre y C.I. no se pueden cambiar: tiene datos registrados${textoDatosRegistrados}. Para retirarlo, desactívelo.` : ''}
+              >
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-x-4 gap-y-4">
                   <CampoUsuario
                     idPrefijo="editar-usuario"
@@ -551,80 +579,39 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
                     maxLength={15}
                   />
                 </div>
-                {identidadBloqueada && (
-                  <NotaUsuario tipo="bloqueo">
-                    Usuario, nombre y C.I. no se pueden cambiar porque tiene datos registrados{textoDatosRegistrados}. Para retirarlo, desactívelo.
-                  </NotaUsuario>
-                )}
               </SeccionUsuario>
 
-              <SeccionUsuario titulo="Carrera y roles">
+              <SeccionUsuario titulo="Roles y carrera">
                 {esSuperusuarioEditado ? (
                   <p className="text-sm text-slate-600">
                     Es el superusuario: no tiene carrera ni roles, tiene acceso a todo el sistema.
                   </p>
                 ) : (
                   <>
-                    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] gap-x-6 gap-y-4 items-start">
-                      <div className="space-y-4">
-                        <SelectorCarreraUsuario
-                          id="editar-usuario-carrera"
-                          value={formData.carrera}
-                          onChange={cambiarCarreraUsuario}
-                          carreras={carreras}
-                          error={puedeElegirCarrera ? errors.carrera : null}
-                          deshabilitado={!puedeElegirCarrera || Boolean(identidadBloqueada)}
-                          nota={notaCarrera}
-                        />
-                        <div>
-                          <label htmlFor="editar-usuario-docente" className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 mb-1.5 pl-1">
-                            Ficha de docente
-                            {!docenteEditable && <CandadoIcon className="w-3 h-3 text-slate-400" />}
-                          </label>
-                          <FiltroDesplegable
-                            id="editar-usuario-docente"
-                            value={formData.docente}
-                            onChange={(valor) => handleChange({ target: { name: 'docente', value: valor } })}
-                            options={docentes.map((docente) => ({ value: docente.id, label: obtenerNombreCompletoDocente(docente) }))}
-                            placeholder={tieneDocenteVinculado ? nombreDocenteVinculado : (docenteEditable ? 'Seleccione un docente' : 'Sin ficha de docente')}
-                            ariaLabel="Ficha de docente"
-                            emptyText="No hay docentes que coincidan"
-                            permitirQuitar={false}
-                            invalido={Boolean(textoErrorDocente)}
-                            disabled={!docenteEditable}
-                          />
-                          {textoErrorDocente
-                            ? <NotaUsuario tipo="error">{textoErrorDocente}</NotaUsuario>
-                            : <NotaUsuario>{notaDocente}</NotaUsuario>}
-                        </div>
-                      </div>
-
-                      <div>
-                        <span className="block text-xs font-semibold text-slate-700 mb-1.5 pl-1">Roles</span>
-                        <ListaTransferenciaRoles
-                          roles={rolesDisponiblesModal}
-                          asignados={rolesAsignadosLista}
-                          seleccionIzquierda={rolElegidoIzquierda}
-                          onSeleccionarIzquierda={(valor) => {
-                            setRolElegidoIzquierda(valor);
-                            setErrors((prev) => (prev?.rol ? { ...prev, rol: null } : prev));
-                          }}
-                          seleccionDerecha={rolElegidoDerecha}
-                          onSeleccionarDerecha={setRolElegidoDerecha}
-                          onMoverDerecha={moverRolDerecha}
-                          onMoverIzquierda={moverRolIzquierda}
-                          bloquearAsignar={rolesAsignadosLista.length >= 2}
-                          errorIzquierda={Boolean(errors?.rol || errors?.non_field_errors)}
-                          errorDerecha={Boolean(errors?.asignaciones || errors?.rol || errors?.non_field_errors)}
-                          pulsoIzquierda={brincoRoles}
-                          pulsoDerecha={brincoRoles}
-                          etiquetaRol={obtenerRolLabel}
-                        />
-                        {errorBajoLista
-                          ? <NotaUsuario tipo="error">{errorBajoLista}</NotaUsuario>
-                          : <NotaUsuario>Elija un rol y use las flechas (o doble clic). Máximo 2 roles y un solo cargo (Director, Jefe de Estudios o Instituto).</NotaUsuario>}
-                      </div>
-                    </div>
+                    <ListaTransferenciaRoles
+                      roles={rolesDisponiblesModal}
+                      asignados={rolesAsignadosLista}
+                      seleccionIzquierda={rolElegidoIzquierda}
+                      onSeleccionarIzquierda={(valor) => {
+                        setRolElegidoIzquierda(valor);
+                        setErrors((prev) => (prev?.rol ? { ...prev, rol: null } : prev));
+                      }}
+                      seleccionDerecha={rolElegidoDerecha}
+                      onSeleccionarDerecha={setRolElegidoDerecha}
+                      onMoverDerecha={moverRolDerecha}
+                      onMoverIzquierda={moverRolIzquierda}
+                      bloquearAsignar={rolesAsignadosLista.length >= 2}
+                      etiquetaRol={obtenerRolLabel}
+                      carrera={formData.carrera}
+                      carreras={carreras}
+                      elegirCarrera={puedeElegirCarrera}
+                      carreraBloqueada={Boolean(identidadBloqueada)}
+                      onCambiarCarrera={cambiarCarreraUsuario}
+                      error={errorBajoLista}
+                      aviso={avisoRoles}
+                      pulso={brincoRoles}
+                      contenidoFila={fichaDocente}
+                    />
 
                     {designaJefeNuevo && (
                       <CampoResolucionJefe
@@ -642,12 +629,10 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
 
               <SeccionUsuario titulo="Contraseña">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-sm text-slate-700">
-                      Contraseña inicial: <span className="font-semibold text-slate-900">{passwordPorDefecto}</span>
-                    </p>
-                    <NotaUsuario>Al restablecerla, el usuario entra con esta contraseña y debe cambiarla.</NotaUsuario>
-                  </div>
+                  <p className="min-w-0 text-sm text-slate-700">
+                    Contraseña inicial: <span className="font-semibold text-slate-900">{passwordPorDefecto}</span>
+                    <span className="text-slate-500"> · al restablecerla, el usuario entra con ella y debe cambiarla.</span>
+                  </p>
                   {puedeRestablecerPassword && (
                     <button
                       type="button"

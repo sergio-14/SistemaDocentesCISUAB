@@ -10,9 +10,8 @@ import {
   ROLES_MANDO_UABJB, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf, motivoNoAsignarRol, textoErroresUsuario,
 } from '../utils/asignacionesUsuario';
 import CampoUsuario from './usuarios/CampoUsuario';
-import { NotaUsuario, SeccionUsuario } from './usuarios/PiezasFormularioUsuario';
+import { SeccionUsuario } from './usuarios/PiezasFormularioUsuario';
 import ListaTransferenciaRoles from './usuarios/ListaTransferenciaRoles';
-import SelectorCarreraUsuario from './usuarios/SelectorCarreraUsuario';
 import { useActiveRole } from '../contexts/activeRole';
 import CampoResolucionJefe from './common/CampoResolucionJefe';
 import CampoBusqueda from './common/CampoBusqueda';
@@ -1027,7 +1026,7 @@ const initialData = {
   const errorBajoListaCreacion = textoDeError(errors?.rol)
     || textoDeError(errors?.asignaciones)
     || textoDeError(errors?.non_field_errors)
-    || (esSuperuserActual ? '' : textoDeError(errors?.carrera));
+    || textoDeError(errors?.carrera);
 
   const obtenerRolLabel = (rolValue) => roles.find((item) => item.value === rolValue)?.label || rolValue || 'Sin rol';
 
@@ -1493,45 +1492,30 @@ const initialData = {
                     </div>
                   </SeccionUsuario>
 
-                  <SeccionUsuario titulo="Carrera y roles">
-                    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] gap-x-6 gap-y-4 items-start">
-                      <SelectorCarreraUsuario
-                        id="usuario-carrera"
-                        value={formData.carrera || carreraPropiaEditor}
-                        onChange={cambiarCarreraUsuario}
-                        carreras={carrerasGestionables}
-                        error={esSuperuserActual ? errors.carrera : null}
-                        deshabilitado={!esSuperuserActual}
-                        nota={esSuperuserActual ? 'Todos los roles del usuario van en esta carrera.' : 'Es tu carrera: se asigna sola.'}
-                      />
-
-                      <div>
-                        <span className="block text-xs font-semibold text-slate-700 mb-1.5 pl-1">Roles</span>
-                        <ListaTransferenciaRoles
-                          roles={rolesDisponiblesLista}
-                          asignados={rolesAsignadosLista}
-                          seleccionIzquierda={selectedRoleLeft}
-                          onSeleccionarIzquierda={(valor) => {
-                            setSelectedRoleLeft(valor);
-                            setErrors((prev) => (prev?.rol ? { ...prev, rol: null } : prev));
-                          }}
-                          seleccionDerecha={selectedRoleRight}
-                          onSeleccionarDerecha={setSelectedRoleRight}
-                          onMoverDerecha={moverRolDerecha}
-                          onMoverIzquierda={moverRolIzquierda}
-                          bloquearAsignar={vinculacionRapidaDocente || rolesAsignadosLista.length >= 2}
-                          bloquearQuitar={vinculacionRapidaDocente}
-                          errorIzquierda={Boolean(errors?.rol)}
-                          errorDerecha={Boolean(errors?.asignaciones || errors?.rol)}
-                          pulsoIzquierda={leftPanelPulsing}
-                          pulsoDerecha={rightPanelPulsing}
-                          etiquetaRol={obtenerRolLabel}
-                        />
-                        {errorBajoListaCreacion
-                          ? <NotaUsuario tipo="error">{errorBajoListaCreacion}</NotaUsuario>
-                          : <NotaUsuario>Elija un rol y use las flechas (o doble clic). Máximo 2 roles y un solo cargo (Director, Jefe de Estudios o Instituto).</NotaUsuario>}
-                      </div>
-                    </div>
+                  <SeccionUsuario titulo="Roles y carrera">
+                    <ListaTransferenciaRoles
+                      roles={rolesDisponiblesLista}
+                      asignados={rolesAsignadosLista}
+                      seleccionIzquierda={selectedRoleLeft}
+                      onSeleccionarIzquierda={(valor) => {
+                        setSelectedRoleLeft(valor);
+                        setErrors((prev) => (prev?.rol ? { ...prev, rol: null } : prev));
+                      }}
+                      seleccionDerecha={selectedRoleRight}
+                      onSeleccionarDerecha={setSelectedRoleRight}
+                      onMoverDerecha={moverRolDerecha}
+                      onMoverIzquierda={moverRolIzquierda}
+                      bloquearAsignar={vinculacionRapidaDocente || rolesAsignadosLista.length >= 2}
+                      bloquearQuitar={vinculacionRapidaDocente}
+                      etiquetaRol={obtenerRolLabel}
+                      carrera={formData.carrera || carreraPropiaEditor}
+                      carreras={carrerasGestionables}
+                      elegirCarrera={esSuperuserActual}
+                      onCambiarCarrera={cambiarCarreraUsuario}
+                      error={errorBajoListaCreacion}
+                      aviso={esSuperuserActual ? '' : 'La carrera es la tuya: se asigna sola.'}
+                      pulso={leftPanelPulsing || rightPanelPulsing}
+                    />
 
                     {[formData.rol, ...asignacionesExtra.map((item) => item.rol)].includes('jefe_estudios') && (
                       <CampoResolucionJefe
@@ -1546,12 +1530,10 @@ const initialData = {
                   </SeccionUsuario>
 
                   <SeccionUsuario titulo="Contraseña">
-                    <div>
-                      <p className="text-sm text-slate-700" aria-live="polite">
-                        Contraseña inicial: <span className="font-semibold text-slate-900">{formData.username ? `${formData.username}UABJB` : 'usuarioUABJB'}</span>
-                      </p>
-                      <NotaUsuario>El usuario deberá cambiarla al iniciar sesión.</NotaUsuario>
-                    </div>
+                    <p className="text-sm text-slate-700" aria-live="polite">
+                      Contraseña inicial: <span className="font-semibold text-slate-900">{formData.username ? `${formData.username}UABJB` : 'usuarioUABJB'}</span>
+                      <span className="text-slate-500"> · el usuario deberá cambiarla al iniciar sesión.</span>
+                    </p>
                   </SeccionUsuario>
                 </div>
 

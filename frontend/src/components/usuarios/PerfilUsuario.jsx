@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import api from '../../apis/api';
 import ModalCentrado from '../common/ModalCentrado';
 import { BOTON } from '../fondos/estilosFondo';
+import { ERROR_MOTION_CLASS, ERROR_SHAKE_DURATION_MS } from '../../utils/formErrors';
 import { AvisoUsuario } from './PiezasFormularioUsuario';
 
 const ROLES = {
@@ -19,8 +20,8 @@ const fecha = (valor) => {
 };
 
 // Cuadro del perfil con su título; resaltado (borde rojo) cuando es el motivo de un error.
-const Cuadro = ({ titulo, children, resaltado = false }) => (
-  <section className={`rounded-2xl bg-white ring-inset p-4 ${resaltado ? 'ring-2 ring-red-400/80' : 'ring-1 ring-azulado-300'}`}>
+const Cuadro = ({ titulo, children, resaltado = false, brinco = false }) => (
+  <section className={`rounded-2xl bg-white ring-inset p-4 ${resaltado ? 'ring-2 ring-red-400/80' : 'ring-1 ring-azulado-300'} ${brinco ? ERROR_MOTION_CLASS : ''}`}>
     <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-blue-700">{titulo}</h3>
     {children}
   </section>
@@ -58,8 +59,24 @@ function PerfilUsuario({
 }) {
   const [datos, setDatos] = useState(null);
   const [errorDatos, setErrorDatos] = useState('');
-  // Error al pulsar Editar o Eliminar sin poder: { mensaje, porDatos }.
+  // Error al pulsar Editar o Eliminar sin poder: { mensaje, porDatos, vez }.
   const [errorAccion, setErrorAccion] = useState(null);
+  // El mismo rebote que los errores de los formularios, en cada clic.
+  const [brinco, setBrinco] = useState(false);
+
+  useEffect(() => {
+    if (!errorAccion) {
+      setBrinco(false);
+      return undefined;
+    }
+    setBrinco(false);
+    const cuadro = requestAnimationFrame(() => setBrinco(true));
+    const fin = setTimeout(() => setBrinco(false), ERROR_SHAKE_DURATION_MS);
+    return () => {
+      cancelAnimationFrame(cuadro);
+      clearTimeout(fin);
+    };
+  }, [errorAccion]);
 
   useEffect(() => {
     if (!errorAccion) return undefined;
@@ -104,7 +121,7 @@ function PerfilUsuario({
   // error en el perfil y en el toast.
   const intentar = (motivo, accion, deDatos = false) => {
     if (motivo) {
-      setErrorAccion({ mensaje: motivo, porDatos: deDatos });
+      setErrorAccion({ mensaje: motivo, porDatos: deDatos, vez: Date.now() });
       toast.error(motivo);
       return;
     }
@@ -210,7 +227,7 @@ function PerfilUsuario({
             )}
           </Cuadro>
 
-          <Cuadro titulo="Datos registrados" resaltado={Boolean(errorAccion?.porDatos)}>
+          <Cuadro titulo="Datos registrados" resaltado={Boolean(errorAccion?.porDatos)} brinco={brinco && Boolean(errorAccion?.porDatos)}>
             {errorDatos ? (
               <p className="rounded-xl bg-red-50 ring-1 ring-inset ring-red-200 px-3 py-2 text-xs text-red-700">{errorDatos}</p>
             ) : !datos ? (
@@ -240,7 +257,7 @@ function PerfilUsuario({
         <div className="px-5 sm:px-6 py-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between [border-top:1px_solid_#B8C9E1]">
           <div className="min-w-0 space-y-1.5">
             {errorAccion && (
-              <p role="alert" className="rounded-2xl bg-red-50 px-4 py-3 text-sm leading-snug text-red-700">{errorAccion.mensaje}</p>
+              <p role="alert" className={`rounded-2xl bg-red-50 px-4 py-3 text-sm leading-snug text-red-700 ${brinco ? ERROR_MOTION_CLASS : ''}`}>{errorAccion.mensaje}</p>
             )}
           </div>
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 flex-shrink-0">

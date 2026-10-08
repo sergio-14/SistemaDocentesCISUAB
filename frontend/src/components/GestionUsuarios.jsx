@@ -1329,8 +1329,8 @@ const initialData = {
                           <div className="flex flex-col">{avisosUsuario(usuario)}</div>
                         </div>
                       </div>
-                      <div className="text-sm text-slate-500 tabular-nums">
-                        <span className="xl:hidden text-xs font-semibold text-slate-700">C.I.: </span>{usuario.ci || '—'}
+                      <div className="text-xs text-slate-500 tabular-nums">
+                        <span className="xl:hidden font-semibold text-slate-700">C.I.: </span>{usuario.ci || '—'}
                       </div>
                       {esSuperuserActual && (
                         <div className="text-sm font-semibold text-slate-800 truncate">{obtenerTextoCarrerasUsuario(usuario)}</div>
@@ -1374,7 +1374,7 @@ const initialData = {
                     <dl className={`grid ${esSuperuserActual ? 'grid-cols-2 divide-x' : 'grid-cols-1'} divide-azulado-300 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 py-2.5`}>
                       <div className="min-w-0 px-4">
                         <dt className="text-xs font-semibold text-blue-800">C.I.</dt>
-                        <dd className="mt-0.5 text-[13px] font-semibold text-slate-800 tabular-nums">{usuario.ci || '—'}</dd>
+                        <dd className="mt-0.5 text-xs font-semibold text-slate-800 tabular-nums">{usuario.ci || '—'}</dd>
                       </div>
                       {esSuperuserActual && (
                         <div className="min-w-0 px-4">

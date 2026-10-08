@@ -240,6 +240,62 @@ class EliminarYEditarUsuarioTests(UsuariosBaseTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(User.objects.get(pk=usuario.pk).username, 'nuevo_nombre')
 
+    def _con_historial_poa(self, usuario):
+        documento, _ = DocumentoPOA.objects.get_or_create(
+            gestion=2026, unidad_solicitante=self.carrera,
+            defaults={'programa': 'Programa', 'objetivo_gestion_institucional': 'Objetivo', 'fecha_elaboracion': date(2026, 1, 1)},
+        )
+        HistorialDocumentoPOA.objects.create(documento=documento, usuario=usuario, tipo_evento='creacion', descripcion='x')
+
+    def test_con_datos_la_carrera_no_cambia_en_ningun_rol(self):
+        # Antes un Director con datos se podía pasar a otra carrera y su asignación
+        # anterior quedaba inactiva (la lista lo mostraba en las dos carreras).
+        for rol in ['director', 'iiisyp', 'jefe_estudios']:
+            with self.subTest(rol=rol):
+                usuario = self.crear_usuario(f'con_datos_{rol}', rol, carrera=self.carrera, ci=f'CI-{rol}', is_staff=True)
+                self._con_historial_poa(usuario)
+
+                response = self.client.patch(f'/api/usuarios/{usuario.pk}/', {
+                    'username': usuario.username, 'ci': f'CI-{rol}',
+                    'rol': rol, 'carrera': self.otra_carrera.pk, 'asignaciones': [], 'is_active': True,
+                }, format='json')
+
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
+                self.assertIn('carrera', response.data)
+                self.assertEqual(PerfilUsuario.objects.get(user=usuario).carrera, self.carrera)
+                self.assertFalse(AsignacionCarrera.objects.filter(user=usuario, carrera=self.otra_carrera).exists())
+
+    def test_con_datos_la_carrera_tampoco_cambia_por_el_segundo_rol(self):
+        usuario = self.crear_usuario('segundo_rol', 'iiisyp', carrera=self.carrera, ci='CI-SEG')
+        self._con_historial_poa(usuario)
+
+        response = self.client.patch(f'/api/usuarios/{usuario.pk}/', {
+            'asignaciones': [{'rol': 'docente', 'carrera': self.otra_carrera.pk}],
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
+        self.assertIn('carrera', response.data)
+
+    def test_con_datos_se_puede_guardar_sin_cambiar_la_carrera(self):
+        usuario = self.crear_usuario('misma_carrera', 'director', carrera=self.carrera, ci='CI-MISMA', is_staff=True)
+        self._con_historial_poa(usuario)
+
+        response = self.client.patch(f'/api/usuarios/{usuario.pk}/', {
+            'email': 'nuevo@uabjb.edu.bo', 'rol': 'director', 'carrera': self.carrera.pk, 'asignaciones': [],
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_sin_datos_la_carrera_si_cambia(self):
+        usuario = self.crear_usuario('cambia_carrera', 'director', carrera=self.carrera, ci='CI-CAMBIA', is_staff=True)
+
+        response = self.client.patch(f'/api/usuarios/{usuario.pk}/', {
+            'rol': 'director', 'carrera': self.otra_carrera.pk, 'asignaciones': [],
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(PerfilUsuario.objects.get(user=usuario).carrera, self.otra_carrera)
+
     def test_dependencias_informa_si_tiene_datos(self):
         usuario = self.crear_usuario('deps', 'jefe_estudios', carrera=self.carrera, is_staff=True)
 

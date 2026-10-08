@@ -3314,6 +3314,41 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
                 })
             self._mover_vinculo_a = next(iter(carreras))
 
+    def _validar_carrera_con_datos(self, data, asignaciones, perfil_actual):
+        """Con datos registrados la carrera del usuario no cambia, sea cual sea su rol: sus
+        fondos, informes, cargas e historial quedan en la carrera donde se hicieron."""
+        if self.instance.is_superuser:
+            return
+        actuales = set(
+            AsignacionCarrera.objects.filter(user=self.instance, activo=True).values_list('carrera_id', flat=True)
+        )
+        if perfil_actual and perfil_actual.carrera_id:
+            actuales.add(perfil_actual.carrera_id)
+        actuales.discard(None)
+        # Sin carrera todavía no hay nada que cambiar: se le puede asignar la primera.
+        if not actuales:
+            return
+
+        nuevas = set()
+        quita_carrera = 'carrera' in data and data['carrera'] is None
+        if 'carrera' in data and data['carrera'] is not None:
+            nuevas.add(data['carrera'].pk)
+        for bloque in asignaciones:
+            carrera = _resolver_carrera_asignacion(bloque.get('carrera')) if isinstance(bloque, dict) else None
+            if carrera:
+                nuevas.add(carrera.pk)
+        if not (nuevas - actuales) and not quita_carrera:
+            return
+
+        datos = datos_registrados_usuario(self.instance)
+        if datos['tiene_datos']:
+            raise serializers.ValidationError({
+                'carrera': (
+                    'No se puede cambiar la carrera porque el usuario ya tiene datos registrados '
+                    f'({texto_datos_registrados(datos)}).'
+                ),
+            })
+
     def _validar_ci_compartido(self, data, perfil_actual, current_user):
         """El C.I. de un docente con dos o más carreras solo lo cambia el superusuario."""
         if 'ci' not in data or (current_user and current_user.is_superuser):
@@ -3383,6 +3418,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'asignaciones': 'Cada asignación debe ser un objeto con rol y carrera.'})
 
         _aplicar_carrera_del_editor(data, asignaciones, current_user, editando=True, request=request)
+        self._validar_carrera_con_datos(data, asignaciones, perfil_actual)
 
         bloques = [{
             'rol': data.get('rol'),

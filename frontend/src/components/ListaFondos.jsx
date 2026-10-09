@@ -161,9 +161,13 @@ function SelectorGestion({ value, onChange, options, placeholder }) {
   );
 }
 
-// Orden del dashboard: por fecha de creación, el más nuevo primero (a igual fecha, el id mayor).
-const masRecientePrimero = (a, b) => (
-  String(b.fecha_creacion || '').localeCompare(String(a.fecha_creacion || ''))
+// Orden del dashboard: primero los que tienen el informe presentado (esperan la
+// revisión del Director); después, por fecha de creación, el más nuevo primero (a igual
+// fecha, el id mayor).
+const informePorRevisar = (fondo) => (fondo.estado === 'informe_presentado' ? 0 : 1);
+const ordenDashboard = (a, b) => (
+  informePorRevisar(a) - informePorRevisar(b)
+  || String(b.fecha_creacion || '').localeCompare(String(a.fecha_creacion || ''))
   || (Number(b.id) || 0) - (Number(a.id) || 0)
 );
 
@@ -228,8 +232,8 @@ function ListaFondos() {
         setLoading(true);
       }
       const data = await getFondosTiempo();
-      // Del más nuevo al más antiguo: un fondo recién creado aparece arriba.
-      setFondos(Array.isArray(data) ? [...data].sort(masRecientePrimero) : []);
+      // Arriba los informes por revisar; luego del más nuevo al más antiguo.
+      setFondos(Array.isArray(data) ? [...data].sort(ordenDashboard) : []);
       if (!silencioso) {
         setLoading(false);
       }

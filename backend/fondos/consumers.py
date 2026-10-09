@@ -12,6 +12,8 @@ Protocolo (JSON):
   chat de un fondo abierto, si su rol puede verlo ({"tipo": "chat_suscrito"} o
   "chat_denegado"). Llegan {"tipo": "chat", "evento": "mensaje"|"hilo"|"leidos", ...}.
 - Avisos de fondos/avisos.py: {"tipo": "aviso", "aviso": {...}} (mismo formato que /novedades/).
+- {"tipo": "fondo_actualizado", "fondo": id}: algo del fondo cambió (estado, cargas,
+  informe u observaciones); la lista y el detalle lo vuelven a pedir en vez de consultar.
 
 Grupos: según el rol activo, como en la API (get_effective_profile con la misma
 asignación que manda la cabecera X-Active-Assignment). Ver grupos_de_conexion.
@@ -53,7 +55,7 @@ def grupos_de_conexion(user, asignacion_id=None):
     - Superusuario: 'superusuarios' (revisa el fondo del Director de cada carrera).
     - Director / Jefe de Estudios: carrera_<id>_director / carrera_<id>_jefe.
     - Docente: docente_<id> (su propio fondo).
-    - Instituto: ninguno (no recibe avisos).
+    - Instituto: carrera_<id>_instituto, solo para refrescar la lista (no recibe avisos).
     """
     if user.is_superuser:
         return [GRUPO_SUPERUSUARIOS]
@@ -62,8 +64,8 @@ def grupos_de_conexion(user, asignacion_id=None):
     peticion = SimpleNamespace(user=user, headers={'X-Active-Assignment': str(asignacion_id or '')})
     perfil = get_effective_profile(user, peticion)
     rol = getattr(perfil, 'rol', None)
-    if rol in ('director', 'jefe_estudios'):
-        sufijo = 'director' if rol == 'director' else 'jefe'
+    if rol in ('director', 'jefe_estudios', 'iiisyp'):
+        sufijo = {'director': 'director', 'jefe_estudios': 'jefe', 'iiisyp': 'instituto'}[rol]
         return [grupo_carrera(carrera_id, sufijo) for carrera_id in get_active_careers_for_user(user, peticion).values_list('id', flat=True)]
     if rol == 'docente' and getattr(perfil, 'docente_id', None):
         return [grupo_docente(perfil.docente_id)]
@@ -198,6 +200,9 @@ class TiempoRealConsumer(AsyncJsonWebsocketConsumer):
         if event.get('actor_id') == self.usuario_id:
             return
         await self.send_json({'tipo': 'aviso', 'aviso': event['aviso']})
+
+    async def fondo_actualizado(self, event):
+        await self.send_json({'tipo': 'fondo_actualizado', 'fondo': event['fondo']})
 
     async def chat_evento(self, event):
         """Chat de un fondo suscrito: 'mensaje' (nuevo), 'hilo' (creado o resuelto) o

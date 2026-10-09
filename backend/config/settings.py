@@ -11,6 +11,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import sys
 from pathlib import Path
 from decouple import config, Csv
 
@@ -107,7 +108,10 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # cruza procesos, así que en ese caso los avisos solo llegan por la consulta de respaldo.
 ASGI_APPLICATION = 'config.asgi.application'
 REDIS_URL = config('REDIS_URL', default='')
-if REDIS_URL:
+# Los tests nunca usan Redis: sus grupos (carrera_<id>_jefe...) podrían coincidir con
+# los de usuarios reales conectados al mismo Redis.
+EJECUTANDO_TESTS = len(sys.argv) > 1 and sys.argv[1] == 'test'
+if REDIS_URL and not EJECUTANDO_TESTS:
     CHANNEL_LAYERS = {
         'default': {
             'BACKEND': 'channels_redis.core.RedisChannelLayer',

@@ -21,7 +21,7 @@ import DocumentoActividadAccion from './fondos/DocumentoActividadAccion';
 import { BLOQUE, BOTON, estadoVisibleFondo } from './fondos/estilosFondo';
 import { Avatar, BarraProgreso, EstadoPill, Etiqueta } from './fondos/ElementosFondo';
 import { getApiErrorMessage, getDownloadErrorMessage } from '../utils/formErrors';
-import useConsultaPeriodica from '../utils/useConsultaPeriodica';
+import useConsultaConRespaldo, { useFondoActualizado } from '../tiempoReal/useTiempoReal';
 import mostrarAviso from '../avisos/mostrarAviso';
 
 // Helpers para extraer datos del vínculo DocenteCarrera desde docente.vinculos
@@ -260,7 +260,13 @@ function DetalleFondo() {
   // mientras el fondo no esté finalizado.
   const debeVigilarCambios = Boolean(fondo) && fondo.estado !== 'finalizado';
 
-  useConsultaPeriodica(() => {
+  // Por el socket: cualquier cambio de este fondo (de otro usuario) se vuelve a pedir
+  // entero, sin consultar mientras tanto.
+  useFondoActualizado(() => cargarDetalle({ silencioso: true }), { fondoId: id });
+
+  // Respaldo si el socket se corta (cada 10 s con VITE_TIEMPO_REAL=false, como antes):
+  // solo actualiza si cambió el estado o las observaciones pendientes.
+  useConsultaConRespaldo(() => {
     getFondoTiempoDetalle(id)
       .then((response) => {
         const pendientes = response.data.observaciones_detalladas?.filter(obs => !obs.resuelta).length || 0;

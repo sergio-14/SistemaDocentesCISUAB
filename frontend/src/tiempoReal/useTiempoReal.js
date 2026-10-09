@@ -21,6 +21,25 @@ export function useMensajes(tipo, oyente) {
 }
 
 /**
+ * Cuando el servidor avisa que un fondo cambió (estado, cargas, informe, observaciones;
+ * también crearlo o archivarlo). Con `fondoId`, solo los de ese fondo. Junta los avisos
+ * seguidos (p. ej. al generar fondos masivamente) en una sola llamada.
+ */
+export function useFondoActualizado(alCambiar, { fondoId = null, esperaMs = 600 } = {}) {
+  const alCambiarRef = useRef(alCambiar);
+  const temporizadorRef = useRef(null);
+  useEffect(() => {
+    alCambiarRef.current = alCambiar;
+  });
+  useEffect(() => () => window.clearTimeout(temporizadorRef.current), []);
+  useMensajes('fondo_actualizado', ({ fondo }) => {
+    if (fondoId != null && Number(fondo) !== Number(fondoId)) return;
+    window.clearTimeout(temporizadorRef.current);
+    temporizadorRef.current = window.setTimeout(() => alCambiarRef.current(), esperaMs);
+  });
+}
+
+/**
  * Consulta periódica que solo corre si hace falta:
  * - Tiempo real apagado (VITE_TIEMPO_REAL=false): como antes, cada `intervaloMs`.
  * - Socket conectado: no consulta (llega todo por el socket).

@@ -6,7 +6,7 @@ import { eliminarFondoTiempo, generarFondosTiempoMasivo, getFondosTiempo } from 
 import { puedeCrearFondoTiempo } from '../utils/fondoTiempoPermissions';
 import { useActiveRole } from '../contexts/activeRole';
 import { getApiErrorMessage } from '../utils/formErrors';
-import useConsultaPeriodica from '../utils/useConsultaPeriodica';
+import useConsultaConRespaldo, { useFondoActualizado } from '../tiempoReal/useTiempoReal';
 import ModalCentrado from './common/ModalCentrado';
 import Paginacion from './common/Paginacion';
 import SelectorVista from './common/SelectorVista';
@@ -242,9 +242,11 @@ function ListaFondos() {
     }
   };
 
-  // Mantiene la lista al día con lo que cambian otros usuarios (estados de los
-  // fondos). Cada 30 s y pausada con la pestaña oculta.
-  useConsultaPeriodica(() => cargarFondos({ silencioso: true }), CONSULTA_FONDOS_MS);
+  // Mantiene la lista al día con lo que cambian otros usuarios: se vuelve a pedir
+  // cuando el socket avisa que un fondo cambió. La consulta queda como respaldo si el
+  // socket se corta (cada 30 s con VITE_TIEMPO_REAL=false, como antes).
+  useFondoActualizado(() => cargarFondos({ silencioso: true }));
+  useConsultaConRespaldo(() => cargarFondos({ silencioso: true }), CONSULTA_FONDOS_MS);
 
   const archivarFondo = async (fondoId) => {
     if (!confirm('¿Está seguro de archivar este fondo? Podrá restaurarlo después.')) {

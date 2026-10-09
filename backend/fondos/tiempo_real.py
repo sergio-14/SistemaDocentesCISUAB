@@ -14,12 +14,12 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
-from django.db.models.signals import post_save
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
 from fondos.avisos import AVISOS, aviso_de_evento, evento_de
 from fondos.consumers import GRUPO_SUPERUSUARIOS, grupo_carrera, grupo_chat, grupo_docente
-from fondos.models import HistorialFondo, MensajeObservacion, ObservacionFondo
+from fondos.models import CargaHoraria, FondoTiempo, HistorialFondo, InformeFondo, MensajeObservacion, ObservacionFondo
 
 logger = logging.getLogger(__name__)
 
@@ -135,3 +135,55 @@ def publicar_hilo_de_chat(sender, instance, **kwargs):
         from fondos.serializers import HiloObservacionSerializer
         publicar([_mensaje_chat(instance.fondo_tiempo_id, 'hilo', _plano(HiloObservacionSerializer(instance).data))])
     transaction.on_commit(enviar)
+
+
+# --- Fondo actualizado: la lista y el detalle se vuelven a pedir ---
+# Cualquier cambio del fondo (estado, cargas, informe, observaciones; también crearlo,
+# archivarlo o borrarlo) se avisa a quien lo ve, en lugar de consultar cada tanto.
+# Varios eventos seguidos del mismo fondo los junta el frontend.
+
+def grupos_que_ven_el_fondo(fondo):
+    """Los mismos alcances que la lista: Jefe, Instituto y superusuario de la carrera;
+    el Director, salvo los borradores ajenos; el docente, el suyo."""
+    grupos = [grupo_carrera(fondo.carrera_id, 'jefe'), grupo_carrera(fondo.carrera_id, 'instituto'), GRUPO_SUPERUSUARIOS]
+    if fondo.estado != 'borrador' or fondo.es_de_director_de_su_carrera():
+        grupos.append(grupo_carrera(fondo.carrera_id, 'director'))
+    if fondo.docente_id:
+        grupos.append(grupo_docente(fondo.docente_id))
+    return grupos
+
+
+def mensajes_de_fondo_actualizado(fondo):
+    return [(grupo, {'type': 'fondo.actualizado', 'fondo': fondo.pk}) for grupo in grupos_que_ven_el_fondo(fondo)]
+
+
+def avisar_fondo_actualizado(fondo_id, eliminado=None):
+    """Al confirmarse, con el fondo como quedó (o el eliminado, tal como era)."""
+    def enviar():
+        fondo = eliminado or FondoTiempo.objects.filter(pk=fondo_id).first()
+        if fondo:
+            publicar(mensajes_de_fondo_actualizado(fondo))
+    transaction.on_commit(enviar)
+
+
+@receiver(post_save, sender=FondoTiempo, dispatch_uid='tiempo_real_fondo_guardado')
+def fondo_guardado(sender, instance, **kwargs):
+    avisar_fondo_actualizado(instance.pk)
+
+
+@receiver(post_delete, sender=FondoTiempo, dispatch_uid='tiempo_real_fondo_eliminado')
+def fondo_eliminado(sender, instance, **kwargs):
+    avisar_fondo_actualizado(instance.pk, eliminado=instance)
+
+
+@receiver(post_save, sender=CargaHoraria, dispatch_uid='tiempo_real_carga_guardada')
+@receiver(post_delete, sender=CargaHoraria, dispatch_uid='tiempo_real_carga_eliminada')
+def carga_cambiada(sender, instance, **kwargs):
+    if instance.fondo_id:
+        avisar_fondo_actualizado(instance.fondo_id)
+
+
+@receiver(post_save, sender=InformeFondo, dispatch_uid='tiempo_real_informe_guardado')
+@receiver(post_save, sender=ObservacionFondo, dispatch_uid='tiempo_real_observacion_fondo')
+def informe_u_observacion_cambiada(sender, instance, **kwargs):
+    avisar_fondo_actualizado(instance.fondo_tiempo_id)

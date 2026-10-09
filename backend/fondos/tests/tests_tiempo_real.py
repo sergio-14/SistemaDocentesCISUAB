@@ -59,7 +59,7 @@ class GruposDeConexionTests(UsuariosBaseTestCase):
         self.assertEqual(grupos_de_conexion(self.director), [f'carrera_{c}_director'])
         self.assertEqual(grupos_de_conexion(self.jefe), [f'carrera_{c}_jefe'])
         self.assertEqual(grupos_de_conexion(self.usuario_docente), [f'docente_{self.docente.pk}'])
-        self.assertEqual(grupos_de_conexion(self.instituto), [])
+        self.assertEqual(grupos_de_conexion(self.instituto), [f'carrera_{c}_instituto'])
         self.assertEqual(grupos_de_conexion(self.superuser), [GRUPO_SUPERUSUARIOS])
 
     def test_el_rol_activo_decide_los_grupos(self):
@@ -128,7 +128,7 @@ class ConexionTiempoRealTests(DatosUsuariosMixin, TransactionTestCase):
         self.assertEqual(await cliente.recibir(), {'tipo': 'listo'})
         self.assertEqual(await cliente.recibir(timeout=3), {'cerrado': CIERRE_NO_AUTENTICADO})
 
-    async def test_el_instituto_se_conecta_pero_sin_grupos(self):
+    async def test_el_instituto_no_recibe_los_avisos_del_director(self):
         cliente = await self._conectado(self.instituto)
         self.assertEqual(await cliente.recibir(), {'tipo': 'listo'})
         await get_channel_layer().group_send(f'carrera_{self.carrera.pk}_director', {'type': 'prueba'})
@@ -179,16 +179,21 @@ class SocketBaseTests(DatosUsuariosMixin, TransactionTestCase):
             clientes[usuario.username] = cliente
         return clientes
 
+    async def _pendientes(self, cliente):
+        """Todo lo que llegó y no se leyó todavía (sin esperar de más)."""
+        mensajes = []
+        while not await cliente.nada_pendiente(0.5):
+            mensajes.append(await cliente.recibir())
+        return mensajes
+
     async def _reciben(self, clientes, esperado):
-        """esperado: {usuario: texto}; los demás no reciben nada."""
+        """esperado: {usuario: texto}; los demás no reciben ningún aviso (los
+        "fondo_actualizado" que también llegan no cuentan aquí)."""
         for usuario in (self.director, self.jefe, self.usuario_docente, self.instituto):
             cliente = clientes[usuario.username]
-            if usuario in esperado:
-                mensaje = await cliente.recibir()
-                self.assertEqual(mensaje['tipo'], 'aviso', usuario.username)
-                self.assertEqual(mensaje['aviso']['texto'], esperado[usuario])
-                self.assertEqual(mensaje['aviso']['fondo_id'], self.fondo.pk)
-            self.assertTrue(await cliente.nada_pendiente(), usuario.username)
+            avisos = [m['aviso'] for m in await self._pendientes(cliente) if m.get('tipo') == 'aviso']
+            self.assertEqual([a['texto'] for a in avisos], [esperado[usuario]] if usuario in esperado else [], usuario.username)
+            self.assertTrue(all(a['fondo_id'] == self.fondo.pk for a in avisos))
             await cliente.desconectar()
 
     async def _fila(self, preparar, accion, esperado):
@@ -387,3 +392,50 @@ class ChatPorSocketTests(SocketBaseTests):
         self.assertEqual(resuelto['evento'], 'hilo')
         self.assertTrue(resuelto['datos']['resuelta'])
         await jefe.desconectar()
+
+
+class FondoActualizadoPorSocketTests(SocketBaseTests):
+    """Lista y detalle no consultan: cada cambio del fondo avisa a quien lo ve."""
+
+    async def _fondos_actualizados(self, cliente):
+        return [m['fondo'] for m in await self._pendientes(cliente) if m.get('tipo') == 'fondo_actualizado']
+
+    async def test_un_cambio_de_estado_llega_a_quien_ve_el_fondo(self):
+        from asgiref.sync import sync_to_async
+
+        def jefe_de_otra_carrera():
+            return self.crear_usuario('jefe_otro_fa', 'jefe_estudios', carrera=self.otra_carrera, is_staff=True, ci='JOF')
+        ajeno = await sync_to_async(jefe_de_otra_carrera)()
+        await sync_to_async(self._estado)('presentado_director')
+        clientes = await self._conectar_todos()
+        cliente_ajeno = ClienteWebSocket(_aplicacion(), RUTA)
+        self.assertTrue(await cliente_ajeno.conectar())
+        await cliente_ajeno.enviar({'tipo': 'auth', 'token': str(AccessToken.for_user(ajeno)), 'asignacion': None})
+        self.assertEqual(await cliente_ajeno.recibir(), {'tipo': 'listo'})
+
+        await sync_to_async(self._accion)(self.director, 'aprobar')
+
+        for usuario in (self.director, self.jefe, self.usuario_docente, self.instituto):
+            with self.subTest(usuario=usuario.username):
+                self.assertIn(self.fondo.pk, await self._fondos_actualizados(clientes[usuario.username]))
+                await clientes[usuario.username].desconectar()
+        self.assertEqual(await self._fondos_actualizados(cliente_ajeno), [])
+        await cliente_ajeno.desconectar()
+
+    async def test_el_director_no_se_entera_de_un_borrador_ajeno(self):
+        from asgiref.sync import sync_to_async
+        from fondos.models import CargaHoraria
+        clientes = await self._conectar_todos()
+
+        def cargar_horas():
+            CargaHoraria.objects.create(
+                fondo=self.fondo, docente=self.docente, categoria='investigacion',
+                tipo_actividad='participacion_iic_cis', titulo_actividad='Ítem', horas=10,
+            )
+        await sync_to_async(cargar_horas)()
+
+        self.assertEqual(await self._fondos_actualizados(clientes[self.director.username]), [])
+        for usuario in (self.jefe, self.usuario_docente, self.instituto):
+            self.assertIn(self.fondo.pk, await self._fondos_actualizados(clientes[usuario.username]))
+        for cliente in clientes.values():
+            await cliente.desconectar()

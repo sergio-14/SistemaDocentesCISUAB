@@ -101,6 +101,22 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
+# Tiempo real (WebSockets en /ws/): lo atiende el servicio "realtime" (uvicorn con
+# config.asgi); la API sigue en gunicorn con WSGI. Ambos se comunican por Redis. Sin
+# REDIS_URL (tests, o tiempo real apagado) la capa queda en memoria del proceso: no
+# cruza procesos, así que en ese caso los avisos solo llegan por la consulta de respaldo.
+ASGI_APPLICATION = 'config.asgi.application'
+REDIS_URL = config('REDIS_URL', default='')
+if REDIS_URL:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {'hosts': [REDIS_URL], 'expiry': 30, 'capacity': 200},
+        },
+    }
+else:
+    CHANNEL_LAYERS = {'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'}}
+
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases

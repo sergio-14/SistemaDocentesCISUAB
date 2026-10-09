@@ -92,3 +92,6 @@ Backups-SistemaDocentes/
 *.gpg
 *.dump
 *.dump.tmp
+
+# Proyecto de Grado (documentación local): nunca se sube a GitHub
+documentacion/

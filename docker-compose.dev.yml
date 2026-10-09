@@ -3,7 +3,24 @@
 # Recarga en caliente de Django y Vite. NO usar en un servidor:
 # para producción usar docker-compose.yml.
 # Uso: docker compose -f docker-compose.dev.yml up -d --build
+# Tiempo real: redis + realtime (uvicorn, WebSockets en /ws/); Vite reenvía /ws a realtime.
 # ============================================================
+
+# Entorno común de backend (API, gunicorn/runserver) y realtime (WebSockets).
+x-entorno-backend: &entorno-backend
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+  DJANGO_DEBUG: ${DJANGO_DEBUG:-True}
+  DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS}
+  DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-}
+  POSTGRES_HOST: db
+  POSTGRES_PORT: 5432
+  POSTGRES_DB: ${POSTGRES_DB}
+  POSTGRES_USER: ${POSTGRES_USER}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+  PROFILE_IMAGE_ENCRYPTION_KEY: ${PROFILE_IMAGE_ENCRYPTION_KEY:-}
+  REDIS_URL: redis://redis:6379/0
+
 services:
   db:
     image: postgres:16-alpine
@@ -30,21 +47,40 @@ services:
       - ./media:/app/media
     ports:
       - "8000:8000"
-    environment:
-      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
-      DJANGO_DEBUG: ${DJANGO_DEBUG:-True}
-      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS}
-      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-}
-      POSTGRES_HOST: db
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
-      PROFILE_IMAGE_ENCRYPTION_KEY: ${PROFILE_IMAGE_ENCRYPTION_KEY:-}
+    environment: *entorno-backend
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Solo pasa mensajes entre backend y realtime: sin guardar en disco y con tope de memoria.
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # WebSockets (/ws/): misma imagen que el backend, con uvicorn y recarga en caliente.
+  # Sin el entrypoint: las migraciones las corre el backend.
+  realtime:
+    build:
+      context: ./backend
+    entrypoint: []
+    command: ["uvicorn", "config.asgi:application", "--host", "0.0.0.0", "--port", "8001", "--reload", "--reload-dir", "/app"]
+    volumes:
+      - ./backend:/app
+    ports:
+      - "127.0.0.1:8001:8001"
+    environment: *entorno-backend
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
 
   frontend:
     build:

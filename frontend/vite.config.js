@@ -11,5 +11,14 @@ export default defineConfig({
       usePolling: true,
       interval: 300,
     },
+    // Tiempo real en desarrollo: /ws va al servicio realtime (uvicorn), igual que en
+    // producción lo hace nginx; así el frontend usa la misma dirección en ambos
+    // ("realtime" es el servicio de docker-compose.dev.yml).
+    proxy: {
+      '/ws': {
+        target: 'http://realtime:8001',
+        ws: true,
+      },
+    },
   },
 })

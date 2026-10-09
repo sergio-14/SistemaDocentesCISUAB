@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../apis/api';
 import { useActiveRole } from '../contexts/activeRole';
-import useConsultaPeriodica from '../utils/useConsultaPeriodica';
+import useConsultaConRespaldo, { useMensajes } from '../tiempoReal/useTiempoReal';
 import mostrarAviso from './mostrarAviso';
 
 const CONSULTA_MS = 20000;
@@ -31,9 +31,9 @@ const guardarCursor = (clave, valor) => {
  * Único lugar del frontend que muestra los avisos del Fondo de Tiempo. Quién recibe
  * qué y con qué texto lo decide el backend (fondos/avisos.py, GET /fondos-tiempo/novedades/).
  *
- * Hoy consulta cada 20 s (pausada con la pestaña oculta; al volver consulta enseguida).
- * Para pasar a WebSockets basta con cambiar `consultar` por la suscripción: cada
- * mensaje trae el mismo aviso y se muestra con `mostrarNuevos`.
+ * Llegan por el socket de tiempo real (mismo aviso que /novedades/). La consulta queda
+ * para ponerse al día al entrar, al reconectar y como respaldo lento si el socket se
+ * corta (useConsultaConRespaldo); con VITE_TIEMPO_REAL=false, cada 20 s como antes.
  *
  * El cursor (último evento visto) se guarda por usuario y rol activo: el mismo aviso
  * nunca sale dos veces en este navegador. No consulta dentro del POA.
@@ -93,7 +93,18 @@ export default function AvisosFondoTiempo() {
     consultar();
   }, [consultar]);
 
-  useConsultaPeriodica(consultar, CONSULTA_MS, activo);
+  useConsultaConRespaldo(consultar, CONSULTA_MS, activo);
+
+  // Por el socket. Fuera de su alcance (p. ej. dentro del POA) se ignoran sin mover el
+  // cursor: al volver, la consulta de entrada los recupera.
+  useMensajes('aviso', ({ aviso }) => {
+    if (!activo || !aviso) return;
+    mostrarNuevos([aviso]);
+    if (aviso.id > (cursorRef.current || 0)) {
+      cursorRef.current = aviso.id;
+      guardarCursor(clave, aviso.id);
+    }
+  });
 
   return null;
 }

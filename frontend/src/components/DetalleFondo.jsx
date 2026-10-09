@@ -23,6 +23,7 @@ import { Avatar, BarraProgreso, EstadoPill, Etiqueta } from './fondos/ElementosF
 import { getApiErrorMessage, getDownloadErrorMessage } from '../utils/formErrors';
 import { sanitizarHtmlInforme } from '../utils/sanitizarHtmlInforme';
 import useConsultaPeriodica from '../utils/useConsultaPeriodica';
+import mostrarAviso from '../avisos/mostrarAviso';
 
 // Helpers para extraer datos del vínculo DocenteCarrera desde docente.vinculos
 const getVinculoCarrera = (docente, carreraId) => {
@@ -309,6 +310,23 @@ function DetalleFondo() {
         console.warn('No se pudo sincronizar el estado del fondo:', err);
       });
   }, 10000, debeVigilarCambios);
+
+  // Docente con el informe observado por el Director: al entrar al fondo se le avisa
+  // (una vez por entrada) y arriba queda el comentario con lo que debe corregir.
+  const informeObservadoDelDocente = Boolean(fondo?.es_fondo_propio)
+    && rolOperativo === 'docente'
+    && estadoVisibleFondo(fondo) === 'informe_observado';
+  const avisoInformeObservadoRef = useRef(null);
+  const fondoId = fondo?.id;
+  useEffect(() => {
+    if (!informeObservadoDelDocente || avisoInformeObservadoRef.current === fondoId) return;
+    avisoInformeObservadoRef.current = fondoId;
+    mostrarAviso({
+      id: `informe-observado-${fondoId}`,
+      texto: 'Tu informe fue observado. Revisa las correcciones solicitadas.',
+      tono: 'atencion',
+    });
+  }, [informeObservadoDelDocente, fondoId]);
 
   const handleActualizacionHoras = () => {
     cargarDetalle({ silencioso: true });
@@ -713,6 +731,23 @@ function DetalleFondo() {
         </div>
       </div>
 
+      {informeObservadoDelDocente && (
+        <div className="flex items-start gap-4 rounded-3xl bg-red-50 p-5 ring-1 ring-inset ring-red-200">
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-red-400 to-rose-400 text-white">
+            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+              <path fillRule="evenodd" clipRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" />
+            </svg>
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-red-700">Tu informe fue observado: el Director solicitó correcciones</p>
+            {fondo.informe_actual?.evaluacion_director && (
+              <p className="mt-1 text-sm leading-6 text-red-700 whitespace-pre-wrap">{fondo.informe_actual.evaluacion_director}</p>
+            )}
+            <p className="mt-2 text-xs text-red-600">Corrige el informe y vuelve a presentarlo con «Corregir informe».</p>
+          </div>
+        </div>
+      )}
+
       {ocultarDetallePorBorradorDirector ? (
         <div className={`${BLOQUE} p-5 sm:p-6`}>
           <h3 className="text-lg font-bold text-blue-900">Fondo pendiente de presentación</h3>
@@ -1027,12 +1062,17 @@ function DetalleFondo() {
                 {/* DOCENTE: Presentar Informe - página dedicada, no modal */}
                 {/* Lo decide el backend con el rol activo (docente dueño, fondo en ejecución,
                     informe sin enviar): User.is_staff no sirve, un Jefe también es docente. */}
+                {/* "Corregir informe" (resaltado) si el Director lo observó; si no, "Redactar informe". */}
                 {fondo.puede_editar_informe && (
                   <button
                     onClick={() => window.open(`/fondos/${fondo.id}/informe`, '_blank', 'noopener,noreferrer')}
-                    className={`${ACCION} bg-blue-900 hover:bg-blue-950 text-white`}
+                    className={`${ACCION} text-white ${
+                      fondo.informe_actual?.estado === 'observado'
+                        ? 'bg-gradient-to-br from-red-400 to-rose-400 hover:from-red-500 hover:to-rose-500 ring-4 ring-red-100'
+                        : 'bg-blue-900 hover:bg-blue-950'
+                    }`}
                   >
-                    Redactar informe
+                    {fondo.informe_actual?.estado === 'observado' ? 'Corregir informe' : 'Redactar informe'}
                   </button>
                 )}
 

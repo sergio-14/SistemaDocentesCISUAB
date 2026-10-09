@@ -20,7 +20,8 @@ import {
 } from '../apis/api';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
-import useConsultaPeriodica from '../utils/useConsultaPeriodica';
+import useConsultaConRespaldo, { useMensajes } from '../tiempoReal/useTiempoReal';
+import { suscribirChat } from '../tiempoReal/conexion';
 import { useActiveRole } from '../contexts/activeRole';
 import { Avatar } from './fondos/ElementosFondo';
 
@@ -160,33 +161,39 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
     }
   }, [fondoId]);
 
+  // Une al chat lo que llega (de /observaciones/novedades/ o del socket): hilos, mensajes
+  // nuevos (con su animación) y hasta dónde leyó el otro los mensajes propios.
+  const aplicarNovedades = useCallback((data) => {
+    const recibidos = data.mensajes || [];
+    const nuevos = recibidos.map((m) => m.id).filter((id) => !knownMessageIdsRef.current.has(id));
+    recibidos.forEach((m) => {
+      knownMessageIdsRef.current.add(m.id);
+      ultimoMensajeIdRef.current = Math.max(ultimoMensajeIdRef.current, m.id);
+    });
+
+    if (nuevos.length > 0) {
+      capturarPosicionesMensajes();
+      if (newMessageTimerRef.current) window.clearTimeout(newMessageTimerRef.current);
+      setMensajesNuevosIds(nuevos);
+      newMessageTimerRef.current = window.setTimeout(() => {
+        setMensajesNuevosIds((actuales) => actuales.filter((id) => !nuevos.includes(id)));
+      }, 760);
+    }
+
+    setObservaciones((actuales) => fusionarNovedades(actuales, data, usuarioIdRef.current));
+  }, [capturarPosicionesMensajes]);
+
   // Solo los mensajes posteriores al último conocido (o a desdeId).
   const cargarNovedades = useCallback(async ({ marcarLeido = false, desdeId = null } = {}) => {
     if (!fondoId || !initializedMessagesRef.current) return;
 
     try {
       const { data } = await getNovedadesObservaciones(fondoId, desdeId ?? ultimoMensajeIdRef.current, { marcarLeido });
-      const recibidos = data.mensajes || [];
-      const nuevos = recibidos.map((m) => m.id).filter((id) => !knownMessageIdsRef.current.has(id));
-      recibidos.forEach((m) => {
-        knownMessageIdsRef.current.add(m.id);
-        ultimoMensajeIdRef.current = Math.max(ultimoMensajeIdRef.current, m.id);
-      });
-
-      if (nuevos.length > 0) {
-        capturarPosicionesMensajes();
-        if (newMessageTimerRef.current) window.clearTimeout(newMessageTimerRef.current);
-        setMensajesNuevosIds(nuevos);
-        newMessageTimerRef.current = window.setTimeout(() => {
-          setMensajesNuevosIds((actuales) => actuales.filter((id) => !nuevos.includes(id)));
-        }, 760);
-      }
-
-      setObservaciones((actuales) => fusionarNovedades(actuales, data, usuarioIdRef.current));
+      aplicarNovedades(data);
     } catch (err) {
       console.error('Error al consultar el chat:', err);
     }
-  }, [fondoId, capturarPosicionesMensajes]);
+  }, [fondoId, aplicarNovedades]);
 
   useEffect(() => {
     if (!fondoId) return;
@@ -207,11 +214,36 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
     }
   }, [open, fondoId, cargarNovedades]);
 
-  useConsultaPeriodica(
+  // El chat llega por el socket; la consulta queda para ponerse al día al reconectar y
+  // como respaldo si se corta (con VITE_TIEMPO_REAL=false, cada 5 s / 30 s como antes).
+  useConsultaConRespaldo(
     () => cargarNovedades({ marcarLeido: open }),
     open ? CONSULTA_CHAT_ABIERTO_MS : CONSULTA_CHAT_CERRADO_MS,
     Boolean(fondoId),
   );
+
+  useEffect(() => (fondoId ? suscribirChat(fondoId) : undefined), [fondoId]);
+
+  // Los hilos que ya hay (fusionarNovedades les vuelve a poner sus mensajes).
+  const hilosActuales = () => [...observacionesRef.current];
+
+  useMensajes('chat', ({ fondo, evento, datos }) => {
+    if (fondo !== fondoId || !initializedMessagesRef.current || !datos) return;
+    if (evento === 'hilo') {
+      const hilos = hilosActuales();
+      const indice = hilos.findIndex((hilo) => hilo.id === datos.id);
+      if (indice >= 0) hilos[indice] = { ...hilos[indice], ...datos };
+      else hilos.push(datos);
+      aplicarNovedades({ observaciones: hilos, mensajes: [] });
+    } else if (evento === 'mensaje') {
+      const hiloConocido = observacionesRef.current.some((hilo) => hilo.id === datos.observacion);
+      // Con el chat abierto se pide a la API para marcarlo como leído; si no, basta el socket.
+      if (open || !hiloConocido) cargarNovedades({ marcarLeido: open });
+      else aplicarNovedades({ observaciones: hilosActuales(), mensajes: [datos] });
+    } else if (evento === 'leidos' && Number(datos.autor) === usuarioIdRef.current) {
+      aplicarNovedades({ observaciones: hilosActuales(), mensajes: [], leidos_propios_hasta: datos.hasta_id });
+    }
+  });
 
   useEffect(() => () => {
     if (newMessageTimerRef.current) window.clearTimeout(newMessageTimerRef.current);

@@ -1411,6 +1411,23 @@ class InformePDFGenerator:
 
         return _CanvasCarta
 
+    @staticmethod
+    def _imagen_firma(html):
+        """Imagen de la firma (el <img> de firma_imagen_html) que entra en la columna de
+        la firma: hasta 6 x 2.5 cm sin deformarla. None si no hay o no se puede leer."""
+        match = re.search(r'<img\b[^>]*?\bsrc\s*=\s*(["\'])(.*?)\1', html or '', re.IGNORECASE | re.DOTALL)
+        img_bytes = leer_imagen_informe(match.group(2)) if match else None
+        if not img_bytes:
+            return None
+        try:
+            ancho, alto = ImageReader(io.BytesIO(img_bytes)).getSize()
+        except Exception:
+            return None
+        if not ancho or not alto:
+            return None
+        escala = min(6 * cm / ancho, 2.5 * cm / alto)
+        return Image(io.BytesIO(img_bytes), width=ancho * escala, height=alto * escala)
+
     def generar_pdf(self, fondo, informe_data):
         doc = SimpleDocTemplate(
             self.buffer,
@@ -1523,7 +1540,11 @@ class InformePDFGenerator:
         # bloque completo se ubica del lado derecho de la pagina -no
         # centrado en todo el ancho de la hoja-, igual que en la carta de
         # referencia: una columna angosta con hAlign='RIGHT'.
-        filas_firma = [
+        filas_firma = []
+        imagen_firma = self._imagen_firma(getattr(informe_data, 'firma_imagen_html', '') if informe_data else '')
+        if imagen_firma:
+            filas_firma.append([imagen_firma])
+        filas_firma += [
             [Paragraph(escape(textos['firma_nombre']), estilo_firma_nombre)],
             [Paragraph(escape(textos['firma_cargo']), estilo_firma_cargo)],
         ]

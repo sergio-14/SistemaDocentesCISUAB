@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import { AlignLeft, AlignCenter, AlignRight, Crop } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useInformeDocumento } from './InformeDocumentoContext';
 import { sanitizarHtmlInforme } from '../utils/sanitizarHtmlInforme';
@@ -7,12 +7,12 @@ import {
   MAXIMO_IMAGENES_INFORME, MENSAJE_LIMITE_IMAGENES,
   ajustarImagenInsertada, contarImagenesInforme, prepararHtmlPegado, prepararImagenInforme,
 } from '../utils/imagenesInforme';
+import RecortarImagenModal from './RecortarImagenModal';
 
 const TAMANOS_IMAGEN_PRESET = [
   { etiqueta: 'S', titulo: 'Pequeña (200px)', ancho: 200 },
   { etiqueta: 'M', titulo: 'Mediana (350px)', ancho: 350 },
   { etiqueta: 'L', titulo: 'Grande (500px)', ancho: 500 },
-  { etiqueta: '100%', titulo: 'Ancho completo', ancho: null },
 ];
 
 const ESQUINAS_HANDLE = [
@@ -44,6 +44,7 @@ export default function InformeCampoRico({ value, onChange, placeholder = 'Escri
   const ultimoRangoRef = useRef(null);
   const [imagenSeleccionada, setImagenSeleccionada] = useState(null);
   const [medidaImagen, setMedidaImagen] = useState(null);
+  const [imagenPorRecortar, setImagenPorRecortar] = useState(null);
   const { setCampoActivo, soloLectura } = useInformeDocumento();
 
   useEffect(() => {
@@ -195,15 +196,72 @@ export default function InformeCampoRico({ value, onChange, placeholder = 'Escri
   const aplicarTamanoPreset = (anchoPx) => {
     const img = imagenSeleccionada;
     if (!img || !img.isConnected) return;
-    if (anchoPx == null) {
-      img.style.width = '100%';
-    } else {
-      const maxAncho = editorRef.current?.clientWidth || anchoPx;
-      img.style.width = `${Math.min(anchoPx, maxAncho)}px`;
-    }
+    const maxAncho = editorRef.current?.clientWidth || anchoPx;
+    img.style.width = `${Math.min(anchoPx, maxAncho)}px`;
     img.style.height = 'auto';
     emitirCambio();
     actualizarSeleccionImagen(img);
+  };
+
+  // La imagen recortada reemplaza a la original con el mismo ancho en el documento.
+  const aplicarRecorte = (dataUrl) => {
+    const img = imagenSeleccionada;
+    setImagenPorRecortar(null);
+    if (!img || !img.isConnected) return;
+    const ancho = img.getBoundingClientRect().width;
+    img.onload = () => {
+      img.onload = null;
+      setMedidaImagen(medirImagen(img));
+    };
+    img.src = dataUrl;
+    if (ancho) img.style.width = `${Math.round(ancho)}px`;
+    img.style.height = 'auto';
+    emitirCambio();
+  };
+
+  // El texto no se escribe dentro del bloque de una imagen (heredaría su
+  // alineación y quedaría pegado a ella): antes de la imagen se escribe en un
+  // párrafo nuevo encima y después de ella, en el párrafo de abajo.
+  const handleKeyDown = (e) => {
+    // Imagen marcada + Suprimir (o Retroceso): se elimina, con su bloque de alineación.
+    if ((e.key === 'Delete' || e.key === 'Backspace') && imagenSeleccionada?.isConnected) {
+      e.preventDefault();
+      const img = imagenSeleccionada;
+      const bloque = img.parentElement?.hasAttribute('data-img-wrap') ? img.parentElement : null;
+      img.remove();
+      if (bloque && !bloque.textContent.trim() && !bloque.querySelector('img')) bloque.remove();
+      actualizarSeleccionImagen(null);
+      emitirCambio();
+      return;
+    }
+    const escribe = (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) || e.key === 'Enter';
+    if (!escribe) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const nodo = sel.anchorNode;
+    const elemento = nodo?.nodeType === Node.TEXT_NODE ? nodo.parentElement : nodo;
+    const bloque = elemento?.closest?.('[data-img-wrap]');
+    const img = bloque?.querySelector('img');
+    if (!bloque || !img || !editorRef.current?.contains(bloque)) return;
+
+    const rangoImagen = document.createRange();
+    rangoImagen.selectNode(img);
+    const antes = sel.getRangeAt(0).compareBoundaryPoints(Range.START_TO_START, rangoImagen) <= 0;
+
+    let parrafo = antes ? null : bloque.nextElementSibling;
+    if (!parrafo || parrafo.tagName !== 'P') {
+      parrafo = document.createElement('p');
+      parrafo.appendChild(document.createElement('br'));
+      bloque.parentNode.insertBefore(parrafo, antes ? bloque : bloque.nextSibling);
+    }
+    const rango = document.createRange();
+    rango.setStart(parrafo, 0);
+    rango.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(rango);
+    if (e.key === 'Enter') e.preventDefault();
+    actualizarSeleccionImagen(null);
+    emitirCambio();
   };
 
   // Arrastrar un handle de esquina redimensiona la imagen manteniendo su
@@ -245,12 +303,12 @@ export default function InformeCampoRico({ value, onChange, placeholder = 'Escri
               para no arriesgar que el borde de "seleccionado" quede grabado
               por accidente en el HTML que se guarda. */}
           <div
-            className="absolute z-[9] pointer-events-none rounded-sm ring-2 ring-blue-600"
+            className="absolute z-[9] pointer-events-none rounded-sm ring-2 ring-blue-900"
             style={{ top: medidaImagen.top, left: medidaImagen.left, width: medidaImagen.width, height: medidaImagen.height }}
           />
           <div
-            className="absolute z-10 flex items-center gap-1 bg-slate-800 rounded-lg shadow-lg px-1.5 py-1"
-            style={{ top: medidaImagen.top - 36, left: Math.max(0, medidaImagen.left) }}
+            className="absolute z-10 flex items-center gap-1 bg-blue-900 rounded-full shadow-lg px-2 py-1.5"
+            style={{ top: medidaImagen.top - 48, left: Math.max(0, medidaImagen.left) }}
           >
             {[
               { icono: AlignLeft, titulo: 'Alinear imagen a la izquierda', valor: 'left' },
@@ -263,12 +321,12 @@ export default function InformeCampoRico({ value, onChange, placeholder = 'Escri
                 title={titulo}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => alinearImagenSeleccionada(valor)}
-                className="p-1.5 rounded text-white hover:bg-slate-600 transition-colors"
+                className="p-2 rounded-full text-white hover:bg-white/15 transition-colors"
               >
-                <Icono className="w-3.5 h-3.5" />
+                <Icono className="w-4 h-4" />
               </button>
             ))}
-            <span className="w-px h-4 bg-slate-600 mx-0.5" />
+            <span className="w-px h-5 bg-white/25 mx-1" />
             {TAMANOS_IMAGEN_PRESET.map(({ etiqueta, titulo, ancho }) => (
               <button
                 key={etiqueta}
@@ -276,21 +334,32 @@ export default function InformeCampoRico({ value, onChange, placeholder = 'Escri
                 title={titulo}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => aplicarTamanoPreset(ancho)}
-                className="px-1.5 py-1 rounded text-xs font-bold text-white hover:bg-slate-600 transition-colors whitespace-nowrap"
+                className="px-2.5 py-1.5 rounded-full text-sm font-semibold text-white hover:bg-white/15 transition-colors whitespace-nowrap"
               >
                 {etiqueta}
               </button>
             ))}
+            <span className="w-px h-5 bg-white/25 mx-1" />
+            <button
+              type="button"
+              title="Recortar imagen"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setImagenPorRecortar(imagenSeleccionada.src)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-sm font-semibold text-white hover:bg-white/15 transition-colors whitespace-nowrap"
+            >
+              <Crop className="w-4 h-4" />
+              Recortar
+            </button>
           </div>
           {ESQUINAS_HANDLE.map(({ id, dx, dy, signo, cursor }) => (
             <div
               key={id}
               title="Arrastra para cambiar el tamaño"
               onMouseDown={(e) => iniciarRedimension(e, signo)}
-              className="absolute z-10 w-2.5 h-2.5 bg-blue-600 border border-white rounded-sm shadow"
+              className="absolute z-10 w-3.5 h-3.5 bg-blue-900 border-2 border-white rounded-full shadow"
               style={{
-                top: medidaImagen.top + dy * medidaImagen.height - 5,
-                left: medidaImagen.left + dx * medidaImagen.width - 5,
+                top: medidaImagen.top + dy * medidaImagen.height - 7,
+                left: medidaImagen.left + dx * medidaImagen.width - 7,
                 cursor,
               }}
             />
@@ -308,6 +377,7 @@ export default function InformeCampoRico({ value, onChange, placeholder = 'Escri
         onDragStart={handleDragStart}
         onDrop={handleDrop}
         onClick={handleClickEditor}
+        onKeyDown={handleKeyDown}
         onMouseUp={guardarSeleccion}
         onKeyUp={guardarSeleccion}
         data-placeholder={placeholder}
@@ -321,6 +391,13 @@ export default function InformeCampoRico({ value, onChange, placeholder = 'Escri
         // alinearImagenSeleccionada) tenga algo que alinear.
         className={`informe-campo-editable informe-campo-rico rounded px-1.5 -mx-1.5 focus:outline-none [&_img]:inline-block [&_img]:max-w-full [&_img]:rounded [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_table]:max-w-full [&_blockquote]:border-none [&_blockquote]:ml-8 [&_blockquote]:my-0 empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 dark:empty:before:text-slate-500 ${soloLectura ? '' : 'hover:bg-blue-50/60 dark:hover:bg-blue-900/10 focus:bg-blue-50/80 dark:focus:bg-blue-900/20 focus:ring-1 focus:ring-blue-300 dark:focus:ring-blue-700'} ${className}`}
       />
+      {imagenPorRecortar && (
+        <RecortarImagenModal
+          src={imagenPorRecortar}
+          onAplicar={aplicarRecorte}
+          onCancelar={() => setImagenPorRecortar(null)}
+        />
+      )}
     </div>
   );
 }

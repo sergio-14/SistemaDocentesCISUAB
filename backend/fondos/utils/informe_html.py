@@ -21,6 +21,8 @@ CAMPOS_HTML_RICO_INFORME = [
     # Formato anterior (informes ya presentados): se limpian igual al leerlos.
     'seccion_extension_interaccion', 'seccion_asesorias_tutorias',
     'saludo_intro_html', 'cierre_html',
+    # Solo la imagen de la firma.
+    'firma_imagen_html',
 ]
 
 _ETIQUETAS = {

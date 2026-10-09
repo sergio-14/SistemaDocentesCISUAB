@@ -17,7 +17,8 @@ from decimal import Decimal
 from .utils.carrera_pdf_generator import CarreraPDFGenerator
 from .utils.informe_gestion_pdf import InformeGestionCarreraPDF
 from .utils.pdf_generator import FondoPDFGenerator, InformePDFGenerator
-from .utils.informe_texto import CAMPOS_TEXTO_INFORME
+from .utils.informe_texto import CAMPOS_TEXTO_INFORME, construir_defaults_informe
+from .utils.informe_word import generar_informe_word
 from .utils.informe_imagenes import ImagenInformeInvalida, carpeta_imagenes, validar_imagenes_informe
 from rest_framework_simplejwt.views import TokenObtainPairView
 
@@ -1857,16 +1858,26 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
 
     # NUEVAS ACCIONES SEGÚN REGLAMENTO UAB
 
-    def _extraer_secciones_informe(self, request, fondo):
+    def _extraer_secciones_informe(self, request, fondo, seguir_datos_actuales=False):
         """Lee las secciones del informe (7 unidades + conclusiones) MAS los 12 campos del documento
         tipo carta (encabezado, fecha, destinatario/remitente/referencia,
         saludo+intro, cierre, firma) desde request.data. El editor del
         frontend envia el documento completo en cada guardado, no solo las
         secciones. Compartido por guardar-informe-borrador y presentar.
 
+        seguir_datos_actuales (borrador): el texto de la carta que el docente no cambió
+        (igual al precargado) se guarda vacío, para que siga a los datos actuales de la
+        carrera (facultad, director, cargo, fecha...) si cambian antes de presentar. Al
+        presentar se guarda tal cual: el informe enviado queda fijo.
+
         Rechaza (400) las imágenes que no se admiten, con el motivo."""
-        campos = [*CAMPOS_SECCIONES_INFORME, *CAMPOS_TEXTO_INFORME]
+        campos = [*CAMPOS_SECCIONES_INFORME, *CAMPOS_TEXTO_INFORME, 'firma_imagen_html']
         secciones = {campo: (request.data.get(campo) or '').strip() for campo in campos}
+        if seguir_datos_actuales:
+            defaults = construir_defaults_informe(fondo)
+            for campo in CAMPOS_TEXTO_INFORME:
+                if secciones[campo] == (defaults.get(campo) or '').strip():
+                    secciones[campo] = ''
         try:
             validar_imagenes_informe(secciones, carpeta_imagenes(InformeFondo(fondo_tiempo=fondo)))
         except ImagenInformeInvalida as exc:
@@ -1899,7 +1910,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        secciones = self._extraer_secciones_informe(request, fondo)
+        secciones = self._extraer_secciones_informe(request, fondo, seguir_datos_actuales=True)
         informe, _creado = InformeFondo.objects.update_or_create(
             fondo_tiempo=fondo,
             tipo='parcial',
@@ -2527,6 +2538,18 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             import traceback
             traceback.print_exc()
             return HttpResponse(f"Error crítico: {str(e)}", status=500)
+
+    @action(detail=True, methods=['get'], url_path='word-informe')
+    def generar_word_informe(self, request, pk=None):
+        """El mismo Informe de Fondo de Tiempo que pdf-informe, en Word (.docx) para editarlo."""
+        fondo = self.get_object()
+        informe = fondo.informes.filter(tipo='parcial').order_by('-fecha_elaboracion').first()
+        buffer = generar_informe_word(fondo, informe)
+        nombre_docente = fondo.docente.nombre_completo.replace(' ', '_') if fondo.docente else 'Docente'
+        return FileResponse(
+            buffer, as_attachment=True, filename=f'Informe_{nombre_docente}_{fondo.gestion}.docx',
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        )
 
     def _duracion_horas_bloque(self, hora_inicio, hora_fin):
         if not hora_inicio or not hora_fin:

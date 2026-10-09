@@ -9,6 +9,7 @@ import { API_BASE_URL } from '../apis/apiConfig';
 
 export const TAMANO_MAXIMO_IMAGEN_MB = 3;
 export const MAXIMO_IMAGENES_INFORME = 20;
+const ANCHO_INICIAL_IMAGEN = 500;
 export const MENSAJE_LIMITE_IMAGENES = `El informe admite como máximo ${MAXIMO_IMAGENES_INFORME} imágenes.`;
 
 const TIPOS_ADMITIDOS = ['image/png', 'image/jpeg', 'image/gif'];
@@ -104,8 +105,9 @@ export function ajustarImagenInsertada(editorNode, dataUrl, alTerminar) {
   if (!img) return;
   const aplicarValoresIniciales = () => {
     if (!img.isConnected) return;
-    const anchoDisponible = editorNode.clientWidth || 320;
-    const anchoInicial = Math.min(img.naturalWidth || 320, 320, anchoDisponible);
+    // Entra grande (como el tamaño L de la imagen), sin pasar del ancho del documento.
+    const anchoDisponible = editorNode.clientWidth || ANCHO_INICIAL_IMAGEN;
+    const anchoInicial = Math.min(img.naturalWidth || ANCHO_INICIAL_IMAGEN, ANCHO_INICIAL_IMAGEN, anchoDisponible);
     img.style.width = `${anchoInicial}px`;
     img.style.height = 'auto';
     if (!img.parentElement?.hasAttribute('data-img-wrap')) {

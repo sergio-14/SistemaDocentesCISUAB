@@ -5,9 +5,13 @@ import { ArrowLeft, Save, Eye, Send, Loader2, FileWarning, Lock, Download } from
 import api, { getFondoTiempoDetalle, guardarInformeBorrador } from '../apis/api';
 import { getApiErrorMessage, getDownloadErrorMessage } from '../utils/formErrors';
 import useConsultaPeriodica from '../utils/useConsultaPeriodica';
+import useModoClaro from '../utils/useModoClaro';
+import ModalConfirmar from './common/ModalConfirmar';
+import { BLOQUE, BOTON } from './fondos/estilosFondo';
 import InformeCampoRico from './InformeCampoRico';
 import InformeCampoPlano from './InformeCampoPlano';
 import InformeFormatToolbar from './InformeFormatToolbar';
+import InformeFirmaImagen from './InformeFirmaImagen';
 import { InformeDocumentoContext } from './InformeDocumentoContext';
 
 // Art. 28: las 7 unidades del reglamento (Art. 12) y conclusiones; igual que SECCIONES_INFORME del backend.
@@ -39,7 +43,7 @@ const CAMPOS_DOCUMENTO = [
   'destinatario_nombre', 'destinatario_cargo',
   'remitente_nombre', 'remitente_cargo', 'referencia_texto',
   'saludo_intro_html', 'cierre_html',
-  'firma_nombre', 'firma_cargo', 'firma_email',
+  'firma_nombre', 'firma_cargo', 'firma_email', 'firma_imagen_html',
 ];
 
 const TODOS_LOS_CAMPOS = [
@@ -48,6 +52,14 @@ const TODOS_LOS_CAMPOS = [
 ];
 
 const AUTOGUARDADO_MS = 30000;
+const POSICION_BARRA_STORAGE_KEY = 'informe_posicion_barra';
+// Vista previa y descargas del informe: endpoint, extensión del archivo y nombre para los avisos.
+const DOCUMENTOS_INFORME = {
+  ver: { ruta: 'pdf-informe', extension: 'pdf', nombre: 'PDF' },
+  pdf: { ruta: 'pdf-informe', extension: 'pdf', nombre: 'PDF' },
+  word: { ruta: 'word-informe', extension: 'docx', nombre: 'Word' },
+};
+const PANTALLA_ANCHA = '(min-width: 1280px)';
 const FUENTE_DOCUMENTO = { fontFamily: 'Verdana, Geneva, Tahoma, sans-serif' };
 
 const contenidoHtmlVacio = (html) => !((html || '').replace(/<[^>]*>/g, '').trim() || /<img\b/i.test(html || ''));
@@ -71,11 +83,54 @@ export default function EditorInformePage() {
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState(null);
   const [guardando, setGuardando] = useState(false);
-  const [previsualizando, setPrevisualizando] = useState(false);
+  // Documento que se está generando: 'ver' (vista previa), 'pdf' o 'word'.
+  const [generando, setGenerando] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [mostrarConfirmarEnvio, setMostrarConfirmarEnvio] = useState(false);
   const [ultimoGuardado, setUltimoGuardado] = useState(null);
   const [campoActivo, setCampoActivo] = useState(null);
+
+  // Como el resto del módulo de Fondo de Tiempo, solo en modo claro.
+  useModoClaro();
+
+  // Barra de formato arriba o a un costado de la hoja (se recuerda en este navegador).
+  // A un costado solo cabe en pantallas anchas; en las demás va siempre arriba.
+  const [posicionBarra, setPosicionBarra] = useState(() => {
+    try {
+      const guardada = localStorage.getItem(POSICION_BARRA_STORAGE_KEY);
+      return ['izquierda', 'derecha'].includes(guardada) ? guardada : 'arriba';
+    } catch {
+      return 'arriba';
+    }
+  });
+  const [pantallaAncha, setPantallaAncha] = useState(() => window.matchMedia(PANTALLA_ANCHA).matches);
+  const cabeceraRef = useRef(null);
+  const [alturaCabecera, setAlturaCabecera] = useState(0);
+
+  useEffect(() => {
+    const media = window.matchMedia(PANTALLA_ANCHA);
+    const actualizar = () => setPantallaAncha(media.matches);
+    media.addEventListener('change', actualizar);
+    return () => media.removeEventListener('change', actualizar);
+  }, []);
+
+  // La barra lateral queda fija justo debajo de la cabecera, que cambia de alto.
+  useEffect(() => {
+    const cabecera = cabeceraRef.current;
+    if (!cabecera) return undefined;
+    const observador = new ResizeObserver(() => setAlturaCabecera(cabecera.offsetHeight));
+    observador.observe(cabecera);
+    return () => observador.disconnect();
+  }, [cargando, errorCarga]);
+
+  const cambiarPosicionBarra = (posicion) => {
+    setPosicionBarra(posicion);
+    try {
+      localStorage.setItem(POSICION_BARRA_STORAGE_KEY, posicion);
+    } catch {
+      // Sin almacenamiento la posición simplemente no se recuerda.
+    }
+  };
 
   const sucioRef = useRef(false);
   const informeDataRef = useRef(informeData);
@@ -152,34 +207,36 @@ export default function EditorInformePage() {
     return () => document.removeEventListener('visibilitychange', guardarAlOcultar);
   }, [soloLectura, cargando, guardarBorrador]);
 
-  // PDF del informe: en una pestaña nueva o descargado. Va por `api` para que
-  // lleve el rol activo (X-Active-Assignment), igual que el resto de pantallas.
-  const abrirPdf = async ({ descargar = false } = {}) => {
+  // El informe en PDF (vista previa en una pestaña nueva o descargado) o en Word
+  // (descargado). Antes se guarda lo pendiente. Va por `api` para que lleve el rol
+  // activo (X-Active-Assignment), igual que el resto de pantallas.
+  const obtenerDocumento = async (accion) => {
+    const { ruta, extension, nombre } = DOCUMENTOS_INFORME[accion];
     try {
-      setPrevisualizando(true);
+      setGenerando(accion);
       if (!soloLectura) {
         const guardado = await guardarBorrador({ silencioso: true });
         if (!guardado) return;
       }
-      const { data } = await api.get(`/fondos-tiempo/${id}/pdf-informe/`, { responseType: 'blob' });
+      const { data } = await api.get(`/fondos-tiempo/${id}/${ruta}/`, { responseType: 'blob' });
       const blobUrl = URL.createObjectURL(data);
       const link = document.createElement('a');
       link.href = blobUrl;
-      if (descargar) {
-        link.download = `Informe_${(nombreDocente || 'Docente').replace(/\s+/g, '_')}_${fondo?.gestion || ''}.pdf`;
-      } else {
+      if (accion === 'ver') {
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
+      } else {
+        link.download = `Informe_${(nombreDocente || 'Docente').replace(/\s+/g, '_')}_${fondo?.gestion || ''}.${extension}`;
       }
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
     } catch (err) {
-      console.error('Error al generar el PDF del informe:', err);
-      toast.error(await getDownloadErrorMessage(err, 'No se pudo generar el PDF del informe'));
+      console.error(`Error al generar el ${nombre} del informe:`, err);
+      toast.error(await getDownloadErrorMessage(err, `No se pudo generar el ${nombre} del informe`));
     } finally {
-      setPrevisualizando(false);
+      setGenerando(null);
     }
   };
 
@@ -208,149 +265,174 @@ export default function EditorInformePage() {
 
   const volverAlFondo = () => navigate(`/fondo-tiempo/fondo/${id}`);
 
+  const barraLateral = pantallaAncha && !soloLectura && posicionBarra !== 'arriba';
+
   const contexto = useMemo(() => ({ campoActivo, setCampoActivo, soloLectura }), [campoActivo, soloLectura]);
 
   if (cargando) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
-        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-azulado-100">
+        <Loader2 className="w-8 h-8 text-blue-900 animate-spin" />
       </div>
     );
   }
 
   if (errorCarga || !fondo) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50 dark:bg-slate-900 p-6 text-center">
-        <FileWarning className="w-10 h-10 text-red-500" />
-        <p className="text-slate-700 dark:text-slate-300 font-semibold">{errorCarga || 'No se encontró el fondo.'}</p>
-        <button
-          onClick={volverAlFondo}
-          className="px-4 py-2 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all"
-        >
-          Volver al Fondo
-        </button>
+      <div className="min-h-screen flex items-center justify-center bg-azulado-100 p-6">
+        <div className={`${BLOQUE} max-w-md w-full p-8 text-center`}>
+          <FileWarning className="w-10 h-10 text-red-500 mx-auto" />
+          <p className="mt-3 text-slate-700 font-semibold">{errorCarga || 'No se encontró el fondo.'}</p>
+          <button onClick={volverAlFondo} className={`${BOTON} mt-5 bg-blue-900 hover:bg-blue-950 text-white`}>
+            <ArrowLeft className="w-4 h-4" />
+            Volver al fondo
+          </button>
+        </div>
       </div>
     );
   }
 
+  const estadoGuardado = soloLectura
+    ? 'Solo lectura'
+    : guardando
+      ? 'Guardando…'
+      : ultimoGuardado
+        ? `Guardado a las ${ultimoGuardado.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}`
+        : 'Sin guardar todavía';
+
   return (
     <InformeDocumentoContext.Provider value={contexto}>
-      <div className="min-h-screen flex flex-col bg-slate-200 dark:bg-slate-950">
-        {/* Barra superior + barra de formato, fijas juntas */}
+      <div className="min-h-screen flex flex-col bg-gradient-to-b from-blue-900 to-blue-950">
+        {/* Cabecera (azul del sidebar) y barra de formato, fijas juntas arriba */}
         <div className="sticky top-0 z-30">
-        <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 shadow-sm">
-          <div className="max-w-[850px] mx-auto px-4 md:px-6 py-3 flex flex-wrap items-center gap-3 justify-between">
-            <div className="min-w-0">
-              <h1 className="text-base md:text-lg font-bold text-slate-800 dark:text-white truncate">
-                Informe de Fondo de Tiempo{nombreDocente ? ` - ${nombreDocente}` : ''}
-              </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {soloLectura
-                  ? 'Solo lectura'
-                  : guardando
-                    ? 'Guardando…'
-                    : ultimoGuardado
-                      ? `Guardado a las ${ultimoGuardado.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}`
-                      : 'Sin guardar todavía'}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {!soloLectura && (
+          <header ref={cabeceraRef} className="bg-gradient-to-r from-blue-900 to-blue-950 text-white">
+            {/* Arriba el dueño del informe (nombre completo, sin cortar); abajo, o a la
+                derecha en pantallas anchas, el estado y las acciones. */}
+            <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-3 flex flex-col gap-3 2xl:flex-row 2xl:items-center">
+              <div className="flex items-center gap-3 min-w-0 2xl:flex-1">
                 <button
-                  onClick={() => guardarBorrador()}
-                  disabled={guardando || previsualizando || enviando}
-                  className="px-3.5 py-2 rounded-xl font-bold text-sm text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center gap-2 disabled:opacity-60"
+                  onClick={volverAlFondo}
+                  title="Volver al fondo"
+                  aria-label="Volver al fondo"
+                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
                 >
-                  {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Guardar Borrador
+                  <ArrowLeft className="w-5 h-5" />
                 </button>
-              )}
-              <button
-                onClick={() => abrirPdf()}
-                disabled={previsualizando}
-                className="px-3.5 py-2 rounded-xl font-bold text-sm text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 border-2 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all flex items-center gap-2 disabled:opacity-60"
-              >
-                {previsualizando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-                Previsualizar
-              </button>
-              <button
-                onClick={() => abrirPdf({ descargar: true })}
-                disabled={previsualizando}
-                className="px-3.5 py-2 rounded-xl font-bold text-sm text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 border-2 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all flex items-center gap-2 disabled:opacity-60"
-              >
-                <Download className="w-4 h-4" />
-                Descargar PDF
-              </button>
-              {!soloLectura && (
-                <button
-                  onClick={abrirConfirmacionEnvio}
-                  disabled={enviando}
-                  className="px-4 py-2 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md transition-all flex items-center gap-2 disabled:opacity-60"
-                >
-                  <Send className="w-4 h-4" />
-                  Enviar Informe
-                </button>
-              )}
-              <button
-                onClick={volverAlFondo}
-                className="px-3.5 py-2 rounded-xl font-bold text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-2 border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all flex items-center gap-2"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Volver al Fondo
-              </button>
-            </div>
-          </div>
-        </header>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-sky-200">
+                    Informe de cumplimiento{fondo.gestion ? ` · Gestión ${fondo.gestion}` : ''}
+                  </p>
+                  <h1 className="text-base md:text-lg font-bold leading-tight break-words">{nombreDocente || 'Fondo de tiempo'}</h1>
+                </div>
+              </div>
+              {/* Estado del guardado | Documento (ver, PDF, Word) | Guardar y enviar */}
+              <div className="flex flex-wrap items-center gap-2.5 2xl:justify-end">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-2 text-xs text-sky-100 mr-auto 2xl:mr-1">
+                  {soloLectura ? <Lock className="w-3.5 h-3.5" /> : guardando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  {estadoGuardado}
+                </span>
 
-        <InformeFormatToolbar />
+                <div className="inline-flex items-center rounded-full bg-white/10 p-1 ring-1 ring-inset ring-white/15">
+                  {[
+                    { accion: 'ver', etiqueta: 'Vista previa', titulo: 'Ver el PDF en una pestaña nueva', icono: Eye },
+                    { accion: 'pdf', etiqueta: 'PDF', titulo: 'Descargar en PDF', icono: Download },
+                    { accion: 'word', etiqueta: 'Word', titulo: 'Descargar en Word (.docx) para editarlo', icono: Download },
+                  ].map(({ accion, etiqueta, titulo, icono: Icono }, indice) => (
+                    <div key={accion} className="flex items-center">
+                      {indice > 0 && <span className="mx-0.5 h-4 w-px bg-white/20" />}
+                      <button
+                        onClick={() => obtenerDocumento(accion)}
+                        disabled={Boolean(generando)}
+                        title={titulo}
+                        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-white hover:bg-white/15 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {generando === accion ? <Loader2 className="w-4 h-4 animate-spin" /> : <Icono className="w-4 h-4" />}
+                        {etiqueta}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {!soloLectura && (
+                  <div className="inline-flex items-center gap-2">
+                    <button
+                      onClick={() => guardarBorrador()}
+                      disabled={guardando || Boolean(generando) || enviando}
+                      className={`${BOTON} text-white ring-1 ring-inset ring-white/30 hover:bg-white/10 disabled:opacity-60`}
+                    >
+                      {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      Guardar borrador
+                    </button>
+                    <button
+                      onClick={abrirConfirmacionEnvio}
+                      disabled={enviando}
+                      className={`${BOTON} bg-white text-blue-900 font-semibold shadow-sm hover:bg-azulado-100 disabled:opacity-60`}
+                    >
+                      <Send className="w-4 h-4" />
+                      Enviar informe
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </header>
+
+          {/* Barra de formato arriba, sobre el panel azulado */}
+          {!barraLateral && (
+            <div className="bg-azulado-100 rounded-t-[2rem] px-4 md:px-6 pt-4 pb-3">
+              <div className="max-w-[1100px] mx-auto">
+                <InformeFormatToolbar posicion="arriba" onCambiarPosicion={pantallaAncha ? cambiarPosicionBarra : null} />
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Avisos de estado */}
-        {(soloLectura || estadoInforme === 'observado' || !soloLectura) && (
-          <div className="max-w-[850px] w-full mx-auto px-4 md:px-6 pt-4">
+        <main className={`flex-1 bg-azulado-100 px-4 md:px-6 pb-16 ${barraLateral ? 'rounded-t-[2rem] pt-5' : ''}`}>
+          <div className={barraLateral ? `flex items-start justify-center gap-6 ${posicionBarra === 'derecha' ? 'flex-row-reverse' : ''}` : ''}>
+          {/* Barra de formato a un costado de la hoja, fija al bajar */}
+          {barraLateral && (
+            <aside className="sticky w-52 shrink-0" style={{ top: alturaCabecera + 16 }}>
+              <InformeFormatToolbar posicion={posicionBarra} onCambiarPosicion={cambiarPosicionBarra} />
+            </aside>
+          )}
+          <div className={barraLateral ? 'w-full max-w-[850px] min-w-0' : ''}>
+          {/* Avisos de estado */}
+          <div className="max-w-[850px] mx-auto space-y-3 pt-1">
             {soloLectura && informeEnviado && (
-              <div className="bg-emerald-50 dark:bg-emerald-900/20 border-l-4 border-emerald-500 p-4 rounded-r-lg flex items-start gap-3 mb-3">
-                <Lock className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
-                <p className="text-sm text-emerald-800 dark:text-emerald-300">
+              <div className="flex items-start gap-3 rounded-2xl bg-emerald-50 px-4 py-3 ring-1 ring-inset ring-emerald-200">
+                <Lock className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+                <p className="text-sm text-emerald-800">
                   {estadoInforme === 'aprobado'
                     ? 'Informe aprobado por el Director: el Fondo de Tiempo está finalizado. Solo lectura.'
-                    : 'Informe enviado - en espera de la revisión del Director. Ya no se puede editar, salvo que el Director solicite correcciones.'}
+                    : 'Informe enviado, en espera de la revisión del Director. Ya no se puede editar, salvo que el Director solicite correcciones.'}
                 </p>
               </div>
             )}
             {soloLectura && !informeEnviado && (
-              <div className="bg-slate-50 dark:bg-slate-800/60 border-l-4 border-slate-400 p-4 rounded-r-lg flex items-start gap-3 mb-3">
-                <Lock className="w-5 h-5 text-slate-500 dark:text-slate-400 mt-0.5 shrink-0" />
-                <p className="text-sm text-slate-700 dark:text-slate-300">
+              <div className="flex items-start gap-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-inset ring-azulado-300">
+                <Lock className="w-5 h-5 text-slate-500 mt-0.5 shrink-0" />
+                <p className="text-sm text-slate-700">
                   Solo lectura: el informe lo redacta el docente del fondo mientras está en ejecución.
                 </p>
               </div>
             )}
             {estadoInforme === 'observado' && (
-              <div className="bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500 p-4 rounded-r-lg mb-3">
-                <p className="text-sm font-bold text-amber-800 dark:text-amber-300 mb-1">
-                  El Director solicitó correcciones:
-                </p>
-                <p className="text-sm text-amber-800 dark:text-amber-300 whitespace-pre-wrap">
-                  {informe?.evaluacion_director}
-                </p>
+              <div className="rounded-2xl bg-red-50 px-4 py-3 ring-1 ring-inset ring-red-200">
+                <p className="text-sm font-semibold text-red-700 mb-1">El Director solicitó correcciones:</p>
+                <p className="text-sm text-red-700 whitespace-pre-wrap">{informe?.evaluacion_director}</p>
               </div>
             )}
             {!soloLectura && (
-              <div className="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 p-3 rounded-r-lg mb-1">
-                <p className="text-xs text-blue-800 dark:text-blue-300">
-                  Edita directamente sobre el documento, como en Word. Tu progreso se guarda automáticamente cada 30
-                  segundos; solo se envía al Director cuando hagas clic en "Enviar Informe".
-                </p>
-              </div>
+              <p className="px-1 text-xs text-slate-500">
+                Edita directamente sobre el documento, como en Word. Tu progreso se guarda solo cada 30 segundos;
+                el Director lo recibe recién cuando hagas clic en «Enviar informe».
+              </p>
             )}
           </div>
-        )}
 
-        {/* El documento */}
-        <main className="flex-1 overflow-y-auto pb-16">
+          {/* El documento */}
           <div
-            className="max-w-[850px] mx-auto my-6 bg-white dark:bg-slate-900 shadow-lg rounded-sm px-8 py-10 md:px-16 md:py-12 text-slate-900 dark:text-slate-100"
+            className="max-w-[850px] mx-auto mt-4 bg-white rounded-lg ring-1 ring-azulado-300 shadow-[0_8px_30px_rgba(30,58,138,0.12)] px-8 py-10 md:px-16 md:py-12 text-slate-900"
             style={FUENTE_DOCUMENTO}
           >
             {/* 1. Encabezado institucional */}
@@ -462,6 +544,10 @@ export default function EditorInformePage() {
             {/* 7. Firma */}
             <div className="flex justify-end mt-14">
               <div className="w-64 text-center text-[13.5px] space-y-1">
+                <InformeFirmaImagen
+                  value={informeData.firma_imagen_html}
+                  onChange={(v) => handleCampoChange('firma_imagen_html', v)}
+                />
                 <InformeCampoPlano
                   value={informeData.firma_nombre}
                   onChange={(v) => handleCampoChange('firma_nombre', v)}
@@ -488,43 +574,22 @@ export default function EditorInformePage() {
 
             <p className="text-[13.5px] mt-10">Cc./Arch.</p>
           </div>
+          </div>
+          </div>
         </main>
       </div>
 
-      {/* Modal de confirmación de envío */}
+      {/* Confirmación de envío */}
       {mostrarConfirmarEnvio && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[90] p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                  <FileWarning className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                </div>
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Confirmar envío</h3>
-              </div>
-              <p className="text-sm text-slate-600 dark:text-slate-300">
-                ¿Está seguro de enviar este informe? <span className="font-bold">No podrá editarlo después de enviarlo</span>, salvo que el Director solicite correcciones.
-              </p>
-            </div>
-            <div className="px-6 pb-6 flex gap-3">
-              <button
-                onClick={() => setMostrarConfirmarEnvio(false)}
-                disabled={enviando}
-                className="flex-1 px-4 py-2.5 rounded-xl font-bold text-slate-700 dark:text-slate-300 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
-              >
-                Volver a editar
-              </button>
-              <button
-                onClick={enviarInformeFinal}
-                disabled={enviando}
-                className="flex-1 px-4 py-2.5 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg transition-all flex items-center justify-center gap-2"
-              >
-                {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                Sí, enviar
-              </button>
-            </div>
-          </div>
-        </div>
+        <ModalConfirmar
+          etiqueta="Informe de cumplimiento"
+          titulo="Enviar informe"
+          mensaje={<>Se enviará el informe al Director para su revisión. <strong className="text-slate-900">No podrá editarlo después de enviarlo</strong>, salvo que el Director solicite correcciones.</>}
+          textoAccion="Sí, enviar"
+          textoTrabajando="Enviando..."
+          onConfirmar={enviarInformeFinal}
+          onCancelar={() => setMostrarConfirmarEnvio(false)}
+        />
       )}
     </InformeDocumentoContext.Provider>
   );

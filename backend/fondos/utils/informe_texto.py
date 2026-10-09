@@ -15,6 +15,7 @@ Por eso viven en un solo modulo compartido en vez de duplicarse.
 from html import escape
 
 from django.apps import apps
+from django.db.models import Q
 from django.utils import timezone
 
 _MESES_ES = {
@@ -98,13 +99,18 @@ def _etiqueta_gestion_docente(fondo):
     docente ejerce en esta carrera ADEMÁS de la docencia, o None."""
     if not (fondo.docente and fondo.carrera):
         return None
-    PerfilUsuario = apps.get_model('fondos', 'PerfilUsuario')
-    perfil = PerfilUsuario.objects.filter(
-        docente=fondo.docente, carrera=fondo.carrera, activo=True,
-    ).exclude(rol='docente').first()
-    if not perfil:
+    # Por la asignación activa en la carrera del fondo (como nombre_director): el rol
+    # base del perfil no sirve para quien tiene varios cargos o varias carreras.
+    from fondos.models import usuarios_del_docente  # local, como apps.get_model: sin cargar models al importar
+    AsignacionCarrera = apps.get_model('fondos', 'AsignacionCarrera')
+    asignacion = AsignacionCarrera.objects.filter(
+        carrera=fondo.carrera, activo=True, rol__in=list(_ETIQUETAS_CARGO_GESTION),
+    ).filter(
+        Q(docente=fondo.docente) | Q(user_id__in=usuarios_del_docente(fondo.docente))
+    ).order_by('id').first()
+    if not asignacion:
         return None
-    return _ETIQUETAS_CARGO_GESTION.get(perfil.rol)
+    return _ETIQUETAS_CARGO_GESTION.get(asignacion.rol)
 
 
 def cargo_gestion_docente(fondo):
@@ -180,10 +186,13 @@ def construir_defaults_informe(fondo):
     abreviatura_texto = f' ({dedicacion_abrev})' if dedicacion_abrev else ''
     dedicacion_intro = dedicacion_texto or 'Tiempo Completo'
 
+    # La facultad sale de la carrera del fondo (no siempre es Ingeniería y Tecnología).
+    facultad = fondo.carrera.facultad if fondo.carrera else None
+    facultad_nombre = facultad.nombre.upper() if facultad else 'FACULTAD'
     encabezado_texto = (
         'UNIVERSIDAD AUTÓNOMA DEL BENI "JOSÉ BALLIVIÁN"\n'
         'VICERRECTORADO DE PREGRADO\n'
-        'FACULTAD DE INGENIERÍA Y TECNOLOGÍA\n'
+        f'{facultad_nombre}\n'
         f'CARRERA: "{carrera_nombre}"'
     )
 

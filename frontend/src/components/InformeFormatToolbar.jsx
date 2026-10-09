@@ -2,7 +2,8 @@ import { useRef } from 'react';
 import {
   Strikethrough, List, ListOrdered,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Indent, Outdent, Palette, Image as ImageIcon, PenLine,
+  Indent, Outdent, Palette, Image as ImageIcon, PenLine, Table,
+  PanelLeft, PanelTop, PanelRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useInformeDocumento } from './InformeDocumentoContext';
@@ -12,6 +13,11 @@ import {
 } from '../utils/imagenesInforme';
 
 const TAMANOS_FUENTE = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48];
+const POSICIONES_BARRA = [
+  { valor: 'izquierda', titulo: 'Barra a la izquierda de la hoja', icono: PanelLeft },
+  { valor: 'arriba', titulo: 'Barra arriba', icono: PanelTop },
+  { valor: 'derecha', titulo: 'Barra a la derecha de la hoja', icono: PanelRight },
+];
 const INTERLINEADOS = [
   { valor: '1', etiqueta: '1.0' },
   { valor: '1.15', etiqueta: '1.15' },
@@ -27,8 +33,10 @@ const INTERLINEADOS = [
  * (encabezado, fecha, destinatario, firma...) no activan esta barra: no
  * llevan formato propio, solo el texto que el docente escriba.
  */
-export default function InformeFormatToolbar() {
+export default function InformeFormatToolbar({ posicion = 'arriba', onCambiarPosicion = null }) {
   const { campoActivo, soloLectura } = useInformeDocumento();
+  // A un costado de la hoja la barra es una columna.
+  const vertical = posicion !== 'arriba';
   const fileInputRef = useRef(null);
   const colorInputRef = useRef(null);
 
@@ -150,160 +158,182 @@ export default function InformeFormatToolbar() {
     { icono: Indent, titulo: 'Aumentar sangría', accion: () => ejecutarComando('indent') },
   ];
 
+  // Botón de la barra: ícono o letra, con el hover azulado del módulo.
+  const BOTON_BARRA = 'h-8 min-w-8 px-1.5 flex items-center justify-center rounded-lg text-slate-600 hover:bg-azulado-100 hover:text-blue-900 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent';
+  const SELECT_BARRA = `h-8 text-xs rounded-lg bg-white ring-1 ring-inset ring-azulado-300 text-slate-700 px-2 outline-none focus:ring-blue-900 disabled:opacity-30 ${vertical ? 'w-full' : ''}`;
+  // En horizontal los grupos fluyen en una sola fila; en vertical cada grupo es un bloque.
+  const GRUPO = vertical ? 'flex flex-wrap gap-1' : 'contents';
+  const separador = vertical
+    ? <span className="h-px w-full bg-azulado-300" />
+    : <span className="w-px h-6 bg-azulado-300 mx-1" />;
+
+  if (soloLectura) {
+    return (
+      <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm text-slate-500 ring-1 ring-azulado-300 shadow-[0_2px_6px_rgba(30,58,138,0.08)]">
+        <PenLine className="w-4 h-4" /> Documento en modo solo lectura
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm">
-      <div className="max-w-[850px] mx-auto px-2 py-1.5 flex flex-wrap items-center gap-1">
-        {!campoActivo && !soloLectura && (
-          <span className="text-xs text-slate-400 dark:text-slate-500 italic px-2 py-1">
-            Haz clic en cualquier parte del documento para editar…
+    <div className="rounded-2xl bg-white ring-1 ring-azulado-300 shadow-[0_2px_6px_rgba(30,58,138,0.08)]">
+      <div className={vertical ? 'flex flex-col gap-2.5 p-3' : 'flex flex-wrap items-center gap-1 px-2 py-2'}>
+        {/* Insertar: la imagen es lo que más se usa, va primero y destacada */}
+        <div className={vertical ? 'flex flex-col gap-1.5' : 'contents'}>
+          <button
+            type="button"
+            title={`Insertar imagen (PNG, JPG o GIF, máx. ${TAMANO_MAXIMO_IMAGEN_MB} MB)`}
+            disabled={deshabilitado}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => fileInputRef.current?.click()}
+            className="h-9 inline-flex items-center justify-center gap-2 rounded-full bg-blue-900 px-4 text-sm font-semibold text-white hover:bg-blue-950 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <ImageIcon className="w-5 h-5" />
+            Imagen
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            className="hidden"
+            onChange={handleSeleccionArchivo}
+          />
+          <button
+            type="button"
+            title="Insertar tabla"
+            disabled={deshabilitado}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={insertarTabla}
+            className="h-9 inline-flex items-center justify-center gap-2 rounded-full bg-white px-3.5 text-sm font-medium text-blue-900 ring-1 ring-inset ring-azulado-300 hover:bg-azulado-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Table className="w-4 h-4" />
+            Tabla
+          </button>
+        </div>
+
+        {separador}
+
+        {/* Texto */}
+        <div className={GRUPO}>
+          {botonesLetra.map(({ letra, estilo, titulo, accion }) => (
+            <button
+              key={letra}
+              type="button"
+              title={titulo}
+              disabled={deshabilitado}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={accion}
+              className={`${BOTON_BARRA} w-8 text-sm ${estilo}`}
+            >
+              {letra}
+            </button>
+          ))}
+          <button
+            type="button"
+            title="Tachado"
+            disabled={deshabilitado}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => ejecutarComando('strikeThrough')}
+            className={BOTON_BARRA}
+          >
+            <Strikethrough className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            title="Color de texto"
+            disabled={deshabilitado}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => colorInputRef.current?.click()}
+            className={BOTON_BARRA}
+          >
+            <Palette className="w-4 h-4" />
+          </button>
+          <input
+            ref={colorInputRef}
+            type="color"
+            className="hidden"
+            disabled={deshabilitado}
+            onChange={(e) => ejecutarComando('foreColor', e.target.value)}
+          />
+        </div>
+        <div className={vertical ? 'flex flex-col gap-1.5' : 'contents'}>
+          <select
+            title="Tamaño de fuente"
+            disabled={deshabilitado}
+            defaultValue=""
+            onChange={(e) => {
+              const px = Number(e.target.value);
+              if (px) aplicarTamanoFuente(px);
+              e.target.value = '';
+            }}
+            className={`${SELECT_BARRA} ${vertical ? '' : 'ml-1'}`}
+          >
+            <option value="" disabled>Tamaño</option>
+            {TAMANOS_FUENTE.map((px) => (
+              <option key={px} value={px}>{px}px</option>
+            ))}
+          </select>
+          <select
+            title="Interlineado"
+            disabled={deshabilitado}
+            defaultValue=""
+            onChange={(e) => {
+              if (e.target.value) aplicarInterlineado(e.target.value);
+              e.target.value = '';
+            }}
+            className={SELECT_BARRA}
+          >
+            <option value="" disabled>Interlineado</option>
+            {INTERLINEADOS.map(({ valor, etiqueta }) => (
+              <option key={valor} value={valor}>{etiqueta}</option>
+            ))}
+          </select>
+        </div>
+
+        {separador}
+
+        {/* Párrafo: alineación, listas y sangría */}
+        <div className={GRUPO}>
+          {[...botonesAlineacion, ...botonesLista].map(({ icono: Icono, titulo, accion }) => (
+            <button
+              key={titulo}
+              type="button"
+              title={titulo}
+              disabled={deshabilitado}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={accion}
+              className={BOTON_BARRA}
+            >
+              <Icono className="w-4 h-4" />
+            </button>
+          ))}
+        </div>
+
+        {!campoActivo && (
+          <span className={`text-xs italic text-slate-400 ${vertical ? '' : 'px-2'}`}>
+            Haz clic en el documento para editar…
           </span>
         )}
-        {soloLectura && (
-          <span className="text-xs text-slate-400 dark:text-slate-500 italic px-2 py-1 flex items-center gap-1">
-            <PenLine className="w-3.5 h-3.5" /> Documento en modo solo lectura
-          </span>
-        )}
-        {!soloLectura && (
-          <>
-            {botonesLetra.map(({ letra, estilo, titulo, accion }) => (
+
+        {/* Dónde va la barra: arriba, a la izquierda o a la derecha de la hoja */}
+        {onCambiarPosicion && (
+          <div className={`flex items-center gap-0.5 rounded-full bg-azulado-100 p-0.5 ${vertical ? 'self-center mt-1' : 'ml-auto'}`}>
+            {POSICIONES_BARRA.map(({ valor, titulo, icono: Icono }) => (
               <button
-                key={letra}
+                key={valor}
                 type="button"
                 title={titulo}
-                disabled={deshabilitado}
+                aria-pressed={posicion === valor}
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={accion}
-                className={`w-7 h-7 flex items-center justify-center rounded-md text-sm text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-600 hover:text-blue-600 dark:hover:text-blue-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${estilo}`}
+                onClick={() => onCambiarPosicion(valor)}
+                className={`h-7 w-7 flex items-center justify-center rounded-full transition-colors ${
+                  posicion === valor ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-500 hover:text-blue-900'
+                }`}
               >
-                {letra}
+                <Icono className="w-4 h-4" />
               </button>
             ))}
-            <button
-              type="button"
-              title="Tachado"
-              disabled={deshabilitado}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => ejecutarComando('strikeThrough')}
-              className="p-1.5 rounded-md text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-600 hover:text-blue-600 dark:hover:text-blue-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <Strikethrough className="w-3.5 h-3.5" />
-            </button>
-
-            <span className="w-px h-5 bg-slate-300 dark:bg-slate-500 mx-0.5" />
-
-            <select
-              title="Tamaño de fuente"
-              disabled={deshabilitado}
-              defaultValue=""
-              onChange={(e) => {
-                const px = Number(e.target.value);
-                if (px) aplicarTamanoFuente(px);
-                e.target.value = '';
-              }}
-              className="text-xs rounded-md border border-slate-300 dark:border-slate-500 bg-white dark:bg-slate-600 text-slate-700 dark:text-slate-200 px-1 py-1 disabled:opacity-30"
-            >
-              <option value="" disabled>Tamaño</option>
-              {TAMANOS_FUENTE.map((px) => (
-                <option key={px} value={px}>{px}px</option>
-              ))}
-            </select>
-
-            <select
-              title="Interlineado"
-              disabled={deshabilitado}
-              defaultValue=""
-              onChange={(e) => {
-                if (e.target.value) aplicarInterlineado(e.target.value);
-                e.target.value = '';
-              }}
-              className="text-xs rounded-md border border-slate-300 dark:border-slate-500 bg-white dark:bg-slate-600 text-slate-700 dark:text-slate-200 px-1 py-1 disabled:opacity-30"
-            >
-              <option value="" disabled>Interlineado</option>
-              {INTERLINEADOS.map(({ valor, etiqueta }) => (
-                <option key={valor} value={valor}>{etiqueta}</option>
-              ))}
-            </select>
-
-            <button
-              type="button"
-              title="Color de texto"
-              disabled={deshabilitado}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => colorInputRef.current?.click()}
-              className="p-1.5 rounded-md text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-600 hover:text-blue-600 dark:hover:text-blue-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <Palette className="w-3.5 h-3.5" />
-            </button>
-            <input
-              ref={colorInputRef}
-              type="color"
-              className="hidden"
-              disabled={deshabilitado}
-              onChange={(e) => ejecutarComando('foreColor', e.target.value)}
-            />
-
-            <span className="w-px h-5 bg-slate-300 dark:bg-slate-500 mx-0.5" />
-
-            {botonesAlineacion.map(({ icono: Icono, titulo, accion }) => (
-              <button
-                key={titulo}
-                type="button"
-                title={titulo}
-                disabled={deshabilitado}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={accion}
-                className="p-1.5 rounded-md text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-600 hover:text-blue-600 dark:hover:text-blue-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <Icono className="w-3.5 h-3.5" />
-              </button>
-            ))}
-
-            <span className="w-px h-5 bg-slate-300 dark:bg-slate-500 mx-0.5" />
-
-            {botonesLista.map(({ icono: Icono, titulo, accion }) => (
-              <button
-                key={titulo}
-                type="button"
-                title={titulo}
-                disabled={deshabilitado}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={accion}
-                className="p-1.5 rounded-md text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-600 hover:text-blue-600 dark:hover:text-blue-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <Icono className="w-3.5 h-3.5" />
-              </button>
-            ))}
-
-            <span className="w-px h-5 bg-slate-300 dark:bg-slate-500 mx-0.5" />
-
-            <button
-              type="button"
-              title="Insertar tabla"
-              disabled={deshabilitado}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={insertarTabla}
-              className="px-2 py-1.5 rounded-md text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-600 hover:text-blue-600 dark:hover:text-blue-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              Tabla
-            </button>
-            <button
-              type="button"
-              title={`Insertar imagen (PNG, JPG o GIF, máx. ${TAMANO_MAXIMO_IMAGEN_MB} MB)`}
-              disabled={deshabilitado}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => fileInputRef.current?.click()}
-              className="p-1.5 rounded-md text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-600 hover:text-blue-600 dark:hover:text-blue-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <ImageIcon className="w-3.5 h-3.5" />
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/gif,image/webp"
-              className="hidden"
-              onChange={handleSeleccionArchivo}
-            />
-          </>
+          </div>
         )}
       </div>
     </div>

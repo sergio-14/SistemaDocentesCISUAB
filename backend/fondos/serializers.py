@@ -3941,7 +3941,7 @@ class InformeFondoSerializer(serializers.ModelSerializer):
             'destinatario_nombre', 'destinatario_cargo',
             'remitente_nombre', 'remitente_cargo', 'referencia_texto',
             'saludo_intro_html', 'cierre_html',
-            'firma_nombre', 'firma_cargo', 'firma_email',
+            'firma_nombre', 'firma_cargo', 'firma_email', 'firma_imagen_html',
             'seccion_academica', 'seccion_investigacion', 'seccion_extension_universitaria',
             'seccion_interaccion_social', 'seccion_gestion', 'seccion_academica_administrativa',
             'seccion_social_cultural_deportiva', 'conclusiones_generales',

@@ -1712,6 +1712,9 @@ class InformeFondo(models.Model):
     firma_nombre = models.CharField(max_length=255, blank=True, default='')
     firma_cargo = models.CharField(max_length=255, blank=True, default='')
     firma_email = models.CharField(max_length=255, blank=True, default='')
+    # Imagen de la firma sobre el nombre: un <img> que se guarda y se valida igual
+    # que las imágenes de las secciones (ver informe_imagenes).
+    firma_imagen_html = models.TextField(blank=True, default='')
 
     cumplimiento = models.CharField(max_length=15, choices=CUMPLIMIENTO_CHOICES, blank=True)
     evaluacion_director = models.TextField(blank=True)

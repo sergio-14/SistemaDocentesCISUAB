@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { puedeCrearFondoTiempo } from '../utils/fondoTiempoPermissions';
 import { ETIQUETAS_DEDICACION } from '../utils/dedicaciones';
 import { useActiveRole } from '../contexts/activeRole';
-import { BLOQUE, BOTON } from './fondos/estilosFondo';
+import { BLOQUE, BOTON, estadoVisibleFondo } from './fondos/estilosFondo';
 import { Avatar, BarraProgreso, EstadoPill, Etiqueta } from './fondos/ElementosFondo';
 
 const ETIQUETAS_CATEGORIA = { catedratico: 'Catedrático', adjunto: 'Adjunto', asistente: 'Asistente' };
@@ -183,7 +183,7 @@ const FondoTiempoDocente = () => {
                             >
                                 <div className="flex items-start justify-between gap-3">
                                     <Etiqueta>Gestión {fondo.gestion}</Etiqueta>
-                                    <EstadoPill estado={fondo.estado} />
+                                    <EstadoPill estado={estadoVisibleFondo(fondo)} />
                                 </div>
                                 <h3 className="text-lg font-bold text-blue-900 leading-tight line-clamp-2">{fondo.descripcion || 'Fondo de Tiempo'}</h3>
                                 <div className="flex items-baseline justify-between px-4 py-2 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300">

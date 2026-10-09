@@ -10,7 +10,7 @@ from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 from django.http import Http404, HttpResponse, FileResponse
 from django.db import transaction, IntegrityError
-from django.db.models import Max, ProtectedError, prefetch_related_objects, Q
+from django.db.models import Max, OuterRef, ProtectedError, prefetch_related_objects, Q, Subquery
 from django.core.exceptions import ValidationError as DjangoValidationError
 from datetime import datetime, date
 from decimal import Decimal
@@ -1518,6 +1518,17 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         
         return obj
     
+    def filter_queryset(self, queryset):
+        """En la lista, el estado del informe de cada fondo en la misma consulta
+        (FondoTiempoListSerializer.estado_informe)."""
+        queryset = super().filter_queryset(queryset)
+        if self.action == 'list':
+            queryset = queryset.annotate(estado_informe_actual=Subquery(
+                InformeFondo.objects.filter(fondo_tiempo=OuterRef('pk'), tipo='parcial')
+                .order_by('-fecha_elaboracion').values('estado')[:1]
+            ))
+        return queryset
+
     def get_serializer_class(self):
         if self.action == 'list':
             return FondoTiempoListSerializer

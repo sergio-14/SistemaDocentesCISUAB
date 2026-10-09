@@ -2657,13 +2657,21 @@ class FondoTiempoListSerializer(serializers.ModelSerializer):
     carrera_nombre = serializers.CharField(source='carrera.nombre', read_only=True)
     porcentaje_completado = serializers.SerializerMethodField()
     total_asignado = serializers.SerializerMethodField()
-    # Aseguramos que se devuelva la URL como string explícito
-    
+    # Estado del informe de cumplimiento (borrador, enviado, observado, aprobado) o None.
+    estado_informe = serializers.SerializerMethodField()
+
     class Meta:
         model = FondoTiempo
-        fields = ['id', 'docente', 'docente_nombre', 'carrera', 'carrera_nombre', 
+        fields = ['id', 'docente', 'docente_nombre', 'carrera', 'carrera_nombre',
                   'gestion', 'descripcion', 'total_asignado', 'horas_efectivas',
-                  'porcentaje_completado', 'estado']
+                  'porcentaje_completado', 'estado', 'estado_informe']
+
+    def get_estado_informe(self, obj):
+        # La lista lo trae anotado (FondoTiempoViewSet.filter_queryset); si no, se consulta.
+        if hasattr(obj, 'estado_informe_actual'):
+            return obj.estado_informe_actual
+        informe = obj.informes.filter(tipo='parcial').order_by('-fecha_elaboracion').first()
+        return informe.estado if informe else None
 
     def get_total_asignado(self, obj):
         if not hasattr(obj, '_total_asignado_calculado'):

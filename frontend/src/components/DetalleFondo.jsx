@@ -18,7 +18,7 @@ import FiltroUnidades from './fondos/FiltroUnidades';
 import Plegable from './fondos/Plegable';
 import ProgramaAnaliticoAccion from './fondos/ProgramaAnaliticoAccion';
 import DocumentoActividadAccion from './fondos/DocumentoActividadAccion';
-import { BLOQUE, BOTON } from './fondos/estilosFondo';
+import { BLOQUE, BOTON, estadoVisibleFondo } from './fondos/estilosFondo';
 import { Avatar, BarraProgreso, EstadoPill, Etiqueta } from './fondos/ElementosFondo';
 import { getApiErrorMessage, getDownloadErrorMessage } from '../utils/formErrors';
 import { sanitizarHtmlInforme } from '../utils/sanitizarHtmlInforme';
@@ -265,7 +265,7 @@ function DetalleFondo() {
       const response = await getFondoTiempoDetalle(id);
       setFondo(response.data);
       const pendientes = response.data.observaciones_detalladas?.filter(obs => !obs.resuelta).length || 0;
-      estadoFondoRef.current = response.data.estado;
+      estadoFondoRef.current = estadoVisibleFondo(response.data);
       observacionesPendientesRef.current = pendientes;
 
       if (!silencioso) setLoading(false);
@@ -281,34 +281,34 @@ function DetalleFondo() {
     }
   };
 
-  const debeVigilarCambios =
-    (esJefeEstudios && ['presentado_director', 'aprobado_director'].includes(fondo?.estado)) ||
-    (esDirector && ['borrador', 'observado'].includes(fondo?.estado));
+  // Todos los roles ven al día el estado (también el del informe) y las observaciones,
+  // mientras el fondo no esté finalizado.
+  const debeVigilarCambios = Boolean(fondo) && fondo.estado !== 'finalizado';
 
   useConsultaPeriodica(() => {
     getFondoTiempoDetalle(id)
       .then((response) => {
         const pendientes = response.data.observaciones_detalladas?.filter(obs => !obs.resuelta).length || 0;
         if (estadoFondoRef.current === null) {
-          estadoFondoRef.current = response.data.estado;
+          estadoFondoRef.current = estadoVisibleFondo(response.data);
           observacionesPendientesRef.current = pendientes;
           return;
         }
 
         const cambioDetectado =
-          response.data.estado !== estadoFondoRef.current ||
+          estadoVisibleFondo(response.data) !== estadoFondoRef.current ||
           pendientes !== observacionesPendientesRef.current;
 
         if (!cambioDetectado) return;
 
         setFondo(response.data);
-        estadoFondoRef.current = response.data.estado;
+        estadoFondoRef.current = estadoVisibleFondo(response.data);
         observacionesPendientesRef.current = pendientes;
       })
       .catch((err) => {
         console.warn('No se pudo sincronizar el estado del fondo:', err);
       });
-  }, 5000, debeVigilarCambios);
+  }, 10000, debeVigilarCambios);
 
   const handleActualizacionHoras = () => {
     cargarDetalle({ silencioso: true });
@@ -659,7 +659,7 @@ function DetalleFondo() {
                 <h2 className="text-xl sm:text-2xl font-bold text-blue-900 leading-tight">
                   {fondo.docente?.nombre_completo || 'Docente'}
                 </h2>
-                <EstadoPill estado={fondo.estado} />
+                <EstadoPill estado={estadoVisibleFondo(fondo)} />
               </div>
               {/* La carrera solo la ve el superusuario; los demás roles tienen una sola. */}
               {(esSuperAdmin || fondo.descripcion) && (

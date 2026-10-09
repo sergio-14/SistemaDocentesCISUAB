@@ -14,9 +14,19 @@ export const ESTADOS_FONDO = {
   aprobado_director: { label: 'Aprobado por Director', pill: 'bg-blue-50 text-blue-900 ring-blue-200', dot: 'bg-blue-700' },
   en_ejecucion: { label: 'En ejecución', pill: 'bg-cyan-50 text-cyan-800 ring-cyan-200', dot: 'bg-cyan-600' },
   informe_presentado: { label: 'Informe presentado', pill: 'bg-indigo-50 text-indigo-800 ring-indigo-200', dot: 'bg-indigo-500' },
+  // No es un estado del fondo: en ejecución con el informe observado (ver estadoVisibleFondo).
+  informe_observado: { label: 'Informe observado', pill: 'bg-orange-50 text-orange-800 ring-orange-200', dot: 'bg-orange-500' },
   finalizado: { label: 'Finalizado', pill: 'bg-emerald-50 text-emerald-800 ring-emerald-200', dot: 'bg-emerald-600' },
   rechazado: { label: 'Rechazado', pill: 'bg-red-50 text-red-800 ring-red-200', dot: 'bg-red-600' },
   archivado: { label: 'Archivado', pill: 'bg-slate-100 text-slate-500 ring-slate-300', dot: 'bg-slate-300' },
+};
+
+// Estado que se muestra del fondo: en ejecución, el del informe si el Director lo
+// observó. La lista trae `estado_informe`; el detalle, `informe_actual`.
+export const estadoVisibleFondo = (fondo) => {
+  const estadoInforme = fondo?.estado_informe ?? fondo?.informe_actual?.estado;
+  if (fondo?.estado === 'en_ejecucion' && estadoInforme === 'observado') return 'informe_observado';
+  return fondo?.estado;
 };
 
 export const iniciales = (nombre) => (nombre || 'NN').split(' ').filter(Boolean).map((n) => n[0]).join('').substring(0, 2).toUpperCase();

@@ -11,7 +11,7 @@ import ModalCentrado from './common/ModalCentrado';
 import Paginacion from './common/Paginacion';
 import SelectorVista from './common/SelectorVista';
 import { paginar } from '../utils/paginacion';
-import { BLOQUE, BOTON } from './fondos/estilosFondo';
+import { BLOQUE, BOTON, ESTADOS_FONDO, estadoVisibleFondo } from './fondos/estilosFondo';
 import { Avatar, BarraProgreso, EstadoPill, Etiqueta } from './fondos/ElementosFondo';
 
 const CONSULTA_FONDOS_MS = 30000;
@@ -168,7 +168,7 @@ const masRecientePrimero = (a, b) => (
 );
 
 function ListaFondos() {
-  const { effectiveUser, activeAssignment } = useActiveRole();
+  const { effectiveUser, activeAssignment, activeRole } = useActiveRole();
   const esSuperusuario = effectiveUser?.is_superuser === true;
   const [fondos, setFondos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -339,6 +339,32 @@ function ListaFondos() {
 
   const { paginaActual, totalPaginas, itemsPagina: fondosPagina } = paginar(fondosFiltrados, pagina, vista);
 
+  // Lo pendiente según el rol: el Director lo que tiene por revisar, el Jefe lo
+  // observado y el docente el estado de su fondo (el de la gestión más reciente).
+  const plural = (n, palabra) => `${n} ${palabra}${n === 1 ? '' : 's'}`;
+  const ajenos = fondos.filter((fondo) => String(fondo.docente) !== String(effectiveUser?.perfil?.docente));
+  const contar = (lista, condicion) => lista.filter(condicion).length;
+  let resumenRol = null;
+  if (activeRole === 'director' && !esSuperusuario) {
+    const porRevisar = contar(ajenos, (f) => f.estado === 'presentado_director');
+    const informes = contar(ajenos, (f) => f.estado === 'informe_presentado');
+    resumenRol = {
+      texto: `Por revisar: ${plural(porRevisar, 'fondo')} · ${plural(informes, 'informe')}`,
+      punto: porRevisar + informes > 0 ? ESTADOS_FONDO.presentado_director.dot : 'bg-slate-300',
+    };
+  } else if (activeRole === 'jefe_estudios') {
+    const observados = contar(fondos, (f) => f.estado === 'observado');
+    const informes = contar(fondos, (f) => estadoVisibleFondo(f) === 'informe_observado');
+    resumenRol = {
+      texto: `Observados: ${plural(observados, 'fondo')} · ${plural(informes, 'informe')}`,
+      punto: observados + informes > 0 ? ESTADOS_FONDO.observado.dot : 'bg-slate-300',
+    };
+  } else if (activeRole === 'docente' && fondos.length > 0) {
+    const propio = [...fondos].sort((a, b) => (b.gestion || 0) - (a.gestion || 0))[0];
+    const estado = ESTADOS_FONDO[estadoVisibleFondo(propio)] || ESTADOS_FONDO.borrador;
+    resumenRol = { texto: `Tu fondo ${propio.gestion}: ${estado.label}`, punto: estado.dot };
+  }
+
   const irAPagina = (nuevaPagina) => {
     setPagina(nuevaPagina);
     listaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -434,6 +460,12 @@ function ListaFondos() {
                 <h2 className="text-2xl sm:text-3xl font-bold text-blue-900">
                   Dashboard de Fondos
                 </h2>
+                {resumenRol && (
+                  <p className="mt-2 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-sm text-slate-700 ring-1 ring-inset ring-azulado-300">
+                    <span className={`h-2 w-2 rounded-full ${resumenRol.punto}`} />
+                    {resumenRol.texto}
+                  </p>
+                )}
                 {esIisyp && (
                   <span className="mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-cyan-50 text-cyan-700 ring-1 ring-inset ring-cyan-300">
                     Vista de Investigación - Solo Lectura
@@ -531,7 +563,7 @@ function ListaFondos() {
                     <div className="font-bold text-blue-900 truncate">{fondo.docente_nombre}</div>
                     {esSuperusuario && <div className="text-sm text-slate-600 truncate">{fondo.carrera_nombre}</div>}
                   </div>
-                  <div className="xl:hidden"><EstadoPill estado={fondo.estado} /></div>
+                  <div className="xl:hidden"><EstadoPill estado={estadoVisibleFondo(fondo)} /></div>
                 </div>
                 <div className="flex flex-wrap gap-2 min-w-0">
                   <Etiqueta>{fondo.gestion}</Etiqueta>
@@ -542,7 +574,7 @@ function ListaFondos() {
                   {horas(fondo)}
                 </div>
                 {progreso(fondo)}
-                <div className="hidden xl:block"><EstadoPill estado={fondo.estado} /></div>
+                <div className="hidden xl:block"><EstadoPill estado={estadoVisibleFondo(fondo)} /></div>
                 {acciones(fondo)}
               </div>
             ))}
@@ -560,7 +592,7 @@ function ListaFondos() {
                     {esSuperusuario && <p className="text-sm text-slate-600 truncate">{fondo.carrera_nombre}</p>}
                   </div>
                 </div>
-                <EstadoPill estado={fondo.estado} />
+                <EstadoPill estado={estadoVisibleFondo(fondo)} />
               </div>
 
               <div className="flex flex-wrap gap-2">

@@ -144,6 +144,19 @@ class AvisosPorRolTests(UsuariosBaseTestCase):
         self.assertEqual(aviso['evento'], 'fondo_aprobado')
         self.assertEqual(aviso['tono'], 'exito')
 
+    def test_la_lista_trae_el_estado_del_informe(self):
+        self.client.force_authenticate(self.jefe)
+        sin_informe = self.client.get('/api/fondos-tiempo/').data
+        self._informe_presentado()
+        self._accion(self.director, 'observar-informe', {'comentario': 'Falta detallar la sección académica.'})
+        self.client.force_authenticate(self.jefe)
+        con_informe = self.client.get('/api/fondos-tiempo/').data
+
+        filas = lambda data: data['results'] if isinstance(data, dict) else data  # noqa: E731
+        self.assertIsNone(filas(sin_informe)[0]['estado_informe'])
+        self.assertEqual(filas(con_informe)[0]['estado'], 'en_ejecucion')
+        self.assertEqual(filas(con_informe)[0]['estado_informe'], 'observado')
+
     def test_un_jefe_de_otra_carrera_no_recibe_nada(self):
         jefe_ajeno = self.crear_usuario('jefe_ajeno', 'jefe_estudios', carrera=self.otra_carrera, is_staff=True, ci='JAJ')
         self._estado('presentado_director')

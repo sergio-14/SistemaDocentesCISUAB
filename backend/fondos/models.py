@@ -1898,6 +1898,23 @@ class HistorialFondo(models.Model):
         return f"{self.get_tipo_cambio_display()} - {self.fecha.strftime('%d/%m/%Y %H:%M')}"
 
 
+class AvisoVisto(models.Model):
+    """Un aviso del Fondo de Tiempo (un evento de HistorialFondo, ver fondos/avisos.py) ya
+    mostrado a un usuario en un rol: así sale una sola vez, en cualquier pantalla,
+    pestaña o equipo, llegue por el socket o por la consulta de respaldo."""
+
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='avisos_vistos')
+    # Rol activo: 'asignacion_<id>' o 'base' (superusuario o sin asignación).
+    rol = models.CharField(max_length=40)
+    historial = models.ForeignKey(HistorialFondo, on_delete=models.CASCADE, related_name='vistos')
+    fecha = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['usuario', 'rol', 'historial'], name='uniq_aviso_visto_usuario_rol'),
+        ]
+
+
 class AsignacionCarrera(models.Model):
     """Vincula un usuario con una carrera, un rol y, opcionalmente, un docente."""
 

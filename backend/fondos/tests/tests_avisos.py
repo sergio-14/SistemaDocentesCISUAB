@@ -27,7 +27,6 @@ class AvisosPorRolTests(UsuariosBaseTestCase):
         self.usuario_docente = type(self.usuario_docente).objects.get(pk=self.usuario_docente.pk)
         self.fondo = FondoTiempo.objects.create(docente=self.docente, carrera=self.carrera, gestion=2026)
         self.nombre = self.docente.nombre_completo
-        self.cursor = HistorialFondo.objects.order_by('-id').values_list('id', flat=True).first() or 0
 
     # --- ayudas ---
     def _estado(self, estado):
@@ -40,7 +39,7 @@ class AvisosPorRolTests(UsuariosBaseTestCase):
 
     def _avisos(self, usuario):
         self.client.force_authenticate(usuario)
-        response = self.client.get('/api/fondos-tiempo/novedades/', {'desde': self.cursor})
+        response = self.client.get('/api/fondos-tiempo/novedades/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         return [aviso['texto'] for aviso in response.data['avisos']]
 
@@ -124,21 +123,52 @@ class AvisosPorRolTests(UsuariosBaseTestCase):
         })
 
     # --- reglas generales ---
-    def test_el_mismo_aviso_no_llega_dos_veces(self):
+    def _reclamar(self, usuario, ids, asignacion=None):
+        self.client.force_authenticate(usuario)
+        cabeceras = {'HTTP_X_ACTIVE_ASSIGNMENT': str(asignacion)} if asignacion else {}
+        response = self.client.post('/api/fondos-tiempo/novedades/vistos/', {'ids': ids}, format='json', **cabeceras)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return response.data['nuevos']
+
+    def test_el_mismo_aviso_sale_una_sola_vez(self):
+        # El primero que lo reclama (una pantalla, otra pestaña, el socket o la consulta)
+        # lo muestra; después ya no vuelve.
         self._estado('presentado_director')
         self._accion(self.director, 'aprobar')
         self.client.force_authenticate(self.jefe)
-        primera = self.client.get('/api/fondos-tiempo/novedades/', {'desde': self.cursor}).data
-        segunda = self.client.get('/api/fondos-tiempo/novedades/', {'desde': primera['ultimo_id']}).data
+        aviso = self.client.get('/api/fondos-tiempo/novedades/').data['avisos'][0]
 
-        self.assertEqual(len(primera['avisos']), 1)
-        self.assertEqual(segunda['avisos'], [])
+        self.assertEqual(self._reclamar(self.jefe, [aviso['id']]), [aviso['id']])
+        self.assertEqual(self._reclamar(self.jefe, [aviso['id']]), [])
+        self.assertEqual(self._avisos(self.jefe), [])
+
+    def test_lo_visto_es_por_usuario_y_por_rol(self):
+        from fondos.models import AsignacionCarrera
+        # El Jefe que además es docente: lo visto como Jefe no cuenta como docente.
+        como_docente = AsignacionCarrera.objects.create(user=self.jefe, carrera=self.carrera, rol='docente', docente=self.docente)
+        self._estado('presentado_director')
+        self._accion(self.director, 'aprobar')
+        self.client.force_authenticate(self.jefe)
+        aviso = self.client.get('/api/fondos-tiempo/novedades/').data['avisos'][0]
+
+        self.assertEqual(self._reclamar(self.jefe, [aviso['id']]), [aviso['id']])
+        self.assertEqual(self._reclamar(self.jefe, [aviso['id']], asignacion=como_docente.pk), [aviso['id']])
+        self.assertEqual(self._reclamar(self.usuario_docente, [aviso['id']]), [aviso['id']])
+
+    def test_marcar_visto_funciona_con_la_carrera_inactiva(self):
+        self._estado('presentado_director')
+        self._accion(self.director, 'aprobar')
+        self.carrera.activo = False
+        self.carrera.save(update_fields=['activo'])
+        self.client.force_authenticate(self.jefe)
+        aviso = self.client.get('/api/fondos-tiempo/novedades/').data['avisos'][0]
+        self.assertEqual(self._reclamar(self.jefe, [aviso['id']]), [aviso['id']])
 
     def test_el_aviso_trae_el_fondo_y_el_tono(self):
         self._estado('presentado_director')
         self._accion(self.director, 'aprobar')
         self.client.force_authenticate(self.usuario_docente)
-        aviso = self.client.get('/api/fondos-tiempo/novedades/', {'desde': self.cursor}).data['avisos'][0]
+        aviso = self.client.get('/api/fondos-tiempo/novedades/').data['avisos'][0]
 
         self.assertEqual(aviso['fondo_id'], self.fondo.pk)
         self.assertEqual(aviso['evento'], 'fondo_aprobado')
@@ -178,7 +208,7 @@ class AvisosFondoDelDirectorTests(UsuariosBaseTestCase):
 
     def _novedades(self, usuario):
         self.client.force_authenticate(usuario)
-        return [a['texto'] for a in self.client.get('/api/fondos-tiempo/novedades/', {'desde': 0}).data['avisos']]
+        return [a['texto'] for a in self.client.get('/api/fondos-tiempo/novedades/').data['avisos']]
 
     def test_presentar_y_el_informe_le_avisan_al_superusuario_y_no_al_director(self):
         nombre = self.docente_director.nombre_completo

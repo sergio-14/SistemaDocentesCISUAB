@@ -6,8 +6,8 @@ export const MENSAJE_CARRERA_INACTIVA = 'La carrera está inactiva: sus datos so
 
 const CLAVE = 'carrera_solo_lectura';
 
-// Escrituras que no son datos de la carrera: sesión, contraseña, foto y chat.
-const RUTAS_PERMITIDAS = [/token/, /\/auth\//, /perfil\/foto/, /cambiar-password/, /mensajes-chat/];
+// Escrituras que no son datos de la carrera: sesión, contraseña, foto, chat y avisos vistos.
+const RUTAS_PERMITIDAS = [/token/, /\/auth\//, /perfil\/foto/, /cambiar-password/, /mensajes-chat/, /novedades\/vistos/];
 
 export const setCarreraSoloLectura = (activo) => {
   try {

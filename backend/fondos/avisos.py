@@ -3,9 +3,11 @@
 Cada cambio de estado de un fondo queda en HistorialFondo (estado anterior y nuevo);
 cada uno de esos registros es un evento. Aquí se decide, para el usuario y su rol
 activo, qué eventos le corresponden y qué dice el aviso. Es el único lugar con esa
-lógica y esos textos: hoy los entrega la consulta periódica
-(GET /fondos-tiempo/novedades/) y mañana puede entregarlos un WebSocket con
-avisos_para_usuario o aviso_de_evento, sin rehacer nada.
+lógica y esos textos: los entrega el socket de tiempo real (fondos/tiempo_real.py) y
+la consulta GET /fondos-tiempo/novedades/ (al entrar y como respaldo).
+
+Cada aviso se muestra una sola vez por usuario y rol (AvisoVisto): antes de mostrarlo,
+el navegador lo reclama con POST /fondos-tiempo/novedades/vistos/.
 
 Quién recibe:
 - revisor: el Director de la carrera; en el fondo del propio Director, el superusuario.
@@ -15,10 +17,10 @@ El Instituto no recibe avisos y nadie recibe el aviso de lo que hizo él mismo.
 """
 from datetime import timedelta
 
-from django.db.models import Max
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from fondos.models import HistorialFondo
+from fondos.models import AvisoVisto, HistorialFondo
 
 # Tono del toast: 'aviso' (celeste), 'exito' (verde) o 'atencion' (rojo suave).
 AVISOS = {
@@ -69,8 +71,8 @@ ESTADOS_CON_AVISO = [
     'en_ejecucion', 'informe_presentado', 'finalizado',
 ]
 
-# Sin cursor (primera consulta en ese navegador) se entregan los de las últimas horas.
-HORAS_SIN_CURSOR = 24
+# Se entregan los avisos de los últimos días que el usuario todavía no vio en ese rol.
+DIAS_RECIENTES = 7
 MAXIMO_AVISOS = 20
 
 
@@ -132,24 +134,29 @@ def aviso_de_evento(historial, papel):
     }
 
 
-def avisos_para_usuario(user, perfil, fondos_visibles, desde=None):
-    """(avisos, ultimo_id): los avisos nuevos para el usuario en su rol activo.
+def clave_rol(request):
+    """Rol activo para recordar los avisos vistos: la asignación activa o 'base'."""
+    from fondos.role_context import get_active_assignment
+    asignacion = get_active_assignment(request)
+    return f'asignacion_{asignacion.id}' if asignacion else 'base'
+
+
+def avisos_para_usuario(user, perfil, fondos_visibles, rol):
+    """Avisos que el usuario todavía no vio en su rol activo (los de los últimos
+    DIAS_RECIENTES días, como mucho MAXIMO_AVISOS, del más viejo al más nuevo).
 
     fondos_visibles: queryset de los fondos a su alcance (el mismo de la lista).
-    desde: id del último evento ya visto; sin él, los de las últimas HORAS_SIN_CURSOR.
-    ultimo_id: el cursor para la próxima consulta (el último evento que existe).
+    rol: clave_rol(request).
     """
-    ultimo_id = HistorialFondo.objects.aggregate(maximo=Max('id'))['maximo'] or 0
     if getattr(perfil, 'rol', None) == 'iiisyp' and not user.is_superuser:
-        return [], ultimo_id
+        return []
 
     eventos = HistorialFondo.objects.filter(
         fondo_tiempo__in=fondos_visibles, estado_nuevo__in=ESTADOS_CON_AVISO,
-    ).exclude(usuario=user).select_related('fondo_tiempo__docente', 'fondo_tiempo__carrera')
-    if desde is None:
-        eventos = eventos.filter(fecha__gte=timezone.now() - timedelta(hours=HORAS_SIN_CURSOR))
-    else:
-        eventos = eventos.filter(id__gt=desde)
+        fecha__gte=timezone.now() - timedelta(days=DIAS_RECIENTES),
+    ).exclude(usuario=user).exclude(
+        id__in=AvisoVisto.objects.filter(usuario=user, rol=rol).values('historial_id'),
+    ).select_related('fondo_tiempo__docente', 'fondo_tiempo__carrera')
 
     avisos = []
     for historial in eventos.order_by('id'):
@@ -157,4 +164,21 @@ def avisos_para_usuario(user, perfil, fondos_visibles, desde=None):
         aviso = aviso_de_evento(historial, papel) if papel else None
         if aviso:
             avisos.append(aviso)
-    return avisos[-MAXIMO_AVISOS:], ultimo_id
+    return avisos[-MAXIMO_AVISOS:]
+
+
+def reclamar_avisos(user, rol, ids):
+    """Marca como vistos esos avisos (ids de HistorialFondo) y devuelve los que recién
+    se marcaron: solo esos se muestran. Si dos pestañas o el socket y la consulta piden
+    el mismo, solo uno lo obtiene."""
+    nuevos = []
+    for historial_id in sorted({int(i) for i in ids}):
+        if not HistorialFondo.objects.filter(pk=historial_id).exists():
+            continue
+        try:
+            with transaction.atomic():
+                AvisoVisto.objects.create(usuario=user, rol=rol, historial_id=historial_id)
+        except IntegrityError:
+            continue
+        nuevos.append(historial_id)
+    return nuevos

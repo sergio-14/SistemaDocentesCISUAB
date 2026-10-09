@@ -19,7 +19,7 @@ from .utils.informe_gestion_pdf import InformeGestionCarreraPDF
 from .utils.pdf_generator import FondoPDFGenerator, InformePDFGenerator
 from .utils.informe_texto import CAMPOS_TEXTO_INFORME, construir_defaults_informe
 from .utils.informe_word import generar_informe_word
-from .avisos import avisos_para_usuario
+from .avisos import avisos_para_usuario, clave_rol, reclamar_avisos
 from .tiempo_real import publicar_leidos
 from .utils.informe_imagenes import ImagenInformeInvalida, carpeta_imagenes, validar_imagenes_informe
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -2163,17 +2163,24 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
 
     @action(detail=False, methods=['get'], url_path='novedades')
     def novedades(self, request):
-        """Avisos nuevos para el usuario en su rol activo (ver fondos/avisos.py):
-        GET /fondos-tiempo/novedades/?desde=<id del último evento visto>.
-        Devuelve {avisos: [...], ultimo_id}; ultimo_id es el `desde` de la próxima consulta."""
-        desde = request.query_params.get('desde')
-        try:
-            desde = int(desde) if desde not in (None, '') else None
-        except ValueError:
-            return Response({'detail': "El parámetro 'desde' debe ser un entero."}, status=status.HTTP_400_BAD_REQUEST)
+        """Avisos que el usuario todavía no vio en su rol activo (ver fondos/avisos.py).
+        Antes de mostrarlos, el navegador los reclama con novedades/vistos/."""
         perfil = _obtener_perfil_efectivo(request.user, request)
-        avisos, ultimo_id = avisos_para_usuario(request.user, perfil, self.get_queryset(), desde)
-        return Response({'avisos': avisos, 'ultimo_id': ultimo_id})
+        avisos = avisos_para_usuario(request.user, perfil, self.get_queryset(), clave_rol(request))
+        return Response({'avisos': avisos})
+
+    @action(detail=False, methods=['post'], url_path='novedades/vistos')
+    def avisos_vistos(self, request):
+        """POST {ids: [...]}: los marca como vistos en el rol activo y devuelve
+        {nuevos: [...]}, los que recién se marcaron (solo esos se muestran)."""
+        ids = request.data.get('ids')
+        if not isinstance(ids, list) or not all(str(i).isdigit() for i in ids):
+            return Response({'detail': "'ids' debe ser una lista de enteros."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'nuevos': reclamar_avisos(request.user, clave_rol(request), ids[:50])})
+
+    def permite_escritura_en_carrera_inactiva(self, request):
+        # Marcar un aviso como visto no cambia datos de la carrera.
+        return self.action == 'avisos_vistos'
 
     @action(detail=True, methods=['get'], url_path='contacto-chat')
     def contacto_chat(self, request, pk=None):

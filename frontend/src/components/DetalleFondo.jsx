@@ -21,7 +21,6 @@ import DocumentoActividadAccion from './fondos/DocumentoActividadAccion';
 import { BLOQUE, BOTON, estadoVisibleFondo } from './fondos/estilosFondo';
 import { Avatar, BarraProgreso, EstadoPill, Etiqueta } from './fondos/ElementosFondo';
 import { getApiErrorMessage, getDownloadErrorMessage } from '../utils/formErrors';
-import { sanitizarHtmlInforme } from '../utils/sanitizarHtmlInforme';
 import useConsultaPeriodica from '../utils/useConsultaPeriodica';
 import mostrarAviso from '../avisos/mostrarAviso';
 
@@ -85,27 +84,6 @@ const ABREVIATURA_DEDICACION = {
   horario_48: 'TH-48',
 };
 
-// Secciones del informe de cumplimiento, con el formato anterior (antes de las 7 unidades) y el actual (Art. 28).
-const SECCIONES_INFORME_ANTERIOR = [
-  { campo: 'seccion_academica', titulo: 'Académica', tipo: 'academica' },
-  { campo: 'seccion_investigacion', titulo: 'Investigación', tipo: 'investigacion' },
-  { campo: 'seccion_extension_interaccion', titulo: 'Extensión Universitaria e Interacción Social', tipo: 'extension_universitaria' },
-  { campo: 'seccion_asesorias_tutorias', titulo: 'Asesorías y Tutorías', tipo: 'gestion' },
-  { campo: 'seccion_academica_administrativa', titulo: 'Académica-Administrativa', tipo: 'academica_administrativa' },
-  { campo: 'seccion_social_cultural_deportiva', titulo: 'Social, Cultural y Deportiva', tipo: 'social_cultural_deportiva' },
-  { campo: 'conclusiones_generales', titulo: 'Conclusiones Generales', tipo: null },
-];
-const SECCIONES_INFORME = [
-  { campo: 'seccion_academica', titulo: 'Académica', tipo: 'academica' },
-  { campo: 'seccion_investigacion', titulo: 'Investigación', tipo: 'investigacion' },
-  { campo: 'seccion_extension_universitaria', titulo: 'Extensión Universitaria', tipo: 'extension_universitaria' },
-  { campo: 'seccion_interaccion_social', titulo: 'Interacción Social', tipo: 'interaccion_social' },
-  { campo: 'seccion_gestion', titulo: 'Gestión', tipo: 'gestion' },
-  { campo: 'seccion_academica_administrativa', titulo: 'Académica-Administrativa', tipo: 'academica_administrativa' },
-  { campo: 'seccion_social_cultural_deportiva', titulo: 'Social, Cultural y Deportiva', tipo: 'social_cultural_deportiva' },
-  { campo: 'conclusiones_generales', titulo: 'Conclusiones Generales', tipo: null },
-];
-
 // Botones del panel de acciones: a lo ancho y con el estilo de los botones del dashboard.
 const ACCION = `${BOTON} w-full py-2.5`;
 const ACCION_DESHABILITADA = 'bg-slate-200 text-slate-500 cursor-not-allowed';
@@ -130,7 +108,6 @@ function DetalleFondo() {
   const observacionesRef = useRef();
   const [mostrarFormEvaluarInforme, setMostrarFormEvaluarInforme] = useState(false);
   const [mostrarModalIniciarEjecucion, setMostrarModalIniciarEjecucion] = useState(false);
-  const [mostrarModalInforme, setMostrarModalInforme] = useState(false);
   // Carga que se corrige en su fila de la tabla: solo horas (y descripción en "Otros").
   // { id, horas, titulo, esOtros, error, guardando }
   const [edicionCarga, setEdicionCarga] = useState(null);
@@ -148,8 +125,8 @@ function DetalleFondo() {
   const observacionesPendientesRef = useRef(0);
   // La redacción/edición del Informe de Cumplimiento vive ahora en una página
   // dedicada (EditorInformePage.jsx, ruta /fondos/:id/informe) en vez de un
-  // modal aquí. Solo quedan los estados para "Ver Informe" (solo lectura) y
-  // el flujo de observaciones del Director, que siguen siendo parte de esta vista.
+  // modal aquí (se ve con "Ver informe"). Solo queda aquí
+  // el flujo de correcciones del Director.
   const [mostrarModalObservarInforme, setMostrarModalObservarInforme] = useState(false);
   const [comentarioObservarInforme, setComentarioObservarInforme] = useState('');
   const [enviandoObservacionInforme, setEnviandoObservacionInforme] = useState(false);
@@ -185,7 +162,6 @@ function DetalleFondo() {
       toast.success('Se solicitaron correcciones al docente.');
       setMostrarModalObservarInforme(false);
       setComentarioObservarInforme('');
-      setMostrarModalInforme(false);
       await cargarDetalle({ silencioso: true });
     } catch (err) {
       console.error('Error al observar informe:', err);
@@ -220,7 +196,6 @@ function DetalleFondo() {
     setMostrarFormEvaluarInforme(false);
     setMostrarModalAprobar(false);
     setMostrarModalIniciarEjecucion(false);
-    setMostrarModalInforme(false);
   }, [id]);
 
   // Limpiar todos los modales al desmontar el componente
@@ -230,7 +205,6 @@ function DetalleFondo() {
       setMostrarFormEvaluarInforme(false);
       setMostrarModalAprobar(false);
       setMostrarModalIniciarEjecucion(false);
-      setMostrarModalInforme(false);
     };
   }, [activeAssignment?.id]);
 
@@ -1091,12 +1065,6 @@ function DetalleFondo() {
                 {/* ADMIN: Evaluar Informe */}
                 {fondo.estado === 'informe_presentado' && esRevisorDelFondo && (
                   <>
-                    <button
-                      onClick={() => setMostrarModalInforme(true)}
-                      className={`${ACCION} ${ACCION_SECUNDARIA}`}
-                    >
-                      Revisar informe
-                    </button>
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={() => setMostrarModalObservarInforme(true)}
@@ -1454,74 +1422,6 @@ function DetalleFondo() {
           onConfirmar={iniciarEjecucionHandler}
           onCancelar={() => setMostrarModalIniciarEjecucion(false)}
         />
-      )}
-
-      {/* Modal Ver Informe */}
-      {mostrarModalInforme && fondo.informe_actual && (
-        <ModalCentrado onClose={() => setMostrarModalInforme(false)}>
-          <div className="w-full max-w-4xl max-h-[calc(100vh-3rem)] rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl flex flex-col overflow-hidden">
-            <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
-              <div className="min-w-0">
-                <h3 className="text-xl font-bold text-blue-900">Informe de Cumplimiento</h3>
-                <p className="text-sm text-slate-600 truncate">
-                  {fondo.docente?.nombre_completo}
-                  {fondo.informe_actual.fecha_elaboracion && (
-                    <> · Presentado el {new Date(fondo.informe_actual.fecha_elaboracion).toLocaleDateString('es-BO', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}</>
-                  )}
-                </p>
-              </div>
-              <button
-                onClick={() => setMostrarModalInforme(false)}
-                className="flex-shrink-0 rounded-full p-2 -mr-2 text-slate-500 hover:text-blue-900 hover:bg-azulado-200 transition-colors"
-                title="Cerrar"
-                aria-label="Cerrar"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3">
-              {(fondo.informe_actual.formato_secciones === 'anterior' ? SECCIONES_INFORME_ANTERIOR : SECCIONES_INFORME)
-                .map(({ campo, titulo, tipo }) => (
-                  fondo.informe_actual[campo] && (
-                    <div key={campo} className="rounded-2xl bg-white ring-1 ring-azulado-300 overflow-hidden">
-                      <div className="flex items-center gap-2.5 px-4 py-3 [border-bottom:1px_solid_#D2DDEE]">
-                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tipo ? colorUnidad(tipo) : '#64748B' }} />
-                        <h4 className="text-sm font-bold text-slate-800">{titulo}</h4>
-                      </div>
-                      <div
-                        className="p-4 text-sm text-slate-700 leading-relaxed whitespace-pre-line [&_img]:max-w-full [&_img]:rounded-lg [&_img]:my-2 [&_ul]:list-disc [&_ul]:pl-5"
-                        dangerouslySetInnerHTML={{ __html: sanitizarHtmlInforme(fondo.informe_actual[campo]) }}
-                      />
-                    </div>
-                  )
-                ))}
-            </div>
-
-            {fondo.estado === 'informe_presentado' && esRevisorDelFondo && (
-              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 py-4 [border-top:1px_solid_#B8C9E1]">
-                <button
-                  onClick={() => { setMostrarModalInforme(false); setMostrarModalObservarInforme(true); }}
-                  className={`${BOTON} px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white`}
-                >
-                  Solicitar correcciones
-                </button>
-                <button
-                  onClick={() => { setMostrarModalInforme(false); setMostrarFormEvaluarInforme(true); }}
-                  className={`${BOTON} px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white`}
-                >
-                  Aprobar informe
-                </button>
-              </div>
-            )}
-          </div>
-        </ModalCentrado>
       )}
 
       {/* Modal Solicitar Correcciones al Informe */}

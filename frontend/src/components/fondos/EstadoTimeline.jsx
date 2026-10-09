@@ -1,5 +1,6 @@
-// Etapas del flujo del fondo, en orden. "Con observaciones" y "Rechazado" no son etapas
-// propias: el fondo vuelve a corregirse antes de presentarse otra vez al Director.
+// Etapas del flujo del fondo, en orden. "Con observaciones", "Informe observado" y
+// "Rechazado" no son etapas propias: el fondo (o su informe) vuelve a corregirse antes
+// de presentarse otra vez al Director.
 const ETAPAS = [
   { key: 'borrador', label: 'Borrador' },
   { key: 'presentado_director', label: 'Presentado a Director' },
@@ -17,18 +18,25 @@ const INDICE_POR_ESTADO = {
   aprobado_director: 2,
   en_ejecucion: 3,
   informe_presentado: 4,
+  // En ejecución con el informe observado (estadoVisibleFondo).
+  informe_observado: 4,
   finalizado: 5,
 };
 
-const INDICE_PRESENTADO = 1;
+// Observaciones: ya se presentó (el fondo o el informe) y el Director pidió
+// correcciones. Se marca en una rama, con el color de observación, a la derecha de la
+// etapa presentada, fuera de la línea del flujo.
+const RAMAS = {
+  observado: { indice: 1, label: 'Con observaciones' },
+  informe_observado: { indice: 4, label: 'Informe observado' },
+};
 
-// Con className="flex-1" las etapas se reparten el alto disponible (hasta un tope por
-// etapa, para que no queden demasiado separadas).
+// `estado`: el visible del fondo (estadoVisibleFondo), para mostrar también el informe
+// observado. Con className="flex-1" las etapas se reparten el alto disponible (hasta un
+// tope por etapa, para que no queden demasiado separadas).
 const EstadoTimeline = ({ estado, className = '' }) => {
   const indiceActual = INDICE_POR_ESTADO[estado] ?? 0;
-  // Observado: ya se presentó al Director y él pidió correcciones. Se marca en una rama
-  // a la derecha de "Presentado a Director", fuera de la línea del flujo.
-  const observado = estado === 'observado';
+  const rama = RAMAS[estado] || null;
   const conProblema = estado === 'rechazado';
 
   return (
@@ -36,11 +44,11 @@ const EstadoTimeline = ({ estado, className = '' }) => {
       {/* Etapas */}
       <ol className="flex-1 flex flex-col">
         {ETAPAS.map((etapa, idx) => {
-          const completa = idx < indiceActual || estado === 'finalizado' || (observado && idx === INDICE_PRESENTADO);
-          const actual = idx === indiceActual && estado !== 'finalizado' && !observado;
+          const conRama = Boolean(rama) && idx === rama.indice;
+          const completa = idx < indiceActual || estado === 'finalizado' || conRama;
+          const actual = idx === indiceActual && estado !== 'finalizado' && !rama;
           const ultima = idx === ETAPAS.length - 1;
-          const conRama = observado && idx === INDICE_PRESENTADO;
-          // Con observaciones el flujo no avanza: la línea hacia "Aprobado" sigue pendiente.
+          // Con observaciones el flujo no avanza: la línea hacia la etapa siguiente sigue pendiente.
           const lineaActiva = completa && !conRama;
           return (
             <li
@@ -80,7 +88,7 @@ const EstadoTimeline = ({ estado, className = '' }) => {
                     <span className="relative z-10 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-orange-500 ring-4 ring-orange-100">
                       <span className="h-1.5 w-1.5 rounded-full bg-white" />
                     </span>
-                    <span className="text-sm font-bold leading-6 text-orange-700">Con observaciones</span>
+                    <span className="text-sm font-bold leading-6 text-orange-700">{rama.label}</span>
                   </div>
                 )}
               </div>

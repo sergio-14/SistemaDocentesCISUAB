@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getFondosArchivados, restaurarFondo as restaurarFondoAPI } from '../apis/api';
 import { useActiveRole } from '../contexts/activeRole';
+import { EstadoPill } from './fondos/ElementosFondo';
+import { estadoVisibleFondo } from './fondos/estilosFondo';
 
 function FondosArchivados() {
   const [archivados, setArchivados] = useState([]);
@@ -40,47 +42,6 @@ function FondosArchivados() {
       console.error('Error al restaurar:', error);
       alert('❌ Error al restaurar el fondo');
     }
-  };
-
-  const getEstadoBadge = (estado) => {
-    const badges = {
-      'borrador': {
-        bg: 'bg-slate-100 dark:bg-slate-700',
-        text: 'text-slate-700 dark:text-slate-300',
-        border: 'border-slate-300 dark:border-slate-600'
-      },
-      'revision': {
-        bg: 'bg-yellow-100 dark:bg-yellow-900/30',
-        text: 'text-yellow-700 dark:text-yellow-300',
-        border: 'border-yellow-300 dark:border-yellow-700'
-      },
-      'aprobado': {
-        bg: 'bg-blue-100 dark:bg-blue-900/30',
-        text: 'text-blue-700 dark:text-blue-300',
-        border: 'border-blue-300 dark:border-blue-700'
-      },
-      'validado': {
-        bg: 'bg-green-100 dark:bg-green-900/30',
-        text: 'text-green-700 dark:text-green-300',
-        border: 'border-green-300 dark:border-green-700'
-      }
-    };
-    
-    const labels = {
-      'borrador': 'Borrador',
-      'revision': 'En Revisión',
-      'aprobado': 'Aprobado',
-      'validado': 'Validado'
-    };
-
-    const badge = badges[estado] || badges.borrador;
-
-    return (
-      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border-2 shadow-sm ${badge.bg} ${badge.text} ${badge.border}`}>
-        <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
-        {labels[estado] || estado}
-      </span>
-    );
   };
 
   if (loading) {
@@ -186,7 +147,7 @@ function FondosArchivados() {
                             📅 Gestión {fondo.gestion}
                           </p>
                         </div>
-                        {getEstadoBadge(fondo.estado)}
+                        <EstadoPill estado={estadoVisibleFondo(fondo)} />
                       </div>
 
                       {/* Detalles */}

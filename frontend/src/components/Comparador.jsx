@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { compararFondos, getDocentes } from '../apis/api';
+import { EstadoPill } from './fondos/ElementosFondo';
+import { estadoVisibleFondo } from './fondos/estilosFondo';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
@@ -164,15 +166,7 @@ function Comparador() {
                       Gestión {fondo.gestion}
                     </h2>
                     <p className="text-slate-700 dark:text-slate-300 mt-1">{fondo.descripcion}</p>
-                    <span className={`inline-block mt-2 px-3 py-1.5 rounded-lg text-xs font-semibold border-2 shadow-sm ${
-                      fondo.estado === 'validado' 
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700' 
-                        : fondo.estado === 'aprobado' 
-                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-700'
-                          : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600'
-                    }`}>
-                      {fondo.estado.toUpperCase()}
-                    </span>
+                    <div className="mt-2"><EstadoPill estado={estadoVisibleFondo(fondo)} /></div>
                   </div>
 
                   {/* Contenido */}

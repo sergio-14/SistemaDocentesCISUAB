@@ -967,7 +967,7 @@ function DetalleFondo() {
                 </div>
               )}
 
-              <EstadoTimeline estado={fondo.estado} className="flex-1" />
+              <EstadoTimeline estado={estadoVisibleFondo(fondo)} className="flex-1" />
 
               <div className="mt-5 pt-5 space-y-2 [border-top:1px_solid_#B8C9E1]">
                 <p className="pb-1 text-xs font-semibold text-blue-800">Acciones</p>

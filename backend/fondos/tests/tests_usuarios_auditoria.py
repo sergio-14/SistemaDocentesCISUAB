@@ -42,9 +42,10 @@ def con_resolucion_jefe(datos):
     return multipart
 
 
-# Los archivos subidos en los tests (p. ej. la resolución del Jefe) no van a la carpeta media real.
-@override_settings(MEDIA_ROOT='/tmp/test_media_usuarios')
-class UsuariosBaseTestCase(APITestCase):
+class DatosUsuariosMixin:
+    """Carreras, superusuario y ayudas para crear usuarios y docentes. Separado de
+    UsuariosBaseTestCase para usarlo también con TransactionTestCase (tiempo real)."""
+
     def setUp(self):
         self.facultad, _ = FacultadCatalogo.objects.get_or_create(nombre='Facultad de Ingeniería y Tecnología')
         self.carrera = Carrera.objects.create(nombre='Sistemas', codigo='SIS', facultad=self.facultad)
@@ -76,6 +77,12 @@ class UsuariosBaseTestCase(APITestCase):
             'first_name': 'Nombre', 'last_name': 'Apellido',
             'rol': rol, 'carrera': carrera.pk if carrera else None, 'ci': ci, **extra,
         }
+
+
+# Los archivos subidos en los tests (p. ej. la resolución del Jefe) no van a la carpeta media real.
+@override_settings(MEDIA_ROOT='/tmp/test_media_usuarios')
+class UsuariosBaseTestCase(DatosUsuariosMixin, APITestCase):
+    pass
 
 
 class FechaIngresoYVacacionesTests(UsuariosBaseTestCase):

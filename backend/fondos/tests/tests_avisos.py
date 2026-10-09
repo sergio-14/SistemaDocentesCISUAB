@@ -187,6 +187,19 @@ class AvisosPorRolTests(UsuariosBaseTestCase):
         self.assertEqual(filas(con_informe)[0]['estado'], 'en_ejecucion')
         self.assertEqual(filas(con_informe)[0]['estado_informe'], 'observado')
 
+    def test_un_aviso_superado_por_un_estado_posterior_ya_no_sale(self):
+        # El docente presenta el informe y el Director lo finaliza antes de que el Jefe
+        # entre: el Jefe solo ve "finalizado", y "presentó su informe" ya no se muestra.
+        self._estado('en_ejecucion')
+        self._accion(self.usuario_docente, 'presentar', {
+            'seccion_academica': '<p>Dicté mis materias.</p>', 'conclusiones_generales': '<p>Cumplí lo planificado.</p>',
+        })
+        presentado = HistorialFondo.objects.filter(fondo_tiempo=self.fondo, estado_nuevo='informe_presentado').latest('id')
+        self._accion(self.director, 'evaluar-y-finalizar', EVALUACION)
+
+        self.assertEqual(self._avisos(self.jefe), [f'El fondo de {self.nombre} fue finalizado.'])
+        self.assertEqual(self._reclamar(self.jefe, [presentado.pk]), [])
+
     def test_un_jefe_de_otra_carrera_no_recibe_nada(self):
         jefe_ajeno = self.crear_usuario('jefe_ajeno', 'jefe_estudios', carrera=self.otra_carrera, is_staff=True, ci='JAJ')
         self._estado('presentado_director')
@@ -212,18 +225,20 @@ class AvisosFondoDelDirectorTests(UsuariosBaseTestCase):
 
     def test_presentar_y_el_informe_le_avisan_al_superusuario_y_no_al_director(self):
         nombre = self.docente_director.nombre_completo
+        esperado = {
+            'presentado_director': f'Nuevo fondo para revisar: {nombre} (gestión 2026).',
+            'informe_presentado': f'{nombre} presentó su informe para evaluar.',
+        }
         for anterior, nuevo in (('borrador', 'presentado_director'), ('en_ejecucion', 'informe_presentado')):
-            FondoTiempo.objects.filter(pk=self.fondo.pk).update(estado=nuevo)
-            HistorialFondo.objects.create(
-                fondo_tiempo=self.fondo, usuario=self.jefe, tipo_cambio='presentacion',
-                descripcion='-', estado_anterior=anterior, estado_nuevo=nuevo,
-            )
-
-        self.assertEqual(self._novedades(self.superuser), [
-            f'Nuevo fondo para revisar: {nombre} (gestión 2026).',
-            f'{nombre} presentó su informe para evaluar.',
-        ])
-        self.assertEqual(self._novedades(self.director), [])
+            with self.subTest(estado=nuevo):
+                FondoTiempo.objects.filter(pk=self.fondo.pk).update(estado=nuevo)
+                HistorialFondo.objects.create(
+                    fondo_tiempo=self.fondo, usuario=self.jefe, tipo_cambio='presentacion',
+                    descripcion='-', estado_anterior=anterior, estado_nuevo=nuevo,
+                )
+                # Solo el último cambio del fondo: el anterior quedó superado.
+                self.assertEqual(self._novedades(self.superuser), [esperado[nuevo]])
+                self.assertEqual(self._novedades(self.director), [])
 
     def test_el_superusuario_aprueba_y_le_avisa_al_jefe(self):
         FondoTiempo.objects.filter(pk=self.fondo.pk).update(estado='presentado_director')

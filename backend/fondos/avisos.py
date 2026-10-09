@@ -18,6 +18,7 @@ El Instituto no recibe avisos y nadie recibe el aviso de lo que hizo él mismo.
 from datetime import timedelta
 
 from django.db import IntegrityError, transaction
+from django.db.models import F, Max
 from django.utils import timezone
 
 from fondos.models import AvisoVisto, HistorialFondo
@@ -134,6 +135,21 @@ def aviso_de_evento(historial, papel):
     }
 
 
+def ultimos_cambios_de_estado(fondo_ids):
+    """{fondo_id: id del último cambio de estado (HistorialFondo) de ese fondo}."""
+    return dict(
+        HistorialFondo.objects.filter(fondo_tiempo_id__in=fondo_ids)
+        .exclude(estado_nuevo='').exclude(estado_nuevo=F('estado_anterior'))
+        .values('fondo_tiempo_id').annotate(ultimo=Max('id')).values_list('fondo_tiempo_id', 'ultimo')
+    )
+
+
+def es_vigente(historial, ultimos):
+    """Un aviso queda superado cuando su fondo ya pasó a otro estado (p. ej. "presentó su
+    informe" con el fondo ya finalizado): solo se avisa el último cambio de cada fondo."""
+    return ultimos.get(historial.fondo_tiempo_id) == historial.id
+
+
 def clave_rol(request):
     """Rol activo para recordar los avisos vistos: la asignación activa o 'base'."""
     from fondos.role_context import get_active_assignment
@@ -158,8 +174,12 @@ def avisos_para_usuario(user, perfil, fondos_visibles, rol):
         id__in=AvisoVisto.objects.filter(usuario=user, rol=rol).values('historial_id'),
     ).select_related('fondo_tiempo__docente', 'fondo_tiempo__carrera')
 
+    eventos = list(eventos.order_by('id'))
+    ultimos = ultimos_cambios_de_estado({h.fondo_tiempo_id for h in eventos})
     avisos = []
-    for historial in eventos.order_by('id'):
+    for historial in eventos:
+        if not es_vigente(historial, ultimos):
+            continue
         papel = destinatario(user, perfil, historial.fondo_tiempo)
         aviso = aviso_de_evento(historial, papel) if papel else None
         if aviso:
@@ -169,11 +189,14 @@ def avisos_para_usuario(user, perfil, fondos_visibles, rol):
 
 def reclamar_avisos(user, rol, ids):
     """Marca como vistos esos avisos (ids de HistorialFondo) y devuelve los que recién
-    se marcaron: solo esos se muestran. Si dos pestañas o el socket y la consulta piden
-    el mismo, solo uno lo obtiene."""
+    se marcaron y siguen vigentes: solo esos se muestran. Si dos pestañas o el socket y
+    la consulta piden el mismo, solo uno lo obtiene."""
+    historiales = {h.id: h for h in HistorialFondo.objects.filter(pk__in={int(i) for i in ids})}
+    ultimos = ultimos_cambios_de_estado({h.fondo_tiempo_id for h in historiales.values()})
     nuevos = []
-    for historial_id in sorted({int(i) for i in ids}):
-        if not HistorialFondo.objects.filter(pk=historial_id).exists():
+    for historial_id in sorted(historiales):
+        # Uno ya superado (llegó tarde por el socket) no se muestra.
+        if not es_vigente(historiales[historial_id], ultimos):
             continue
         try:
             with transaction.atomic():

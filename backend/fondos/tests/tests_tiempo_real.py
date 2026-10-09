@@ -139,9 +139,8 @@ class ConexionTiempoRealTests(DatosUsuariosMixin, TransactionTestCase):
 EVALUACION = {'cumplimiento': 'cumplido', 'evaluacion_director': 'Cumplió todas las actividades planificadas en la gestión.'}
 
 
-class AvisosPorSocketTests(DatosUsuariosMixin, TransactionTestCase):
-    """La tabla de avisos (como tests_avisos.py) pero escuchando por el socket: cada
-    acción real de la API llega al instante a quien corresponde, con el mismo texto."""
+class SocketBaseTests(DatosUsuariosMixin, TransactionTestCase):
+    """Usuarios de una carrera, un fondo y ayudas para escuchar por el socket (sin tests)."""
 
     def setUp(self):
         super().setUp()
@@ -198,6 +197,11 @@ class AvisosPorSocketTests(DatosUsuariosMixin, TransactionTestCase):
         clientes = await self._conectar_todos()
         await sync_to_async(accion)()
         await self._reciben(clientes, esperado)
+
+
+class AvisosPorSocketTests(SocketBaseTests):
+    """La tabla de avisos (como tests_avisos.py) pero escuchando por el socket: cada
+    acción real de la API llega al instante a quien corresponde, con el mismo texto."""
 
     # --- la tabla ---
     async def test_jefe_presenta_el_fondo(self):
@@ -271,3 +275,115 @@ class AvisosPorSocketTests(DatosUsuariosMixin, TransactionTestCase):
             self._accion(self.director, 'aprobar')
         self.fondo.refresh_from_db()
         self.assertEqual(self.fondo.estado, 'aprobado_director')
+
+
+class ChatPorSocketTests(SocketBaseTests):
+    """Chat del fondo por el socket: quién se suscribe, mensajes, notas internas,
+    leídos y hilo resuelto."""
+
+    async def _chat(self, usuario, fondo_id=None):
+        cliente = ClienteWebSocket(_aplicacion(), RUTA)
+        self.assertTrue(await cliente.conectar())
+        await cliente.enviar({'tipo': 'auth', 'token': str(AccessToken.for_user(usuario)), 'asignacion': None})
+        self.assertEqual(await cliente.recibir(), {'tipo': 'listo'})
+        await cliente.enviar({'tipo': 'suscribir_chat', 'fondo': fondo_id or self.fondo.pk})
+        return cliente, await cliente.recibir()
+
+    async def _evento_chat(self, cliente):
+        """El próximo evento de chat (los avisos que lleguen en medio se saltan)."""
+        while True:
+            mensaje = await cliente.recibir()
+            if mensaje.get('tipo') == 'chat':
+                return mensaje
+
+    async def test_quien_puede_suscribirse(self):
+        from asgiref.sync import sync_to_async
+
+        def otro_docente():
+            usuario = self.crear_usuario('otro_doc_sk', 'docente', carrera=self.carrera, ci='OSK')
+            docente = self.crear_docente('OSK', usuario=usuario)
+            PerfilUsuario.objects.filter(user=usuario).update(docente=docente)
+            return usuario
+        ajeno = await sync_to_async(otro_docente)()
+        await sync_to_async(self._estado)('presentado_director')
+
+        for usuario, esperado in (
+            (self.usuario_docente, 'chat_suscrito'), (self.jefe, 'chat_suscrito'),
+            (self.director, 'chat_suscrito'), (self.instituto, 'chat_suscrito'), (ajeno, 'chat_denegado'),
+        ):
+            with self.subTest(usuario=usuario.username):
+                cliente, respuesta = await self._chat(usuario)
+                self.assertEqual(respuesta['tipo'], esperado)
+                await cliente.desconectar()
+
+    async def test_el_director_no_ve_el_chat_de_un_borrador_ajeno(self):
+        cliente, respuesta = await self._chat(self.director)
+        self.assertEqual(respuesta['tipo'], 'chat_denegado')
+        await cliente.desconectar()
+
+    async def test_observar_llega_el_hilo_y_el_mensaje(self):
+        from asgiref.sync import sync_to_async
+        await sync_to_async(self._estado)('presentado_director')
+        docente, _ = await self._chat(self.usuario_docente)
+        jefe, _ = await self._chat(self.jefe)
+
+        await sync_to_async(self._accion)(self.director, 'observar', {'accion': 'observar', 'observacion': 'Revisar horas.'})
+
+        for cliente in (docente, jefe):
+            hilo = await self._evento_chat(cliente)
+            mensaje = await self._evento_chat(cliente)
+            self.assertEqual(hilo['evento'], 'hilo')
+            self.assertEqual(mensaje['evento'], 'mensaje')
+            self.assertEqual(mensaje['datos']['texto'], 'Revisar horas.')
+            self.assertEqual(mensaje['datos']['observacion'], hilo['datos']['id'])
+            await cliente.desconectar()
+
+    async def test_la_nota_interna_no_le_llega_al_docente(self):
+        from asgiref.sync import sync_to_async
+        from fondos.models import ObservacionFondo
+
+        def preparar():
+            self._estado('presentado_director')
+            return ObservacionFondo.objects.create(fondo_tiempo=self.fondo, resuelta=False).pk
+        hilo = await sync_to_async(preparar)()
+        docente, _ = await self._chat(self.usuario_docente)
+        director, _ = await self._chat(self.director)
+
+        def nota_interna():
+            self.api.force_authenticate(self.jefe)
+            response = self.api.post(f'/api/observaciones/{hilo}/agregar-mensaje/', {'texto': 'Solo entre nosotros', 'es_interno': True}, format='json')
+            self.assertEqual(response.status_code, 200, response.data)
+        await sync_to_async(nota_interna)()
+
+        mensaje = await self._evento_chat(director)
+        self.assertTrue(mensaje['datos']['es_interno'])
+        self.assertTrue(await docente.nada_pendiente())
+        await docente.desconectar()
+        await director.desconectar()
+
+    async def test_leido_y_resuelto(self):
+        from asgiref.sync import sync_to_async
+        from fondos.models import MensajeObservacion, ObservacionFondo
+
+        def preparar():
+            self._estado('observado')
+            hilo = ObservacionFondo.objects.create(fondo_tiempo=self.fondo, resuelta=False)
+            mensaje = MensajeObservacion.objects.create(observacion=hilo, autor=self.jefe, texto='Corrige la carga.')
+            return hilo.pk, mensaje.pk
+        hilo, mensaje = await sync_to_async(preparar)()
+        jefe, _ = await self._chat(self.jefe)
+
+        def leer_y_resolver():
+            self.api.force_authenticate(self.usuario_docente)
+            leer = self.api.get('/api/observaciones/novedades/', {'fondo_tiempo': self.fondo.pk, 'desde_id': 0, 'marcar_leido': 1})
+            self.assertEqual(leer.status_code, 200)
+            resolver = self.api.post(f'/api/observaciones/{hilo}/marcar-resuelta/', {}, format='json')
+            self.assertEqual(resolver.status_code, 200, resolver.data)
+        await sync_to_async(leer_y_resolver)()
+
+        leidos = await self._evento_chat(jefe)
+        self.assertEqual((leidos['evento'], leidos['datos']), ('leidos', {'autor': self.jefe.pk, 'hasta_id': mensaje}))
+        resuelto = await self._evento_chat(jefe)
+        self.assertEqual(resuelto['evento'], 'hilo')
+        self.assertTrue(resuelto['datos']['resuelta'])
+        await jefe.desconectar()

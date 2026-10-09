@@ -8,6 +8,10 @@ Protocolo (JSON):
   que no es suya, con 4403. Si va bien responde {"tipo": "listo"}.
 - Cuando el token vence se cierra con 4401: el cliente lo renueva y se reconecta.
 - {"tipo": "ping"} -> {"tipo": "pong"} (mantiene viva la conexión).
+- {"tipo": "suscribir_chat", "fondo": id} / {"tipo": "desuscribir_chat", "fondo": id}: el
+  chat de un fondo abierto, si su rol puede verlo ({"tipo": "chat_suscrito"} o
+  "chat_denegado"). Llegan {"tipo": "chat", "evento": "mensaje"|"hilo"|"leidos", ...}.
+- Avisos de fondos/avisos.py: {"tipo": "aviso", "aviso": {...}} (mismo formato que /novedades/).
 
 Grupos: según el rol activo, como en la API (get_effective_profile con la misma
 asignación que manda la cabecera X-Active-Assignment). Ver grupos_de_conexion.
@@ -66,6 +70,34 @@ def grupos_de_conexion(user, asignacion_id=None):
     return []
 
 
+def grupo_chat(fondo_id, internos=False):
+    return f'fondo_{fondo_id}_chat_interno' if internos else f'fondo_{fondo_id}_chat'
+
+
+def acceso_al_chat(user, asignacion_id, fondo_id):
+    """(puede ver el chat del fondo, ve las notas internas), con las reglas de la API:
+    superusuario todo; Director, Jefe e Instituto los fondos de su carrera (el
+    Director, sin los borradores ajenos); docente solo su fondo. Las notas internas,
+    solo superusuario, Director y Jefe (_usuario_puede_ver_mensajes_internos)."""
+    from fondos.models import FondoTiempo
+
+    fondo = FondoTiempo.objects.filter(pk=fondo_id).select_related('docente').first()
+    if not fondo:
+        return False, False
+    if user.is_superuser:
+        return True, True
+    peticion = SimpleNamespace(user=user, headers={'X-Active-Assignment': str(asignacion_id or '')})
+    perfil = get_effective_profile(user, peticion)
+    rol = getattr(perfil, 'rol', None)
+    if rol in ('director', 'jefe_estudios', 'iiisyp'):
+        en_su_carrera = get_active_careers_for_user(user, peticion).filter(id=fondo.carrera_id).exists()
+        borrador_ajeno = rol == 'director' and fondo.estado == 'borrador' and not fondo.pertenece_a(user)
+        return en_su_carrera and not borrador_ajeno, rol in ('director', 'jefe_estudios')
+    if rol == 'docente':
+        return bool(perfil.docente_id) and perfil.docente_id == fondo.docente_id, False
+    return False, False
+
+
 def autenticar(token, asignacion_id):
     """(usuario, grupos, segundos hasta que vence el token). Lanza TokenError,
     User.DoesNotExist o AsignacionAjena."""
@@ -81,7 +113,10 @@ class TiempoRealConsumer(AsyncJsonWebsocketConsumer):
 
     async def connect(self):
         self.usuario_id = None
+        self.asignacion_id = None
         self.grupos = []
+        # Grupos del chat de los fondos abiertos: {fondo_id: [grupos]}.
+        self.chats = {}
         self._tareas = []
         await self.accept()
         self._tareas.append(asyncio.ensure_future(self._cerrar_si_no_autentica()))
@@ -89,7 +124,7 @@ class TiempoRealConsumer(AsyncJsonWebsocketConsumer):
     async def disconnect(self, code):
         for tarea in self._tareas:
             tarea.cancel()
-        for grupo in self.grupos:
+        for grupo in self.grupos + [g for grupos in self.chats.values() for g in grupos]:
             await self.channel_layer.group_discard(grupo, self.channel_name)
 
     async def receive_json(self, content, **kwargs):
@@ -98,6 +133,39 @@ class TiempoRealConsumer(AsyncJsonWebsocketConsumer):
             await self._autenticar(content)
         elif tipo == 'ping':
             await self.send_json({'tipo': 'pong'})
+        elif self.usuario_id is None:
+            return
+        elif tipo == 'suscribir_chat':
+            await self._suscribir_chat(content.get('fondo'))
+        elif tipo == 'desuscribir_chat':
+            await self._desuscribir_chat(content.get('fondo'))
+
+    async def _suscribir_chat(self, fondo_id):
+        """Al abrir el detalle de un fondo: recibe su chat si su rol puede verlo."""
+        try:
+            fondo_id = int(fondo_id)
+        except (TypeError, ValueError):
+            return
+        if fondo_id in self.chats:
+            return
+        user = await database_sync_to_async(User.objects.get)(pk=self.usuario_id)
+        puede, internos = await database_sync_to_async(acceso_al_chat)(user, self.asignacion_id, fondo_id)
+        if not puede:
+            await self.send_json({'tipo': 'chat_denegado', 'fondo': fondo_id})
+            return
+        grupos = [grupo_chat(fondo_id)] + ([grupo_chat(fondo_id, internos=True)] if internos else [])
+        for grupo in grupos:
+            await self.channel_layer.group_add(grupo, self.channel_name)
+        self.chats[fondo_id] = grupos
+        await self.send_json({'tipo': 'chat_suscrito', 'fondo': fondo_id})
+
+    async def _desuscribir_chat(self, fondo_id):
+        try:
+            grupos = self.chats.pop(int(fondo_id), [])
+        except (TypeError, ValueError):
+            return
+        for grupo in grupos:
+            await self.channel_layer.group_discard(grupo, self.channel_name)
 
     async def _autenticar(self, content):
         if self.usuario_id is not None:
@@ -117,6 +185,7 @@ class TiempoRealConsumer(AsyncJsonWebsocketConsumer):
             return
 
         self.usuario_id = user.id
+        self.asignacion_id = content.get('asignacion')
         self.grupos = grupos
         for grupo in grupos:
             await self.channel_layer.group_add(grupo, self.channel_name)
@@ -129,6 +198,11 @@ class TiempoRealConsumer(AsyncJsonWebsocketConsumer):
         if event.get('actor_id') == self.usuario_id:
             return
         await self.send_json({'tipo': 'aviso', 'aviso': event['aviso']})
+
+    async def chat_evento(self, event):
+        """Chat de un fondo suscrito: 'mensaje' (nuevo), 'hilo' (creado o resuelto) o
+        'leidos' (otro leyó hasta tal mensaje). Ver fondos/tiempo_real.py."""
+        await self.send_json({'tipo': 'chat', 'evento': event['evento'], 'fondo': event['fondo'], 'datos': event['datos']})
 
     async def _cerrar_si_no_autentica(self):
         await asyncio.sleep(self.TIEMPO_PARA_AUTENTICAR)

@@ -20,6 +20,7 @@ from .utils.pdf_generator import FondoPDFGenerator, InformePDFGenerator
 from .utils.informe_texto import CAMPOS_TEXTO_INFORME, construir_defaults_informe
 from .utils.informe_word import generar_informe_word
 from .avisos import avisos_para_usuario
+from .tiempo_real import publicar_leidos
 from .utils.informe_imagenes import ImagenInformeInvalida, carpeta_imagenes, validar_imagenes_informe
 from rest_framework_simplejwt.views import TokenObtainPairView
 
@@ -2768,6 +2769,8 @@ class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ReadOnly
             MensajeObservacion.objects.filter(id__in=[m.id for m in entrantes]).update(leido_en=ahora)
             for mensaje in entrantes:
                 mensaje.leido_en = ahora
+            # update() no dispara señales: el "leído" se avisa aquí por tiempo real.
+            publicar_leidos(fondo_id, entrantes)
 
         leidos_propios_hasta = MensajeObservacion.objects.filter(
             observacion__in=hilos, autor=request.user, leido_en__isnull=False,

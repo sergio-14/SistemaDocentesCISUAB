@@ -7,17 +7,19 @@ los WebSockets del servicio "realtime" (fondos/consumers.py).
   cliente se pone al día con su consulta de respaldo (/fondos-tiempo/novedades/).
 """
 import asyncio
+import json
 import logging
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from fondos.avisos import AVISOS, aviso_de_evento, evento_de
-from fondos.consumers import GRUPO_SUPERUSUARIOS, grupo_carrera, grupo_docente
-from fondos.models import HistorialFondo
+from fondos.consumers import GRUPO_SUPERUSUARIOS, grupo_carrera, grupo_chat, grupo_docente
+from fondos.models import HistorialFondo, MensajeObservacion, ObservacionFondo
 
 logger = logging.getLogger(__name__)
 
@@ -80,3 +82,56 @@ def publicar_aviso_de_historial(sender, instance, created, **kwargs):
     if not created or not evento_de(instance):
         return
     transaction.on_commit(lambda: publicar(mensajes_de_aviso(instance)))
+
+
+# --- Chat de observaciones del fondo ---
+# Las notas internas (Director <-> Jefe) van solo al grupo interno del fondo; el resto,
+# al grupo del chat. Quien ve las internas está en los dos.
+
+def _plano(datos):
+    """Datos de un serializer como dict simple (fechas en texto) para la capa de canales."""
+    return json.loads(json.dumps(datos, cls=DjangoJSONEncoder))
+
+
+def _mensaje_chat(fondo_id, evento, datos, internos=False):
+    return (grupo_chat(fondo_id, internos), {'type': 'chat.evento', 'evento': evento, 'fondo': fondo_id, 'datos': datos})
+
+
+def mensajes_de_leidos(fondo_id, mensajes):
+    """'leidos' por autor: el autor ve sus mensajes hasta ese id como leídos."""
+    hasta = {}
+    for mensaje in mensajes:
+        clave = (mensaje.autor_id, mensaje.es_interno)
+        hasta[clave] = max(hasta.get(clave, 0), mensaje.id)
+    return [
+        _mensaje_chat(fondo_id, 'leidos', {'autor': autor, 'hasta_id': hasta_id}, internos=interno)
+        for (autor, interno), hasta_id in hasta.items()
+    ]
+
+
+def publicar_leidos(fondo_id, mensajes):
+    """Para lecturas hechas con update() (sin señal), p. ej. /observaciones/novedades/."""
+    if mensajes:
+        transaction.on_commit(lambda: publicar(mensajes_de_leidos(fondo_id, mensajes)))
+
+
+@receiver(post_save, sender=MensajeObservacion, dispatch_uid='tiempo_real_chat_mensaje')
+def publicar_mensaje_de_chat(sender, instance, created, update_fields=None, **kwargs):
+    fondo_id = instance.observacion.fondo_tiempo_id
+    if created:
+        def enviar():
+            from fondos.serializers import MensajeObservacionSerializer
+            datos = _plano(MensajeObservacionSerializer(instance).data)
+            publicar([_mensaje_chat(fondo_id, 'mensaje', datos, internos=instance.es_interno)])
+        transaction.on_commit(enviar)
+    elif update_fields and 'leido_en' in update_fields and instance.leido_en:
+        publicar_leidos(fondo_id, [instance])
+
+
+@receiver(post_save, sender=ObservacionFondo, dispatch_uid='tiempo_real_chat_hilo')
+def publicar_hilo_de_chat(sender, instance, **kwargs):
+    """Hilo creado (observar) o resuelto: va antes que sus mensajes (mismo orden de commit)."""
+    def enviar():
+        from fondos.serializers import HiloObservacionSerializer
+        publicar([_mensaje_chat(instance.fondo_tiempo_id, 'hilo', _plano(HiloObservacionSerializer(instance).data))])
+    transaction.on_commit(enviar)

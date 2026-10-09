@@ -123,6 +123,13 @@ class TiempoRealConsumer(AsyncJsonWebsocketConsumer):
         self._tareas.append(asyncio.ensure_future(self._cerrar_al_vencer(vence_en)))
         await self.send_json({'tipo': 'listo'})
 
+    # --- mensajes de los grupos (fondos/tiempo_real.py) ---
+    async def aviso_nuevo(self, event):
+        """Aviso de fondos/avisos.py; el de su propia acción no le llega."""
+        if event.get('actor_id') == self.usuario_id:
+            return
+        await self.send_json({'tipo': 'aviso', 'aviso': event['aviso']})
+
     async def _cerrar_si_no_autentica(self):
         await asyncio.sleep(self.TIEMPO_PARA_AUTENTICAR)
         if self.usuario_id is None:

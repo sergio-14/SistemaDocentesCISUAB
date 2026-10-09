@@ -1,4 +1,5 @@
-"""Tiempo real (WebSockets, servicio "realtime"): base de Channels, conexión y grupos."""
+"""Tiempo real (WebSockets, servicio "realtime"): base de Channels, conexión, grupos y avisos."""
+import asyncio
 from datetime import timedelta
 from unittest import mock
 
@@ -10,7 +11,7 @@ from fondos.consumers import (
     CIERRE_ASIGNACION_AJENA, CIERRE_NO_AUTENTICADO, GRUPO_SUPERUSUARIOS, AsignacionAjena,
     TiempoRealConsumer, grupos_de_conexion,
 )
-from fondos.models import AsignacionCarrera, PerfilUsuario
+from fondos.models import AsignacionCarrera, HistorialFondo, PerfilUsuario
 from .tests_usuarios_auditoria import DatosUsuariosMixin, UsuariosBaseTestCase
 from .websocket_prueba import ClienteWebSocket
 
@@ -133,3 +134,140 @@ class ConexionTiempoRealTests(DatosUsuariosMixin, TransactionTestCase):
         await get_channel_layer().group_send(f'carrera_{self.carrera.pk}_director', {'type': 'prueba'})
         self.assertTrue(await cliente.nada_pendiente())
         await cliente.desconectar()
+
+
+EVALUACION = {'cumplimiento': 'cumplido', 'evaluacion_director': 'Cumplió todas las actividades planificadas en la gestión.'}
+
+
+class AvisosPorSocketTests(DatosUsuariosMixin, TransactionTestCase):
+    """La tabla de avisos (como tests_avisos.py) pero escuchando por el socket: cada
+    acción real de la API llega al instante a quien corresponde, con el mismo texto."""
+
+    def setUp(self):
+        super().setUp()
+        from rest_framework.test import APIClient
+        from fondos.models import FondoTiempo
+        self.api = APIClient()
+        self.director = self.crear_usuario('director_sk', 'director', carrera=self.carrera, is_staff=True, ci='DSK')
+        self.jefe = self.crear_usuario('jefe_sk', 'jefe_estudios', carrera=self.carrera, is_staff=True, ci='JSK')
+        self.instituto = self.crear_usuario('instituto_sk', 'iiisyp', carrera=self.carrera, ci='ISK')
+        self.usuario_docente = self.crear_usuario('docente_sk', 'docente', carrera=self.carrera, ci='CSK')
+        self.docente = self.crear_docente('CSK', usuario=self.usuario_docente)
+        PerfilUsuario.objects.filter(user=self.usuario_docente).update(docente=self.docente)
+        self.fondo = FondoTiempo.objects.create(docente=self.docente, carrera=self.carrera, gestion=2026)
+        self.nombre = self.docente.nombre_completo
+
+    # --- ayudas ---
+    def _estado(self, estado, informe=False):
+        from fondos.models import FondoTiempo, InformeFondo
+        FondoTiempo.objects.filter(pk=self.fondo.pk).update(estado=estado)
+        InformeFondo.objects.filter(fondo_tiempo=self.fondo).delete()
+        if informe:
+            InformeFondo.objects.create(fondo_tiempo=self.fondo, elaborado_por=self.usuario_docente, tipo='parcial', estado='enviado')
+
+    def _accion(self, usuario, ruta, datos=None):
+        self.api.force_authenticate(usuario)
+        response = self.api.post(f'/api/fondos-tiempo/{self.fondo.pk}/{ruta}/', datos or {}, format='json')
+        self.assertEqual(response.status_code, 200, getattr(response, 'data', None))
+
+    async def _conectar_todos(self):
+        clientes = {}
+        for usuario in (self.director, self.jefe, self.usuario_docente, self.instituto):
+            cliente = ClienteWebSocket(_aplicacion(), RUTA)
+            self.assertTrue(await cliente.conectar())
+            await cliente.enviar({'tipo': 'auth', 'token': str(AccessToken.for_user(usuario)), 'asignacion': None})
+            self.assertEqual(await cliente.recibir(), {'tipo': 'listo'})
+            clientes[usuario.username] = cliente
+        return clientes
+
+    async def _reciben(self, clientes, esperado):
+        """esperado: {usuario: texto}; los demás no reciben nada."""
+        for usuario in (self.director, self.jefe, self.usuario_docente, self.instituto):
+            cliente = clientes[usuario.username]
+            if usuario in esperado:
+                mensaje = await cliente.recibir()
+                self.assertEqual(mensaje['tipo'], 'aviso', usuario.username)
+                self.assertEqual(mensaje['aviso']['texto'], esperado[usuario])
+                self.assertEqual(mensaje['aviso']['fondo_id'], self.fondo.pk)
+            self.assertTrue(await cliente.nada_pendiente(), usuario.username)
+            await cliente.desconectar()
+
+    async def _fila(self, preparar, accion, esperado):
+        from asgiref.sync import sync_to_async
+        await sync_to_async(preparar)()
+        clientes = await self._conectar_todos()
+        await sync_to_async(accion)()
+        await self._reciben(clientes, esperado)
+
+    # --- la tabla ---
+    async def test_jefe_presenta_el_fondo(self):
+        def presentar():
+            HistorialFondo.objects.create(
+                fondo_tiempo=self.fondo, usuario=self.jefe, tipo_cambio='presentacion', descripcion='-',
+                estado_anterior='borrador', estado_nuevo='presentado_director',
+            )
+        await self._fila(lambda: self._estado('presentado_director'), presentar, {
+            self.director: f'Nuevo fondo para revisar: {self.nombre} (gestión 2026).',
+        })
+
+    async def test_director_observa_rechaza_y_aprueba(self):
+        casos = (
+            ('observar', {'accion': 'observar', 'observacion': 'Revisar horas.'},
+             'El fondo de {n} recibió observaciones.', 'Tu fondo de tiempo recibió observaciones.'),
+            ('observar', {'accion': 'rechazar', 'observacion': 'No corresponde.'},
+             'El fondo de {n} fue rechazado.', 'Tu fondo de tiempo fue rechazado.'),
+            ('aprobar', {}, 'El fondo de {n} fue aprobado.', 'Tu fondo de tiempo fue aprobado.'),
+        )
+        for ruta, datos, al_jefe, al_docente in casos:
+            with self.subTest(accion=datos.get('accion', ruta)):
+                await self._fila(
+                    lambda: self._estado('presentado_director'),
+                    lambda: self._accion(self.director, ruta, datos),
+                    {self.jefe: al_jefe.format(n=self.nombre), self.usuario_docente: al_docente},
+                )
+
+    async def test_director_inicia_la_ejecucion(self):
+        await self._fila(lambda: self._estado('aprobado_director'), lambda: self._accion(self.director, 'iniciar_ejecucion'), {
+            self.jefe: f'El fondo de {self.nombre} está en ejecución.',
+            self.usuario_docente: 'Tu fondo está en ejecución. Ya puedes redactar tu informe.',
+        })
+
+    async def test_docente_presenta_el_informe(self):
+        datos = {'seccion_academica': '<p>Dicté mis materias.</p>', 'conclusiones_generales': '<p>Cumplí.</p>'}
+        await self._fila(lambda: self._estado('en_ejecucion'), lambda: self._accion(self.usuario_docente, 'presentar', datos), {
+            self.director: f'{self.nombre} presentó su informe para evaluar.',
+            self.jefe: f'{self.nombre} presentó su informe.',
+        })
+
+    async def test_director_solicita_correcciones_al_informe(self):
+        await self._fila(
+            lambda: self._estado('informe_presentado', informe=True),
+            lambda: self._accion(self.director, 'observar-informe', {'comentario': 'Falta la sección académica.'}),
+            {
+                self.usuario_docente: 'Tu informe fue observado. Revisa las correcciones y vuelve a presentarlo.',
+                self.jefe: f'El informe de {self.nombre} fue observado.',
+            },
+        )
+
+    async def test_director_evalua_y_finaliza(self):
+        await self._fila(
+            lambda: self._estado('informe_presentado', informe=True),
+            lambda: self._accion(self.director, 'evaluar-y-finalizar', EVALUACION),
+            {
+                self.usuario_docente: 'Tu fondo fue finalizado. Cumplimiento: Cumplido.',
+                self.jefe: f'El fondo de {self.nombre} fue finalizado.',
+            },
+        )
+
+    def test_si_redis_no_responde_la_accion_no_falla(self):
+        class CapaCaida:
+            async def group_send(self, grupo, mensaje):
+                await asyncio.sleep(60)
+
+        self._estado('presentado_director')
+        with mock.patch('fondos.tiempo_real.get_channel_layer', return_value=CapaCaida()), \
+                mock.patch('fondos.tiempo_real.TIEMPO_MAXIMO_PUBLICAR', 0.2), \
+                self.assertLogs('fondos.tiempo_real', level='WARNING'):
+            self._accion(self.director, 'aprobar')
+        self.fondo.refresh_from_db()
+        self.assertEqual(self.fondo.estado, 'aprobado_director')

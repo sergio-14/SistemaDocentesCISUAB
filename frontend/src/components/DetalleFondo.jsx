@@ -19,7 +19,7 @@ import Plegable from './fondos/Plegable';
 import ProgramaAnaliticoAccion from './fondos/ProgramaAnaliticoAccion';
 import DocumentoActividadAccion from './fondos/DocumentoActividadAccion';
 import { BLOQUE, BOTON, BOTON_DOCUMENTO, estadoVisibleFondo } from './fondos/estilosFondo';
-import { Avatar, BarraProgreso, EstadoPill, Etiqueta } from './fondos/ElementosFondo';
+import { Avatar, BarraProgreso, EstadoPill, Etiqueta, EtiquetaFueraDePlazo } from './fondos/ElementosFondo';
 import { getApiErrorMessage, getDownloadErrorMessage } from '../utils/formErrors';
 import useConsultaConRespaldo, { useFondoActualizado } from '../tiempoReal/useTiempoReal';
 import mostrarAviso from '../avisos/mostrarAviso';
@@ -657,6 +657,8 @@ function DetalleFondo() {
                   {fondo.docente?.nombre_completo || 'Docente'}
                 </h2>
                 <EstadoPill estado={estadoVisibleFondo(fondo)} />
+                {/* Arts. 15 y 18: presentado después de los plazos del calendario (no bloquea). */}
+                <EtiquetaFueraDePlazo vencidos={fondo.fuera_de_plazo} />
               </div>
               {/* La carrera solo la ve el superusuario; los demás roles tienen una sola. */}
               {(esSuperAdmin || fondo.descripcion) && (
@@ -956,15 +958,6 @@ function DetalleFondo() {
                 acciones quedan abajo: primero las del trámite, al final el PDF. */}
             <div className={`${BLOQUE} p-6 xl:col-span-3 flex flex-col`}>
               <h3 className="text-base font-bold text-blue-900 mb-4">Estado y acciones</h3>
-
-              {/* Arts. 15 y 18: presentado después de los plazos del calendario (no bloquea). */}
-              {fondo.fuera_de_plazo?.length > 0 && (
-                <div className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-xs text-red-700 space-y-1">
-                  {fondo.fuera_de_plazo.map((texto) => (
-                    <p key={texto} className="font-semibold">{texto}</p>
-                  ))}
-                </div>
-              )}
 
               <EstadoTimeline estado={estadoVisibleFondo(fondo)} className="flex-1" />
 

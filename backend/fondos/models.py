@@ -1050,6 +1050,21 @@ class FondoTiempo(models.Model):
             for v in self.fuera_de_plazo or []
         ]
 
+    def resumen_fuera_de_plazo(self):
+        """Una línea: 'Presentado fuera de plazo: programas analíticos y proyectos (Primer
+        Semestre 2026 y Segundo Semestre 2026).' Vacío si se presentó a tiempo."""
+        vencidos = self.fuera_de_plazo or []
+        if not vencidos:
+            return ''
+
+        def enumerar(valores):
+            unicos = list(dict.fromkeys(valores))
+            return unicos[0] if len(unicos) == 1 else ', '.join(unicos[:-1]) + ' y ' + unicos[-1]
+
+        plazos = enumerar(v['plazo'] for v in vencidos)
+        calendarios = enumerar(v['calendario'] for v in vencidos)
+        return f'Presentado fuera de plazo: {plazos} ({calendarios}).'
+
     def fecha_referencia_antiguedad(self):
         """Inicio de la gestión (ver inicio_de_gestion): ahí se mide la antigüedad."""
         return inicio_de_gestion(self.calendarios_de_la_gestion().values_list('fecha_inicio', flat=True), self.gestion)

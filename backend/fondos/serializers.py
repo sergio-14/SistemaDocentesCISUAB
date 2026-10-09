@@ -4253,8 +4253,9 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     # Revisión: nadie revisa su propio fondo; el del Director lo revisa el superusuario.
     es_fondo_propio = serializers.SerializerMethodField()
     es_fondo_de_director = serializers.SerializerMethodField()
-    # Arts. 15 y 18: presentado después de los plazos del calendario.
-    fuera_de_plazo = serializers.SerializerMethodField()
+    # Arts. 15 y 18: presentado después de los plazos del calendario. Va tal cual
+    # ([{plazo, calendario, fecha_limite, fecha_presentacion}]): el detalle lo muestra
+    # como una etiqueta "Fuera de plazo" con su explicación al pasar el mouse.
 
     class Meta:
         model = FondoTiempo
@@ -4312,9 +4313,6 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
 
     def get_documentos_actividad_faltantes(self, obj):
         return obj.documentos_actividad_faltantes()
-
-    def get_fuera_de_plazo(self, obj):
-        return obj.textos_fuera_de_plazo()
 
     def get_calendarios(self, obj):
         return CalendarioAcademicoSerializer(

@@ -282,7 +282,7 @@ function DetalleFondo() {
   };
 
   const debeVigilarCambios =
-    (esJefeEstudios && fondo?.estado === 'presentado_director') ||
+    (esJefeEstudios && ['presentado_director', 'aprobado_director'].includes(fondo?.estado)) ||
     (esDirector && ['borrador', 'observado'].includes(fondo?.estado));
 
   useConsultaPeriodica(() => {
@@ -1365,95 +1365,55 @@ function DetalleFondo() {
         );
       })()}
 
-      {/* Modal de confirmación para aprobar */}
+      {/* Confirmación para aprobar */}
       {fondo && mostrarModalAprobar && (
-        <ModalCentrado onClose={() => setMostrarModalAprobar(false)}>
-          <div className="w-full max-w-md rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
-            <div className="px-6 pt-6">
-              <h3 className="text-xl font-bold text-blue-900">Confirmar aprobación</h3>
-              <p className="mt-1 text-sm text-slate-600">¿Está seguro de aprobar este fondo? Al aprobarlo:</p>
-              <ul className="mt-2 space-y-1 text-sm text-slate-600 list-disc pl-5">
-                <li>El fondo quedará bloqueado para edición</li>
-                <li>El docente será notificado</li>
-                <li>Se registrará la fecha de aprobación</li>
-                <li>El fondo pasará a estado "Aprobado por Director"</li>
-              </ul>
+        <ModalConfirmar
+          etiqueta="Fondo de tiempo"
+          titulo="Aprobar fondo"
+          mensaje={<>Se aprobará el fondo de tiempo {fondo.gestion} de <strong className="text-slate-900">{fondo.docente?.nombre_completo || 'el docente'}</strong>. Al aprobarlo:</>}
+          detalle={[
+            'El fondo quedará bloqueado para edición',
+            'Se registrará la fecha de aprobación',
+            'El docente será notificado',
+            'Pasará al estado "Aprobado por Director"',
+          ]}
+          textoAccion="Aprobar fondo"
+          textoTrabajando="Aprobando..."
+          onConfirmar={aprobarFondoHandler}
+          onCancelar={() => setMostrarModalAprobar(false)}
+        >
+          {requiereDocumentoDecanatura && (
+            <div className="space-y-2 rounded-2xl bg-white px-4 py-3 text-sm ring-1 ring-inset ring-azulado-300">
+              <p className="font-semibold text-blue-900">Fondo del Director de la carrera</p>
+              <p className="text-slate-600">Para aprobarlo adjunte el documento de la Decanatura (PDF, obligatorio).</p>
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                onChange={(e) => setDocumentoDecanatura(e.target.files?.[0] || null)}
+                className="block w-full text-xs text-slate-600 file:mr-3 file:rounded-full file:border-0 file:bg-azulado-100 file:px-3 file:py-1.5 file:font-semibold file:text-blue-900 hover:file:bg-azulado-200"
+              />
             </div>
-            <div className="px-6 py-4 space-y-3">
-              <div className="divide-y divide-azulado-300 rounded-2xl bg-azulado-100 text-sm">
-                {[
-                  { label: 'Docente', valor: fondo.docente?.nombre_completo || 'N/A' },
-                  { label: 'Fondo', valor: fondo.descripcion },
-                  { label: 'Gestión', valor: fondo.gestion },
-                ].map((fila) => (
-                  <div key={fila.label} className="flex justify-between gap-3 px-4 py-2.5">
-                    <span className="text-slate-500">{fila.label}</span>
-                    <span className="font-semibold text-slate-800 text-right">{fila.valor}</span>
-                  </div>
-                ))}
-              </div>
-              {requiereDocumentoDecanatura && (
-                <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 space-y-2">
-                  <p className="font-semibold">Fondo del Director de la carrera</p>
-                  <p>Para aprobarlo adjunte el documento de la Decanatura (PDF, obligatorio).</p>
-                  <input
-                    type="file"
-                    accept="application/pdf,.pdf"
-                    onChange={(e) => setDocumentoDecanatura(e.target.files?.[0] || null)}
-                    className="block w-full text-xs file:mr-3 file:rounded-full file:border-0 file:bg-amber-100 file:px-3 file:py-1.5 file:font-semibold file:text-amber-800"
-                  />
-                </div>
-              )}
-            </div>
-            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 pb-6">
-              <button
-                onClick={() => setMostrarModalAprobar(false)}
-                className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200`}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={aprobarFondoHandler}
-                disabled={requiereDocumentoDecanatura && !documentoDecanatura}
-                className={`${BOTON} px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                Aprobar fondo
-              </button>
-            </div>
-          </div>
-        </ModalCentrado>
+          )}
+        </ModalConfirmar>
       )}
 
-      {/* Modal Iniciar Ejecución */}
+      {/* Confirmación para iniciar la ejecución */}
       {fondo && mostrarModalIniciarEjecucion && (
-        <ModalCentrado onClose={() => setMostrarModalIniciarEjecucion(false)}>
-          <div className="w-full max-w-md rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
-            <div className="px-6 pt-6 pb-4">
-              <h3 className="text-xl font-bold text-blue-900">Confirmar inicio de ejecución</h3>
-              <p className="mt-1 text-sm text-slate-600">¿Está seguro de iniciar la ejecución? Al iniciarla:</p>
-              <ul className="mt-2 space-y-1 text-sm text-slate-600 list-disc pl-5">
-                <li>El fondo quedará activo durante el semestre</li>
-                <li>El docente podrá ejecutar las actividades planificadas</li>
-                <li>Se registrará la fecha de inicio</li>
-                <li>El fondo pasará a estado "En Ejecución"</li>
-              </ul>
-            </div>
-            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 pb-6">
-              <button
-                onClick={() => setMostrarModalIniciarEjecucion(false)}
-                className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200`}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={iniciarEjecucionHandler}
-                className={`${BOTON} px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white`}
-              >
-                Iniciar ejecución
-              </button>
-            </div>
-          </div>
-        </ModalCentrado>
+        <ModalConfirmar
+          etiqueta="Fondo de tiempo"
+          titulo="Iniciar ejecución"
+          mensaje={<>Se iniciará la ejecución del fondo de tiempo {fondo.gestion} de <strong className="text-slate-900">{fondo.docente?.nombre_completo || 'el docente'}</strong>. Al iniciarla:</>}
+          detalle={[
+            'El fondo quedará activo durante el semestre',
+            'El docente podrá ejecutar las actividades planificadas',
+            'Se registrará la fecha de inicio',
+            'Pasará al estado "En Ejecución"',
+          ]}
+          textoAccion="Iniciar ejecución"
+          textoTrabajando="Iniciando..."
+          onConfirmar={iniciarEjecucionHandler}
+          onCancelar={() => setMostrarModalIniciarEjecucion(false)}
+        />
       )}
 
       {/* Modal Ver Informe */}

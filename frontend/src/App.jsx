@@ -222,7 +222,7 @@ function App() {
   if (user && user.perfil?.debe_cambiar_password) {
     return (
       <Router>
-        <Toaster position="top-right" />
+        <ToasterSistema isDark={isDark} />
         <Routes>
           <Route path="/cambiar-password" element={<CambiarPassword onPasswordChanged={handleLogin} />} />
           <Route path="*" element={<Navigate to="/cambiar-password" replace />} />

@@ -24,6 +24,7 @@ const FOCUSABLES = 'button:not([disabled]), [href], input:not([disabled]), selec
  * - informativo: un solo botón "Entendido" (p. ej. "No se puede eliminar").
  * - etiqueta: línea corta en mayúsculas sobre el título (p. ej. "Usuarios"), como en
  *   la cabecera del dashboard.
+ * - children: contenido extra bajo el detalle (p. ej. un archivo que hay que adjuntar).
  * - Escape o clic fuera cancelan, el foco empieza en Cancelar y no sale del modal,
  *   y Enter confirma.
  */
@@ -38,6 +39,7 @@ function ModalConfirmar({
   onConfirmar,
   onCancelar,
   informativo = false,
+  children = null,
 }) {
   const [trabajando, setTrabajando] = useState(false);
   const [error, setError] = useState('');
@@ -151,6 +153,7 @@ function ModalConfirmar({
               ))}
             </ul>
           )}
+          {children}
           {error && (
             <p role="alert" className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
           )}

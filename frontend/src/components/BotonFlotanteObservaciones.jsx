@@ -6,7 +6,7 @@ import {
   ChevronsDown,
   Copy,
   EyeOff,
-  MessageCircle,
+  MessagesSquare,
   Pin,
   Reply,
   SendHorizontal,
@@ -22,6 +22,7 @@ import api from '../apis/api';
 import toast from 'react-hot-toast';
 import useConsultaPeriodica from '../utils/useConsultaPeriodica';
 import { useActiveRole } from '../contexts/activeRole';
+import { Avatar } from './fondos/ElementosFondo';
 
 // Consulta del chat: más seguida con el panel abierto.
 const CONSULTA_CHAT_ABIERTO_MS = 5000;
@@ -57,18 +58,19 @@ const fusionarNovedades = (actuales, novedades, usuarioId) => {
 };
 
 const formatBadgeCount = (count) => (count > 99 ? '99+' : String(count));
-const quoteAccentColors = ['#00e5ff', '#ff3df2', '#a3ff12', '#ffb000', '#7c4dff', '#00ffa3'];
+// Colores de las citas al responder: los azules base del sistema.
+const quoteAccentColors = ['#1e3a8a', '#0284c7', '#1d4ed8', '#0369a1'];
 
 const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObservacionCambiada }, ref) => {
   const { activeRole } = useActiveRole();
   const [observaciones, setObservaciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [isClosingChat, setIsClosingChat] = useState(false);
   const [texto, setTexto] = useState('');
   const [esInterno, setEsInterno] = useState(false);
   const [sending, setSending] = useState(false);
   const [usuarioActual, setUsuarioActual] = useState(null);
+  const [contacto, setContacto] = useState(null);
   const [panelBox, setPanelBox] = useState(null);
   const [isDraggingPanel, setIsDraggingPanel] = useState(false);
   const [isResizingPanel, setIsResizingPanel] = useState(false);
@@ -104,7 +106,6 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
   observacionesRef.current = observaciones;
   const previousMessageRectsRef = useRef(new Map());
   const newMessageTimerRef = useRef(null);
-  const closeChatTimerRef = useRef(null);
   const justOpenedChatRef = useRef(false);
 
   const capturarPosicionesMensajes = useCallback(() => {
@@ -122,6 +123,14 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
       )
     );
   };
+
+  // Con quién se habla (el Director ve al Jefe de Estudios y el Jefe al Director).
+  useEffect(() => {
+    if (!fondoId) return;
+    api.get(`/fondos-tiempo/${fondoId}/contacto-chat/`)
+      .then(({ data }) => setContacto(data || null))
+      .catch(() => setContacto(null));
+  }, [fondoId]);
 
   const cargarUsuario = useCallback(async () => {
     try {
@@ -206,7 +215,6 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
 
   useEffect(() => () => {
     if (newMessageTimerRef.current) window.clearTimeout(newMessageTimerRef.current);
-    if (closeChatTimerRef.current) window.clearTimeout(closeChatTimerRef.current);
   }, [fondoId]);
 
   useEffect(() => {
@@ -441,8 +449,9 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
 
   const esMensajeDeOtroUsuario = (mensaje) => !esMiMensaje(mensaje);
 
+  // Todos los mensajes sin leer del otro, también los de un hilo ya resuelto (el
+  // chat sigue después de reenviar el fondo, p. ej. ya en ejecución).
   const badgeCount = observaciones
-    .filter((obs) => !obs.resuelta)
     .reduce((count, obs) => {
       const mensajesOtro = (obs.mensajes || []).filter((msg) =>
         esMensajeDeOtroUsuario(msg) && !msg.leido
@@ -658,20 +667,15 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
     );
   }, [observacionPendientePrincipal]);
 
+  // Se cierra al instante, sin animación.
   const cerrarChat = () => {
-    if (isClosingChat) return;
-    setIsClosingChat(true);
-    if (closeChatTimerRef.current) window.clearTimeout(closeChatTimerRef.current);
-    closeChatTimerRef.current = window.setTimeout(() => {
-      setOpen(false);
-      setIsClosingChat(false);
-      setPanelBox(null);
-      setMenuMensajeId(null);
-      setRespondiendoA(null);
-      setObservacionPorResolver(null);
-      setCerrandoConfirmacionResolver(false);
-      setMensajeParaFijar(null);
-    }, 320);
+    setOpen(false);
+    setPanelBox(null);
+    setMenuMensajeId(null);
+    setRespondiendoA(null);
+    setObservacionPorResolver(null);
+    setCerrandoConfirmacionResolver(false);
+    setMensajeParaFijar(null);
   };
 
   const handleChatScroll = () => {
@@ -789,18 +793,16 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
         onClick={() => {
           if (open) cerrarChat();
           else {
-            if (closeChatTimerRef.current) window.clearTimeout(closeChatTimerRef.current);
-            setIsClosingChat(false);
             shouldAutoScrollRef.current = true;
             justOpenedChatRef.current = true;
             setOpen(true);
           }
         }}
-        className={`ft-chat-button fixed bottom-6 right-6 w-14 h-14 rounded-full transition-all duration-300 hover:scale-110 flex items-center justify-center text-white z-[121] ${isClosingChat ? 'is-absorbing' : ''}`}
+        className={`ft-chat-button fixed bottom-6 right-6 w-14 h-14 rounded-2xl transition-all duration-300 hover:scale-110 flex items-center justify-center text-white z-[121]`}
         title="Mensajes"
         aria-label={badgeCount > 0 ? `Mensajes, ${formatBadgeCount(badgeCount)} pendientes` : 'Mensajes'}
       >
-        <MessageCircle size={22} />
+        <MessagesSquare size={22} strokeWidth={1.8} />
         {badgeCount > 0 && (
           <span className="ft-chat-unread-badge">
             {formatBadgeCount(badgeCount)}
@@ -818,17 +820,33 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
               width: panelBox.width,
               height: panelBox.height,
             } : undefined}
-            className={`ft-chat-panel absolute w-[430px] max-w-[calc(100vw-1.5rem)] h-[690px] max-h-[calc(100vh-8rem)] rounded-3xl overflow-hidden flex flex-col pointer-events-auto ${panelBox ? '' : 'right-6 bottom-24'} ${isClosingChat ? 'is-closing' : ''}`}
+            className={`ft-chat-panel absolute w-[430px] max-w-[calc(100vw-1.5rem)] h-[690px] max-h-[calc(100vh-8rem)] rounded-3xl overflow-hidden flex flex-col pointer-events-auto ${panelBox ? '' : 'right-6 bottom-24'}`}
           >
             <div
               onPointerDown={iniciarArrastre}
               className={`ft-chat-header relative z-20 ${isDraggingPanel ? 'cursor-grabbing' : 'cursor-grab'}`}
             >
-              <div className="px-4 py-3 flex items-center gap-2 select-none">
-                <MessageCircle size={16} className="ft-chat-header-icon" />
-                <div className="ft-chat-header-title text-sm truncate">
-                  Mensajes del Fondo
-                </div>
+              <div className="px-4 py-3 flex items-center gap-3 select-none">
+                {contacto ? (
+                  <>
+                    {contacto.foto ? (
+                      <img src={contacto.foto} alt="" className="h-10 w-10 flex-shrink-0 rounded-full object-cover ring-2 ring-white shadow-sm" />
+                    ) : (
+                      <Avatar nombre={contacto.nombre} size="w-10 h-10 text-sm ring-2 ring-white shadow-sm" />
+                    )}
+                    <div className="min-w-0">
+                      <div className="ft-chat-header-title text-sm leading-tight truncate">{contacto.nombre}</div>
+                      <div className="text-xs text-slate-500 truncate">{contacto.rol}</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <MessagesSquare size={17} className="ft-chat-header-icon" />
+                    <div className="ft-chat-header-title text-sm truncate">
+                      Mensajes del Fondo
+                    </div>
+                  </>
+                )}
                 <button
                   data-no-drag="true"
                   onClick={cerrarChat}

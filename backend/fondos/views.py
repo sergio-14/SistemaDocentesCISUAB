@@ -2137,6 +2137,36 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         )
         return Response({'status': 'Fondo devuelto a borrador'}, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['get'], url_path='contacto-chat')
+    def contacto_chat(self, request, pk=None):
+        """Con quién habla el usuario en el chat del fondo: el Director ve al Jefe de
+        Estudios de la carrera y el Jefe al Director (nombre y foto propia, si tiene)."""
+        fondo = self.get_object()
+        perfil = _obtener_perfil_efectivo(request.user, request)
+        rol_contacto = {'director': 'jefe_estudios', 'jefe_estudios': 'director'}.get(getattr(perfil, 'rol', None))
+        if not rol_contacto:
+            return Response(None)
+
+        asignacion = AsignacionCarrera.objects.filter(
+            carrera=fondo.carrera, rol=rol_contacto, activo=True, user__isnull=False,
+        ).exclude(user=request.user).select_related('user__perfil', 'docente').order_by('id').first()
+        if not asignacion:
+            return Response(None)
+
+        usuario = asignacion.user
+        perfil_contacto = getattr(usuario, 'perfil', None)
+        nombre = (
+            (asignacion.docente.nombre_completo.strip() if asignacion.docente else '')
+            or usuario.get_full_name().strip()
+            or usuario.username
+        )
+        foto = perfil_contacto.get_foto_perfil_data_uri() if perfil_contacto and perfil_contacto.tiene_foto_propia else None
+        return Response({
+            'nombre': nombre,
+            'rol': asignacion.get_rol_display(),
+            'foto': foto,
+        })
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     @transaction.atomic
     def aprobar(self, request, pk=None):

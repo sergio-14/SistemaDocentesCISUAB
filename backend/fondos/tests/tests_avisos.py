@@ -58,38 +58,38 @@ class AvisosPorRolTests(UsuariosBaseTestCase):
             descripcion='Fondo presentado por Jefatura de Estudios al Director.',
             estado_anterior='borrador', estado_nuevo='presentado_director',
         )
-        self._reciben({self.director: [f'Nuevo fondo para revisar: {self.nombre} (gestión 2026).']})
+        self._reciben({self.director: [f'{self.nombre} presentó su fondo 2026']})
 
     def test_director_observa_el_fondo(self):
         self._estado('presentado_director')
         self._accion(self.director, 'observar', {'accion': 'observar', 'observacion': 'Revisar la distribución de horas.'})
         self._reciben({
-            self.jefe: [f'El fondo de {self.nombre} recibió observaciones.'],
-            self.usuario_docente: ['Tu fondo de tiempo recibió observaciones.'],
+            self.jefe: [f'Fondo de {self.nombre} observado'],
+            self.usuario_docente: ['Tu fondo tiene observaciones'],
         })
 
     def test_director_rechaza_el_fondo(self):
         self._estado('presentado_director')
         self._accion(self.director, 'observar', {'accion': 'rechazar', 'observacion': 'No corresponde a la gestión.'})
         self._reciben({
-            self.jefe: [f'El fondo de {self.nombre} fue rechazado.'],
-            self.usuario_docente: ['Tu fondo de tiempo fue rechazado.'],
+            self.jefe: [f'Fondo de {self.nombre} rechazado'],
+            self.usuario_docente: ['Tu fondo fue rechazado'],
         })
 
     def test_director_aprueba_el_fondo(self):
         self._estado('presentado_director')
         self._accion(self.director, 'aprobar')
         self._reciben({
-            self.jefe: [f'El fondo de {self.nombre} fue aprobado.'],
-            self.usuario_docente: ['Tu fondo de tiempo fue aprobado.'],
+            self.jefe: [f'Fondo de {self.nombre} aprobado'],
+            self.usuario_docente: ['Tu fondo fue aprobado'],
         })
 
     def test_director_inicia_la_ejecucion(self):
         self._estado('aprobado_director')
         self._accion(self.director, 'iniciar_ejecucion')
         self._reciben({
-            self.jefe: [f'El fondo de {self.nombre} está en ejecución.'],
-            self.usuario_docente: ['Tu fondo está en ejecución. Ya puedes redactar tu informe.'],
+            self.jefe: [f'Fondo de {self.nombre} en ejecución'],
+            self.usuario_docente: ['Tu fondo está en ejecución: ya puedes redactar tu informe'],
         })
 
     def test_docente_presenta_el_informe(self):
@@ -98,8 +98,8 @@ class AvisosPorRolTests(UsuariosBaseTestCase):
             'seccion_academica': '<p>Dicté mis materias.</p>', 'conclusiones_generales': '<p>Cumplí lo planificado.</p>',
         })
         self._reciben({
-            self.director: [f'{self.nombre} presentó su informe para evaluar.'],
-            self.jefe: [f'{self.nombre} presentó su informe.'],
+            self.director: [f'{self.nombre} presentó su informe'],
+            self.jefe: [f'{self.nombre} presentó su informe'],
         })
 
     def _informe_presentado(self):
@@ -110,16 +110,16 @@ class AvisosPorRolTests(UsuariosBaseTestCase):
         self._informe_presentado()
         self._accion(self.director, 'observar-informe', {'comentario': 'Falta detallar la sección académica.'})
         self._reciben({
-            self.usuario_docente: ['Tu informe fue observado. Revisa las correcciones y vuelve a presentarlo.'],
-            self.jefe: [f'El informe de {self.nombre} fue observado.'],
+            self.usuario_docente: ['Tu informe tiene correcciones'],
+            self.jefe: [f'Informe de {self.nombre} observado'],
         })
 
     def test_director_evalua_y_finaliza(self):
         self._informe_presentado()
         self._accion(self.director, 'evaluar-y-finalizar', EVALUACION)
         self._reciben({
-            self.usuario_docente: ['Tu fondo fue finalizado. Cumplimiento: Cumplido.'],
-            self.jefe: [f'El fondo de {self.nombre} fue finalizado.'],
+            self.usuario_docente: ['Tu fondo fue finalizado · Cumplimiento: cumplido'],
+            self.jefe: [f'Fondo de {self.nombre} finalizado'],
         })
 
     # --- reglas generales ---
@@ -173,6 +173,16 @@ class AvisosPorRolTests(UsuariosBaseTestCase):
         self.assertEqual(aviso['fondo_id'], self.fondo.pk)
         self.assertEqual(aviso['evento'], 'fondo_aprobado')
         self.assertEqual(aviso['tono'], 'exito')
+        self.assertEqual(aviso['accion'], 'Ver')
+
+    def test_al_revisor_el_boton_le_dice_revisar(self):
+        self._estado('en_ejecucion')
+        self._accion(self.usuario_docente, 'presentar', {
+            'seccion_academica': '<p>Dicté mis materias.</p>', 'conclusiones_generales': '<p>Cumplí lo planificado.</p>',
+        })
+        self.client.force_authenticate(self.director)
+        aviso = self.client.get('/api/fondos-tiempo/novedades/').data['avisos'][0]
+        self.assertEqual((aviso['texto'], aviso['accion']), (f'{self.nombre} presentó su informe', 'Revisar'))
 
     def test_la_lista_trae_el_estado_del_informe(self):
         self.client.force_authenticate(self.jefe)
@@ -197,7 +207,7 @@ class AvisosPorRolTests(UsuariosBaseTestCase):
         presentado = HistorialFondo.objects.filter(fondo_tiempo=self.fondo, estado_nuevo='informe_presentado').latest('id')
         self._accion(self.director, 'evaluar-y-finalizar', EVALUACION)
 
-        self.assertEqual(self._avisos(self.jefe), [f'El fondo de {self.nombre} fue finalizado.'])
+        self.assertEqual(self._avisos(self.jefe), [f'Fondo de {self.nombre} finalizado'])
         self.assertEqual(self._reclamar(self.jefe, [presentado.pk]), [])
 
     def test_un_jefe_de_otra_carrera_no_recibe_nada(self):
@@ -226,8 +236,8 @@ class AvisosFondoDelDirectorTests(UsuariosBaseTestCase):
     def test_presentar_y_el_informe_le_avisan_al_superusuario_y_no_al_director(self):
         nombre = self.docente_director.nombre_completo
         esperado = {
-            'presentado_director': f'Nuevo fondo para revisar: {nombre} (gestión 2026).',
-            'informe_presentado': f'{nombre} presentó su informe para evaluar.',
+            'presentado_director': f'{nombre} presentó su fondo 2026',
+            'informe_presentado': f'{nombre} presentó su informe',
         }
         for anterior, nuevo in (('borrador', 'presentado_director'), ('en_ejecucion', 'informe_presentado')):
             with self.subTest(estado=nuevo):
@@ -248,5 +258,5 @@ class AvisosFondoDelDirectorTests(UsuariosBaseTestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
-        self.assertEqual(self._novedades(self.jefe), [f'El fondo de {self.docente_director.nombre_completo} fue aprobado.'])
+        self.assertEqual(self._novedades(self.jefe), [f'Fondo de {self.docente_director.nombre_completo} aprobado'])
         self.assertEqual(self._novedades(self.superuser), [])

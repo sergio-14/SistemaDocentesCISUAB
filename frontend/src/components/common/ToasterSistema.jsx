@@ -71,7 +71,7 @@ function ToastFondo({ t }) {
             toast.dismiss(t.id);
             t.accion.alHacerClic();
           }}
-          className="flex-shrink-0 self-center rounded-full bg-white/20 px-3 py-1.5 text-xs font-bold text-white hover:bg-white/30"
+          className="flex-shrink-0 self-center rounded-full bg-white px-3.5 py-1.5 text-xs font-bold text-slate-800 shadow-sm hover:bg-white/90"
         >
           {t.accion.etiqueta}
         </button>

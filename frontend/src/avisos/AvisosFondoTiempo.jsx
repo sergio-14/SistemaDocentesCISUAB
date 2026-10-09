@@ -48,6 +48,7 @@ export default function AvisosFondoTiempo() {
       id: `aviso-${aviso.id}`,
       texto: aviso.texto,
       tono: aviso.tono,
+      etiqueta: aviso.accion || 'Ver',
       alVer: () => navigateRef.current(`/fondo-tiempo/fondo/${aviso.fondo_id}`),
     }));
   }, []);

@@ -23,46 +23,48 @@ from django.utils import timezone
 
 from fondos.models import AvisoVisto, HistorialFondo
 
-# Tono del toast: 'aviso' (celeste), 'exito' (verde) o 'atencion' (rojo suave).
+# Por evento: el tono del toast ('aviso' celeste, 'exito' verde o 'atencion' rojo
+# suave) y, por papel, (texto, botón). Textos cortos: quién y qué pasó; el botón abre
+# el fondo y dice lo que toca hacer ("Revisar", "Corregir") o "Ver".
 AVISOS = {
     'fondo_presentado': {
         'tono': 'aviso',
-        'revisor': 'Nuevo fondo para revisar: {docente} (gestión {gestion}).',
+        'revisor': ('{docente} presentó su fondo {gestion}', 'Revisar'),
     },
     'fondo_observado': {
         'tono': 'atencion',
-        'jefe': 'El fondo de {docente} recibió observaciones.',
-        'docente': 'Tu fondo de tiempo recibió observaciones.',
+        'jefe': ('Fondo de {docente} observado', 'Corregir'),
+        'docente': ('Tu fondo tiene observaciones', 'Ver'),
     },
     'fondo_rechazado': {
         'tono': 'atencion',
-        'jefe': 'El fondo de {docente} fue rechazado.',
-        'docente': 'Tu fondo de tiempo fue rechazado.',
+        'jefe': ('Fondo de {docente} rechazado', 'Ver'),
+        'docente': ('Tu fondo fue rechazado', 'Ver'),
     },
     'fondo_aprobado': {
         'tono': 'exito',
-        'jefe': 'El fondo de {docente} fue aprobado.',
-        'docente': 'Tu fondo de tiempo fue aprobado.',
+        'jefe': ('Fondo de {docente} aprobado', 'Ver'),
+        'docente': ('Tu fondo fue aprobado', 'Ver'),
     },
     'ejecucion_iniciada': {
         'tono': 'exito',
-        'jefe': 'El fondo de {docente} está en ejecución.',
-        'docente': 'Tu fondo está en ejecución. Ya puedes redactar tu informe.',
+        'jefe': ('Fondo de {docente} en ejecución', 'Ver'),
+        'docente': ('Tu fondo está en ejecución: ya puedes redactar tu informe', 'Ver'),
     },
     'informe_presentado': {
         'tono': 'aviso',
-        'revisor': '{docente} presentó su informe para evaluar.',
-        'jefe': '{docente} presentó su informe.',
+        'revisor': ('{docente} presentó su informe', 'Revisar'),
+        'jefe': ('{docente} presentó su informe', 'Ver'),
     },
     'informe_observado': {
         'tono': 'atencion',
-        'docente': 'Tu informe fue observado. Revisa las correcciones y vuelve a presentarlo.',
-        'jefe': 'El informe de {docente} fue observado.',
+        'docente': ('Tu informe tiene correcciones', 'Corregir'),
+        'jefe': ('Informe de {docente} observado', 'Ver'),
     },
     'fondo_finalizado': {
         'tono': 'exito',
-        'docente': 'Tu fondo fue finalizado. Cumplimiento: {nivel}.',
-        'jefe': 'El fondo de {docente} fue finalizado.',
+        'docente': ('Tu fondo fue finalizado · Cumplimiento: {nivel}', 'Ver'),
+        'jefe': ('Fondo de {docente} finalizado', 'Ver'),
     },
 }
 
@@ -110,7 +112,7 @@ def destinatario(user, perfil, fondo):
 
 def _nivel_cumplimiento(fondo):
     informe = fondo.informes.filter(tipo='parcial').order_by('-fecha_elaboracion').first()
-    return informe.get_cumplimiento_display() if informe and informe.cumplimiento else 'sin registrar'
+    return informe.get_cumplimiento_display().lower() if informe and informe.cumplimiento else 'sin registrar'
 
 
 def aviso_de_evento(historial, papel):
@@ -125,11 +127,13 @@ def aviso_de_evento(historial, papel):
         'gestion': fondo.gestion,
         'nivel': _nivel_cumplimiento(fondo) if evento == 'fondo_finalizado' else '',
     }
+    texto, accion = textos[papel]
     return {
         'id': historial.id,
         'evento': evento,
         'fondo_id': fondo.id,
-        'texto': textos[papel].format(**datos),
+        'texto': texto.format(**datos),
+        'accion': accion,
         'tono': textos['tono'],
         'fecha': historial.fecha,
     }

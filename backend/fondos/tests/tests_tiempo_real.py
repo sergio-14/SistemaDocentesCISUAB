@@ -216,16 +216,16 @@ class AvisosPorSocketTests(SocketBaseTests):
                 estado_anterior='borrador', estado_nuevo='presentado_director',
             )
         await self._fila(lambda: self._estado('presentado_director'), presentar, {
-            self.director: f'Nuevo fondo para revisar: {self.nombre} (gestión 2026).',
+            self.director: f'{self.nombre} presentó su fondo 2026',
         })
 
     async def test_director_observa_rechaza_y_aprueba(self):
         casos = (
             ('observar', {'accion': 'observar', 'observacion': 'Revisar horas.'},
-             'El fondo de {n} recibió observaciones.', 'Tu fondo de tiempo recibió observaciones.'),
+             'Fondo de {n} observado', 'Tu fondo tiene observaciones'),
             ('observar', {'accion': 'rechazar', 'observacion': 'No corresponde.'},
-             'El fondo de {n} fue rechazado.', 'Tu fondo de tiempo fue rechazado.'),
-            ('aprobar', {}, 'El fondo de {n} fue aprobado.', 'Tu fondo de tiempo fue aprobado.'),
+             'Fondo de {n} rechazado', 'Tu fondo fue rechazado'),
+            ('aprobar', {}, 'Fondo de {n} aprobado', 'Tu fondo fue aprobado'),
         )
         for ruta, datos, al_jefe, al_docente in casos:
             with self.subTest(accion=datos.get('accion', ruta)):
@@ -237,15 +237,15 @@ class AvisosPorSocketTests(SocketBaseTests):
 
     async def test_director_inicia_la_ejecucion(self):
         await self._fila(lambda: self._estado('aprobado_director'), lambda: self._accion(self.director, 'iniciar_ejecucion'), {
-            self.jefe: f'El fondo de {self.nombre} está en ejecución.',
-            self.usuario_docente: 'Tu fondo está en ejecución. Ya puedes redactar tu informe.',
+            self.jefe: f'Fondo de {self.nombre} en ejecución',
+            self.usuario_docente: 'Tu fondo está en ejecución: ya puedes redactar tu informe',
         })
 
     async def test_docente_presenta_el_informe(self):
         datos = {'seccion_academica': '<p>Dicté mis materias.</p>', 'conclusiones_generales': '<p>Cumplí.</p>'}
         await self._fila(lambda: self._estado('en_ejecucion'), lambda: self._accion(self.usuario_docente, 'presentar', datos), {
-            self.director: f'{self.nombre} presentó su informe para evaluar.',
-            self.jefe: f'{self.nombre} presentó su informe.',
+            self.director: f'{self.nombre} presentó su informe',
+            self.jefe: f'{self.nombre} presentó su informe',
         })
 
     async def test_director_solicita_correcciones_al_informe(self):
@@ -253,8 +253,8 @@ class AvisosPorSocketTests(SocketBaseTests):
             lambda: self._estado('informe_presentado', informe=True),
             lambda: self._accion(self.director, 'observar-informe', {'comentario': 'Falta la sección académica.'}),
             {
-                self.usuario_docente: 'Tu informe fue observado. Revisa las correcciones y vuelve a presentarlo.',
-                self.jefe: f'El informe de {self.nombre} fue observado.',
+                self.usuario_docente: 'Tu informe tiene correcciones',
+                self.jefe: f'Informe de {self.nombre} observado',
             },
         )
 
@@ -263,8 +263,8 @@ class AvisosPorSocketTests(SocketBaseTests):
             lambda: self._estado('informe_presentado', informe=True),
             lambda: self._accion(self.director, 'evaluar-y-finalizar', EVALUACION),
             {
-                self.usuario_docente: 'Tu fondo fue finalizado. Cumplimiento: Cumplido.',
-                self.jefe: f'El fondo de {self.nombre} fue finalizado.',
+                self.usuario_docente: 'Tu fondo fue finalizado · Cumplimiento: cumplido',
+                self.jefe: f'Fondo de {self.nombre} finalizado',
             },
         )
 

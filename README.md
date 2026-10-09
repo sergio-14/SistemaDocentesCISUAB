@@ -69,6 +69,8 @@ La primera ejecucion crea la base de datos y aplica las migraciones de Django.
 - API: <http://localhost:8000/api/>
 - Administracion Django: <http://localhost:8000/django-admin/> (solo en desarrollo)
 - PostgreSQL: `localhost:5432` (solo desde este equipo)
+- Tiempo real (WebSockets): `ws://localhost:5173/ws/tiempo-real/` (Vite lo reenvia al
+  servicio `realtime`, que tambien escucha en `localhost:8001`). Ver [Tiempo real](#tiempo-real-websockets).
 
 > El admin de Django esta en `/django-admin/` porque `/admin` es el panel de
 > administracion de la app React. En produccion esta **apagado**: solo existe si
@@ -144,7 +146,7 @@ PostgreSQL en el volumen Docker `postgres16_data`.
 | Sin `ports:` ni `container_name` | Solo `expose:` |
 | Red `dokploy-network` en el servicio que recibe trafico | Servicio `frontend` |
 | Datos en volumenes con nombre | `postgres_data`, `media_data`, `backups` |
-| Usuario no-root | Backend con usuario `app` (UID 10001) |
+| Usuario no-root | Backend y `realtime` con usuario `app` (UID 10001); `redis` con su usuario `redis` |
 | El entrypoint espera a la BD y migra | `backend/entrypoint.sh` (tambien `collectstatic` y gunicorn) |
 | `restart` + healthcheck | En todos los servicios |
 | Variables estandar y obligatorias con `:?` | `DJANGO_*`, `POSTGRES_*` |
@@ -153,8 +155,13 @@ Arquitectura (un solo dominio):
 
 ```
 Usuario ──HTTPS──▶ Traefik ──▶ frontend (nginx :80) ──┬─▶ SPA React
-                                                      └─▶ /api, /media, /static
-                                                           ──▶ backend (gunicorn :8000) ──▶ db
+                                                      ├─▶ /api, /media, /static
+                                                      │    ──▶ backend (gunicorn :8000) ──▶ db
+                                                      │              │ publica
+                                                      │              ▼
+                                                      │            redis
+                                                      │              ▲
+                                                      └─▶ /ws/ ──▶ realtime (uvicorn :8001)
 ```
 
 Diferencias intencionadas con las plantillas de la guia:
@@ -225,7 +232,8 @@ El registro DNS tipo A del dominio debe apuntar a la IP del VPS.
 ### 4. Desplegar
 
 *Deploy* y revisar *Deployments* / *Logs*. En el backend deben verse
-`Base de datos disponible.`, las migraciones y `Starting gunicorn`.
+`Base de datos disponible.`, las migraciones y `Starting gunicorn`; en `realtime`,
+`Application startup complete.` (arranca despues de que el backend esta sano).
 
 ### 5. Verificar
 
@@ -234,6 +242,8 @@ El registro DNS tipo A del dominio debe apuntar a la IP del VPS.
 - `https://midominio.com/django-admin/` **no** existe (el admin de Django esta
   apagado en produccion).
 - Los datos siguen tras un redeploy.
+- Tiempo real: en el navegador (herramientas → Red → WS) `/ws/tiempo-real/` queda
+  conectado, y un aviso (por ejemplo, aprobar un fondo) le llega al instante a otro usuario.
 
 ### 6. Crear el administrador (a mano)
 
@@ -281,6 +291,57 @@ las copias. Sin otro servidor ni nube, la version simple es:
 docker network create dokploy-network   # solo la primera vez
 docker compose -f docker-compose.yml --env-file .env.production.local up -d --build
 ```
+
+## Tiempo real (WebSockets)
+
+Los avisos del Fondo de Tiempo, el chat de observaciones y las listas y el detalle
+de los fondos se actualizan al instante por un WebSocket en lugar de consultar cada
+pocos segundos.
+
+- **realtime:** servicio aparte con la misma imagen del backend, con uvicorn (ASGI) y
+  Django Channels. Solo atiende `/ws/`; la API sigue en gunicorn, sin cambios.
+- **redis:** pasa los mensajes del backend a `realtime`. No guarda nada en disco.
+- **Quien recibe que:** lo decide `backend/fondos/avisos.py` (los mismos textos de
+  `/fondos-tiempo/novedades/`) segun el rol activo; la conexion se autentica con el JWT.
+- **Respaldo:** si el socket se corta, el navegador consulta cada 60 s hasta reconectarse
+  y al reconectar se pone al dia (los avisos no se pierden ni se repiten). Si `redis` no
+  responde, la API sigue funcionando: solo se pierde la inmediatez.
+
+### Memoria estimada
+
+| Servicio | Uso habitual | Tope |
+|---|---|---|
+| `redis` | 5 a 30 MB (unos 4 MB en reposo) | 64 MB (`--maxmemory 64mb`) |
+| `realtime` | 70 a 120 MB (unos 80 MB medidos en local) | crece poco por conexion: algunos KB por usuario conectado |
+
+En total, unos **100 a 150 MB** adicionales. Antes de desplegar, comprobar que el VPS
+tenga ese margen libre (`docker stats` muestra el consumo de cada servicio).
+
+### Apagar el tiempo real
+
+1. **Sin tocar los servicios:** en Dokploy (*Environment*) `VITE_TIEMPO_REAL=false` y
+   **Rebuild** (la variable se incrusta al compilar el frontend). El navegador no abre
+   el socket y consulta como antes: avisos cada 20 s, lista cada 30 s, detalle cada
+   10 s, chat cada 5 s (abierto) o 30 s (cerrado). Para volver a encenderlo:
+   `VITE_TIEMPO_REAL=true` (o borrar la variable) y Rebuild.
+2. **Si `realtime` o `redis` fallan:** el sistema sigue funcionando con el respaldo
+   (cada 60 s); se puede apagar como en el punto 1 mientras se revisan sus logs.
+3. **Volver atras del todo:** desplegar el commit anterior a la rama `websockets`. No hay
+   migraciones de base de datos de por medio.
+
+En desarrollo: `VITE_TIEMPO_REAL=false` en el `.env` y reiniciar el servicio `frontend`.
+
+### Probar en local
+
+```bash
+docker compose -f docker-compose.dev.yml up -d --build
+docker compose -f docker-compose.dev.yml ps        # redis y realtime en marcha
+docker compose -f docker-compose.dev.yml stop realtime   # probar el respaldo
+docker compose -f docker-compose.dev.yml start realtime
+```
+
+Con dos navegadores (por ejemplo Director y Jefe de la misma carrera): aprobar u observar
+un fondo, escribir en el chat o cambiar cargas debe verse al instante en el otro.
 
 ## Archivos subidos (carpeta media)
 

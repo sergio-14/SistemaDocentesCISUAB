@@ -5,8 +5,11 @@
 # Dokploy > Domains:      Service "frontend", Port 80, HTTPS (Let's Encrypt)
 #
 # Un solo dominio: el nginx del servicio "frontend" es la única entrada y
-# reenvía /api, /media y /static al backend por la red interna. El admin de Django
-# (/django-admin/) está apagado en producción (DJANGO_ADMIN_ENABLED).
+# reenvía /api, /media y /static al backend y /ws/ (WebSockets) a realtime por la red
+# interna. El admin de Django (/django-admin/) está apagado en producción (DJANGO_ADMIN_ENABLED).
+#
+# Tiempo real (avisos, chat y listas al instante): servicios redis y realtime. Para
+# apagarlo sin quitarlos: VITE_TIEMPO_REAL=false (ver README, "Tiempo real").
 #
 # - Sin "ports:" ni "container_name" (reglas 4 y 5).
 # - PostgreSQL 16 sin puerto publicado (reglas 1 y 6).
@@ -19,6 +22,25 @@
 #   docker compose -f docker-compose.yml --env-file .env.production.local up -d --build
 # Desarrollo local: docker-compose.dev.yml
 # ============================================================
+
+# Entorno común de backend (API, gunicorn) y realtime (WebSockets, uvicorn).
+x-entorno-backend: &entorno-backend
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Falta DJANGO_SECRET_KEY}
+  DJANGO_DEBUG: "False"
+  # Admin de Django apagado; para activarlo también hay que exponerlo en frontend/nginx.conf.
+  DJANGO_ADMIN_ENABLED: ${DJANGO_ADMIN_ENABLED:-False}
+  DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?Falta DJANGO_ALLOWED_HOSTS}
+  DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:?Falta DJANGO_CSRF_TRUSTED_ORIGINS}
+  POSTGRES_HOST: db
+  POSTGRES_PORT: 5432
+  POSTGRES_DB: ${POSTGRES_DB}
+  POSTGRES_USER: ${POSTGRES_USER}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  PROFILE_IMAGE_ENCRYPTION_KEY: ${PROFILE_IMAGE_ENCRYPTION_KEY:-}
+  MEDIA_URL_MAX_AGE: ${MEDIA_URL_MAX_AGE:-3600}
+  SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
+  REDIS_URL: redis://redis:6379/0
+
 services:
   db:
     image: postgres:16-alpine
@@ -51,20 +73,7 @@ services:
       context: ./backend
     restart: unless-stopped
     environment:
-      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Falta DJANGO_SECRET_KEY}
-      DJANGO_DEBUG: "False"
-      # Admin de Django apagado; para activarlo también hay que exponerlo en frontend/nginx.conf.
-      DJANGO_ADMIN_ENABLED: ${DJANGO_ADMIN_ENABLED:-False}
-      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?Falta DJANGO_ALLOWED_HOSTS}
-      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:?Falta DJANGO_CSRF_TRUSTED_ORIGINS}
-      POSTGRES_HOST: db
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      PROFILE_IMAGE_ENCRYPTION_KEY: ${PROFILE_IMAGE_ENCRYPTION_KEY:-}
-      MEDIA_URL_MAX_AGE: ${MEDIA_URL_MAX_AGE:-3600}
-      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
+      <<: *entorno-backend
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
       GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-120}
     volumes:
@@ -87,6 +96,48 @@ services:
         condition: service_healthy
       media-permisos:
         condition: service_completed_successfully
+      # Si redis no respondiera, la API igual funciona (solo se pierde el tiempo real).
+      redis:
+        condition: service_started
+
+  # Solo pasa mensajes entre backend y realtime: sin guardar en disco y con tope de
+  # memoria (en uso real, pocos MB). Sin puerto publicado.
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # WebSockets (/ws/): la misma imagen del backend con uvicorn (ASGI). La API sigue en
+  # gunicorn. Sin el entrypoint: las migraciones las corre el backend, del que depende.
+  realtime:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    entrypoint: []
+    command: ["uvicorn", "config.asgi:application", "--host", "0.0.0.0", "--port", "8001", "--proxy-headers", "--forwarded-allow-ips", "*"]
+    environment: *entorno-backend
+    expose:
+      - "8001"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os,urllib.request as r; h=os.environ['DJANGO_ALLOWED_HOSTS'].split(',')[0].strip(); r.urlopen(r.Request('http://127.0.0.1:8001/health/', headers={'Host': h}), timeout=5)"
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
 
   frontend:
     build:
@@ -94,6 +145,8 @@ services:
       dockerfile: Dockerfile.prod
       args:
         VITE_API_URL: ${VITE_API_URL:?Falta VITE_API_URL}
+        # "false" apaga el tiempo real: el frontend no abre el socket y consulta como antes.
+        VITE_TIEMPO_REAL: ${VITE_TIEMPO_REAL:-true}
     restart: unless-stopped
     expose:
       - "80"

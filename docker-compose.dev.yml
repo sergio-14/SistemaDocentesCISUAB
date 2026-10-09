@@ -92,6 +92,8 @@ services:
       - "5173:5173"
     environment:
       VITE_API_URL: ${VITE_API_URL}
+      # "false" apaga el tiempo real (el frontend consulta como antes).
+      VITE_TIEMPO_REAL: ${VITE_TIEMPO_REAL:-true}
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
     depends_on:

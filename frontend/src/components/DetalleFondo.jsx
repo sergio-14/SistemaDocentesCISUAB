@@ -18,7 +18,7 @@ import FiltroUnidades from './fondos/FiltroUnidades';
 import Plegable from './fondos/Plegable';
 import ProgramaAnaliticoAccion from './fondos/ProgramaAnaliticoAccion';
 import DocumentoActividadAccion from './fondos/DocumentoActividadAccion';
-import { BLOQUE, BOTON, estadoVisibleFondo } from './fondos/estilosFondo';
+import { BLOQUE, BOTON, BOTON_DOCUMENTO, estadoVisibleFondo } from './fondos/estilosFondo';
 import { Avatar, BarraProgreso, EstadoPill, Etiqueta } from './fondos/ElementosFondo';
 import { getApiErrorMessage, getDownloadErrorMessage } from '../utils/formErrors';
 import useConsultaConRespaldo, { useFondoActualizado } from '../tiempoReal/useTiempoReal';
@@ -87,7 +87,6 @@ const ABREVIATURA_DEDICACION = {
 // Botones del panel de acciones: a lo ancho y con el estilo de los botones del dashboard.
 const ACCION = `${BOTON} w-full py-2.5`;
 const ACCION_DESHABILITADA = 'bg-slate-200 text-slate-500 cursor-not-allowed';
-const ACCION_SECUNDARIA = 'bg-white/70 text-blue-900 ring-1 ring-inset ring-azulado-300 hover:bg-azulado-100';
 
 function DetalleFondo() {
   const { activeAssignment, activeRole, effectiveUser } = useActiveRole();
@@ -1090,7 +1089,7 @@ function DetalleFondo() {
 
                 <button
                   onClick={abrirPdfEnNuevaPestana}
-                  className={`${ACCION} ${ACCION_SECUNDARIA}`}
+                  className={`${ACCION} ${BOTON_DOCUMENTO}`}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />

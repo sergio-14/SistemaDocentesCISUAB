@@ -7,7 +7,7 @@ import { getApiErrorMessage, getDownloadErrorMessage } from '../utils/formErrors
 import useConsultaPeriodica from '../utils/useConsultaPeriodica';
 import useModoClaro from '../utils/useModoClaro';
 import ModalConfirmar from './common/ModalConfirmar';
-import { BLOQUE, BOTON } from './fondos/estilosFondo';
+import { BLOQUE, BOTON, BOTON_DOCUMENTO } from './fondos/estilosFondo';
 import InformeCampoRico from './InformeCampoRico';
 import InformeCampoPlano from './InformeCampoPlano';
 import InformeFormatToolbar from './InformeFormatToolbar';
@@ -332,24 +332,23 @@ export default function EditorInformePage() {
                   {estadoGuardado}
                 </span>
 
-                <div className="inline-flex items-center rounded-full bg-white/10 p-1 ring-1 ring-inset ring-white/15">
+                {/* Documento: botones sólidos con el color secundario del Dashboard (sky-600). */}
+                <div className="inline-flex items-center gap-1.5">
                   {[
                     { accion: 'ver', etiqueta: 'Vista previa', titulo: 'Ver el PDF en una pestaña nueva', icono: Eye },
                     { accion: 'pdf', etiqueta: 'PDF', titulo: 'Descargar en PDF', icono: Download },
                     { accion: 'word', etiqueta: 'Word', titulo: 'Descargar en Word (.docx) para editarlo', icono: Download },
-                  ].map(({ accion, etiqueta, titulo, icono: Icono }, indice) => (
-                    <div key={accion} className="flex items-center">
-                      {indice > 0 && <span className="mx-0.5 h-4 w-px bg-white/20" />}
-                      <button
-                        onClick={() => obtenerDocumento(accion)}
-                        disabled={Boolean(generando)}
-                        title={titulo}
-                        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-white hover:bg-white/15 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        {generando === accion ? <Loader2 className="w-4 h-4 animate-spin" /> : <Icono className="w-4 h-4" />}
-                        {etiqueta}
-                      </button>
-                    </div>
+                  ].map(({ accion, etiqueta, titulo, icono: Icono }) => (
+                    <button
+                      key={accion}
+                      onClick={() => obtenerDocumento(accion)}
+                      disabled={Boolean(generando)}
+                      title={titulo}
+                      className={`${BOTON} ${BOTON_DOCUMENTO} disabled:opacity-60 disabled:cursor-not-allowed`}
+                    >
+                      {generando === accion ? <Loader2 className="w-4 h-4 animate-spin" /> : <Icono className="w-4 h-4" />}
+                      {etiqueta}
+                    </button>
                   ))}
                 </div>
 

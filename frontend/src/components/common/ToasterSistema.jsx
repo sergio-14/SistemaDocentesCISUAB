@@ -58,11 +58,24 @@ function ToastFondo({ t }) {
         )}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-bold leading-tight">{tipo.titulo}</p>
+        <p className="text-sm font-bold leading-tight">{t.titulo || tipo.titulo}</p>
         <p className="mt-0.5 text-sm leading-snug text-white/90 break-words">
           {resolveValue(t.message, t)}
         </p>
       </div>
+      {/* Acción opcional del aviso (p. ej. "Ver" abre el fondo): toast(texto, { accion: { etiqueta, alHacerClic } }) */}
+      {t.accion && (
+        <button
+          type="button"
+          onClick={() => {
+            toast.dismiss(t.id);
+            t.accion.alHacerClic();
+          }}
+          className="flex-shrink-0 self-center rounded-full bg-white/20 px-3 py-1.5 text-xs font-bold text-white hover:bg-white/30"
+        >
+          {t.accion.etiqueta}
+        </button>
+      )}
       <button
         type="button"
         onClick={() => toast.dismiss(t.id)}

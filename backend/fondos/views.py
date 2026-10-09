@@ -19,6 +19,7 @@ from .utils.informe_gestion_pdf import InformeGestionCarreraPDF
 from .utils.pdf_generator import FondoPDFGenerator, InformePDFGenerator
 from .utils.informe_texto import CAMPOS_TEXTO_INFORME, construir_defaults_informe
 from .utils.informe_word import generar_informe_word
+from .avisos import avisos_para_usuario
 from .utils.informe_imagenes import ImagenInformeInvalida, carpeta_imagenes, validar_imagenes_informe
 from rest_framework_simplejwt.views import TokenObtainPairView
 
@@ -2147,6 +2148,20 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             estado_nuevo='borrador',
         )
         return Response({'status': 'Fondo devuelto a borrador'}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='novedades')
+    def novedades(self, request):
+        """Avisos nuevos para el usuario en su rol activo (ver fondos/avisos.py):
+        GET /fondos-tiempo/novedades/?desde=<id del último evento visto>.
+        Devuelve {avisos: [...], ultimo_id}; ultimo_id es el `desde` de la próxima consulta."""
+        desde = request.query_params.get('desde')
+        try:
+            desde = int(desde) if desde not in (None, '') else None
+        except ValueError:
+            return Response({'detail': "El parámetro 'desde' debe ser un entero."}, status=status.HTTP_400_BAD_REQUEST)
+        perfil = _obtener_perfil_efectivo(request.user, request)
+        avisos, ultimo_id = avisos_para_usuario(request.user, perfil, self.get_queryset(), desde)
+        return Response({'avisos': avisos, 'ultimo_id': ultimo_id})
 
     @action(detail=True, methods=['get'], url_path='contacto-chat')
     def contacto_chat(self, request, pk=None):

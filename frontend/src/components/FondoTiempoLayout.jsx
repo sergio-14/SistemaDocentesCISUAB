@@ -6,7 +6,6 @@ import AvisoCarreraInactiva from './common/AvisoCarreraInactiva';
 import AvisoFichaDocentePendiente from './common/AvisoFichaDocentePendiente';
 import useSinElevacionPoa from '../utils/useSinElevacionPoa';
 import useModoClaro from '../utils/useModoClaro';
-import useAvisoFondosPorAtender from '../utils/useAvisoFondosPorAtender';
 
 const FondoTiempoLayout = ({ 
     user, 
@@ -23,8 +22,6 @@ const FondoTiempoLayout = ({
     } = useActiveRole();
     const location = useLocation();
     useSinElevacionPoa();
-    // Toast al Director (fondo presentado) y al Jefe de Estudios (fondo observado).
-    useAvisoFondosPorAtender();
 
     // En pantallas menores a lg el sidebar es un menú deslizable que tapa el contenido.
     const [esMovil, setEsMovil] = useState(() => window.matchMedia('(max-width: 1023px)').matches);

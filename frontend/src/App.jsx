@@ -42,6 +42,7 @@ import AdminPanel from './components/AdminPanel';
 import RutaPorRol from './components/common/RutaPorRol';
 import SimpleLayout from './components/layouts/SimpleLayout';
 import ToasterSistema from './components/common/ToasterSistema';
+import AvisosFondoTiempo from './avisos/AvisosFondoTiempo';
 import AdminDashboard from './components/AdminDashboard';
 import CambiarPassword from './components/CambiarPassword';
 import CargaHorariaGeneral from './components/CargaHorariaGeneral';
@@ -245,6 +246,8 @@ function App() {
     <ActiveRoleProvider user={user} setUser={setUser}>
     <Router>
       <ToasterSistema isDark={isDark} />
+      {/* Avisos del Fondo de Tiempo para el rol activo (único lugar que los muestra) */}
+      {user && <AvisosFondoTiempo />}
       <style>{`
         @keyframes page-enter-animation {
           from {

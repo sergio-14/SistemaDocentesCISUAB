@@ -1485,9 +1485,10 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
                 })
 
         # Cruces de horario del docente en cualquier calendario que coincide en fechas
-        # (un semestre y un anual, o calendarios de otra carrera).
+        # (un semestre y un anual, o calendarios de otra carrera). Las cargas de los fondos
+        # archivados no cuentan: el fondo nuevo de la gestión vuelve a usar sus horarios.
         if docente and calendario and dia_semana and hora_inicio and hora_fin:
-            choques_docente = CargaHoraria.objects.filter(
+            choques_docente = CargaHoraria.objects.exclude(fondo__archivado=True).filter(
                 docente=docente,
                 calendario__fecha_inicio__lte=calendario.fecha_fin,
                 calendario__fecha_fin__gte=calendario.fecha_inicio,
@@ -1503,7 +1504,7 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
                 })
 
             if aula:
-                choques_aula = CargaHoraria.objects.filter(
+                choques_aula = CargaHoraria.objects.exclude(fondo__archivado=True).filter(
                     calendario=calendario,
                     aula__iexact=str(aula).strip(),
                     dia_semana=dia_semana,
@@ -1518,7 +1519,7 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
                     })
 
         if docente and calendario and materia and paralelo and dia_semana and hora_inicio:
-            duplicados = CargaHoraria.objects.filter(
+            duplicados = CargaHoraria.objects.exclude(fondo__archivado=True).filter(
                 docente=docente,
                 calendario=calendario,
                 materia=materia,

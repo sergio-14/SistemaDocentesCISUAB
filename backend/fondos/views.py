@@ -1469,7 +1469,10 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         )
 
         # 2. Aplicar filtros según la acción
-        if self.action in ['retrieve', 'restaurar', 'destroy', 'generar_pdf_oficial', 'generar_pdf_informe']:
+        if self.action in [
+            'retrieve', 'restaurar', 'destroy', 'generar_pdf_oficial', 'generar_pdf_informe',
+            'generar_word_informe', 'checklist_salud_pdf',
+        ]:
             # Acciones que permiten ver archivados (con validación de dueño)
             if not self.request.user.is_superuser:
                 perfil = _obtener_perfil_efectivo(self.request.user, self.request)
@@ -1762,15 +1765,38 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
                 f"Solo el superusuario o el Director y el Jefe de Estudios de la carrera pueden {accion} fondos."
             )
 
+    # Los mismos que ofrece el botón Archivar (ESTADOS_ARCHIVABLES de ListaFondos.jsx): un
+    # fondo en revisión o en ejecución no se archiva para rehacerlo fuera del flujo.
+    ESTADOS_ARCHIVABLES = ['aprobado_director', 'finalizado', 'rechazado']
+
+    def _registrar_archivo(self, fondo, descripcion):
+        """Archivar y restaurar quedan en el historial sin estado anterior ni nuevo: el
+        estado del fondo no cambia y así no generan avisos (avisos.evento_de)."""
+        HistorialFondo.objects.create(
+            fondo_tiempo=fondo,
+            usuario=self.request.user,
+            tipo_cambio='archivado',
+            descripcion=f'{descripcion} (estado: {fondo.get_estado_display()}).',
+        )
+
     def destroy(self, request, *args, **kwargs):
         """No se elimina: se archiva (superusuario, o Director y Jefe de Estudios de la carrera)."""
         instance = self.get_object()
         self._validar_archivo(instance, 'archivar')
+        if instance.archivado:
+            return Response({'error': 'Este fondo ya está archivado.'}, status=status.HTTP_400_BAD_REQUEST)
+        if instance.estado not in self.ESTADOS_ARCHIVABLES:
+            return Response(
+                {'error': f'No se puede archivar un fondo en estado "{instance.get_estado_display()}": '
+                          'solo aprobados, finalizados o rechazados.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Archivar en lugar de eliminar
         instance.archivado = True
         instance.save()
-        
+        self._registrar_archivo(instance, 'Fondo archivado')
+
         return Response(
             {'message': 'Fondo archivado correctamente'},
             status=status.HTTP_200_OK
@@ -1802,22 +1828,22 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
     @action(detail=False, methods=['get'])
     def comparar(self, request):
         """Endpoint para comparar fondos de tiempo entre gestiones"""
-        docente_id = request.query_params.get('docente')
-        gestion1 = request.query_params.get('gestion1')
-        gestion2 = request.query_params.get('gestion2')
-        
-        if not all([docente_id, gestion1, gestion2]):
+        try:
+            docente_id, gestion1, gestion2 = (
+                int(request.query_params[clave]) for clave in ('docente', 'gestion1', 'gestion2')
+            )
+        except (KeyError, ValueError):
             return Response({
-                'error': 'Se requieren los parámetros: docente, gestion1, gestion2'
+                'error': 'Se requieren los parámetros numéricos: docente, gestion1, gestion2'
             }, status=status.HTTP_400_BAD_REQUEST)
-        
+
         # Dentro del alcance del usuario (get_queryset): antes devolvía los fondos de
         # cualquier docente de cualquier carrera.
         fondos = self.get_queryset().filter(
             docente_id=docente_id,
             gestion__in=[gestion1, gestion2],
-        ).select_related('docente', 'carrera')
-        
+        ).select_related('docente', 'carrera').order_by('gestion')
+
         serializer = self.get_serializer(fondos, many=True)
         return Response(serializer.data)
     
@@ -1848,7 +1874,11 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
     def restaurar(self, request, pk=None):
         """Restaurar un fondo archivado (superusuario, o Director y Jefe de Estudios de la carrera)."""
         # get_object() excluye los archivados: se busca directo y se valida la carrera.
-        fondo = get_object_or_404(FondoTiempo, pk=pk)
+        # El Director no restaura borradores ajenos (tampoco los ve en la lista).
+        perfil = _obtener_perfil_efectivo(request.user, request)
+        fondo = get_object_or_404(
+            _sin_borradores_ajenos_para_director(FondoTiempo.objects.all(), request.user, perfil), pk=pk,
+        )
         self._validar_archivo(fondo, 'restaurar')
         
         if not fondo.archivado:
@@ -1865,7 +1895,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         
         fondo.archivado = False
         fondo.save()
-        
+        self._registrar_archivo(fondo, 'Fondo restaurado')
+
         serializer = self.get_serializer(fondo)
         return Response(serializer.data)
 

@@ -264,7 +264,7 @@ function ListaFondos() {
       alert('✅ Fondo archivado correctamente');
     } catch (err) {
       console.error(err);
-      alert('❌ Error al archivar: ' + (err.response?.data?.detail || err.message));
+      alert('❌ Error al archivar: ' + (err.response?.data?.error || err.response?.data?.detail || err.message));
     }
   };
 

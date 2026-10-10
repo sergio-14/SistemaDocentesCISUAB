@@ -40,7 +40,7 @@ function FondosArchivados() {
       cargarArchivados();
     } catch (error) {
       console.error('Error al restaurar:', error);
-      alert('❌ Error al restaurar el fondo');
+      alert('❌ Error al restaurar el fondo: ' + (error.response?.data?.error || error.response?.data?.detail || error.message));
     }
   };
 

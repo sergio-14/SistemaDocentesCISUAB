@@ -76,8 +76,33 @@ def datos_informe_gestion(carrera, gestion):
         }
         for tipo, nombre in UNIDADES_FONDO
     ]
+    # Doble carrera: materias de esta carrera que dictan docentes cuyo fondo es de otra.
+    # Esas horas ya cuentan en el fondo (y el informe) de la otra carrera: aquí van aparte,
+    # sin sumarse a los totales.
+    horas_otras = (
+        CargaHoraria.objects.filter(calendario__carrera=carrera, fondo__gestion=gestion, fondo__archivado=False)
+        .exclude(fondo__carrera=carrera)
+        .order_by().values('fondo', 'materia__nombre').annotate(horas_total=Sum('horas'))
+    )
+    fondos_otras = FondoTiempo.objects.select_related('docente__user', 'carrera').in_bulk(
+        {fila['fondo'] for fila in horas_otras}
+    )
+    otras_carreras = sorted(
+        (
+            {
+                'docente': fondos_otras[fila['fondo']].docente.nombre_completo,
+                'carrera_fondo': fondos_otras[fila['fondo']].carrera.nombre,
+                'materia': fila['materia__nombre'],
+                'horas': fila['horas_total'] or 0,
+                'estado': fondos_otras[fila['fondo']].get_estado_display(),
+            }
+            for fila in horas_otras
+        ),
+        key=lambda fila: (fila['docente'], fila['materia']),
+    )
     return {
         'filas': filas,
+        'otras_carreras': otras_carreras,
         'unidades': unidades,
         'total_efectivas': sum(Decimal(str(fila['horas_efectivas'])) for fila in filas),
         'total_asignado': total_asignado,
@@ -159,6 +184,23 @@ class InformeGestionCarreraPDF:
         story.append(InformeGestionCarreraPDF._tabla(
             filas, [1.0 * cm, 7.6 * cm, 4.2 * cm, 2.8 * cm, 2.8 * cm, 4.2 * cm, 2.6 * cm],
         ))
+
+        if datos['otras_carreras']:
+            story += [
+                Spacer(1, 0.5 * cm), p('Docentes de otras carreras con materias de esta carrera', 'seccion'),
+                p('Sus horas figuran en el Fondo de Tiempo de su carrera: no se suman a los totales de este informe.', 'nota'),
+                Spacer(1, 0.15 * cm),
+            ]
+            filas = [[p(texto, 'cabecera') for texto in
+                      ['N°', 'Docente', 'Carrera del fondo', 'Materia', 'Horas asignadas', 'Estado del fondo']]]
+            for numero, fila in enumerate(datos['otras_carreras'], start=1):
+                filas.append([
+                    p(numero), p(fila['docente']), p(fila['carrera_fondo']), p(fila['materia']),
+                    p(_horas(fila['horas']), 'num'), p(fila['estado']),
+                ])
+            story.append(InformeGestionCarreraPDF._tabla(
+                filas, [1.0 * cm, 6.4 * cm, 4.6 * cm, 6.4 * cm, 2.8 * cm, 4.0 * cm],
+            ))
 
         story += [Spacer(1, 0.5 * cm), p('Resumen por unidad (Art. 12)', 'seccion')]
         filas = [[p(texto, 'cabecera') for texto in ['Unidad', 'Horas asignadas', '% del total asignado', 'Docentes con horas']]]

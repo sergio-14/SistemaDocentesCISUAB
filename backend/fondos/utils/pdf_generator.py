@@ -761,9 +761,10 @@ class FondoPDFGenerator:
         # arman juntas: cada fila de "Clases Aula" queda a la altura de su línea
         # "Asignatura: ... N Hrs/Sem", como en el formato en papel. Una misma materia
         # puede tener varios registros (un calendario por semestre): se agrupa por
-        # (materia, paralelo) y el paralelo solo se muestra cuando no es 'A'.
+        # (materia, paralelo) y el paralelo solo se muestra cuando no es 'A'. La materia de
+        # otra carrera (doble carrera) lleva esa carrera entre paréntesis.
         cargas_docencia = fondo.cargas.filter(categoria='academica').select_related(
-            'materia', 'calendario',
+            'materia__carrera', 'calendario',
         ).order_by('calendario__fecha_inicio', 'id')
         total_clases_aula = float(sum(
             carga.horas for carga in cargas_docencia if carga.tipo_actividad == 'clases_aula'
@@ -776,6 +777,8 @@ class FondoPDFGenerator:
                     nombre = _capitalizar(carga.materia.nombre)
                     if carga.paralelo and carga.paralelo != 'A':
                         nombre = f"{nombre} - {carga.paralelo}"
+                    if carga.materia.carrera_id != fondo.carrera_id and carga.materia.carrera:
+                        nombre = f"{nombre} ({_capitalizar(carga.materia.carrera.nombre)})"
                     horas_sem = carga.materia.horas_totales
                 else:
                     nombre, horas_sem = 'Sin materia', None

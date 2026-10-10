@@ -5,14 +5,27 @@ import { EstadoPill } from './fondos/ElementosFondo';
 import { estadoVisibleFondo } from './fondos/estilosFondo';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
-const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
+// Un color fijo por unidad (Art. 12): la misma unidad se ve igual en las dos gestiones.
+const COLOR_UNIDAD = {
+  academica: '#3B82F6',
+  investigacion: '#10B981',
+  extension_universitaria: '#F59E0B',
+  interaccion_social: '#EF4444',
+  gestion: '#8B5CF6',
+  academica_administrativa: '#EC4899',
+  social_cultural_deportiva: '#06B6D4',
+};
+
+const ANIO_ACTUAL = new Date().getFullYear();
 
 function Comparador() {
   const [docentes, setDocentes] = useState([]);
-  const [docenteSeleccionado, setDocenteSeleccionado] = useState('1');
-  const [gestion1, setGestion1] = useState('2023');
-  const [gestion2, setGestion2] = useState('2024');
+  const [docenteSeleccionado, setDocenteSeleccionado] = useState('');
+  const [gestion1, setGestion1] = useState(String(ANIO_ACTUAL - 1));
+  const [gestion2, setGestion2] = useState(String(ANIO_ACTUAL));
   const [fondos, setFondos] = useState([]);
+  // Gestiones de la última comparación: las que no tienen fondo se avisan.
+  const [gestionesComparadas, setGestionesComparadas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -22,7 +35,10 @@ function Comparador() {
 
   const cargarDocentes = async () => {
     try {
-      setDocentes(await getDocentes());
+      const lista = await getDocentes();
+      setDocentes(lista);
+      // El primero de la lista (para el docente, su propia ficha): el que muestra el desplegable.
+      setDocenteSeleccionado((actual) => actual || (lista[0] ? String(lista[0].id) : ''));
     } catch (err) {
       console.error('Error al cargar docentes:', err);
     }
@@ -34,9 +50,12 @@ function Comparador() {
     try {
       const response = await compararFondos(docenteSeleccionado, gestion1, gestion2);
       setFondos(response.data);
+      setGestionesComparadas([...new Set([Number(gestion1), Number(gestion2)])]);
       setLoading(false);
     } catch (err) {
-      setError('Error al comparar fondos');
+      setFondos([]);
+      setGestionesComparadas([]);
+      setError(err.response?.data?.error || 'Error al comparar fondos');
       setLoading(false);
       console.error(err);
     }
@@ -48,9 +67,14 @@ function Comparador() {
       .map(cat => ({
         name: cat.tipo_display,
         value: parseFloat(cat.total_horas),
-        porcentaje: parseFloat(cat.porcentaje)
+        porcentaje: parseFloat(cat.porcentaje),
+        color: COLOR_UNIDAD[cat.tipo],
       }));
   };
+
+  const gestionesSinFondo = gestionesComparadas.filter(
+    (gestion) => !fondos.some((fondo) => fondo.gestion === gestion)
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6">
@@ -152,8 +176,15 @@ function Comparador() {
           </div>
         )}
 
+        {/* Gestiones sin fondo */}
+        {!loading && gestionesSinFondo.map((gestion) => (
+          <div key={gestion} className="rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-900">
+            No hay fondo de la gestión {gestion}.
+          </div>
+        ))}
+
         {/* Resultados */}
-        {fondos.length === 2 && (
+        {fondos.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {fondos.map((fondo) => {
               const datosGrafico = prepararDatosGrafico(fondo);
@@ -196,8 +227,8 @@ function Comparador() {
                             dataKey="value"
                             label={({ porcentaje }) => `${porcentaje}%`}
                           >
-                            {datosGrafico.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            {datosGrafico.map((entry) => (
+                              <Cell key={entry.name} fill={entry.color} />
                             ))}
                           </Pie>
                           <Tooltip formatter={(value) => `${value}h`} />
@@ -208,9 +239,9 @@ function Comparador() {
 
                     {/* Lista de Categorías */}
                     <div className="space-y-2 mb-4">
-                      {fondo.categorias.filter(cat => cat.total_horas > 0).map((cat, idx) => (
+                      {fondo.categorias.filter(cat => cat.total_horas > 0).map((cat) => (
                         <div key={cat.tipo} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border-2 border-slate-300 dark:border-slate-600">
-                          <span className="text-sm font-semibold" style={{ color: COLORS[idx % COLORS.length] }}>
+                          <span className="text-sm font-semibold" style={{ color: COLOR_UNIDAD[cat.tipo] }}>
                             {cat.tipo_display}
                           </span>
                           <span className="text-sm font-bold text-slate-800 dark:text-white">
@@ -235,7 +266,7 @@ function Comparador() {
         )}
 
         {/* Estado Vacío */}
-        {fondos.length === 0 && !loading && !error && (
+        {fondos.length === 0 && gestionesComparadas.length === 0 && !loading && !error && (
           <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-lg p-12 text-center">
             <div className="w-20 h-20 rounded-full bg-slate-50 dark:bg-slate-700 border-2 border-slate-300 dark:border-slate-600 flex items-center justify-center mx-auto mb-4">
               <span className="text-5xl">📊</span>

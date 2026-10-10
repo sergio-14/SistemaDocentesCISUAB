@@ -1459,7 +1459,9 @@ class CargaHoraria(models.Model):
         verbose_name = "Carga Horaria"
         verbose_name_plural = "Cargas Horarias"
         ordering = ['-fondo__gestion', 'docente', 'categoria']
-        unique_together = ['docente', 'calendario', 'materia', 'paralelo', 'dia_semana', 'hora_inicio']
+        # Sin unique_together por docente y horario: incluía las cargas de los fondos
+        # archivados. Las clases las cubre la restricción por fondo (abajo) y los cruces
+        # de horario los valida CargaHorariaSerializer.
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(hora_fin__gt=models.F('hora_inicio')),

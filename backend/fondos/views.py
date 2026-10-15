@@ -30,7 +30,7 @@ from .models import (
     FacultadCatalogo, DatosLaborales, DocenteCarrera, ProgramaAnalitico,
     AsignacionCarrera,
 )
-from .serializers import TIPO_ACTIVIDAD_OTROS
+from .serializers import TIPO_ACTIVIDAD_OTROS, validar_fondo_con_cargas_editables
 from .serializers import (
     DocenteSerializer, CarreraSerializer, MateriaSerializer, FondoTiempoSerializer,
     FondoTiempoListSerializer, CargaHorariaSerializer,
@@ -220,11 +220,12 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
             'user', 'datos_laborales',
         )
         if not request.user.is_superuser:
-            # Los docentes de su propia carrera se gestionan desde su fondo.
-            docentes = docentes.exclude(
-                vinculos_carrera__carrera__in=_obtener_carreras_activas_usuario(request.user, request),
-                vinculos_carrera__activo=True,
-            )
+            # Los docentes de su propia carrera se gestionan desde su fondo. Con subconsulta:
+            # un exclude() con las dos condiciones podía cumplirlas en vínculos distintos y
+            # dejar fuera a quien tuvo un vínculo inactivo en esta carrera y tiene uno activo en otra.
+            docentes = docentes.exclude(pk__in=DocenteCarrera.objects.filter(
+                carrera__in=_obtener_carreras_activas_usuario(request.user, request), activo=True,
+            ).values('docente'))
         for palabra in palabras:
             docentes = docentes.filter(
                 Q(nombres__icontains=palabra) | Q(apellido_paterno__icontains=palabra)
@@ -238,6 +239,10 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
                 'id': docente.pk,
                 'nombre_completo': docente.nombre_completo,
                 'ci_ultimos': ci[-4:] if ci else '',
+                # Gestiones con Fondo de Tiempo vigente: la interfaz avisa "Sin fondo <gestión>".
+                'gestiones_con_fondo': sorted(set(
+                    docente.fondos_tiempo.filter(archivado=False).values_list('gestion', flat=True)
+                )),
             })
         return Response(resultados)
 
@@ -1057,14 +1062,7 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
     
     def _validar_estado_fondo(self, fondo):
         """Valida que el fondo de la carga esté en estado editable (borrador/observado)."""
-        if fondo.archivado:
-            raise PermissionDenied("No se puede modificar la carga horaria porque el Fondo de Tiempo está archivado.")
-
-        if fondo.carrera and not fondo.carrera.activo:
-            raise PermissionDenied("No se puede modificar la carga horaria porque la carrera está inactiva.")
-
-        if fondo.estado not in ['borrador', 'observado']:
-            raise PermissionDenied(f"No se puede modificar la carga horaria. El fondo está en estado '{fondo.get_estado_display()}'.")
+        validar_fondo_con_cargas_editables(fondo)
 
     def _validar_carrera_responsable(self, fondo, calendario):
         """Las materias las gestiona el Jefe de la carrera del calendario (en doble carrera,

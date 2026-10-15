@@ -155,6 +155,17 @@ const AsignarMateriaOtraCarrera = () => {
   };
 
   const opcionesCalendario = calendarios.map((cal) => ({ value: String(cal.id), label: nombreCalendario(cal.id) }));
+  // Gestiones de los calendarios de su carrera sin Fondo de Tiempo vigente del docente:
+  // ahí no se le puede asignar una materia.
+  const gestionesCarrera = [...new Set(calendarios.map((cal) => cal.gestion))].sort();
+  const gestionesSinFondo = (persona) => gestionesCarrera.filter(
+    (gestion) => !(persona?.gestiones_con_fondo || []).includes(gestion),
+  );
+  const avisoSinFondo = (persona) => gestionesSinFondo(persona).map((gestion) => (
+    <span key={gestion} className="whitespace-nowrap rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-900 ring-1 ring-inset ring-sky-200">
+      Sin fondo {gestion}
+    </span>
+  ));
   const opcionesMateria = materias.map((m) => ({ value: String(m.id), label: `${m.sigla} - ${m.nombre} (${m.horas_totales} h/sem)` }));
   const opcionesParalelo = PARALELOS.map((p) => ({ value: p, label: `Paralelo ${p}` }));
   const opcionesDia = DIAS.map(([valor, etiqueta]) => ({ value: valor, label: etiqueta }));
@@ -208,8 +219,11 @@ const AsignarMateriaOtraCarrera = () => {
                       onClick={() => elegirDocente(resultado)}
                       className="flex w-full justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-[#2C4AAE] hover:text-white"
                     >
-                      <span className="font-medium">{resultado.nombre_completo}</span>
-                      <span className="opacity-70 tabular-nums">C.I. …{resultado.ci_ultimos || '----'}</span>
+                      <span className="flex min-w-0 flex-wrap items-center gap-2">
+                        <span className="font-medium">{resultado.nombre_completo}</span>
+                        {avisoSinFondo(resultado)}
+                      </span>
+                      <span className="opacity-70 tabular-nums whitespace-nowrap">C.I. …{resultado.ci_ultimos || '----'}</span>
                     </button>
                   </li>
                 ))}
@@ -225,6 +239,7 @@ const AsignarMateriaOtraCarrera = () => {
                   <p className="font-bold text-blue-900 truncate">{docente.nombre_completo}</p>
                   <p className="text-xs text-slate-600 tabular-nums">C.I. …{docente.ci_ultimos || '----'}</p>
                 </div>
+                {avisoSinFondo(docente)}
               </div>
 
               <form onSubmit={asignar} noValidate className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -352,10 +367,15 @@ const AsignarMateriaOtraCarrera = () => {
                           <div className="capitalize tabular-nums">{`${carga.dia_semana} ${(carga.hora_inicio || '').slice(0, 5)}-${(carga.hora_fin || '').slice(0, 5)}`}</div>
                           <div className="lg:text-right font-bold text-blue-900 tabular-nums">{carga.horas}</div>
                           <div className="lg:text-right">
+                            {/* Solo con el fondo en borrador u observado (como el backend). */}
                             <button
                               type="button"
                               onClick={() => quitar(carga)}
-                              className={`${BOTON_CHICO} bg-red-400 hover:bg-red-500 text-white`}
+                              disabled={!['borrador', 'observado'].includes(carga.fondo_estado)}
+                              title={['borrador', 'observado'].includes(carga.fondo_estado)
+                                ? undefined
+                                : 'El fondo ya fue presentado: la materia no se puede quitar.'}
+                              className={`${BOTON_CHICO} bg-red-400 hover:bg-red-500 text-white disabled:bg-slate-200 disabled:text-slate-500 disabled:cursor-not-allowed`}
                             >
                               Quitar
                             </button>

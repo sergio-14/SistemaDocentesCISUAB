@@ -3,6 +3,7 @@ import re
 import uuid
 
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -1285,6 +1286,20 @@ def _ensure_docente_role_for_user(user, docente=None, carrera=None, force_primar
     return perfil
 
 
+def validar_fondo_con_cargas_editables(fondo):
+    """Las cargas de un fondo solo cambian con el fondo en borrador u observado, no archivado
+    y con su carrera activa. Lo usan CargaHorariaSerializer (antes de revisar las horas, para
+    que el motivo sea el estado) y CargaHorariaViewSet (al editar y al borrar)."""
+    if fondo.archivado:
+        raise PermissionDenied("No se puede modificar la carga horaria porque el Fondo de Tiempo está archivado.")
+
+    if fondo.carrera and not fondo.carrera.activo:
+        raise PermissionDenied("No se puede modificar la carga horaria porque la carrera está inactiva.")
+
+    if fondo.estado not in ['borrador', 'observado']:
+        raise PermissionDenied(f"No se puede modificar la carga horaria. El fondo está en estado '{fondo.get_estado_display()}'.")
+
+
 class CargaHorariaSerializer(serializers.ModelSerializer):
     docente_nombre = serializers.CharField(source='docente.nombre_completo', read_only=True)
     programa_analitico_url = serializers.SerializerMethodField()
@@ -1352,6 +1367,7 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
             if not fondo:
                 raise serializers.ValidationError({'docente': mensaje_sin_fondo(gestion)})
             data['fondo'] = fondo
+            validar_fondo_con_cargas_editables(fondo)
 
         if categoria == 'academica':
             tipo_actividad = str(tipo_actividad or '').strip()

@@ -3769,7 +3769,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
 # SERIALIZERS PARA MODELOS NUEVOS (Reglamento UAB)
 # ============================================
 
-from .models import CalendarioAcademico
+from .models import CalendarioAcademico, errores_gestion_del_calendario
 
 
 # =====================================================
@@ -3877,6 +3877,10 @@ class CalendarioAcademicoSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'fecha_fin': 'La fecha de finalización no puede ser anterior a la de inicio.'
             })
+
+        errores_gestion = errores_gestion_del_calendario(gestion, fecha_inicio, fecha_fin)
+        if errores_gestion:
+            raise serializers.ValidationError(errores_gestion)
 
         if fecha_inicio and fecha_fin:
             calendarios_solapados = CalendarioAcademico.objects.filter(

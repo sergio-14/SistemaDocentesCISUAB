@@ -697,6 +697,20 @@ class Materia(models.Model):
         return (self.horas_teoricas or 0) + (self.horas_practicas or 0)
 
 
+def errores_gestion_del_calendario(gestion, fecha_inicio, fecha_fin):
+    """La gestión es el año académico: el calendario empieza y termina dentro de ese año.
+    Devuelve {campo: mensaje} (vacío si está bien); lo usan clean() y el serializer."""
+    nombres = {'fecha_inicio': 'La fecha de inicio', 'fecha_fin': 'La fecha de finalización'}
+    errores = {}
+    for campo, fecha in (('fecha_inicio', fecha_inicio), ('fecha_fin', fecha_fin)):
+        if gestion and fecha and fecha.year != gestion:
+            errores[campo] = (
+                f'{nombres[campo]} ({fecha:%d/%m/%Y}) no es de la gestión {gestion}: '
+                f'las fechas del calendario deben estar dentro del año {gestion}.'
+            )
+    return errores
+
+
 class CalendarioAcademico(models.Model):
     """Calendario académico según Art. 15, 18 del reglamento"""
     
@@ -765,6 +779,12 @@ class CalendarioAcademico(models.Model):
     def semanas_de_clase(self):
         """Semanas de clases en aula: 20 en un semestre, 40 en un calendario anual."""
         return 40 if self.periodo == 'anual' else 20
+
+    def clean(self):
+        super().clean()
+        errores = errores_gestion_del_calendario(self.gestion, self.fecha_inicio, self.fecha_fin)
+        if errores:
+            raise ValidationError(errores)
     
     def save(self, *args, **kwargs):
         """Al guardar, si este calendario está activo, desactiva cualquier otro."""

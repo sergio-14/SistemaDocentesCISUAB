@@ -3492,8 +3492,14 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
             is_active_final = True
         es_superusuario_objetivo = bool(self.instance.is_superuser)
 
-        # Regla de inmutabilidad de rol con uso real del sistema.
-        if 'rol' in data and rol != rol_actual:
+        # Regla de inmutabilidad de rol con uso real del sistema: no pasa a un rol que no
+        # tenía. Sí queda con uno que ya tenía activo (terminar la designación de un Jefe o
+        # Director que también es docente): el cargo queda como asignación inactiva, con su
+        # historial.
+        roles_activos = set(
+            AsignacionCarrera.objects.filter(user=self.instance, activo=True).values_list('rol', flat=True)
+        )
+        if 'rol' in data and rol != rol_actual and rol not in roles_activos:
             if usuario_tiene_uso_de_rol(self.instance, perfil_actual=perfil_actual):
                 raise serializers.ValidationError({
                     'rol': (

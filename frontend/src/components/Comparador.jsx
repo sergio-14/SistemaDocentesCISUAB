@@ -178,7 +178,7 @@ function Comparador() {
 
         {/* Gestiones sin fondo */}
         {!loading && gestionesSinFondo.map((gestion) => (
-          <div key={gestion} className="rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          <div key={gestion} className="rounded-2xl bg-sky-50 dark:bg-sky-900/20 px-4 py-3 text-sm text-sky-900 dark:text-sky-300">
             No hay fondo de la gestión {gestion}.
           </div>
         ))}

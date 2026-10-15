@@ -1825,9 +1825,9 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         serializer = self.get_serializer(fondo)
         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminOrDirector])
     def comparar(self, request):
-        """Endpoint para comparar fondos de tiempo entre gestiones"""
+        """Comparar fondos de tiempo entre gestiones (superusuario, Director o Jefe de Estudios)."""
         try:
             docente_id, gestion1, gestion2 = (
                 int(request.query_params[clave]) for clave in ('docente', 'gestion1', 'gestion2')
@@ -1847,30 +1847,21 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         serializer = self.get_serializer(fondos, many=True)
         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminOrDirector])
     def archivados(self, request):
-        """
-        Ver fondos archivados.
-        - Docentes ven solo sus fondos archivados.
-        - Admins ven todos los fondos archivados.
-        """
+        """Fondos archivados: superusuario (todos), o Director y Jefe de Estudios (los de su carrera)."""
         queryset = FondoTiempo.objects.filter(archivado=True).select_related('docente', 'carrera')
 
         if not request.user.is_superuser:
             perfil = _obtener_perfil_efectivo(request.user, request)
-            if perfil and perfil.rol in ['director', 'jefe_estudios', 'iiisyp']:
-                carreras_activas = _obtener_carreras_activas_usuario(request.user, request)
-                queryset = queryset.filter(carrera__in=carreras_activas) if carreras_activas.exists() else queryset.none()
-                queryset = _sin_borradores_ajenos_para_director(queryset, request.user, perfil)
-            elif perfil and perfil.rol == 'docente' and perfil.docente:
-                queryset = queryset.filter(docente=perfil.docente)
-            else:
-                queryset = queryset.none()
-        
+            carreras_activas = _obtener_carreras_activas_usuario(request.user, request)
+            queryset = queryset.filter(carrera__in=carreras_activas) if carreras_activas.exists() else queryset.none()
+            queryset = _sin_borradores_ajenos_para_director(queryset, request.user, perfil)
+
         serializer = FondoTiempoListSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
-    
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrDirector])
     def restaurar(self, request, pk=None):
         """Restaurar un fondo archivado (superusuario, o Director y Jefe de Estudios de la carrera)."""
         # get_object() excluye los archivados: se busca directo y se valida la carrera.

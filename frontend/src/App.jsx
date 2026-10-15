@@ -303,12 +303,12 @@ function App() {
               
               {/* Las rutas hijas son relativas al padre */}
               <Route path="fondo/:id" element={<AnimatedRoute><DetalleFondo isDark={isDark} /></AnimatedRoute>} />
-              <Route path="comparar" element={<AnimatedRoute><Comparador /></AnimatedRoute>} />
+              <Route path="comparar" element={<RutaPorRol roles={['director', 'jefe_estudios']}><AnimatedRoute><Comparador /></AnimatedRoute></RutaPorRol>} />
 
               <Route path="cargas-horarias" element={<AnimatedRoute><CargaHorariaGeneral /></AnimatedRoute>} />
               <Route path="docentes/:id" element={<AnimatedRoute><FondoTiempoDocente /></AnimatedRoute>} />
               {/* Ruta para los fondos archivados dentro del módulo de Fondo de Tiempo */}
-              <Route path="archivados" element={<AnimatedRoute><FondosArchivados isDark={isDark} /></AnimatedRoute>} />
+              <Route path="archivados" element={<RutaPorRol roles={['director', 'jefe_estudios']}><AnimatedRoute><FondosArchivados isDark={isDark} /></AnimatedRoute></RutaPorRol>} />
 
               {/* Rutas de Administración (Integradas en el Sidebar) */}
               <Route path="docentes" element={<AnimatedRoute><ListaDocentes isDark={isDark} /></AnimatedRoute>} />

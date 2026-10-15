@@ -54,7 +54,7 @@ const SearchIcon = (props) => (
   </svg>
 );
 
-const ESTADOS_ARCHIVABLES = ['aprobado_director', 'finalizado', 'rechazado', 'archivado'];
+const ESTADOS_ARCHIVABLES = ['aprobado_director', 'finalizado', 'rechazado'];
 
 const VISTA_STORAGE_KEY = 'fondos_vista_dashboard';
 

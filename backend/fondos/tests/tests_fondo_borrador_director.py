@@ -9,6 +9,7 @@ from rest_framework import status
 
 from fondos.models import FondoTiempo, PerfilUsuario
 from fondos.tests.tests_usuarios_auditoria import UsuariosBaseTestCase
+from fondos.tests.utilidades import forzar_campos
 
 
 class BorradorNoVisibleParaDirectorTests(UsuariosBaseTestCase):
@@ -32,7 +33,7 @@ class BorradorNoVisibleParaDirectorTests(UsuariosBaseTestCase):
         self.assertEqual(self.client.get(f'/api/fondos-tiempo/{self.fondo.id}/').status_code, status.HTTP_404_NOT_FOUND)
 
     def test_director_lo_ve_una_vez_presentado(self):
-        FondoTiempo.objects.filter(pk=self.fondo.pk).update(estado='presentado_director')
+        forzar_campos(FondoTiempo.objects.filter(pk=self.fondo.pk), estado='presentado_director')
         self.client.force_authenticate(self.director)
 
         self.assertIn(self.fondo.id, self._ids_lista())

@@ -17,6 +17,7 @@ from fondos.models import (
     calcular_horas_fondo, inicio_de_gestion,
 )
 from .tests_usuarios_auditoria import UsuariosBaseTestCase, con_resolucion_jefe
+from .utilidades import forzar_campos
 
 
 def calendario_con_feriados(carrera, dias=3):
@@ -124,7 +125,7 @@ class CIEnDocentesTests(UsuariosBaseTestCase):
 
     def test_con_historial_el_ci_no_se_puede_cambiar(self):
         fondo = FondoTiempo.objects.create(docente=self.docente, carrera=self.carrera, gestion=2026)
-        FondoTiempo.objects.filter(pk=fondo.pk).update(estado='presentado_director')
+        forzar_campos(FondoTiempo.objects.filter(pk=fondo.pk), estado='presentado_director')
 
         response = self.client.patch(f'/api/docentes/{self.docente.pk}/', {'ci': '2000'}, format='json')
 

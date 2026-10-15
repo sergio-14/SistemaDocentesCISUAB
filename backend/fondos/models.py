@@ -854,9 +854,29 @@ UNIDADES_FONDO = [
 ]
 
 
+class FondoTiempoQuerySet(models.QuerySet):
+    """update() no escribe el estado ni el archivado: se saltaría save() (las transiciones
+    permitidas en clean()) y el HistorialFondo de cada acción del flujo. Cubre también
+    bulk_update(), que usa update()."""
+
+    CAMPOS_DEL_FLUJO = ('estado', 'archivado')
+
+    def update(self, **kwargs):
+        campos = [campo for campo in self.CAMPOS_DEL_FLUJO if campo in kwargs]
+        if campos:
+            raise ValueError(
+                f'{", ".join(campos)} de un Fondo de Tiempo no se cambia con update(): '
+                'usar la acción del flujo (presentar, aprobar, archivar, restaurar...), que valida '
+                'la transición y la registra en HistorialFondo.'
+            )
+        return super().update(**kwargs)
+
+
 class FondoTiempo(models.Model):
     """Modelo principal para el fondo de tiempo anual de un docente"""
-    
+
+    objects = FondoTiempoQuerySet.as_manager()
+
     ESTADO_CHOICES = [
         ('borrador', 'Borrador'),
         ('observado', 'Con Observaciones'),

@@ -10,6 +10,7 @@ from rest_framework import status
 from fondos.models import FondoTiempo, HistorialFondo, InformeFondo, PerfilUsuario
 from .tests_combinaciones import _pdf
 from .tests_usuarios_auditoria import UsuariosBaseTestCase
+from .utilidades import forzar_campos
 
 EVALUACION = {'cumplimiento': 'cumplido', 'evaluacion_director': 'Cumplió todas las actividades planificadas en la gestión.'}
 
@@ -30,7 +31,7 @@ class AvisosPorRolTests(UsuariosBaseTestCase):
 
     # --- ayudas ---
     def _estado(self, estado):
-        FondoTiempo.objects.filter(pk=self.fondo.pk).update(estado=estado)
+        forzar_campos(FondoTiempo.objects.filter(pk=self.fondo.pk), estado=estado)
 
     def _accion(self, usuario, ruta, datos=None, formato='json'):
         self.client.force_authenticate(usuario)
@@ -241,7 +242,7 @@ class AvisosFondoDelDirectorTests(UsuariosBaseTestCase):
         }
         for anterior, nuevo in (('borrador', 'presentado_director'), ('en_ejecucion', 'informe_presentado')):
             with self.subTest(estado=nuevo):
-                FondoTiempo.objects.filter(pk=self.fondo.pk).update(estado=nuevo)
+                forzar_campos(FondoTiempo.objects.filter(pk=self.fondo.pk), estado=nuevo)
                 HistorialFondo.objects.create(
                     fondo_tiempo=self.fondo, usuario=self.jefe, tipo_cambio='presentacion',
                     descripcion='-', estado_anterior=anterior, estado_nuevo=nuevo,
@@ -251,7 +252,7 @@ class AvisosFondoDelDirectorTests(UsuariosBaseTestCase):
                 self.assertEqual(self._novedades(self.director), [])
 
     def test_el_superusuario_aprueba_y_le_avisa_al_jefe(self):
-        FondoTiempo.objects.filter(pk=self.fondo.pk).update(estado='presentado_director')
+        forzar_campos(FondoTiempo.objects.filter(pk=self.fondo.pk), estado='presentado_director')
         self.client.force_authenticate(self.superuser)
         response = self.client.post(
             f'/api/fondos-tiempo/{self.fondo.pk}/aprobar/', {'documento_decanatura': _pdf()}, format='multipart',

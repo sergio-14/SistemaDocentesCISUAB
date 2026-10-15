@@ -8,6 +8,7 @@ from .models import (
     ObservacionFondo, HistorialFondo, PerfilUsuario,
     MensajeObservacion, DatosLaborales,
 )
+from .serializers import FondoTiempoSerializer
 
 
 # =====================================================
@@ -209,7 +210,10 @@ class FondoTiempoAdmin(admin.ModelAdmin):
         }),
     )
     
-    readonly_fields = ['fecha_creacion', 'fecha_modificacion']
+    # El estado, el archivado y lo demás del flujo cambian solo con sus acciones de la API
+    # (validan la transición y la registran en HistorialFondo): los mismos campos que el
+    # serializer no deja editar.
+    readonly_fields = ['fecha_creacion', 'fecha_modificacion', *FondoTiempoSerializer.Meta.read_only_fields]
     
     def estado_badge(self, obj):
         colores = {

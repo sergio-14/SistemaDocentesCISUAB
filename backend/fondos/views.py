@@ -1643,7 +1643,10 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
                 'gestion': f'La carrera no tiene calendario académico de la gestión {gestion}.'
             })
 
-        serializer.save()
+        # El fondo y su registro de creación se guardan juntos.
+        with transaction.atomic():
+            fondo = serializer.save()
+            self._registrar_creacion(fondo, 'Fondo creado')
 
     @action(detail=False, methods=['post'], url_path='generar-masivo')
     def generar_masivo(self, request):
@@ -1699,12 +1702,13 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
                     omitidos_ya_existentes += 1
                     continue
 
-                FondoTiempo.objects.create(
+                fondo = FondoTiempo.objects.create(
                     docente=vinculo.docente,
                     carrera=vinculo.carrera,
                     gestion=calendario_activo.gestion,
                     estado='borrador',
                 )
+                self._registrar_creacion(fondo, 'Fondo creado en la generación masiva')
 
                 creados += 1
 
@@ -1768,6 +1772,16 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
     # Los mismos que ofrece el botón Archivar (ESTADOS_ARCHIVABLES de ListaFondos.jsx): un
     # fondo en revisión o en ejecución no se archiva para rehacerlo fuera del flujo.
     ESTADOS_ARCHIVABLES = ['aprobado_director', 'finalizado', 'rechazado']
+
+    def _registrar_creacion(self, fondo, descripcion):
+        """Primer registro del historial, con quien crea el fondo. Sin estado anterior ni
+        nuevo, como archivar y restaurar: no es un cambio de estado y no genera avisos."""
+        HistorialFondo.objects.create(
+            fondo_tiempo=fondo,
+            usuario=self.request.user,
+            tipo_cambio='creacion',
+            descripcion=f'{descripcion} (gestión {fondo.gestion}, estado: {fondo.get_estado_display()}).',
+        )
 
     def _registrar_archivo(self, fondo, descripcion):
         """Archivar y restaurar quedan en el historial sin estado anterior ni nuevo: el

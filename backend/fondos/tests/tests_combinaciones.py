@@ -23,6 +23,7 @@ from fondos.models import (
 from fondos.serializers import unidades_del_fondo
 from .tests_usuarios_ajustes import calendario_con_feriados
 from .tests_usuarios_auditoria import UsuariosBaseTestCase
+from .utilidades import forzar_campos
 
 PDF_MINIMO = b'%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n'
 
@@ -68,7 +69,7 @@ class DocenteUnVinculoTests(UsuariosBaseTestCase):
             ])
 
     def test_un_fondo_archivado_no_cuenta(self):
-        FondoTiempo.objects.filter(pk=self._fondo(self.carrera).pk).update(archivado=True)
+        forzar_campos(FondoTiempo.objects.filter(pk=self._fondo(self.carrera).pk), archivado=True)
         FondoTiempo.objects.bulk_create([
             FondoTiempo(docente=self.docente, carrera=self.carrera, gestion=2026),
         ])
@@ -129,12 +130,12 @@ class AutoaprobacionTests(UsuariosBaseTestCase):
 
     def _fondo(self, docente, estado='presentado_director'):
         fondo = FondoTiempo.objects.create(docente=docente, carrera=self.carrera, gestion=2026)
-        FondoTiempo.objects.filter(pk=fondo.pk).update(estado=estado)
+        forzar_campos(FondoTiempo.objects.filter(pk=fondo.pk), estado=estado)
         fondo.refresh_from_db()
         return fondo
 
     def _estado(self, fondo, estado):
-        FondoTiempo.objects.filter(pk=fondo.pk).update(estado=estado)
+        forzar_campos(FondoTiempo.objects.filter(pk=fondo.pk), estado=estado)
 
     def test_el_director_no_revisa_su_propio_fondo(self):
         self.client.force_authenticate(self.director)

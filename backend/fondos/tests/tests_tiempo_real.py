@@ -14,6 +14,7 @@ from fondos.consumers import (
 from fondos.models import AsignacionCarrera, HistorialFondo, PerfilUsuario
 from .tests_usuarios_auditoria import DatosUsuariosMixin, UsuariosBaseTestCase
 from .websocket_prueba import ClienteWebSocket
+from .utilidades import forzar_campos
 
 RUTA = '/ws/tiempo-real/'
 
@@ -159,7 +160,7 @@ class SocketBaseTests(DatosUsuariosMixin, TransactionTestCase):
     # --- ayudas ---
     def _estado(self, estado, informe=False):
         from fondos.models import FondoTiempo, InformeFondo
-        FondoTiempo.objects.filter(pk=self.fondo.pk).update(estado=estado)
+        forzar_campos(FondoTiempo.objects.filter(pk=self.fondo.pk), estado=estado)
         InformeFondo.objects.filter(fondo_tiempo=self.fondo).delete()
         if informe:
             InformeFondo.objects.create(fondo_tiempo=self.fondo, elaborado_por=self.usuario_docente, tipo='parcial', estado='enviado')

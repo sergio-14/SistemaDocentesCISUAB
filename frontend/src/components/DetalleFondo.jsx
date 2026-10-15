@@ -18,7 +18,7 @@ import FiltroUnidades from './fondos/FiltroUnidades';
 import Plegable from './fondos/Plegable';
 import ProgramaAnaliticoAccion from './fondos/ProgramaAnaliticoAccion';
 import DocumentoActividadAccion from './fondos/DocumentoActividadAccion';
-import { BLOQUE, BOTON, BOTON_DOCUMENTO, estadoVisibleFondo } from './fondos/estilosFondo';
+import { BLOQUE, BOTON, BOTON_DOCUMENTO, ORDEN_UNIDADES, colorUnidad, estadoVisibleFondo } from './fondos/estilosFondo';
 import { Avatar, BarraProgreso, EstadoPill, Etiqueta, EtiquetaFueraDePlazo } from './fondos/ElementosFondo';
 import { getApiErrorMessage, getDownloadErrorMessage } from '../utils/formErrors';
 import useConsultaConRespaldo, { useFondoActualizado } from '../tiempoReal/useTiempoReal';
@@ -60,20 +60,6 @@ const ordenarDetallesCarga = (categoria) => {
   const esClase = (detalle) => detalle.tipo_actividad === 'clases_aula';
   return [...detalles.filter(esClase), ...detalles.filter((detalle) => !esClase(detalle))];
 };
-
-const ORDEN_UNIDADES = ['academica', 'investigacion', 'extension_universitaria', 'interaccion_social', 'gestion', 'academica_administrativa', 'social_cultural_deportiva'];
-
-// Cada unidad tiene siempre el mismo color (gráfico y lista de actividades).
-const COLOR_UNIDAD = {
-  academica: '#1E3A8A',
-  investigacion: '#0284C7',
-  extension_universitaria: '#059669',
-  interaccion_social: '#F59E0B',
-  gestion: '#6366F1',
-  academica_administrativa: '#14B8A6',
-  social_cultural_deportiva: '#FB7185',
-};
-const colorUnidad = (tipo) => COLOR_UNIDAD[tipo] || '#64748B';
 
 const ABREVIATURA_DEDICACION = {
   tiempo_completo: 'Tiempo completo',

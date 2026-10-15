@@ -1,5 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { eliminarFondoTiempo, generarFondosTiempoMasivo, getFondosTiempo } from '../apis/api';
@@ -8,8 +7,10 @@ import { useActiveRole } from '../contexts/activeRole';
 import { getApiErrorMessage } from '../utils/formErrors';
 import useConsultaConRespaldo, { useFondoActualizado } from '../tiempoReal/useTiempoReal';
 import ModalCentrado from './common/ModalCentrado';
+import ModalConfirmar from './common/ModalConfirmar';
 import Paginacion from './common/Paginacion';
 import SelectorVista from './common/SelectorVista';
+import SelectorGestion from './fondos/SelectorGestion';
 import { paginar } from '../utils/paginacion';
 import { BLOQUE, BOTON, ESTADOS_FONDO, estadoVisibleFondo } from './fondos/estilosFondo';
 import { Avatar, BarraProgreso, EstadoPill, Etiqueta } from './fondos/ElementosFondo';
@@ -60,107 +61,6 @@ const VISTA_STORAGE_KEY = 'fondos_vista_dashboard';
 
 const porcentaje = (fondo) => Math.min(100, Math.max(0, Math.round(fondo.porcentaje_completado || 0)));
 
-// Selector de gestión: mismo borde que el buscador, el cuadrito azul con la flecha que
-// gira (como en Docentes) y menú flotante con hover azul. Sin gestión elegida muestra
-// "Todas las gestiones"; volver a pulsar la gestión elegida la quita.
-function SelectorGestion({ value, onChange, options, placeholder }) {
-  const [open, setOpen] = useState(false);
-  const [menuStyle, setMenuStyle] = useState(null);
-  const containerRef = useRef(null);
-  const menuRef = useRef(null);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const cerrarSiEsFuera = (event) => {
-      if (containerRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return;
-      setOpen(false);
-    };
-    // El menú es fijo en pantalla: si se desplaza la página o cambia el tamaño, se cierra.
-    const cerrar = (event) => {
-      if (menuRef.current?.contains(event.target)) return;
-      setOpen(false);
-    };
-    document.addEventListener('mousedown', cerrarSiEsFuera);
-    window.addEventListener('scroll', cerrar, true);
-    window.addEventListener('resize', cerrar);
-    return () => {
-      document.removeEventListener('mousedown', cerrarSiEsFuera);
-      window.removeEventListener('scroll', cerrar, true);
-      window.removeEventListener('resize', cerrar);
-    };
-  }, [open]);
-
-  useLayoutEffect(() => {
-    if (!open || !containerRef.current) {
-      setMenuStyle(null);
-      return;
-    }
-    const anchorRect = containerRef.current.getBoundingClientRect();
-    const estimatedHeight = Math.min(options.length * 40 + 16, window.innerHeight - 16);
-    const spaceBelow = window.innerHeight - anchorRect.bottom - 12;
-    const spaceAbove = anchorRect.top - 12;
-    const placeAbove = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
-    setMenuStyle({
-      position: 'fixed',
-      left: `${anchorRect.left}px`,
-      width: `${anchorRect.width}px`,
-      top: placeAbove
-        ? `${Math.max(12, anchorRect.top - estimatedHeight - 8)}px`
-        : `${anchorRect.bottom + 8}px`,
-      zIndex: 99999,
-    });
-  }, [open, options.length]);
-
-  const seleccionada = options.find((opt) => String(opt.value) === String(value));
-
-  return (
-    <div ref={containerRef} className="relative min-w-0 flex-1 sm:flex-none sm:w-56">
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label="Filtrar por gestión"
-        className="w-full h-11 text-left pl-4 pr-2.5 rounded-full bg-azulado-100 ring-1 ring-inset ring-azulado-300 text-sm text-slate-800 flex items-center justify-between gap-2"
-      >
-        <span className={`truncate ${seleccionada ? '' : 'text-slate-500'}`}>{seleccionada?.label || placeholder}</span>
-        <span className="flex items-center justify-center h-6 w-6 rounded-md bg-[#2C4AAE] ring-1 ring-[#2C4AAE] flex-shrink-0">
-          <svg className={`w-3.5 h-3.5 text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-          </svg>
-        </span>
-      </button>
-
-      {open && menuStyle && createPortal(
-        <div ref={menuRef} role="listbox" className="rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl max-h-72 overflow-y-auto" style={menuStyle}>
-          <div className="p-2">
-            {options.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                role="option"
-                aria-selected={String(option.value) === String(value)}
-                onClick={() => {
-                  onChange(String(option.value) === String(value) ? null : option.value);
-                  setOpen(false);
-                }}
-                className={`w-full text-left px-3 py-1.5 text-xs rounded-lg ${
-                  String(option.value) === String(value)
-                    ? 'bg-sky-600 text-white font-semibold hover:bg-sky-700'
-                    : 'bg-transparent text-slate-700 hover:bg-[#2C4AAE] hover:text-white'
-                }`}
-              >
-                <span className="block truncate">{option.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>,
-        document.body
-      )}
-    </div>
-  );
-}
-
 // Orden del dashboard: primero los que tienen el informe presentado (esperan la
 // revisión del Director); después, por fecha de creación, el más nuevo primero (a igual
 // fecha, el id mayor).
@@ -182,6 +82,8 @@ function ListaFondos() {
   const [generandoMasivo, setGenerandoMasivo] = useState(false);
   // Resultado de la generación masiva que se muestra en pantalla: { creados, ... } o { error }.
   const [resultadoMasivo, setResultadoMasivo] = useState(null);
+  // Fondo que se va a archivar (abre la confirmación).
+  const [fondoPorArchivar, setFondoPorArchivar] = useState(null);
   const [busqueda, setBusqueda] = useState('');
   const [gestionFiltro, setGestionFiltro] = useState('todas');
   const [pagina, setPagina] = useState(1);
@@ -252,20 +154,17 @@ function ListaFondos() {
   useFondoActualizado(() => cargarFondos({ silencioso: true }));
   useConsultaConRespaldo(() => cargarFondos({ silencioso: true }), CONSULTA_FONDOS_MS);
 
-  const archivarFondo = async (fondoId) => {
-    if (!confirm('¿Está seguro de archivar este fondo? Podrá restaurarlo después.')) {
-      return;
-    }
-
+  // Si el backend lo rechaza, el motivo queda en el modal (ModalConfirmar).
+  const archivarFondo = async () => {
+    const fondo = fondoPorArchivar;
     try {
-      await eliminarFondoTiempo(fondoId);
-
-      setFondos((prev) => prev.filter((fondo) => fondo.id !== fondoId));
-      alert('✅ Fondo archivado correctamente');
+      await eliminarFondoTiempo(fondo.id);
     } catch (err) {
-      console.error(err);
-      alert('❌ Error al archivar: ' + (err.response?.data?.error || err.response?.data?.detail || err.message));
+      throw new Error(err.response?.data?.error || getApiErrorMessage(err, 'No se pudo archivar el fondo.'));
     }
+    setFondos((prev) => prev.filter((item) => item.id !== fondo.id));
+    setFondoPorArchivar(null);
+    toast.success(`Fondo ${fondo.gestion} de ${fondo.docente_nombre} archivado.`);
   };
 
   const puedeEditar = (fondo) => {
@@ -420,7 +319,7 @@ function ListaFondos() {
       {puedeArchivar && ESTADOS_ARCHIVABLES.includes(fondo.estado) && (
         <button data-escritura
           type="button"
-          onClick={() => archivarFondo(fondo.id)}
+          onClick={() => setFondoPorArchivar(fondo)}
           className={`${BOTON} bg-red-400 hover:bg-red-500 text-white`}
         >
           <ArchiveBoxIcon className="w-[18px] h-[18px]" />
@@ -726,6 +625,23 @@ function ListaFondos() {
             </button>
           </div>
         </ModalCentrado>
+      )}
+
+      {fondoPorArchivar && (
+        <ModalConfirmar
+          tono="peligro"
+          etiqueta="Fondo de Tiempo"
+          titulo="Archivar fondo"
+          mensaje={`El fondo ${fondoPorArchivar.gestion} de ${fondoPorArchivar.docente_nombre} sale del dashboard y pasa a Fondos Archivados.`}
+          detalle={[
+            'No se borra: se puede consultar y restaurar desde Fondos Archivados.',
+            'Sus clases dejan de contar en los choques de horario.',
+          ]}
+          textoAccion="Archivar"
+          textoTrabajando="Archivando..."
+          onConfirmar={archivarFondo}
+          onCancelar={() => setFondoPorArchivar(null)}
+        />
       )}
 
       {/* Formulario de nuevo/editar fondo (rutas hijas), abierto como modal */}

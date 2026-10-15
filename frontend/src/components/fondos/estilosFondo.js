@@ -32,4 +32,18 @@ export const estadoVisibleFondo = (fondo) => {
   return fondo?.estado;
 };
 
-export const iniciales = (nombre) => (nombre || 'NN').split(' ').filter(Boolean).map((n) => n[0]).join('').substring(0, 2).toUpperCase();
+// Las siete unidades del Art. 12 en su orden, cada una siempre con el mismo color
+// (gráficos y listas del detalle del fondo y del comparador).
+export const ORDEN_UNIDADES = ['academica', 'investigacion', 'extension_universitaria', 'interaccion_social', 'gestion', 'academica_administrativa', 'social_cultural_deportiva'];
+const COLOR_UNIDAD = {
+  academica: '#1E3A8A',
+  investigacion: '#0284C7',
+  extension_universitaria: '#059669',
+  interaccion_social: '#F59E0B',
+  gestion: '#6366F1',
+  academica_administrativa: '#14B8A6',
+  social_cultural_deportiva: '#FB7185',
+};
+export const colorUnidad = (tipo) => COLOR_UNIDAD[tipo] || '#64748B';
+
+export const iniciales =(nombre) => (nombre || 'NN').split(' ').filter(Boolean).map((n) => n[0]).join('').substring(0, 2).toUpperCase();

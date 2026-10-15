@@ -1,57 +1,100 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getFondosArchivados, restaurarFondo as restaurarFondoAPI } from '../apis/api';
+import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { Archive, ArchiveRestore, Eye } from 'lucide-react';
+import { getFondosArchivados, restaurarFondo } from '../apis/api';
 import { useActiveRole } from '../contexts/activeRole';
-import { EstadoPill } from './fondos/ElementosFondo';
-import { estadoVisibleFondo } from './fondos/estilosFondo';
+import { getApiErrorMessage } from '../utils/formErrors';
+import { paginar } from '../utils/paginacion';
+import CampoBusqueda from './common/CampoBusqueda';
+import ModalConfirmar from './common/ModalConfirmar';
+import Paginacion from './common/Paginacion';
+import SelectorVista from './common/SelectorVista';
+import SelectorGestion from './fondos/SelectorGestion';
+import { BLOQUE, BOTON, ESTADOS_FONDO, estadoVisibleFondo } from './fondos/estilosFondo';
+import { Avatar, EstadoPill, Etiqueta } from './fondos/ElementosFondo';
 
+const VISTA_ARCHIVADOS_KEY = 'archivados_vista';
+
+// Misma cuadrícula que la vista de lista del dashboard (sin la columna de progreso).
+const COLUMNAS = 'xl:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_8rem_11rem_15rem]';
+
+// Del más nuevo al más antiguo por gestión; a igual gestión, por docente.
+const ordenArchivados = (a, b) => (
+  (Number(b.gestion) || 0) - (Number(a.gestion) || 0)
+  || String(a.docente_nombre || '').localeCompare(String(b.docente_nombre || ''))
+);
+
+// Solo superusuario, Director y Jefe de Estudios (la ruta y la API lo exigen).
 function FondosArchivados() {
+  const { effectiveUser, activeAssignment } = useActiveRole();
+  const esSuperusuario = effectiveUser?.is_superuser === true;
   const [archivados, setArchivados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  // Rol activo (contexto de rol): igual que el backend al restaurar.
-  const { effectiveUser, activeRole } = useActiveRole();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    cargarArchivados();
-  }, []);
+  const [busqueda, setBusqueda] = useState('');
+  const [gestionFiltro, setGestionFiltro] = useState('todas');
+  const [pagina, setPagina] = useState(1);
+  const [vista, setVista] = useState(() => {
+    try {
+      return localStorage.getItem(VISTA_ARCHIVADOS_KEY) === 'tarjetas' ? 'tarjetas' : 'lista';
+    } catch {
+      return 'lista';
+    }
+  });
+  // Fondo que se va a restaurar (abre la confirmación).
+  const [fondoPorRestaurar, setFondoPorRestaurar] = useState(null);
+  const listaRef = useRef(null);
 
   const cargarArchivados = async () => {
     setLoading(true);
     setError(null);
     try {
       const response = await getFondosArchivados();
-      setArchivados(response.data);
-    } catch (error) {
-      console.error('Error al cargar archivados:', error);
-      setError('Error al cargar fondos archivados. Verifica tus permisos de administrador.');
+      setArchivados(Array.isArray(response.data) ? [...response.data].sort(ordenArchivados) : []);
+    } catch (err) {
+      console.error(err);
+      setError(getApiErrorMessage(err, 'No se pudieron cargar los fondos archivados.'));
     } finally {
       setLoading(false);
     }
   };
 
-  const restaurarFondo = async (id, nombreDocente) => {
-    if (!confirm(`¿Desea restaurar el fondo de ${nombreDocente}?`)) return;
-    
+  const cambiarVista = (nuevaVista) => {
+    setVista(nuevaVista);
+    setPagina(1);
     try {
-      await restaurarFondoAPI(id);
-      alert('✅ Fondo restaurado exitosamente');
-      cargarArchivados();
-    } catch (error) {
-      console.error('Error al restaurar:', error);
-      alert('❌ Error al restaurar el fondo: ' + (error.response?.data?.error || error.response?.data?.detail || error.message));
+      localStorage.setItem(VISTA_ARCHIVADOS_KEY, nuevaVista);
+    } catch {
+      // Sin almacenamiento disponible la vista simplemente no se recuerda.
     }
+  };
+
+  // Se recarga al cambiar de rol activo.
+  useEffect(() => {
+    cargarArchivados();
+  }, [activeAssignment?.id]);
+
+  // Si el backend lo rechaza (p. ej. el docente ya tiene otro fondo vigente en esa
+  // gestión), el motivo queda en el modal.
+  const confirmarRestauracion = async () => {
+    const fondo = fondoPorRestaurar;
+    try {
+      await restaurarFondo(fondo.id);
+    } catch (err) {
+      throw new Error(err.response?.data?.error || getApiErrorMessage(err, 'No se pudo restaurar el fondo.'));
+    }
+    setArchivados((prev) => prev.filter((item) => item.id !== fondo.id));
+    setFondoPorRestaurar(null);
+    toast.success(`Fondo ${fondo.gestion} de ${fondo.docente_nombre} restaurado al dashboard.`);
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-slate-900">
+      <div className="flex items-center justify-center h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-slate-700 dark:text-slate-300">
-            Cargando fondos archivados...
-          </p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-900 mx-auto"></div>
+          <p className="mt-4 text-slate-600">Cargando fondos archivados...</p>
         </div>
       </div>
     );
@@ -59,187 +102,221 @@ function FondosArchivados() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 rounded-xl p-6 shadow-md">
-            <div className="flex items-center gap-3">
-              <svg className="w-6 h-6 text-red-700 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="font-medium text-red-700 dark:text-red-400">{error}</p>
-            </div>
-          </div>
-        </div>
+      <div className="px-3 sm:px-4 md:px-8 py-4 md:py-6">
+        <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-lg p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-gradient-to-br from-slate-500 to-slate-700 text-white shadow-md">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                </svg>
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
-                  🗄️ Fondos Archivados
-                </h1>
-                <p className="text-sm text-slate-700 dark:text-slate-400 mt-1">
-                  Fondos que han sido archivados. Puedes restaurarlos cuando lo necesites.
-                </p>
-              </div>
-            </div>
+  const gestiones = [...new Set(archivados.map((fondo) => fondo.gestion).filter(Boolean))].sort((a, b) => b - a);
+  const texto = busqueda.trim().toLowerCase();
+  const filtrados = archivados.filter((fondo) => {
+    if (gestionFiltro !== 'todas' && String(fondo.gestion) !== gestionFiltro) return false;
+    if (!texto) return true;
+    return (esSuperusuario ? [fondo.docente_nombre, fondo.carrera_nombre] : [fondo.docente_nombre])
+      .some((campo) => (campo || '').toLowerCase().includes(texto));
+  });
+  const { paginaActual, totalPaginas, itemsPagina } = paginar(filtrados, pagina, vista);
 
-            {/* Contador */}
-            <div className="bg-slate-50 dark:bg-slate-700 px-6 py-3 rounded-xl border-2 border-slate-300 dark:border-slate-600 shadow-md">
-              <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 text-center">
-                {archivados.length}
-              </div>
-              <div className="text-xs text-slate-700 dark:text-slate-400 font-medium">
-                {archivados.length === 1 ? 'Archivado' : 'Archivados'}
-              </div>
+  // Entrada suave y escalonada de cada fondo al cambiar de vista o de página.
+  const retraso = (indice) => ({ animationDelay: `${Math.min(indice, 8) * 35}ms` });
+
+  const horas = (fondo) => (
+    <span className="tabular-nums whitespace-nowrap">
+      <span className="font-bold text-slate-800">{Math.round(fondo.total_asignado || 0)}</span>
+      <span className="text-sm text-slate-500"> / {Math.round(fondo.horas_efectivas || 0)} hrs</span>
+    </span>
+  );
+
+  const acciones = (fondo) => (
+    <div className="flex flex-wrap items-center gap-2">
+      <Link
+        to={`/fondo-tiempo/fondo/${fondo.id}`}
+        className={`${BOTON} bg-blue-900 hover:bg-blue-950 text-white`}
+      >
+        <Eye className="w-[18px] h-[18px]" strokeWidth={1.5} />
+        <span>Ver</span>
+      </Link>
+      <button data-escritura
+        type="button"
+        onClick={() => setFondoPorRestaurar(fondo)}
+        className={`${BOTON} bg-sky-600 hover:bg-sky-700 text-white`}
+      >
+        <ArchiveRestore className="w-[18px] h-[18px]" strokeWidth={1.5} />
+        <span>Restaurar</span>
+      </button>
+    </div>
+  );
+
+  const irAPagina = (nuevaPagina) => {
+    setPagina(nuevaPagina);
+    listaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  return (
+    <div className="min-h-full px-3 sm:px-4 md:px-8 py-4 md:py-6 space-y-4 text-slate-800">
+      {/* Encabezado como en el dashboard, con el total en su propio bloque */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
+        <div className={`${BLOQUE} p-5 sm:p-6`}>
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="hidden sm:flex w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-50 to-azulado-200 ring-1 ring-inset ring-azulado-300 text-blue-900 items-center justify-center flex-shrink-0">
+              <Archive className="w-7 h-7" strokeWidth={1.5} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                Gestión del Fondo de Tiempo Docente
+              </p>
+              <h2 className="text-2xl sm:text-3xl font-bold text-blue-900">Fondos Archivados</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Fondos retirados del dashboard. Se consultan con sus documentos y se pueden restaurar.
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Lista de archivados */}
-        {archivados.length === 0 ? (
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-300 dark:border-slate-700 p-12 text-center shadow-md">
-            <div className="w-20 h-20 rounded-full bg-slate-50 dark:bg-slate-700 border-2 border-slate-300 dark:border-slate-600 flex items-center justify-center mx-auto mb-4">
-              <svg className="w-10 h-10 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-              </svg>
-            </div>
-            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
-              No hay fondos archivados
-            </h3>
-            <p className="text-slate-600 dark:text-slate-400">
-              Los fondos archivados aparecerán aquí
+        <div className="rounded-3xl bg-gradient-to-br from-blue-900 to-blue-950 text-white p-5 sm:p-6 flex items-center justify-between gap-4 shadow-[0_4px_14px_rgba(30,58,138,0.25)]">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-blue-200">Total archivados</p>
+            <p className="mt-1 text-sm text-blue-100">
+              {archivados.length === 1 ? 'fondo archivado' : 'fondos archivados'}
             </p>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {archivados.map((fondo) => (
+          <span className="text-5xl font-bold tabular-nums leading-none">{archivados.length}</span>
+        </div>
+      </div>
+
+      {/* Búsqueda y gestión */}
+      {archivados.length > 0 && (
+        <div className={`${BLOQUE} p-3 flex flex-wrap items-center gap-2 sm:gap-3`}>
+          <CampoBusqueda
+            value={busqueda}
+            onChange={(valor) => {
+              setBusqueda(valor);
+              setPagina(1);
+            }}
+            placeholder={esSuperusuario ? 'Buscar docente o carrera' : 'Buscar docente'}
+          />
+          <SelectorGestion
+            value={gestionFiltro}
+            onChange={(gestion) => {
+              setGestionFiltro(gestion ?? 'todas');
+              setPagina(1);
+            }}
+            placeholder="Todas las gestiones"
+            options={gestiones.map((gestion) => ({ value: String(gestion), label: `Gestión ${gestion}` }))}
+          />
+          <SelectorVista vista={vista} onCambiar={cambiarVista} className="ml-auto" />
+        </div>
+      )}
+
+      {/* Lista */}
+      <div ref={listaRef} className="scroll-mt-4" />
+      {archivados.length === 0 ? (
+        <div className={`${BLOQUE} p-10 sm:p-12 text-center`}>
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-50 to-azulado-200 ring-1 ring-inset ring-azulado-300 text-blue-900">
+            <Archive className="w-7 h-7" strokeWidth={1.5} />
+          </div>
+          <h3 className="text-xl font-bold text-slate-800 mb-2">No hay fondos archivados</h3>
+          <p className="text-slate-600">Los fondos que se archiven desde el dashboard aparecerán aquí.</p>
+        </div>
+      ) : filtrados.length === 0 ? (
+        <div className={`${BLOQUE} p-10 text-center text-sm text-slate-600`}>
+          Ningún fondo archivado coincide con la búsqueda.
+        </div>
+      ) : vista === 'lista' ? (
+        // Cuadrícula en vez de <table>: el CSS del módulo POA da estilo a todas las tablas.
+        <div key={`lista-${paginaActual}`} className={`${BLOQUE} p-2 sm:p-3`}>
+          <div className={`hidden xl:grid ${COLUMNAS} gap-4 px-3 pt-3 pb-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 [border-bottom:1px_solid_#B8C9E1]`}>
+            <span>Docente</span>
+            <span>Descripción</span>
+            <span>Horas asignadas</span>
+            <span>Estado al archivar</span>
+            <span>Acciones</span>
+          </div>
+          <div className="divide-y divide-azulado-300">
+            {itemsPagina.map((fondo, indice) => (
               <div
                 key={fondo.id}
-                className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-md hover:shadow-xl transition-all duration-200 hover:scale-[1.01]"
+                style={retraso(indice)}
+                className={`animate-fondo-entrada grid grid-cols-1 ${COLUMNAS} items-center gap-x-4 gap-y-3 px-3 py-4 rounded-2xl hover:bg-azulado-100/70 transition-colors`}
               >
-                <div className="p-5">
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    {/* Info del fondo */}
-                    <div className="flex-1 space-y-3">
-                      {/* Header con nombre y gestión */}
-                      <div className="flex items-start gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-500 to-slate-700 flex items-center justify-center text-white font-bold shadow-md flex-shrink-0">
-                          {fondo.docente_nombre.split(' ').map(n => n[0]).join('').substring(0, 2)}
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="text-lg font-bold text-blue-600 dark:text-white">
-                            {fondo.docente_nombre}
-                          </h3>
-                          <p className="text-sm text-slate-700 dark:text-slate-400 mt-0.5">
-                            📅 Gestión {fondo.gestion}
-                          </p>
-                        </div>
-                        <EstadoPill estado={estadoVisibleFondo(fondo)} />
-                      </div>
-
-                      {/* Detalles */}
-                      <div className={`grid grid-cols-1 gap-3 ${effectiveUser?.is_superuser ? 'md:grid-cols-2' : ''}`}>
-                        <div className="flex items-center gap-2 text-sm bg-slate-50 dark:bg-slate-700/50 rounded-lg p-2 border border-slate-300 dark:border-slate-600">
-                          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                          </svg>
-                          <span className="font-medium text-slate-700 dark:text-slate-300">{fondo.descripcion}</span>
-                        </div>
-                        {/* La carrera solo la ve el superusuario; los demás roles tienen una sola. */}
-                        {effectiveUser?.is_superuser && (
-                          <div className="flex items-center gap-2 text-sm bg-slate-50 dark:bg-slate-700/50 rounded-lg p-2 border border-slate-300 dark:border-slate-600">
-                            <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                            </svg>
-                            <span className="text-slate-700 dark:text-slate-300">{fondo.carrera_nombre}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Progreso */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-slate-700 dark:text-slate-400 font-medium">
-                            Progreso
-                          </span>
-                          <span className="font-bold text-slate-800 dark:text-white">
-                            {fondo.porcentaje_completado?.toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className="w-full h-2.5 rounded-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 transition-all duration-300"
-                            style={{ width: `${Math.min(fondo.porcentaje_completado || 0, 100)}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Botones de acción */}
-                    <div className="flex lg:flex-col gap-2">
-                      {(effectiveUser?.is_superuser || ['director', 'jefe_estudios'].includes(activeRole)) && (
-                        <button data-escritura
-                          onClick={() => restaurarFondo(fondo.id, fondo.docente_nombre)}
-                          className="flex-1 lg:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
-                          <span>Restaurar</span>
-                        </button>
-                      )}
-                      
-                      <button
-                        onClick={() => navigate(`/fondo-tiempo/fondo/${fondo.id}`)}
-                        className="flex-1 lg:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-semibold rounded-xl transition-all duration-200 border-2 border-slate-300 dark:border-slate-600 shadow-sm hover:shadow-md hover:scale-105"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                        <span>Ver</span>
-                      </button>
-                    </div>
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar nombre={fondo.docente_nombre} size="w-10 h-10 text-sm" />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-blue-900 truncate">{fondo.docente_nombre}</div>
+                    {esSuperusuario && <div className="text-sm text-slate-600 truncate">{fondo.carrera_nombre}</div>}
                   </div>
+                  <div className="xl:hidden"><EstadoPill estado={estadoVisibleFondo(fondo)} /></div>
                 </div>
+                <div className="flex flex-wrap gap-2 min-w-0">
+                  <Etiqueta>{fondo.gestion}</Etiqueta>
+                  <span className="min-w-0 max-w-full truncate"><Etiqueta>{fondo.descripcion}</Etiqueta></span>
+                </div>
+                <div className="flex items-baseline justify-between xl:block">
+                  <span className="xl:hidden text-xs font-medium text-slate-600">Horas asignadas</span>
+                  {horas(fondo)}
+                </div>
+                <div className="hidden xl:block"><EstadoPill estado={estadoVisibleFondo(fondo)} /></div>
+                {acciones(fondo)}
               </div>
             ))}
           </div>
-        )}
+        </div>
+      ) : (
+        <div key={`tarjetas-${paginaActual}`} className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+          {itemsPagina.map((fondo, indice) => (
+            <div key={fondo.id} style={retraso(indice)} className={`${BLOQUE} animate-fondo-entrada p-5 flex flex-col gap-4`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar nombre={fondo.docente_nombre} />
+                  <div className="min-w-0">
+                    <h3 className="text-lg font-bold text-blue-900 truncate">{fondo.docente_nombre}</h3>
+                    {esSuperusuario && <p className="text-sm text-slate-600 truncate">{fondo.carrera_nombre}</p>}
+                  </div>
+                </div>
+                <EstadoPill estado={estadoVisibleFondo(fondo)} />
+              </div>
 
-        {/* Info adicional */}
-        {archivados.length > 0 && (
-          <div className="bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-300 dark:border-blue-700 rounded-2xl p-6 shadow-md">
-            <div className="flex items-start gap-3">
-              <svg className="w-5 h-5 mt-0.5 flex-shrink-0 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div className="text-sm text-blue-800 dark:text-blue-300">
-                <p className="font-bold mb-2">💡 Información sobre fondos archivados:</p>
-                <ul className="list-disc list-inside space-y-1">
-                  <li>Los fondos archivados no se eliminan permanentemente</li>
-                  <li>Puedes restaurarlos en cualquier momento</li>
-                  <li>Al restaurar, vuelven al estado en que fueron archivados</li>
-                  <li>Solo el superusuario, el Director y el Jefe de Estudios de la carrera pueden archivar y restaurar fondos</li>
-                </ul>
+              <div className="flex flex-wrap gap-2">
+                <Etiqueta>{fondo.gestion}</Etiqueta>
+                <Etiqueta>{fondo.descripcion}</Etiqueta>
+              </div>
+
+              <div className="flex items-baseline justify-between px-4 py-2 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300">
+                <span className="text-xs font-medium text-slate-600">Horas asignadas</span>
+                {horas(fondo)}
+              </div>
+
+              <div className="mt-auto pt-3 [border-top:1px_solid_#B8C9E1]">
+                {acciones(fondo)}
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      )}
+
+      <Paginacion paginaActual={paginaActual} totalPaginas={totalPaginas} onCambiar={irAPagina} />
+
+      {archivados.length > 0 && (
+        <p className="rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          Un fondo archivado no se borra y sus clases no cuentan en los choques de horario, de modo que
+          la gestión se puede rehacer con un fondo nuevo. Al restaurarlo vuelve al dashboard con el estado
+          que tenía.
+        </p>
+      )}
+
+      {fondoPorRestaurar && (
+        <ModalConfirmar
+          etiqueta="Fondos Archivados"
+          titulo="Restaurar fondo"
+          mensaje={`El fondo ${fondoPorRestaurar.gestion} de ${fondoPorRestaurar.docente_nombre} vuelve al dashboard con el estado "${(ESTADOS_FONDO[estadoVisibleFondo(fondoPorRestaurar)] || ESTADOS_FONDO.borrador).label}".`}
+          detalle={['No se puede restaurar si el docente ya tiene otro fondo vigente en esa gestión.']}
+          textoAccion="Restaurar"
+          textoTrabajando="Restaurando..."
+          onConfirmar={confirmarRestauracion}
+          onCancelar={() => setFondoPorRestaurar(null)}
+        />
+      )}
     </div>
   );
 }

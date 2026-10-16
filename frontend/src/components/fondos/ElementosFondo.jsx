@@ -29,9 +29,13 @@ export function BarraProgreso({ valor, color = 'bg-blue-900' }) {
   );
 }
 
-export function Etiqueta({ children }) {
+// truncar: en una columna angosta se corta con "…" (el texto completo queda en el title).
+export function Etiqueta({ children, truncar = false }) {
   return (
-    <span className="inline-flex px-3 py-1 rounded-full text-xs font-medium bg-azulado-100 text-slate-700 ring-1 ring-inset ring-azulado-300">
+    <span
+      title={truncar && typeof children !== 'object' ? String(children ?? '') : undefined}
+      className={`${truncar ? 'inline-block max-w-full truncate align-top' : 'inline-flex'} px-3 py-1 rounded-full text-xs font-medium bg-azulado-100 text-slate-700 ring-1 ring-inset ring-azulado-300`}
+    >
       {children}
     </span>
   );

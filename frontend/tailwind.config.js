@@ -1,3 +1,5 @@
+import plugin from 'tailwindcss/plugin';
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -111,5 +113,10 @@ export default {
       }
     },
   },
-  plugins: [],
+  plugins: [
+    // tabla: estilos de un listado cuando su bloque (con [container-type:inline-size]) mide
+    // al menos 64rem: se ve como tabla según el ancho real (sidebar abierto o contraído), no
+    // el de la ventana; si no cabe, cada fila se apila como en el celular.
+    plugin(({ addVariant }) => addVariant('tabla', '@container (min-width: 64rem)')),
+  ],
 }

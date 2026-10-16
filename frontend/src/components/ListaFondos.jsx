@@ -478,9 +478,10 @@ function ListaFondos() {
         </div>
       ) : vista === 'lista' ? (
         // Cuadrícula en vez de <table>: el CSS del módulo POA da estilo a todas las tablas.
-        // En escritorio se ve como tabla; en el celular cada fondo es un bloque apilado.
-        <div key={`lista-${paginaActual}`} className={`${BLOQUE} p-2 sm:p-3`}>
-          <div className="hidden xl:grid grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_8rem_10rem_11rem_15rem] gap-4 px-3 pt-3 pb-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 [border-bottom:1px_solid_#B8C9E1]">
+        // Se ve como tabla cuando el bloque es lo bastante ancho (variante tabla:, según el
+        // ancho del bloque y no de la ventana); si no, cada fondo es un bloque apilado.
+        <div key={`lista-${paginaActual}`} className={`${BLOQUE} p-2 sm:p-3 [container-type:inline-size]`}>
+          <div className="hidden tabla:grid grid-cols-[minmax(10rem,2fr)_minmax(7.5rem,1.5fr)_7.5rem_9rem_10.5rem_13rem] gap-4 px-3 pt-3 pb-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 [border-bottom:1px_solid_#B8C9E1]">
             <span>Docente</span>
             <span>Descripción</span>
             <span>Horas asignadas</span>
@@ -493,7 +494,7 @@ function ListaFondos() {
               <div
                 key={fondo.id}
                 style={entrada(indice).style}
-                className="animate-fondo-entrada grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_8rem_10rem_11rem_15rem] items-center gap-x-4 gap-y-3 px-3 py-4 rounded-2xl hover:bg-azulado-100/70 transition-colors"
+                className="animate-fondo-entrada grid grid-cols-1 tabla:grid-cols-[minmax(10rem,2fr)_minmax(7.5rem,1.5fr)_7.5rem_9rem_10.5rem_13rem] items-center gap-x-4 gap-y-3 px-3 py-4 rounded-2xl hover:bg-azulado-100/70 transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <Avatar nombre={fondo.docente_nombre} size="w-10 h-10 text-sm" />
@@ -501,18 +502,18 @@ function ListaFondos() {
                     <div className="font-bold text-blue-900 truncate">{fondo.docente_nombre}</div>
                     {esSuperusuario && <div className="text-sm text-slate-600 truncate">{fondo.carrera_nombre}</div>}
                   </div>
-                  <div className="xl:hidden"><EstadoPill estado={estadoVisibleFondo(fondo)} /></div>
+                  <div className="tabla:hidden"><EstadoPill estado={estadoVisibleFondo(fondo)} /></div>
                 </div>
                 <div className="flex flex-wrap gap-2 min-w-0">
                   <Etiqueta>{fondo.gestion}</Etiqueta>
-                  <span className="min-w-0 max-w-full truncate"><Etiqueta>{fondo.descripcion}</Etiqueta></span>
+                  <Etiqueta truncar>{fondo.descripcion}</Etiqueta>
                 </div>
-                <div className="flex items-baseline justify-between xl:block">
-                  <span className="xl:hidden text-xs font-medium text-slate-600">Horas asignadas</span>
+                <div className="flex items-baseline justify-between tabla:block">
+                  <span className="tabla:hidden text-xs font-medium text-slate-600">Horas asignadas</span>
                   {horas(fondo)}
                 </div>
                 {progreso(fondo)}
-                <div className="hidden xl:block"><EstadoPill estado={estadoVisibleFondo(fondo)} /></div>
+                <div className="hidden tabla:block"><EstadoPill estado={estadoVisibleFondo(fondo)} /></div>
                 {acciones(fondo)}
               </div>
             ))}

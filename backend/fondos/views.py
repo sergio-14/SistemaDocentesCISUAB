@@ -214,7 +214,7 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         if not request.user.is_superuser and (not perfil or perfil.rol != 'jefe_estudios'):
             raise PermissionDenied('Solo Jefatura de Estudios busca docentes de otras carreras.')
         palabras = str(request.query_params.get('q') or '').split()
-        if sum(len(palabra) for palabra in palabras) < 3:
+        if sum(len(palabra) for palabra in palabras) < 2:
             return Response([])
         docentes = Docente.objects.filter(activo=True, vinculos_carrera__activo=True).select_related(
             'user', 'datos_laborales',

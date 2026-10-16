@@ -2917,6 +2917,12 @@ class UsuarioSerializer(serializers.ModelSerializer):
         return serialize_assignment(get_active_assignment(request))
 
 
+MENSAJES_CORREO_OBLIGATORIO = {
+    'required': 'El correo institucional es obligatorio.',
+    'blank': 'El correo institucional es obligatorio.',
+}
+
+
 class CrearUsuarioSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, min_length=8)
     password_confirm = serializers.CharField(write_only=True, required=True)
@@ -2951,7 +2957,9 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'first_name': {'required': False, 'allow_blank': True},
             'last_name': {'required': False, 'allow_blank': True},
-            'email': {'required': False, 'allow_blank': True},
+            # Correo institucional obligatorio también en el backend (antes solo lo pedía el
+            # formulario y quedaron usuarios creados sin correo).
+            'email': {'required': True, 'allow_blank': False, 'error_messages': MENSAJES_CORREO_OBLIGATORIO},
         }
 
     def validate(self, data):
@@ -3246,7 +3254,7 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
             'username': {'required': False},
             'first_name': {'allow_blank': False},
             'last_name': {'allow_blank': False},
-            'email': {'allow_blank': False},
+            'email': {'allow_blank': False, 'error_messages': MENSAJES_CORREO_OBLIGATORIO},
         }
 
     def to_internal_value(self, data):

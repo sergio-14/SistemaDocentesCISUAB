@@ -1714,7 +1714,9 @@ function ListaDocentes() {
   const { paginaActual, totalPaginas, itemsPagina: docentesPagina } = paginar(docentesFiltrados, pagina, vista);
   const irAPagina = (nuevaPagina) => {
     setPagina(nuevaPagina);
-    listaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Salto inmediato (no suave) al inicio de la lista: la página nueva entra ya a la vista
+    // con su animación; con el desplazamiento suave la animación terminaba antes de llegar.
+    listaRef.current?.scrollIntoView({ block: 'start' });
   };
 
   // Columnas de la vista de lista (con o sin la de acciones).
@@ -1787,8 +1789,8 @@ function ListaDocentes() {
       <div className="space-y-4">
         {/* Bloque 1: encabezado con la acción y, al lado, el total (como el dashboard de fondos) */}
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
-          <div className={`${BLOQUE} p-5 sm:p-6`}>
-            <div className="flex flex-wrap items-center justify-between gap-5">
+          <div className={`${BLOQUE} p-5 sm:p-6 flex flex-col`}>
+            <div className="flex flex-1 flex-col gap-4">
               <div className="flex items-center gap-4 min-w-0">
                 <div className="hidden sm:flex w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-50 to-azulado-200 ring-1 ring-inset ring-azulado-300 text-blue-900 items-center justify-center flex-shrink-0">
                   <UsersIcon className="w-7 h-7" />
@@ -1805,7 +1807,7 @@ function ListaDocentes() {
               {esAdmin() && (
                 <button
                   onClick={handleToggleCreateForm}
-                  className={`${BOTON} w-full sm:w-auto px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm`}
+                  className={`${BOTON} w-full sm:w-auto sm:self-end mt-auto px-5 py-2.5 bg-blue-900 hover:bg-blue-950 text-white shadow-sm`}
                 >
                   <PlusIcon className="w-5 h-5" />
                   <span>Nuevo Docente</span>

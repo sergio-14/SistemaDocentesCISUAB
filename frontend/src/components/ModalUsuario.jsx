@@ -338,6 +338,16 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
       return;
     }
 
+    // Correo institucional obligatorio y válido, como al crear el usuario (y en el backend).
+    const emailNormalizado = String(formData.email || '').trim();
+    if (!emailNormalizado || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNormalizado)) {
+      const mensaje = emailNormalizado ? 'Ingresa un correo electrónico válido.' : 'El correo institucional es obligatorio.';
+      setErrors((prev) => ({ ...prev, email: [mensaje] }));
+      toast.error(mensaje);
+      setLoading(false);
+      return;
+    }
+
     const segundaRol = String(asignacionesExtra[0]?.rol || '').trim();
     if (segundaRol && segundaRol === rolNormalizado) {
       setErrors((prev) => ({ ...prev, asignaciones: ['No se puede repetir el mismo rol.'] }));

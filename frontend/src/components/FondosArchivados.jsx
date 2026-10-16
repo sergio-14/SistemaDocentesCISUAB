@@ -150,7 +150,9 @@ function FondosArchivados() {
 
   const irAPagina = (nuevaPagina) => {
     setPagina(nuevaPagina);
-    listaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Salto inmediato (no suave) al inicio de la lista: la página nueva entra ya a la vista
+    // con su animación; con el desplazamiento suave la animación terminaba antes de llegar.
+    listaRef.current?.scrollIntoView({ block: 'start' });
   };
 
   return (

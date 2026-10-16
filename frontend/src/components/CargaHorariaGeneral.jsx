@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowLeftRight, Plus } from 'lucide-react';
 import { getDocentes } from '../apis/api';
 import { ETIQUETAS_DEDICACION } from '../utils/dedicaciones';
 import { paginar } from '../utils/paginacion';
@@ -8,11 +9,12 @@ import CampoBusqueda from './common/CampoBusqueda';
 import NumeroAnimado from './common/NumeroAnimado';
 import Paginacion from './common/Paginacion';
 import SelectorVista from './common/SelectorVista';
-import { BLOQUE, BOTON_CHICO } from './fondos/estilosFondo';
+import { BLOQUE, BOTON, BOTON_CHICO } from './fondos/estilosFondo';
 import { Avatar, Etiqueta } from './fondos/ElementosFondo';
 
 // Carga Horaria (Jefe de Estudios): los docentes de su carrera para entrar a gestionar su
-// Fondo de Tiempo y, aparte, la asignación de materias a docentes de otra carrera.
+// Fondo de Tiempo y, en la vista "Materias asignadas", las materias de su carrera que dictan
+// docentes de otra carrera (se asignan con el botón del encabezado).
 
 const ClockIcon = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
@@ -22,6 +24,7 @@ const ClockIcon = (props) => (
 
 const ETIQUETAS_CATEGORIA = { catedratico: 'Catedrático', adjunto: 'Adjunto', asistente: 'Asistente' };
 const VISTA_CARGA_KEY = 'carga_horaria_vista';
+const VISTAS = ['tarjetas', 'lista', 'materias'];
 
 const normalizar = (texto) => String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -39,12 +42,15 @@ const CargaHorariaGeneral = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [vista, setVista] = useState(() => {
     try {
-      return localStorage.getItem(VISTA_CARGA_KEY) === 'lista' ? 'lista' : 'tarjetas';
+      const guardada = localStorage.getItem(VISTA_CARGA_KEY);
+      return VISTAS.includes(guardada) ? guardada : 'tarjetas';
     } catch {
       return 'tarjetas';
     }
   });
   const [pagina, setPagina] = useState(1);
+  // Ventana para asignar una materia a un docente de otra carrera.
+  const [asignando, setAsignando] = useState(false);
   const listaRef = useRef(null);
 
   useEffect(() => {
@@ -104,10 +110,13 @@ const CargaHorariaGeneral = () => {
     return normalizar(nombre).includes(texto) || String(docente?.ci || '').includes(searchTerm.trim());
   });
   const totalActivos = docentes.filter((docente) => docente.activo).length;
+  const verMaterias = vista === 'materias';
   const { paginaActual, totalPaginas, itemsPagina: docentesPagina } = paginar(filteredDocentes, pagina, vista);
   const irAPagina = (nuevaPagina) => {
     setPagina(nuevaPagina);
-    listaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Salto inmediato (no suave) al inicio de la lista: la página nueva entra ya a la vista
+    // con su animación; con el desplazamiento suave la animación terminaba antes de llegar.
+    listaRef.current?.scrollIntoView({ block: 'start' });
   };
 
   const infoDocente = (docente) => {
@@ -139,7 +148,7 @@ const CargaHorariaGeneral = () => {
       <div className="space-y-4">
         {/* Bloque 1: encabezado y, al lado, el total (como el dashboard de fondos) */}
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
-          <div className={`${BLOQUE} p-5 sm:p-6 flex items-center`}>
+          <div className={`${BLOQUE} p-5 sm:p-6 flex flex-col gap-4`}>
             <div className="flex items-center gap-4 min-w-0">
               <div className="hidden sm:flex w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-50 to-azulado-200 ring-1 ring-inset ring-azulado-300 text-blue-900 items-center justify-center flex-shrink-0">
                 <ClockIcon className="w-7 h-7" />
@@ -153,6 +162,15 @@ const CargaHorariaGeneral = () => {
                 </h2>
               </div>
             </div>
+            {/* Materia de esta carrera para un docente de otra carrera (doble carrera). */}
+            <button data-escritura
+              type="button"
+              onClick={() => setAsignando(true)}
+              className={`${BOTON} px-5 py-2.5 w-full sm:w-auto sm:self-end mt-auto bg-blue-900 hover:bg-blue-950 text-white shadow-sm`}
+            >
+              <Plus className="w-5 h-5" strokeWidth={2} />
+              <span>Asignar materia</span>
+            </button>
           </div>
 
           <div className="rounded-3xl bg-gradient-to-br from-blue-900 to-blue-950 text-white p-5 sm:p-6 flex flex-col justify-between gap-4 shadow-[0_4px_14px_rgba(30,58,138,0.25)]">
@@ -175,18 +193,43 @@ const CargaHorariaGeneral = () => {
           </div>
         </div>
 
-        {/* Bloque 2: materias de esta carrera para docentes de otra carrera */}
-        <AsignarMateriaOtraCarrera />
-
-        {/* Bloque 3: búsqueda y vista */}
+        {/* Bloque 2: búsqueda y vista (tarjetas, lista o materias asignadas a otra carrera) */}
         <div className={`${BLOQUE} p-3 flex flex-wrap items-center gap-2 sm:gap-3`}>
-          <CampoBusqueda value={searchTerm} onChange={setSearchTerm} placeholder="Buscar por nombre o C.I." />
-          <SelectorVista vista={vista} onCambiar={cambiarVista} className="ml-auto" />
+          <CampoBusqueda
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder={verMaterias ? 'Buscar docente o materia' : 'Buscar por nombre o C.I.'}
+          />
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {/* Materias de esta carrera asignadas a docentes de otra carrera: vista aparte. */}
+            <div className="flex items-center p-1 rounded-full bg-azulado-100 ring-1 ring-inset ring-azulado-300">
+              <button
+                type="button"
+                title="Materias asignadas"
+                onClick={() => cambiarVista('materias')}
+                className={`inline-flex items-center gap-2 px-3 sm:px-4 h-9 rounded-full text-sm font-medium transition-colors ${
+                  verMaterias ? 'bg-blue-900 text-white shadow-sm' : 'text-slate-600 hover:text-blue-900'
+                }`}
+              >
+                <ArrowLeftRight className="w-4 h-4" strokeWidth={1.75} />
+                <span className="hidden sm:inline">Materias asignadas</span>
+              </button>
+            </div>
+            <SelectorVista vista={vista} onCambiar={cambiarVista} />
+          </div>
         </div>
 
-        {/* Bloque 4: docentes en tarjetas o en lista (15 por página en lista y 9 en tarjetas) */}
+        {/* Materias asignadas a docentes de otra carrera (vista) y la ventana para asignar. */}
+        <AsignarMateriaOtraCarrera
+          mostrarLista={verMaterias}
+          filtro={searchTerm}
+          modalAbierto={asignando}
+          onCerrarModal={() => setAsignando(false)}
+        />
+
+        {/* Bloque 3: docentes en tarjetas o en lista (15 por página en lista y 9 en tarjetas) */}
         <div ref={listaRef} className="scroll-mt-4" />
-        {filteredDocentes.length > 0 ? (
+        {verMaterias ? null : filteredDocentes.length > 0 ? (
           vista === 'lista' ? (
             // Cuadrícula en vez de <table>: el CSS del módulo POA da estilo a todas las tablas.
             <div key={`lista-${claveVista}`} className={`${BLOQUE} p-2 sm:p-3`}>
@@ -284,7 +327,7 @@ const CargaHorariaGeneral = () => {
           </div>
         )}
 
-        <Paginacion paginaActual={paginaActual} totalPaginas={totalPaginas} onCambiar={irAPagina} />
+        {!verMaterias && <Paginacion paginaActual={paginaActual} totalPaginas={totalPaginas} onCambiar={irAPagina} />}
       </div>
     </div>
   );

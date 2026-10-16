@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import api, { eliminarFondoTiempo, generarFondosTiempoMasivo, getFondosTiempo } from '../apis/api';
+import { eliminarFondoTiempo, generarFondosTiempoMasivo, getFondosTiempo } from '../apis/api';
+import { descargarInformeGestion } from '../utils/informeGestion';
 import { puedeCrearFondoTiempo } from '../utils/fondoTiempoPermissions';
 import { useActiveRole } from '../contexts/activeRole';
 import { getApiErrorMessage, getDownloadErrorMessage } from '../utils/formErrors';
@@ -244,20 +245,9 @@ function ListaFondos() {
   // Gestión: la del filtro o, sin filtro, la más reciente de los fondos.
   const esDirectorCarrera = activeRole === 'director' && !esSuperusuario && Boolean(activeCareerId);
   const gestionInforme = gestionFiltro !== 'todas' ? Number(gestionFiltro) : (gestiones[0] || new Date().getFullYear());
-  const descargarInformeGestion = async () => {
+  const bajarInformeGestion = async () => {
     try {
-      const response = await api.get(`/carreras/${activeCareerId}/informe-gestion/`, {
-        params: { gestion: gestionInforme },
-        responseType: 'blob',
-      });
-      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
-      const enlace = document.createElement('a');
-      enlace.href = url;
-      enlace.download = `Informe_gestion_${effectiveUser?.perfil?.carrera_codigo || activeCareerId}_${gestionInforme}.pdf`;
-      document.body.appendChild(enlace);
-      enlace.click();
-      enlace.remove();
-      window.URL.revokeObjectURL(url);
+      await descargarInformeGestion(activeCareerId, gestionInforme, effectiveUser?.perfil?.carrera_codigo);
       toast.success(`Informe de gestión ${gestionInforme} descargado`);
     } catch (err) {
       console.error(err);
@@ -418,7 +408,7 @@ function ListaFondos() {
             {esDirectorCarrera && (
               <button
                 type="button"
-                onClick={descargarInformeGestion}
+                onClick={bajarInformeGestion}
                 className={`${BOTON} px-5 py-2.5 w-full sm:w-auto ${BOTON_DOCUMENTO}`}
               >
                 <DownloadIcon className="w-5 h-5" />

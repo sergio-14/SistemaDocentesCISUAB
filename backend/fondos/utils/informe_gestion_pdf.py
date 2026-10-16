@@ -15,9 +15,11 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from fondos.models import UNIDADES_FONDO, CargaHoraria, FondoTiempo, InformeFondo
+from fondos.utils.informe_texto import nombre_director
+from fondos.utils.pdf_generator import _capitalizar
 
 AZUL = colors.HexColor('#1d4ed8')
 GRIS_BORDE = colors.HexColor('#cbd5e1')
@@ -36,9 +38,13 @@ def _porcentaje(parte, total):
 
 
 def datos_informe_gestion(carrera, gestion):
-    """Filas por docente y resumen por unidad de los fondos vigentes de la carrera en la gestión."""
+    """Filas por docente y resumen por unidad de los fondos vigentes de la carrera en la
+    gestión. Los fondos en borrador no se incluyen (aún no se presentaron): se cuentan
+    aparte para la nota del informe."""
+    vigentes = FondoTiempo.objects.filter(carrera=carrera, gestion=gestion, archivado=False)
+    borradores_excluidos = vigentes.filter(estado='borrador').count()
     fondos = list(
-        FondoTiempo.objects.filter(carrera=carrera, gestion=gestion, archivado=False)
+        vigentes.exclude(estado='borrador')
         .select_related('docente')
         .annotate(asignado=Sum('cargas__horas'))
         .order_by('docente__apellido_paterno', 'docente__apellido_materno', 'docente__nombres')
@@ -81,7 +87,7 @@ def datos_informe_gestion(carrera, gestion):
     # sin sumarse a los totales.
     horas_otras = (
         CargaHoraria.objects.filter(calendario__carrera=carrera, fondo__gestion=gestion, fondo__archivado=False)
-        .exclude(fondo__carrera=carrera)
+        .exclude(fondo__carrera=carrera).exclude(fondo__estado='borrador')
         .order_by().values('fondo', 'materia__nombre').annotate(horas_total=Sum('horas'))
     )
     fondos_otras = FondoTiempo.objects.select_related('docente__user', 'carrera').in_bulk(
@@ -102,6 +108,7 @@ def datos_informe_gestion(carrera, gestion):
     )
     return {
         'filas': filas,
+        'borradores_excluidos': borradores_excluidos,
         'otras_carreras': otras_carreras,
         'unidades': unidades,
         'total_efectivas': sum(Decimal(str(fila['horas_efectivas'])) for fila in filas),
@@ -114,12 +121,16 @@ class InformeGestionCarreraPDF:
     def _estilos():
         base = getSampleStyleSheet()
         return {
-            'titulo': ParagraphStyle('IGTitulo', parent=base['Heading1'], fontName='Helvetica-Bold',
-                                     fontSize=15, leading=19, textColor=AZUL, spaceAfter=2),
-            'subtitulo': ParagraphStyle('IGSub', parent=base['Normal'], fontName='Helvetica', fontSize=9.5,
-                                        leading=12, textColor=colors.HexColor('#334155')),
             'seccion': ParagraphStyle('IGSeccion', parent=base['Normal'], fontName='Helvetica-Bold',
                                       fontSize=10, leading=13, textColor=AZUL, spaceBefore=4, spaceAfter=4),
+            # Mismo título y encabezado institucional que el PDF del Fondo de Tiempo
+            # (FondoPDFGenerator: _get_estilo_titulo y estilo_header_bold).
+            'titulo_fondo': ParagraphStyle('IGTituloFondo', parent=base['Heading1'], fontName='Helvetica-Bold',
+                                           fontSize=10, alignment=1, spaceAfter=6),
+            'institucion': ParagraphStyle('IGInstitucion', parent=base['Normal'], fontName='Helvetica-Bold',
+                                          fontSize=8, alignment=1, leading=9),
+            'firma': ParagraphStyle('IGFirma', parent=base['Normal'], fontName='Helvetica', fontSize=9,
+                                    alignment=1, leading=12),
             'celda': ParagraphStyle('IGCelda', parent=base['Normal'], fontName='Helvetica', fontSize=8, leading=10),
             'num': ParagraphStyle('IGNum', parent=base['Normal'], fontName='Helvetica', fontSize=8, leading=10, alignment=2),
             'cabecera': ParagraphStyle('IGCab', parent=base['Normal'], fontName='Helvetica-Bold', fontSize=8,
@@ -158,13 +169,21 @@ class InformeGestionCarreraPDF:
 
 
         story = [
-            p('INFORME DE GESTIÓN DE LA CARRERA', 'titulo'),
-            p(f'Carrera de {carrera.nombre} · {carrera.facultad.nombre} · Gestión {gestion}', 'subtitulo'),
+            p(f'INFORME DE GESTIÓN – GESTIÓN {gestion} – CARRERA DE {carrera.nombre.upper()}', 'titulo_fondo'),
+            p('Universidad Autónoma del Beni José Ballivián', 'institucion'),
+            p(_capitalizar(carrera.facultad.nombre) if carrera.facultad else '', 'institucion'),
+            p(f'Carrera de {_capitalizar(carrera.nombre)}', 'institucion'),
+            Spacer(1, 0.3 * cm),
             p('Control y Distribución del Tiempo de la Docencia (RR 14-A/2017, Arts. 19 y 28). '
               f'Emitido el {timezone.localdate().strftime("%d/%m/%Y")}.', 'nota'),
-            Spacer(1, 0.4 * cm),
-            p('Docentes y cumplimiento', 'seccion'),
         ]
+        if datos['borradores_excluidos']:
+            cantidad = datos['borradores_excluidos']
+            story.append(p(
+                f'No se incluye{"n" if cantidad > 1 else ""} {cantidad} fondo{"s" if cantidad > 1 else ""} '
+                f'en borrador (aún no presentado{"s" if cantidad > 1 else ""} al Director).', 'nota',
+            ))
+        story += [Spacer(1, 0.4 * cm), p('Docentes y cumplimiento', 'seccion')]
 
         cabecera = ['N°', 'Docente', 'Estado del fondo', 'Horas efectivas', 'Horas asignadas',
                     'Cumplimiento evaluado', 'Fuera de plazo']
@@ -212,6 +231,14 @@ class InformeGestionCarreraPDF:
         story.append(InformeGestionCarreraPDF._tabla(
             filas, [9.0 * cm, 4.0 * cm, 4.0 * cm, 4.0 * cm],
         ))
+
+        # Firma del Director de Carrera (Art. 19: eleva el informe a la Decanatura).
+        director = nombre_director(carrera)
+        firma = [p('_' * 40, 'firma')]
+        if director != 'SIN DIRECTOR ASIGNADO':
+            firma.append(p(director, 'firma'))
+        firma += [p('DIRECTOR(A) DE CARRERA', 'institucion'), p(f'Carrera de {_capitalizar(carrera.nombre)}', 'firma')]
+        story += [Spacer(1, 1.6 * cm), KeepTogether(firma)]
 
         doc.build(story)
         buffer.seek(0)

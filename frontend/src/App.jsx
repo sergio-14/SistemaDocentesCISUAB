@@ -32,6 +32,8 @@ import Comparador from './components/Comparador';
 import FormularioFondo from './components/FormularioFondo';
 import GestionUsuarios from './components/GestionUsuarios';
 import FondosArchivados from './components/FondosArchivados';
+import InformeGestion from './components/InformeGestion';
+import MiPerfil from './components/MiPerfil';
 import ListaDocentes from './components/ListaDocentes';
 import ListaCarreras from './components/ListaCarreras';
 import ListaCalendarios from './components/ListaCalendarios';
@@ -309,6 +311,8 @@ function App() {
               <Route path="docentes/:id" element={<AnimatedRoute><FondoTiempoDocente /></AnimatedRoute>} />
               {/* Ruta para los fondos archivados dentro del módulo de Fondo de Tiempo */}
               <Route path="archivados" element={<RutaPorRol roles={['director', 'jefe_estudios']}><AnimatedRoute><FondosArchivados /></AnimatedRoute></RutaPorRol>} />
+              <Route path="informe-gestion" element={<RutaPorRol roles={['director']}><AnimatedRoute><InformeGestion /></AnimatedRoute></RutaPorRol>} />
+              <Route path="mi-perfil" element={<RutaPorRol roles={['docente']}><AnimatedRoute><MiPerfil /></AnimatedRoute></RutaPorRol>} />
 
               {/* Rutas de Administración (Integradas en el Sidebar) */}
               <Route path="docentes" element={<AnimatedRoute><ListaDocentes isDark={isDark} /></AnimatedRoute>} />

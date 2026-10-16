@@ -97,7 +97,7 @@ function DetalleFondo() {
   // Carga que se corrige en su fila de la tabla: solo horas (y descripción en "Otros").
   // { id, horas, titulo, esOtros, error, guardando }
   const [edicionCarga, setEdicionCarga] = useState(null);
-  // Historial del fondo (HistorialFondo): plegado al inicio; se pide al abrirlo.
+  // Historial del fondo (HistorialFondo): en una ventana; se pide al abrirla.
   const [historialAbierto, setHistorialAbierto] = useState(false);
   const [historial, setHistorial] = useState(null);
   // Unidades desmarcadas en el filtro de "Actividades planificadas" (al inicio, ninguna).
@@ -253,7 +253,7 @@ function DetalleFondo() {
   // entero, sin consultar mientras tanto.
   useFondoActualizado(() => cargarDetalle({ silencioso: true }), { fondoId: id });
 
-  // Abierto, se vuelve a pedir cuando el fondo cambia de estado (cada cambio deja su registro).
+  // Abierta, se vuelve a pedir cuando el fondo cambia de estado (cada cambio deja su registro).
   useEffect(() => {
     if (!historialAbierto || !fondo?.id) return undefined;
     let vigente = true;
@@ -659,6 +659,16 @@ function DetalleFondo() {
                 <EstadoPill estado={estadoVisibleFondo(fondo)} />
                 {/* Arts. 15 y 18: presentado después de los plazos del calendario (no bloquea). */}
                 <EtiquetaFueraDePlazo vencidos={fondo.fuera_de_plazo} />
+                <button
+                  type="button"
+                  onClick={() => setHistorialAbierto(true)}
+                  className={`${BOTON} px-3 py-1 text-xs bg-azulado-100 text-blue-900 ring-1 ring-inset ring-azulado-300 hover:bg-azulado-200`}
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z" />
+                  </svg>
+                  Historial
+                </button>
               </div>
               {/* La carrera solo la ve el superusuario; los demás roles tienen una sola. */}
               {(esSuperAdmin || fondo.descripcion) && (
@@ -1307,53 +1317,55 @@ function DetalleFondo() {
             </div>
           )}
 
-          {/* Historial del fondo: quién hizo cada cambio y cuándo (plegado al inicio). */}
-          <div className={`${BLOQUE} p-5 sm:p-6`}>
-            <button
-              type="button"
-              onClick={() => setHistorialAbierto((abierto) => !abierto)}
-              aria-expanded={historialAbierto}
-              className="w-full flex items-center justify-between gap-4 text-left"
-            >
-              <span>
-                <span className="block text-base font-bold text-blue-900">Historial</span>
-                <span className="mt-0.5 block text-sm text-slate-600">Cada cambio del fondo con su autor, fecha y hora.</span>
-              </span>
-              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-azulado-100 text-blue-900 ring-1 ring-inset ring-azulado-300">
-                <svg className={`w-4 h-4 transition-transform duration-200 ${historialAbierto ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </span>
-            </button>
-            <Plegable abierto={historialAbierto}>
-              <div className="mt-4 pt-4 [border-top:1px_solid_#B8C9E1]">
-                {historial === null ? (
-                  <p className="text-sm text-slate-500">Cargando historial...</p>
-                ) : historial.length === 0 ? (
-                  <p className="text-sm text-slate-500">Todavía no hay cambios registrados.</p>
-                ) : (
-                  <ol className="divide-y divide-azulado-300">
-                    {historial.map((registro) => (
-                      <li key={registro.id} className="grid gap-1 py-3 sm:grid-cols-[11rem_minmax(0,1fr)] sm:gap-4">
-                        <span className="text-xs font-medium text-slate-500 tabular-nums">
-                          {new Date(registro.fecha).toLocaleString('es-BO', {
-                            timeZone: ZONA_HORARIA_BOLIVIA, day: '2-digit', month: '2-digit', year: 'numeric',
-                            hour: '2-digit', minute: '2-digit',
-                          })}
-                        </span>
-                        <span className="min-w-0 text-sm">
-                          <span className="font-semibold text-blue-900">{registro.tipo_cambio_display}</span>
-                          <span className="text-slate-500"> · {registro.usuario_nombre || registro.usuario_username}</span>
-                          <span className="mt-0.5 block text-slate-700 break-words">{registro.descripcion}</span>
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </div>
-            </Plegable>
-          </div>
         </>
+      )}
+
+      {/* Historial del fondo: quién hizo cada cambio y cuándo. */}
+      {historialAbierto && (
+        <ModalCentrado onClose={() => setHistorialAbierto(false)}>
+          <div className="w-full max-w-3xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
+            <div className="flex items-start justify-between gap-4 px-6 pt-6">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">Fondo de Tiempo {fondo.gestion}</p>
+                <h3 className="text-xl font-bold text-slate-800">Historial</h3>
+                <p className="mt-0.5 text-sm text-slate-600">Cada cambio del fondo con su autor, fecha y hora.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHistorialAbierto(false)}
+                aria-label="Cerrar"
+                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-azulado-200 hover:text-slate-800"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="mx-6 mt-4 mb-6 max-h-[60vh] overflow-y-auto pt-4 [border-top:1px_solid_#B8C9E1]">
+            {historial === null ? (
+              <p className="text-sm text-slate-500">Cargando historial...</p>
+            ) : historial.length === 0 ? (
+              <p className="text-sm text-slate-500">Todavía no hay cambios registrados.</p>
+            ) : (
+              <ol className="divide-y divide-azulado-300">
+                {historial.map((registro) => (
+                  <li key={registro.id} className="grid gap-1 py-3 sm:grid-cols-[11rem_minmax(0,1fr)] sm:gap-4">
+                    <span className="text-xs font-medium text-slate-500 tabular-nums">
+                      {new Date(registro.fecha).toLocaleString('es-BO', {
+                        timeZone: ZONA_HORARIA_BOLIVIA, day: '2-digit', month: '2-digit', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit',
+                      })}
+                    </span>
+                    <span className="min-w-0 text-sm">
+                      <span className="font-semibold text-blue-900">{registro.tipo_cambio_display}</span>
+                      <span className="text-slate-500"> · {registro.usuario_nombre || registro.usuario_username}</span>
+                      <span className="mt-0.5 block text-slate-700 break-words">{registro.descripcion}</span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+            </div>
+          </div>
+        </ModalCentrado>
       )}
 
       {/* BOTÓN OBSERVACIONES - Portal para que quede fijo en la esquina de la pantalla.

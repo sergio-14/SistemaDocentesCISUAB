@@ -1690,6 +1690,8 @@ class DocenteSerializer(serializers.ModelSerializer):
     # de solo lectura y descartaría la fecha escrita en el formulario.
     fecha_ingreso = serializers.DateField(required=False)
     dias_vacacion = serializers.SerializerMethodField()
+    # Años completos a hoy (para un fondo se mide al inicio de su gestión).
+    antiguedad = serializers.SerializerMethodField()
     # El C.I. vive en DatosLaborales: se guarda y solo se edita sin historial.
     ci = serializers.CharField(required=False, allow_blank=True, max_length=20)
     tiene_historial = serializers.SerializerMethodField()
@@ -1710,7 +1712,7 @@ class DocenteSerializer(serializers.ModelSerializer):
             'id', 'user', 'user_id', 'user_data',
             'nombres', 'apellido_paterno', 'apellido_materno',
             'ci', 'email', 'telefono',
-            'fecha_ingreso', 'dias_vacacion',
+            'fecha_ingreso', 'dias_vacacion', 'antiguedad',
             'nombre_completo', 'usuario_nombre', 'usuario_email', 'usuario_id',
             'usuario_rol', 'usuario_rol_display', 'asignaciones',
             'horas_declaradas', 'fondos_validados', 'tiene_historial', 'tiene_registros',
@@ -1816,6 +1818,9 @@ class DocenteSerializer(serializers.ModelSerializer):
 
     def get_dias_vacacion(self, obj):
         return obj.dias_vacacion
+
+    def get_antiguedad(self, obj):
+        return obj.calcular_antiguedad()
 
     def get_tiene_historial(self, obj):
         return docente_tiene_historial_operativo(obj)

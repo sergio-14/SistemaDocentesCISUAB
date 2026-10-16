@@ -146,6 +146,8 @@ def asignaturas_dictadas_html(fondo):
     (HTML ya escapado) con las materias de las Clases en aula del fondo: una vez
     cada una aunque se dicte en los dos semestres; las de otra carrera llevan su
     carrera entre paréntesis."""
+    # Import local: pdf_generator importa este módulo. La carrera se escribe como en el PDF.
+    from fondos.utils.pdf_generator import _capitalizar
     cargas = fondo.cargas.filter(
         tipo_actividad='clases_aula', materia__isnull=False,
     ).select_related('materia__carrera').order_by('calendario__fecha_inicio', 'id')
@@ -158,7 +160,7 @@ def asignaturas_dictadas_html(fondo):
         vistos.add(materia.pk)
         nombre = f'<b>{escape(materia.nombre)}</b>'
         if materia.carrera_id != fondo.carrera_id and materia.carrera:
-            nombre += f' ({escape(materia.carrera.nombre)})'
+            nombre += f' ({escape(_capitalizar(materia.carrera.nombre))})'
         materias.append(nombre)
     if not materias:
         return 'las asignaturas asignadas'

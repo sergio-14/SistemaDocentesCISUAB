@@ -1065,19 +1065,35 @@ class FondoTiempo(models.Model):
     )
 
     def plazos_vencidos(self, fecha):
-        """Arts. 15 y 18: plazos de los calendarios de la gestión que `fecha` (la de
-        presentación) supera."""
+        """Plazos que `fecha` (la de presentación) supera, solo los que aplican al fondo:
+        - Art. 15: programas analíticos, en cada calendario donde el fondo tiene clases en
+          aula (también los de otra carrera, en doble carrera).
+        - Arts. 18 y 20: proyectos (y cursos, seminarios, talleres y capacitaciones), solo si
+          el fondo los tiene, contra el primer calendario de la gestión de su carrera.
+        Se calcula al presentar; lo ya registrado en fondos presentados no se reescribe."""
+        aplicables = [
+            (calendario, 'fecha_limite_programas_analiticos')
+            for calendario in CalendarioAcademico.objects.filter(
+                pk__in=self.cargas.filter(tipo_actividad='clases_aula', calendario__isnull=False).values('calendario'),
+            )
+        ]
+        if self.cargas.filter(tipo_actividad__in=TIPOS_ACTIVIDAD_PROYECTO | TIPOS_ACTIVIDAD_CURSO).exists():
+            primero = self.calendarios_de_la_gestion().order_by('fecha_inicio').first()
+            if primero:
+                aplicables.append((primero, 'fecha_limite_presentacion_proyectos'))
+        orden = [campo for campo, _plazo in self.PLAZOS_PRESENTACION]
+        aplicables.sort(key=lambda par: (par[0].fecha_inicio, orden.index(par[1])))
+        nombres = dict(self.PLAZOS_PRESENTACION)
         vencidos = []
-        for calendario in self.calendarios_de_la_gestion().order_by('fecha_inicio'):
-            for campo, plazo in self.PLAZOS_PRESENTACION:
-                limite = getattr(calendario, campo)
-                if limite and fecha > limite:
-                    vencidos.append({
-                        'plazo': plazo,
-                        'calendario': nombre_calendario_en_fondo(calendario, self),
-                        'fecha_limite': limite.isoformat(),
-                        'fecha_presentacion': fecha.isoformat(),
-                    })
+        for calendario, campo in aplicables:
+            limite = getattr(calendario, campo)
+            if limite and fecha > limite:
+                vencidos.append({
+                    'plazo': nombres[campo],
+                    'calendario': nombre_calendario_en_fondo(calendario, self),
+                    'fecha_limite': limite.isoformat(),
+                    'fecha_presentacion': fecha.isoformat(),
+                })
         return vencidos
 
     def textos_fuera_de_plazo(self):
@@ -1369,9 +1385,11 @@ def fondo_de_la_carga(docente, gestion):
 def nombre_calendario_en_fondo(calendario, fondo):
     """'Primer Semestre 2026' (y la carrera si no es la del fondo, en doble carrera).
     Lo usan el PDF y el detalle del fondo."""
+    # Import local: pdf_generator importa este módulo. Igual que en el PDF ("Civil").
+    from fondos.utils.pdf_generator import _capitalizar
     nombre = f'{calendario.get_periodo_display()} {calendario.gestion}'
     if calendario.carrera_id != fondo.carrera_id:
-        nombre += f' · {calendario.carrera.nombre}'
+        nombre += f' · {_capitalizar(calendario.carrera.nombre)}'
     return nombre
 
 

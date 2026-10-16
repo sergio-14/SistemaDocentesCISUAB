@@ -4204,13 +4204,15 @@ class ObservacionFondoSerializer(HiloObservacionSerializer):
 class HistorialFondoSerializer(serializers.ModelSerializer):
     tipo_cambio_display = serializers.CharField(source='get_tipo_cambio_display', read_only=True)
     usuario_nombre = serializers.CharField(source='usuario.get_full_name', read_only=True)
+    # Para las cuentas sin nombre completo (p. ej. el superusuario).
+    usuario_username = serializers.CharField(source='usuario.username', read_only=True)
     fondo_descripcion = serializers.CharField(source='fondo_tiempo.descripcion', read_only=True)
     
     class Meta:
         model = HistorialFondo
         fields = [
             'id', 'fondo_tiempo', 'fondo_descripcion',
-            'usuario', 'usuario_nombre', 'fecha',
+            'usuario', 'usuario_nombre', 'usuario_username', 'fecha',
             'tipo_cambio', 'tipo_cambio_display', 'descripcion',
             'estado_anterior', 'estado_nuevo', 'datos_cambio'
         ]

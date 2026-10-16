@@ -70,12 +70,17 @@ const AsignarMateriaOtraCarrera = () => {
       .catch((error) => toast.error(getApiErrorMessage(error, 'No se pudieron cargar las materias')));
   }, [calendario]);
 
-  const cargarCargas = (docenteId) => {
-    obtenerTodos('/cargas-horarias/', { docente: docenteId })
-      // Solo las materias de los calendarios de su carrera (no el resto del fondo del docente).
-      .then((todas) => setCargas(todas.filter((carga) => calendarios.some((cal) => cal.id === carga.calendario))))
+  // Todas las materias que su carrera asignó a docentes de otras carreras (?otra_carrera=1):
+  // al abrir el bloque y después de asignar, quitar o subir un programa analítico.
+  const cargarCargas = () => {
+    obtenerTodos('/cargas-horarias/', { otra_carrera: 1 })
+      .then(setCargas)
       .catch((error) => toast.error(getApiErrorMessage(error, 'No se pudieron cargar las materias asignadas')));
   };
+
+  useEffect(() => {
+    if (abierta) cargarCargas();
+  }, [abierta]);
 
   const elegirDocente = (elegido) => {
     setDocente(elegido);
@@ -83,7 +88,6 @@ const AsignarMateriaOtraCarrera = () => {
     setBusqueda('');
     setForm(FORM_VACIO);
     setErrores({});
-    cargarCargas(elegido.id);
   };
 
   const cambiarValor = (campo, valor) => {
@@ -129,7 +133,7 @@ const AsignarMateriaOtraCarrera = () => {
       });
       toast.success('Materia asignada al Fondo de Tiempo del docente');
       setForm({ ...FORM_VACIO, calendario: form.calendario });
-      cargarCargas(docente.id);
+      cargarCargas();
     } catch (error) {
       toast.error(getApiErrorMessage(error, 'No se pudo asignar la materia'));
     } finally {
@@ -142,7 +146,7 @@ const AsignarMateriaOtraCarrera = () => {
     try {
       await api.delete(`/cargas-horarias/${carga.id}/`);
       toast.success('Materia quitada');
-      cargarCargas(docente.id);
+      cargarCargas();
     } catch (error) {
       toast.error(getApiErrorMessage(error, 'No se pudo quitar la materia'));
     }
@@ -332,62 +336,64 @@ const AsignarMateriaOtraCarrera = () => {
                   </button>
                 </div>
               </form>
-
-              <div>
-                <h3 className="mb-2 text-sm font-bold text-blue-900">Materias asignadas por su carrera</h3>
-                {cargas.length === 0 ? (
-                  <p className="rounded-2xl bg-azulado-100 px-4 py-6 text-center text-sm text-slate-600">
-                    Todavía no tiene materias de su carrera.
-                  </p>
-                ) : (
-                  // Cuadrícula en vez de <table>: el CSS del módulo POA da estilo a todas las tablas.
-                  <div className="rounded-2xl bg-white ring-1 ring-azulado-300 overflow-hidden">
-                    <div className="hidden lg:grid lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_minmax(0,1.2fr)_5rem_6rem] gap-4 bg-azulado-50 px-4 py-2.5 text-xs font-semibold text-blue-800 [border-bottom:1px_solid_#D2DDEE]">
-                      <span>Materia</span>
-                      <span>Calendario</span>
-                      <span>Horario</span>
-                      <span className="text-right">h/año</span>
-                      <span />
-                    </div>
-                    <div className="divide-y divide-azulado-200">
-                      {cargas.map((carga) => (
-                        <div key={carga.id} className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_minmax(0,1.2fr)_5rem_6rem] items-center gap-x-4 gap-y-1.5 px-4 py-3 text-tabla text-slate-700 hover:bg-azulado-50">
-                          <div className="min-w-0">
-                            <div className="font-semibold text-slate-800">{`${carga.materia_sigla} - ${carga.materia_nombre} (${carga.paralelo})`}</div>
-                            <ProgramaAnaliticoAccion
-                              fondoId={carga.fondo}
-                              materiaId={carga.materia}
-                              calendarioId={carga.calendario}
-                              url={carga.programa_analitico_url}
-                              puedeSubir={['borrador', 'observado'].includes(carga.fondo_estado)}
-                              onSubido={() => cargarCargas(docente.id)}
-                            />
-                          </div>
-                          <div className="min-w-0 truncate">{nombreCalendario(carga.calendario)}</div>
-                          <div className="capitalize tabular-nums">{`${carga.dia_semana} ${(carga.hora_inicio || '').slice(0, 5)}-${(carga.hora_fin || '').slice(0, 5)}`}</div>
-                          <div className="lg:text-right font-bold text-blue-900 tabular-nums">{carga.horas}</div>
-                          <div className="lg:text-right">
-                            {/* Solo con el fondo en borrador u observado (como el backend). */}
-                            <button
-                              type="button"
-                              onClick={() => quitar(carga)}
-                              disabled={!['borrador', 'observado'].includes(carga.fondo_estado)}
-                              title={['borrador', 'observado'].includes(carga.fondo_estado)
-                                ? undefined
-                                : 'El fondo ya fue presentado: la materia no se puede quitar.'}
-                              className={`${BOTON_CHICO} bg-red-400 hover:bg-red-500 text-white disabled:bg-slate-200 disabled:text-slate-500 disabled:cursor-not-allowed`}
-                            >
-                              Quitar
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           )}
+
+          <div>
+            <h3 className="mb-2 text-sm font-bold text-blue-900">Materias asignadas por su carrera</h3>
+            {cargas.length === 0 ? (
+              <p className="rounded-2xl bg-azulado-100 px-4 py-6 text-center text-sm text-slate-600">
+                Su carrera todavía no asignó materias a docentes de otras carreras.
+              </p>
+            ) : (
+              // Cuadrícula en vez de <table>: el CSS del módulo POA da estilo a todas las tablas.
+              <div className="rounded-2xl bg-white ring-1 ring-azulado-300 overflow-hidden">
+                <div className="hidden lg:grid lg:grid-cols-[minmax(0,1.6fr)_minmax(0,2.2fr)_minmax(0,1.4fr)_minmax(0,1.2fr)_5rem_6rem] gap-4 bg-azulado-50 px-4 py-2.5 text-xs font-semibold text-blue-800 [border-bottom:1px_solid_#D2DDEE]">
+                  <span>Docente</span>
+                  <span>Materia</span>
+                  <span>Calendario</span>
+                  <span>Horario</span>
+                  <span className="text-right">h/año</span>
+                  <span />
+                </div>
+                <div className="divide-y divide-azulado-200">
+                  {cargas.map((carga) => (
+                    <div key={carga.id} className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,2.2fr)_minmax(0,1.4fr)_minmax(0,1.2fr)_5rem_6rem] items-center gap-x-4 gap-y-1.5 px-4 py-3 text-tabla text-slate-700 hover:bg-azulado-50">
+                      <div className="min-w-0 font-semibold text-blue-900 truncate">{carga.docente_nombre}</div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-800">{`${carga.materia_sigla} - ${carga.materia_nombre} (${carga.paralelo})`}</div>
+                        <ProgramaAnaliticoAccion
+                          fondoId={carga.fondo}
+                          materiaId={carga.materia}
+                          calendarioId={carga.calendario}
+                          url={carga.programa_analitico_url}
+                          puedeSubir={['borrador', 'observado'].includes(carga.fondo_estado)}
+                          onSubido={cargarCargas}
+                        />
+                      </div>
+                      <div className="min-w-0 truncate">{nombreCalendario(carga.calendario)}</div>
+                      <div className="capitalize tabular-nums">{`${carga.dia_semana} ${(carga.hora_inicio || '').slice(0, 5)}-${(carga.hora_fin || '').slice(0, 5)}`}</div>
+                      <div className="lg:text-right font-bold text-blue-900 tabular-nums">{carga.horas}</div>
+                      <div className="lg:text-right">
+                        {/* Solo con el fondo en borrador u observado (como el backend). */}
+                        <button
+                          type="button"
+                          onClick={() => quitar(carga)}
+                          disabled={!['borrador', 'observado'].includes(carga.fondo_estado)}
+                          title={['borrador', 'observado'].includes(carga.fondo_estado)
+                            ? undefined
+                            : 'El fondo ya fue presentado: la materia no se puede quitar.'}
+                          className={`${BOTON_CHICO} bg-red-400 hover:bg-red-500 text-white disabled:bg-slate-200 disabled:text-slate-500 disabled:cursor-not-allowed`}
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

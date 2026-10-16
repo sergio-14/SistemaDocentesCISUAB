@@ -10,7 +10,7 @@ from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 from django.http import Http404, HttpResponse, FileResponse
 from django.db import transaction, IntegrityError
-from django.db.models import Max, OuterRef, ProtectedError, prefetch_related_objects, Q, Subquery
+from django.db.models import F, Max, OuterRef, ProtectedError, prefetch_related_objects, Q, Subquery
 from django.core.exceptions import ValidationError as DjangoValidationError
 from datetime import datetime, date
 from decimal import Decimal
@@ -1034,6 +1034,11 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
         """
         user = self.request.user
         queryset = super().get_queryset()
+        # ?otra_carrera=1: materias asignadas a docentes de otra carrera (el calendario es de
+        # una carrera y el fondo de otra); para el Jefe, las de los calendarios de su carrera.
+        otra_carrera = self.request.query_params.get('otra_carrera') == '1'
+        if otra_carrera:
+            queryset = queryset.filter(calendario__isnull=False).exclude(calendario__carrera=F('fondo__carrera'))
         # El superusuario ve, edita y elimina todas (su perfil no tiene rol de carrera).
         if user.is_superuser:
             return queryset
@@ -1048,12 +1053,14 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
 
         if perfil.rol in ['director', 'jefe_estudios', 'iiisyp']:
             carreras_activas = _obtener_carreras_activas_usuario(user, self.request)
-            if carreras_activas.exists():
-                # Las cargas de los fondos de su carrera y las materias de sus calendarios.
-                return queryset.filter(
-                    Q(fondo__carrera__in=carreras_activas) | Q(calendario__carrera__in=carreras_activas)
-                )
-            return queryset.none()
+            if not carreras_activas.exists():
+                return queryset.none()
+            if otra_carrera:
+                return queryset.filter(calendario__carrera__in=carreras_activas)
+            # Las cargas de los fondos de su carrera y las materias de sus calendarios.
+            return queryset.filter(
+                Q(fondo__carrera__in=carreras_activas) | Q(calendario__carrera__in=carreras_activas)
+            )
 
         if perfil.rol == 'docente' and perfil.docente:
             return queryset.filter(docente=perfil.docente)
@@ -2941,7 +2948,12 @@ class HistorialFondoViewSet(viewsets.ReadOnlyModelViewSet):
             return queryset
         perfil = _obtener_perfil_efectivo(user, self.request)
         if perfil and perfil.rol in ['director', 'jefe_estudios', 'iiisyp']:
-            return queryset.filter(fondo_tiempo__carrera__in=_obtener_carreras_activas_usuario(user, self.request))
+            # El Director no ve los borradores de otros docentes: tampoco su historial.
+            fondos = _sin_borradores_ajenos_para_director(
+                FondoTiempo.objects.filter(carrera__in=_obtener_carreras_activas_usuario(user, self.request)),
+                user, perfil,
+            )
+            return queryset.filter(fondo_tiempo__in=fondos)
         if perfil and perfil.rol == 'docente' and perfil.docente_id:
             return queryset.filter(fondo_tiempo__docente_id=perfil.docente_id)
         return queryset.none()

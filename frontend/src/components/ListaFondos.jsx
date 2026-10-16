@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { eliminarFondoTiempo, generarFondosTiempoMasivo, getFondosTiempo } from '../apis/api';
+import api, { eliminarFondoTiempo, generarFondosTiempoMasivo, getFondosTiempo } from '../apis/api';
 import { puedeCrearFondoTiempo } from '../utils/fondoTiempoPermissions';
 import { useActiveRole } from '../contexts/activeRole';
-import { getApiErrorMessage } from '../utils/formErrors';
+import { getApiErrorMessage, getDownloadErrorMessage } from '../utils/formErrors';
 import useConsultaConRespaldo, { useFondoActualizado } from '../tiempoReal/useTiempoReal';
 import ModalCentrado from './common/ModalCentrado';
 import ModalConfirmar from './common/ModalConfirmar';
@@ -12,7 +12,7 @@ import Paginacion from './common/Paginacion';
 import SelectorVista from './common/SelectorVista';
 import SelectorGestion from './fondos/SelectorGestion';
 import { paginar } from '../utils/paginacion';
-import { BLOQUE, BOTON, ESTADOS_FONDO, estadoVisibleFondo } from './fondos/estilosFondo';
+import { BLOQUE, BOTON, BOTON_DOCUMENTO, ESTADOS_FONDO, estadoVisibleFondo } from './fondos/estilosFondo';
 import { Avatar, BarraProgreso, EstadoPill, Etiqueta } from './fondos/ElementosFondo';
 
 const CONSULTA_FONDOS_MS = 30000;
@@ -49,6 +49,12 @@ const ClockIcon = (props) => (
   </svg>
 );
 
+const DownloadIcon = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+  </svg>
+);
+
 const SearchIcon = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
@@ -72,7 +78,7 @@ const ordenDashboard = (a, b) => (
 );
 
 function ListaFondos() {
-  const { effectiveUser, activeAssignment, activeRole } = useActiveRole();
+  const { effectiveUser, activeAssignment, activeRole, activeCareerId } = useActiveRole();
   const esSuperusuario = effectiveUser?.is_superuser === true;
   const [fondos, setFondos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -233,6 +239,31 @@ function ListaFondos() {
   }
 
   const gestiones = [...new Set(fondos.map((fondo) => fondo.gestion).filter(Boolean))].sort((a, b) => b - a);
+
+  // Arts. 19 y 28: informe de gestión de la carrera (PDF), para el Director de la carrera.
+  // Gestión: la del filtro o, sin filtro, la más reciente de los fondos.
+  const esDirectorCarrera = activeRole === 'director' && !esSuperusuario && Boolean(activeCareerId);
+  const gestionInforme = gestionFiltro !== 'todas' ? Number(gestionFiltro) : (gestiones[0] || new Date().getFullYear());
+  const descargarInformeGestion = async () => {
+    try {
+      const response = await api.get(`/carreras/${activeCareerId}/informe-gestion/`, {
+        params: { gestion: gestionInforme },
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const enlace = document.createElement('a');
+      enlace.href = url;
+      enlace.download = `Informe_gestion_${effectiveUser?.perfil?.carrera_codigo || activeCareerId}_${gestionInforme}.pdf`;
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success(`Informe de gestión ${gestionInforme} descargado`);
+    } catch (err) {
+      console.error(err);
+      toast.error(await getDownloadErrorMessage(err, 'No se pudo descargar el informe de gestión'));
+    }
+  };
   const texto = busqueda.trim().toLowerCase();
   const fondosFiltrados = fondos.filter((fondo) => {
     if (gestionFiltro !== 'todas' && String(fondo.gestion) !== gestionFiltro) return false;
@@ -383,6 +414,16 @@ function ListaFondos() {
               <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 {botonesCrear}
               </div>
+            )}
+            {esDirectorCarrera && (
+              <button
+                type="button"
+                onClick={descargarInformeGestion}
+                className={`${BOTON} px-5 py-2.5 w-full sm:w-auto ${BOTON_DOCUMENTO}`}
+              >
+                <DownloadIcon className="w-5 h-5" />
+                <span>Informe de gestión {gestionInforme}</span>
+              </button>
             )}
           </div>
         </div>

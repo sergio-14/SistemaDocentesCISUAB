@@ -201,7 +201,6 @@ export const marcarObservacionResuelta = (observacionId) => {
 // ENDPOINTS - HISTORIAL (Solo lectura)
 // ===================================
 export const getHistorialDetalle = (id) => api.get(`/historial/${id}/`);
-export const getHistorialPorFondo = (fondoId) => 
-  api.get('/historial/', { params: { fondo_tiempo: fondoId } });
+export const getHistorialPorFondo = (fondoId) => obtenerTodos('/historial/', { fondo_tiempo: fondoId });
 
 export default api;

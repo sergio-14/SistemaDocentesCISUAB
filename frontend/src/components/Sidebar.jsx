@@ -55,9 +55,14 @@ function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil =
   // Define los roles que pueden ver cada item.
   // iiisyp es solo lectura: no ve items de administracion.
   // El superusuario no tiene rol de carrera: sus items se habilitan con superuser: true.
+  // Determina el rol del usuario actual.
+  const userRole = currentUser?.perfil?.rol;
+  // El docente solo ve sus fondos: la misma página se llama "Mis fondos".
+  const esSoloDocente = userRole === 'docente' && !currentUser?.is_superuser;
+
   const menuItems = {
     principal: [
-      { path: '/fondo-tiempo', icon: LayoutDashboard, label: 'Dashboard', roles: ['iiisyp', 'director', 'jefe_estudios', 'docente'], superuser: true },
+      { path: '/fondo-tiempo', icon: LayoutDashboard, label: esSoloDocente ? 'Mis fondos' : 'Dashboard', roles: ['iiisyp', 'director', 'jefe_estudios', 'docente'], superuser: true },
       { path: '/fondo-tiempo/comparar', icon: ArrowLeftRight, label: 'Comparar Fondos', roles: ['director', 'jefe_estudios'], superuser: true },
       { path: '/fondo-tiempo/archivados', icon: Archive, label: 'Fondos Archivados', roles: ['director', 'jefe_estudios'], superuser: true },
     ],
@@ -68,9 +73,6 @@ function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil =
       { path: '/fondo-tiempo/materias', icon: BookOpen, label: 'Materias', roles: ['director', 'jefe_estudios'], superuser: true },
     ]
   };
-
-  // Determina el rol del usuario actual.
-  const userRole = currentUser?.perfil?.rol;
 
   // Función helper para filtrar items
   const filterItems = (items) => items.filter(item => (

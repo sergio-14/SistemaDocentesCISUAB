@@ -333,13 +333,13 @@ const ModuleSelector = ({ user, onLogout, theme, setTheme }) => {
                 {/* Header */}
                 <header className="module-selector-header absolute top-0 left-0 right-0 p-6 flex justify-between items-center">
                     {/* Lado Izquierdo: Mensaje de Bienvenida */}
-                    {/* El nombre lleva a Mi cuenta (perfil, contraseña y apariencia). */}
+                    {/* El nombre lleva a Mi cuenta (mismo aspecto de siempre). */}
                     <Link
                         to="/mi-cuenta"
                         title="Mi cuenta"
-                        className="module-selector-welcome text-sm font-medium backdrop-blur-sm bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 py-2 px-4 rounded-full transition-colors"
+                        className="module-selector-welcome text-sm font-medium backdrop-blur-sm bg-black/5 dark:bg-white/5 py-2 px-4 rounded-full"
                     >
-                        Bienvenido, <span className="font-bold text-uab-blue-800 dark:text-uab-blue-300 underline-offset-4 hover:underline">{displayName}</span>
+                        Bienvenido, <span className="font-bold text-uab-blue-800 dark:text-uab-blue-300">{displayName}</span>
                     </Link>
 
                     {/* Lado Derecho: Botones de Acción */}

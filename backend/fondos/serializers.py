@@ -5,7 +5,6 @@ import uuid
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 from django.contrib.auth.models import User
-from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import UNIDADES_FONDO, DocumentoActividad, actualizar_con_historial, clase_documento_actividad, nombre_calendario_en_fondo, fondo_de_la_carga, mensaje_sin_fondo, roles_del_docente_en_carrera
@@ -2831,9 +2830,6 @@ class UsuarioSerializer(serializers.ModelSerializer):
                 # Los superusuarios nunca tienen error de vínculo
                 data.pop('error_vinculo', None)
                 data.pop('mensaje_error', None)
-            # Apariencia elegida en Mi cuenta: solo viaja en los datos del propio usuario.
-            if request and request.user.id == obj.id:
-                data['preferencias_interfaz'] = preferencias_interfaz_de(obj.perfil)
             return data
 
         # Fallback de seguridad: Si es superusuario pero NO tiene perfil creado (error de integridad),
@@ -2849,8 +2845,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
                 'telefono': '',
                 'activo': True,
                 'foto_perfil': None,
-                'debe_cambiar_password': False,
-                'preferencias_interfaz': preferencias_interfaz_de(None),
+                'debe_cambiar_password': False
             }
         return None
 
@@ -2920,62 +2915,6 @@ class UsuarioSerializer(serializers.ModelSerializer):
     def get_asignacion_activa(self, obj):
         request = self.context.get('request')
         return serialize_assignment(get_active_assignment(request))
-
-
-# Apariencia de la interfaz (Mi cuenta → Apariencia). Lo que falte en lo guardado toma el
-# valor por defecto, que es el aspecto de siempre.
-PREFERENCIAS_INTERFAZ_POR_DEFECTO = {
-    'texto': 'normal',
-    'esquinas': 'redondeado',
-    'densidad': 'comoda',
-    'reducir_animaciones': False,
-}
-
-
-def preferencias_interfaz_de(perfil):
-    guardadas = getattr(perfil, 'preferencias_interfaz', None)
-    guardadas = guardadas if isinstance(guardadas, dict) else {}
-    return {
-        clave: guardadas.get(clave, defecto)
-        for clave, defecto in PREFERENCIAS_INTERFAZ_POR_DEFECTO.items()
-    }
-
-
-class PreferenciasInterfazSerializer(serializers.Serializer):
-    texto = serializers.ChoiceField(choices=['pequeno', 'normal', 'grande', 'muy_grande'], required=False)
-    esquinas = serializers.ChoiceField(choices=['redondeado', 'suave', 'recto'], required=False)
-    densidad = serializers.ChoiceField(choices=['comoda', 'compacta'], required=False)
-    reducir_animaciones = serializers.BooleanField(required=False)
-
-
-class CambiarPasswordPropiaSerializer(serializers.Serializer):
-    """Cambio de contraseña del propio usuario (Mi cuenta → Seguridad): pide la actual y
-    la nueva pasa por los validadores de Django (AUTH_PASSWORD_VALIDATORS)."""
-    password_actual = serializers.CharField(trim_whitespace=False, error_messages={
-        'required': 'Escriba su contraseña actual.', 'blank': 'Escriba su contraseña actual.',
-    })
-    password_nueva = serializers.CharField(trim_whitespace=False, error_messages={
-        'required': 'Escriba la nueva contraseña.', 'blank': 'Escriba la nueva contraseña.',
-    })
-    password_confirmacion = serializers.CharField(trim_whitespace=False, error_messages={
-        'required': 'Confirme la nueva contraseña.', 'blank': 'Confirme la nueva contraseña.',
-    })
-
-    def validate_password_actual(self, valor):
-        if not self.context['request'].user.check_password(valor):
-            raise serializers.ValidationError('La contraseña actual no es correcta.')
-        return valor
-
-    def validate(self, data):
-        if data['password_nueva'] != data['password_confirmacion']:
-            raise serializers.ValidationError({'password_confirmacion': 'Las contraseñas no coinciden.'})
-        if data['password_nueva'] == data['password_actual']:
-            raise serializers.ValidationError({'password_nueva': 'La nueva contraseña debe ser distinta de la actual.'})
-        try:
-            validate_password(data['password_nueva'], self.context['request'].user)
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError({'password_nueva': list(exc.messages)})
-        return data
 
 
 MENSAJES_CORREO_OBLIGATORIO = {

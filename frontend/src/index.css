@@ -27,24 +27,22 @@ body {
      = semibold 600; botones medium 500.
    ============================================================ */
 :root {
-  /* Tamaño de texto de Mi cuenta → Apariencia (ver "Preferencias de apariencia"). */
-  --escala-texto: 1;
   --fuente-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --texto-xs: calc(0.75rem * var(--escala-texto));
+  --texto-xs: 0.75rem;
   --interlineado-xs: 1.5;
-  --texto-sm: calc(0.875rem * var(--escala-texto));
+  --texto-sm: 0.875rem;
   --interlineado-sm: 1.5;
-  --texto-base: calc(0.875rem * var(--escala-texto));
+  --texto-base: 0.875rem;
   --interlineado-base: 1.5;
-  --texto-lg: calc(1.125rem * var(--escala-texto));
+  --texto-lg: 1.125rem;
   --interlineado-lg: 1.25;
-  --texto-xl: calc(1.125rem * var(--escala-texto));
+  --texto-xl: 1.125rem;
   --interlineado-xl: 1.25;
-  --texto-2xl: calc(1.5rem * var(--escala-texto));
+  --texto-2xl: 1.5rem;
   --interlineado-2xl: 1.25;
-  --texto-3xl: calc(1.5rem * var(--escala-texto));
+  --texto-3xl: 1.5rem;
   --interlineado-3xl: 1.25;
-  --texto-tabla: calc(0.8125rem * var(--escala-texto));
+  --texto-tabla: 0.8125rem;
   --interlineado-tabla: 1.5;
   --peso-bold: 600;
   --peso-extrabold: 600;
@@ -1754,75 +1752,4 @@ html.sin-elevacion-poa button:active {
   .animate-campo-entrada {
     animation: none;
   }
-}
-
-/* ============================================================
-   Preferencias de apariencia (Mi cuenta → Apariencia).
-   utils/preferenciasInterfaz.js pone data-texto, data-esquinas,
-   data-densidad y data-reducir-animaciones en <html>. Todas las
-   reglas van con html:not(:has(.poa-app)): el POA (y sus modales)
-   conserva siempre su aspecto. Los PDF se generan en el backend y
-   los colores (también los de las 7 unidades) no cambian.
-   ============================================================ */
-
-/* Tamaño de texto: --escala-texto multiplica todos los tamaños de la tipografía
-   (--texto-*), así todos los textos crecen o se achican en la misma proporción y la
-   distribución de la pantalla (columnas, espacios) se mantiene. El POA redefine esas
-   variables con valores fijos (body:has(.poa-app)), así que no cambia. */
-html[data-texto='pequeno']:not(:has(.poa-app)) {
-  --escala-texto: 0.9;
-}
-
-html[data-texto='grande']:not(:has(.poa-app)) {
-  --escala-texto: 1.125;
-}
-
-html[data-texto='muy_grande']:not(:has(.poa-app)) {
-  --escala-texto: 1.25;
-}
-
-/* Esquinas: tailwind.config.js lee --radio-* en rounded-sm … rounded-3xl (sin la variable,
-   el valor de siempre). rounded-full sigue siendo un círculo (avatares, puntos,
-   interruptores); las píldoras (rounded-full con relleno horizontal: botones, campos,
-   chips, o marcadas con data-pildora) toman --radio-pildora. */
-html[data-esquinas='suave']:not(:has(.poa-app)) {
-  --radio-md: 0.3125rem;
-  --radio-lg: 0.375rem;
-  --radio-xl: 0.5rem;
-  --radio-2xl: 0.625rem;
-  --radio-3xl: 0.875rem;
-  --radio-pildora: 0.75rem;
-}
-
-html[data-esquinas='recto']:not(:has(.poa-app)) {
-  --radio: 0.125rem;
-  --radio-md: 0.125rem;
-  --radio-lg: 0.1875rem;
-  --radio-xl: 0.25rem;
-  --radio-2xl: 0.25rem;
-  --radio-3xl: 0.375rem;
-  --radio-pildora: 0.25rem;
-}
-
-html[data-esquinas]:not(:has(.poa-app)) .rounded-full:is([class*='px-'], [class*='pl-'], [data-pildora]) {
-  border-radius: var(--radio-pildora);
-}
-
-/* Densidad compacta: tailwind.config.js multiplica rellenos y separaciones (p-*, gap-*,
-   space-*) por --densidad; tamaños y márgenes no cambian. */
-html[data-densidad='compacta']:not(:has(.poa-app)) {
-  --densidad: 0.75;
-}
-
-/* Reducir animaciones: entradas, deslizamientos y transiciones terminan al instante (los
-   indicadores de carga siguen girando). */
-html[data-reducir-animaciones]:not(:has(.poa-app)) *:not(.animate-spin),
-html[data-reducir-animaciones]:not(:has(.poa-app)) *::before,
-html[data-reducir-animaciones]:not(:has(.poa-app)) *::after {
-  animation-duration: 1ms !important;
-  animation-delay: 0ms !important;
-  animation-iteration-count: 1 !important;
-  transition-duration: 1ms !important;
-  transition-delay: 0ms !important;
-  scroll-behavior: auto !important;
 }

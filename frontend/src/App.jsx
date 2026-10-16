@@ -52,7 +52,6 @@ import CargaHorariaGeneral from './components/CargaHorariaGeneral';
 import FondoTiempoDocente from './components/FondoTiempoDocente';
 import ErrorVinculoDocente from './components/common/ErrorVinculoDocente';
 import { ActiveRoleProvider } from './contexts/ActiveRoleContext';
-import { aplicarPreferencias } from './utils/preferenciasInterfaz';
 import './App.css';
 
 // Componente wrapper para aplicar una animación de entrada a las páginas
@@ -209,12 +208,6 @@ function App() {
     });
   };
 
-  // Apariencia elegida en Mi cuenta: se aplica al iniciar sesión (y al recargar, con el
-  // usuario guardado); sin sesión, la de siempre. index.css la deja fuera del POA.
-  useEffect(() => {
-    aplicarPreferencias(user ? user.perfil?.preferencias_interfaz : null);
-  }, [user]);
-
   // 🔒 GUARDIÁN DE VÍNCULO DOCENTE: Verificar si el usuario tiene error de vínculo
   const hasVinculoError = user && user.perfil?.error_vinculo === true;
 
@@ -318,7 +311,7 @@ function App() {
               {/* Ruta para los fondos archivados dentro del módulo de Fondo de Tiempo */}
               <Route path="archivados" element={<RutaPorRol roles={['director', 'jefe_estudios']}><AnimatedRoute><FondosArchivados /></AnimatedRoute></RutaPorRol>} />
               <Route path="informe-gestion" element={<RutaPorRol roles={['director']}><AnimatedRoute><InformeGestion /></AnimatedRoute></RutaPorRol>} />
-              {/* Mi cuenta (todos los roles): perfil, contraseña y apariencia. "Mi perfil" del docente quedó en su pestaña Perfil. */}
+              {/* Mi cuenta (todos los roles): foto, datos y, para el docente, su ficha (antes "Mi perfil"). */}
               <Route path="mi-cuenta" element={<AnimatedRoute><MiCuenta onProfileUpdate={handleProfileUpdate} /></AnimatedRoute>} />
 
               {/* Rutas de Administración (Integradas en el Sidebar) */}

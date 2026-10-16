@@ -110,9 +110,7 @@ function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil =
             to="/fondo-tiempo/mi-cuenta"
             title="Mi cuenta"
             aria-label={`Mi cuenta de ${fullName}`}
-            className={`group flex flex-col items-center gap-3 p-2 rounded-2xl transition-colors duration-300 outline-none hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/50 ${
-              isActive('/fondo-tiempo/mi-cuenta') ? 'bg-white/10' : ''
-            }`}
+            className="flex flex-col items-center gap-3 p-2 rounded-lg transition-all duration-300"
           >
             <div className={`transition-all duration-300 ${collapsed ? 'w-12 h-12' : 'w-40 h-40'}`}>
               <FotoPerfil user={currentUser} />
@@ -120,7 +118,7 @@ function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil =
             {/* Nombre y Rol (visible solo si no está colapsado) */}
             {!collapsed && (
               <div className="flex-1 min-w-0 text-center">
-                <p className="text-sm font-semibold text-white leading-snug break-words underline-offset-4 group-hover:underline">
+                <p className="text-sm font-semibold text-white leading-snug break-words" title={fullName}>
                   {fullName}
                 </p>
                 <p className="text-xs text-blue-300 truncate" title={getRoleName(currentUser)}>{getRoleName(currentUser)}</p>

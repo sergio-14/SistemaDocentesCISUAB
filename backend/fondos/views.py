@@ -31,9 +31,6 @@ from .models import (
     AsignacionCarrera,
 )
 from .serializers import TIPO_ACTIVIDAD_OTROS, validar_fondo_con_cargas_editables
-from .serializers import (
-    CambiarPasswordPropiaSerializer, PreferenciasInterfazSerializer, preferencias_interfaz_de,
-)
 from django.contrib.auth.password_validation import validate_password
 from .serializers import (
     DocenteSerializer, CarreraSerializer, MateriaSerializer, FondoTiempoSerializer,
@@ -3545,7 +3542,8 @@ def cambiar_password_inicial(request):
             {'error': 'La contraseña debe tener al menos 8 caracteres.'},
             status=status.HTTP_400_BAD_REQUEST
         )
-    # Mismas reglas que el cambio desde Mi cuenta (AUTH_PASSWORD_VALIDATORS).
+    # Validadores de Django (AUTH_PASSWORD_VALIDATORS): ni común, ni solo números, ni
+    # parecida al usuario.
     try:
         validate_password(nueva_password, user)
     except DjangoValidationError as exc:
@@ -3558,35 +3556,6 @@ def cambiar_password_inicial(request):
     user.perfil.save()
     
     return Response({'message': 'Contraseña actualizada correctamente. Por favor inicie sesión nuevamente.'})
-
-@api_view(['GET', 'PATCH'])
-@permission_classes([IsAuthenticated])
-def mis_preferencias_interfaz(request):
-    """Apariencia de la interfaz del usuario autenticado (Mi cuenta → Apariencia). La URL no
-    lleva id: cada usuario solo lee y guarda las suyas. PATCH guarda solo lo enviado."""
-    perfil = PerfilUsuario.objects.filter(user=request.user).first()
-    if request.method == 'GET':
-        return Response(preferencias_interfaz_de(perfil))
-    if not perfil:
-        return Response({'detail': 'El usuario no tiene perfil asignado.'}, status=status.HTTP_404_NOT_FOUND)
-    serializer = PreferenciasInterfazSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    preferencias = {**preferencias_interfaz_de(perfil), **serializer.validated_data}
-    # Sin save(): no es un dato del cargo y no debe dejar un registro en el historial.
-    PerfilUsuario.objects.filter(pk=perfil.pk).update(preferencias_interfaz=preferencias)
-    return Response(preferencias)
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def cambiar_mi_password(request):
-    """Cambio de contraseña del propio usuario con la sesión iniciada (Mi cuenta → Seguridad)."""
-    serializer = CambiarPasswordPropiaSerializer(data=request.data, context={'request': request})
-    serializer.is_valid(raise_exception=True)
-    request.user.set_password(serializer.validated_data['password_nueva'])
-    request.user.save(update_fields=['password'])
-    return Response({'detail': 'Contraseña actualizada correctamente.'})
-
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     """Vista de login personalizada que usa el serializer extendido"""

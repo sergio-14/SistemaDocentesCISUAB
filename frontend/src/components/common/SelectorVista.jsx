@@ -50,10 +50,9 @@ function SelectorVista({ vista, onCambiar, className = '' }) {
   }, []);
 
   return (
-    <div data-pildora className={`relative flex items-center gap-1 p-1 rounded-full bg-azulado-100 ring-1 ring-inset ring-azulado-300 ${className}`}>
+    <div className={`relative flex items-center gap-1 p-1 rounded-full bg-azulado-100 ring-1 ring-inset ring-azulado-300 ${className}`}>
       <span
         aria-hidden="true"
-        data-pildora
         className={`absolute left-0 top-1 bottom-1 rounded-full bg-blue-900 shadow-sm ${
           animar ? 'transition-[transform,width,opacity] duration-300 ease-out motion-reduce:transition-none' : ''
         } ${indicador?.visible ? 'opacity-100' : 'opacity-0'}`}

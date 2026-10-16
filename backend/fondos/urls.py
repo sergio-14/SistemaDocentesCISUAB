@@ -42,10 +42,6 @@ urlpatterns = [
 
     # Endpoint para cambio de contraseña inicial obligatorio
     path('auth/cambiar-password-inicial/', views.cambiar_password_inicial, name='cambiar-password-inicial'),
-
-    # Mi cuenta: apariencia de la interfaz y cambio de contraseña del propio usuario
-    path('mi-cuenta/preferencias/', views.mis_preferencias_interfaz, name='mi-cuenta-preferencias'),
-    path('mi-cuenta/cambiar-password/', views.cambiar_mi_password, name='mi-cuenta-cambiar-password'),
     
     # Endpoint de Login personalizado (Ajustado para coincidir con la llamada /api/token/ de tu frontend)
     path('api/token/', views.CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),

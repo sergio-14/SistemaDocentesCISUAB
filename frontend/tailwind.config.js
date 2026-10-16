@@ -1,5 +1,4 @@
 import defaultTheme from 'tailwindcss/defaultTheme';
-import plugin from 'tailwindcss/plugin';
 
 // Densidad (Mi cuenta → Apariencia): rellenos y separaciones se multiplican por
 // --densidad, que solo index.css define fuera del POA; sin ella vale 1 (lo de siempre).
@@ -138,10 +137,5 @@ export default {
       }
     },
   },
-  plugins: [
-    // tabla-texto: estilos de un listado (con [container-type:inline-size]) cuando su bloque
-    // mide al menos 73em; sus columnas fijas crecen con el tamaño de texto
-    // (calc(...*var(--escala-texto))) y el umbral en em del bloque también crece.
-    plugin(({ addVariant }) => addVariant('tabla-texto', '@container (min-width: 73em)')),
-  ],
+  plugins: [],
 }

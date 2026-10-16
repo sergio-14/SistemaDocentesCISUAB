@@ -271,9 +271,11 @@ const MateriaList = () => {
         </div>
     );
 
+    // Las columnas fijas crecen con el tamaño de texto (Mi cuenta → Apariencia), así los
+    // encabezados y los botones caben; si el bloque no alcanza, cada materia se apila.
     const columnasLista = canEdit
-        ? 'xl:grid-cols-[minmax(0,2.4fr)_8rem_5rem_5rem_5rem_7.5rem_11rem]'
-        : 'xl:grid-cols-[minmax(0,2.4fr)_8rem_5rem_5rem_5rem_7.5rem]';
+        ? 'tabla-texto:grid-cols-[minmax(12rem,2.4fr)_calc(8rem*var(--escala-texto))_calc(5.5rem*var(--escala-texto))_calc(5.5rem*var(--escala-texto))_calc(5rem*var(--escala-texto))_calc(7.5rem*var(--escala-texto))_calc(11rem*var(--escala-texto))]'
+        : 'tabla-texto:grid-cols-[minmax(12rem,2.4fr)_calc(8rem*var(--escala-texto))_calc(5.5rem*var(--escala-texto))_calc(5.5rem*var(--escala-texto))_calc(5rem*var(--escala-texto))_calc(7.5rem*var(--escala-texto))]';
 
     return (
         <div className="min-h-full w-full max-w-[92rem] mx-auto px-3 sm:px-4 md:px-8 py-4 md:py-6 text-slate-800">
@@ -378,8 +380,8 @@ const MateriaList = () => {
                 {materiasFiltradas.length > 0 ? (
                     vista === 'lista' ? (
                         // Cuadrícula en vez de <table>: el CSS del módulo POA da estilo a todas las tablas.
-                        <div key={`lista-${claveVista}`} className={`${BLOQUE} p-2 sm:p-3`}>
-                            <div className={`hidden xl:grid ${columnasLista} gap-4 px-3 pt-3 pb-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 [border-bottom:1px_solid_#B8C9E1]`}>
+                        <div key={`lista-${claveVista}`} className={`${BLOQUE} p-2 sm:p-3 [container-type:inline-size]`}>
+                            <div className={`hidden tabla-texto:grid ${columnasLista} gap-4 px-3 pt-3 pb-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 [border-bottom:1px_solid_#B8C9E1]`}>
                                 <span>Materia</span>
                                 <span>Semestre</span>
                                 <span>H. teóricas</span>
@@ -412,8 +414,8 @@ const MateriaList = () => {
                                                 </div>
                                             </div>
                                             {datos.map((dato) => (
-                                                <div key={dato.label} className="min-w-0 flex items-baseline justify-between gap-3 xl:block">
-                                                    <span className="xl:hidden text-xs font-semibold text-blue-800">{dato.label}</span>
+                                                <div key={dato.label} className="min-w-0 flex items-baseline justify-between gap-3 tabla-texto:block">
+                                                    <span className="tabla-texto:hidden text-xs font-semibold text-blue-800">{dato.label}</span>
                                                     <span className="block text-tabla font-semibold text-slate-800 tabular-nums">{dato.valor}</span>
                                                 </div>
                                             ))}

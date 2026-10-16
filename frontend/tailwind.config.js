@@ -143,5 +143,8 @@ export default {
     // al menos 64rem: se ve como tabla según el ancho real (sidebar abierto o contraído), no
     // el de la ventana; si no cabe, cada fila se apila como en el celular.
     plugin(({ addVariant }) => addVariant('tabla', '@container (min-width: 64rem)')),
+    // tabla-texto: igual, para listados cuyas columnas fijas crecen con el tamaño de texto
+    // (calc(...*var(--escala-texto))): el umbral va en em del bloque, que también crece.
+    plugin(({ addVariant }) => addVariant('tabla-texto', '@container (min-width: 73em)')),
   ],
 }

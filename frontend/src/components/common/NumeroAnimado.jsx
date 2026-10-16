@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { animacionesReducidas } from '../../utils/preferenciasInterfaz';
 
 // Número que, al cambiar, cuenta desde el valor anterior hasta el nuevo (~0,4 s). Con
 // singular/plural, la palabra sigue al número que se está mostrando.
@@ -9,7 +10,7 @@ function NumeroAnimado({ valor, singular, plural }) {
   useEffect(() => {
     const desde = anteriorRef.current;
     anteriorRef.current = valor;
-    if (desde === valor || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (desde === valor || animacionesReducidas()) {
       setMostrado(valor);
       return undefined;
     }

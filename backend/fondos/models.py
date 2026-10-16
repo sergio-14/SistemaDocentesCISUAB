@@ -2074,9 +2074,13 @@ class PerfilUsuario(models.Model):
     # docente. Se reactiva solo al crearle la ficha.
     inactivo_por_ficha_pendiente = models.BooleanField(default=False)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
+    # Apariencia de la interfaz que elige el propio usuario (Mi cuenta → Apariencia): tamaño
+    # de texto, esquinas, densidad y animaciones. Ver PreferenciasInterfazSerializer.
+    preferencias_interfaz = models.JSONField(default=dict, blank=True)
 
-    # Auditoría: quién cambió qué y cuándo (usuario vía HistoryRequestMiddleware).
-    history = HistoricalRecords(excluded_fields=['foto_perfil_cifrada'])
+    # Auditoría: quién cambió qué y cuándo (usuario vía HistoryRequestMiddleware). Las
+    # preferencias de apariencia no son un dato del cargo: no van al historial.
+    history = HistoricalRecords(excluded_fields=['foto_perfil_cifrada', 'preferencias_interfaz'])
 
     class Meta:
         verbose_name = "Perfil de Usuario"

@@ -32,6 +32,10 @@ from .models import (
 )
 from .serializers import TIPO_ACTIVIDAD_OTROS, validar_fondo_con_cargas_editables
 from .serializers import (
+    CambiarPasswordPropiaSerializer, PreferenciasInterfazSerializer, preferencias_interfaz_de,
+)
+from django.contrib.auth.password_validation import validate_password
+from .serializers import (
     DocenteSerializer, CarreraSerializer, MateriaSerializer, FondoTiempoSerializer,
     FondoTiempoListSerializer, CargaHorariaSerializer,
     UsuarioSerializer, CrearUsuarioSerializer, ActualizarUsuarioSerializer,
@@ -3003,7 +3007,7 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         """
         if self.action == 'list':
             return [IsAuthenticated()]
-        if self.action in ['create', 'update', 'partial_update', 'toggle_activo', 'cambiar_password', 'resetear_password']:
+        if self.action in ['create', 'update', 'partial_update', 'toggle_activo', 'resetear_password']:
             return [IsFullAdminOrDirectorCarrera()]
         # Eliminar: superusuario, o el Director dentro de su carrera (ver destroy).
         if self.action in ['destroy']:
@@ -3248,40 +3252,6 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         DatosLaborales.objects.filter(
             pk__in=datos_laborales_ids, docente__isnull=True, perfiles__isnull=True,
         ).delete()
-
-    @action(detail=True, methods=['post'], permission_classes=[IsFullAdminOrDirectorCarrera])
-    def cambiar_password(self, request, pk=None):
-        """Cambiar contraseña de un usuario"""
-        user = self.get_object()
-        self._validar_gestion_por_director(user, 'password')
-        password = request.data.get('password')
-        password_confirm = request.data.get('password_confirm')
-        
-        if not password or not password_confirm:
-            return Response(
-                {'error': 'Se requieren ambas contraseñas'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        if password != password_confirm:
-            return Response(
-                {'error': 'Las contraseñas no coinciden'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        if len(password) < 8:
-            return Response(
-                {'error': 'La contraseña debe tener al menos 8 caracteres'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        user.set_password(password)
-        user.save()
-        # Contraseña puesta por otra persona: el usuario la cambia en su siguiente ingreso.
-        if user != request.user:
-            actualizar_con_historial(PerfilUsuario.objects.filter(user=user), debe_cambiar_password=not user.is_superuser)
-
-        return Response({'success': 'Contraseña actualizada correctamente'})
 
     @action(detail=True, methods=['post'], permission_classes=[IsFullAdminOrDirectorCarrera])
     def resetear_password(self, request, pk=None):
@@ -3575,6 +3545,11 @@ def cambiar_password_inicial(request):
             {'error': 'La contraseña debe tener al menos 8 caracteres.'},
             status=status.HTTP_400_BAD_REQUEST
         )
+    # Mismas reglas que el cambio desde Mi cuenta (AUTH_PASSWORD_VALIDATORS).
+    try:
+        validate_password(nueva_password, user)
+    except DjangoValidationError as exc:
+        return Response({'error': ' '.join(exc.messages)}, status=status.HTTP_400_BAD_REQUEST)
     
     user.set_password(nueva_password)
     user.save()
@@ -3583,6 +3558,35 @@ def cambiar_password_inicial(request):
     user.perfil.save()
     
     return Response({'message': 'Contraseña actualizada correctamente. Por favor inicie sesión nuevamente.'})
+
+@api_view(['GET', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def mis_preferencias_interfaz(request):
+    """Apariencia de la interfaz del usuario autenticado (Mi cuenta → Apariencia). La URL no
+    lleva id: cada usuario solo lee y guarda las suyas. PATCH guarda solo lo enviado."""
+    perfil = PerfilUsuario.objects.filter(user=request.user).first()
+    if request.method == 'GET':
+        return Response(preferencias_interfaz_de(perfil))
+    if not perfil:
+        return Response({'detail': 'El usuario no tiene perfil asignado.'}, status=status.HTTP_404_NOT_FOUND)
+    serializer = PreferenciasInterfazSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    preferencias = {**preferencias_interfaz_de(perfil), **serializer.validated_data}
+    # Sin save(): no es un dato del cargo y no debe dejar un registro en el historial.
+    PerfilUsuario.objects.filter(pk=perfil.pk).update(preferencias_interfaz=preferencias)
+    return Response(preferencias)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def cambiar_mi_password(request):
+    """Cambio de contraseña del propio usuario con la sesión iniciada (Mi cuenta → Seguridad)."""
+    serializer = CambiarPasswordPropiaSerializer(data=request.data, context={'request': request})
+    serializer.is_valid(raise_exception=True)
+    request.user.set_password(serializer.validated_data['password_nueva'])
+    request.user.save(update_fields=['password'])
+    return Response({'detail': 'Contraseña actualizada correctamente.'})
+
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     """Vista de login personalizada que usa el serializer extendido"""

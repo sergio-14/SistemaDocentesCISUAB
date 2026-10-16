@@ -1,3 +1,17 @@
+import defaultTheme from 'tailwindcss/defaultTheme';
+
+// Densidad (Mi cuenta → Apariencia): rellenos y separaciones se multiplican por
+// --densidad, que solo index.css define fuera del POA; sin ella vale 1 (lo de siempre).
+const conDensidad = ({ theme }) => Object.fromEntries(
+  Object.entries(theme('spacing')).map(([clave, valor]) => (
+    [clave, valor === '0px' || valor === '1px' ? valor : `calc(${valor} * var(--densidad, 1))`]
+  )),
+);
+
+// Esquinas (Mi cuenta → Apariencia): cada radio lee su variable --radio-*, que solo
+// index.css define fuera del POA; sin ella, el radio de Tailwind de siempre.
+const radio = (clave, variable) => `var(${variable}, ${defaultTheme.borderRadius[clave]})`;
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -6,7 +20,19 @@ export default {
   ],
   darkMode: 'class', // 👈 AGREGADO para soportar modo oscuro
   theme: {
+    padding: conDensidad,
+    gap: conDensidad,
+    space: conDensidad,
     extend: {
+      borderRadius: {
+        'sm': radio('sm', '--radio-sm'),
+        DEFAULT: radio('DEFAULT', '--radio'),
+        'md': radio('md', '--radio-md'),
+        'lg': radio('lg', '--radio-lg'),
+        'xl': radio('xl', '--radio-xl'),
+        '2xl': radio('2xl', '--radio-2xl'),
+        '3xl': radio('3xl', '--radio-3xl'),
+      },
       colors: {
         // Blanco azulado del módulo de Fondo de Tiempo: menos brillante que el blanco puro.
         // 100 es el fondo del panel y 50 el de los bloques, para que se distingan entre sí.

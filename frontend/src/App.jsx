@@ -33,7 +33,7 @@ import FormularioFondo from './components/FormularioFondo';
 import GestionUsuarios from './components/GestionUsuarios';
 import FondosArchivados from './components/FondosArchivados';
 import InformeGestion from './components/InformeGestion';
-import MiPerfil from './components/MiPerfil';
+import MiCuenta from './components/cuenta/MiCuenta';
 import ListaDocentes from './components/ListaDocentes';
 import ListaCarreras from './components/ListaCarreras';
 import ListaCalendarios from './components/ListaCalendarios';
@@ -52,6 +52,7 @@ import CargaHorariaGeneral from './components/CargaHorariaGeneral';
 import FondoTiempoDocente from './components/FondoTiempoDocente';
 import ErrorVinculoDocente from './components/common/ErrorVinculoDocente';
 import { ActiveRoleProvider } from './contexts/ActiveRoleContext';
+import { aplicarPreferencias } from './utils/preferenciasInterfaz';
 import './App.css';
 
 // Componente wrapper para aplicar una animación de entrada a las páginas
@@ -208,6 +209,12 @@ function App() {
     });
   };
 
+  // Apariencia elegida en Mi cuenta: se aplica al iniciar sesión (y al recargar, con el
+  // usuario guardado); sin sesión, la de siempre. index.css la deja fuera del POA.
+  useEffect(() => {
+    aplicarPreferencias(user ? user.perfil?.preferencias_interfaz : null);
+  }, [user]);
+
   // 🔒 GUARDIÁN DE VÍNCULO DOCENTE: Verificar si el usuario tiene error de vínculo
   const hasVinculoError = user && user.perfil?.error_vinculo === true;
 
@@ -290,7 +297,6 @@ function App() {
                   onLogout={handleLogout}
                   sidebarCollapsed={sidebarCollapsed}
                   setSidebarCollapsed={setSidebarCollapsed}
-                  onProfileUpdate={handleProfileUpdate}
                   onCarreraActivaChange={handleCarreraActivaChange}
                 />
               }
@@ -312,7 +318,8 @@ function App() {
               {/* Ruta para los fondos archivados dentro del módulo de Fondo de Tiempo */}
               <Route path="archivados" element={<RutaPorRol roles={['director', 'jefe_estudios']}><AnimatedRoute><FondosArchivados /></AnimatedRoute></RutaPorRol>} />
               <Route path="informe-gestion" element={<RutaPorRol roles={['director']}><AnimatedRoute><InformeGestion /></AnimatedRoute></RutaPorRol>} />
-              <Route path="mi-perfil" element={<RutaPorRol roles={['docente']}><AnimatedRoute><MiPerfil /></AnimatedRoute></RutaPorRol>} />
+              {/* Mi cuenta (todos los roles): perfil, contraseña y apariencia. "Mi perfil" del docente quedó en su pestaña Perfil. */}
+              <Route path="mi-cuenta" element={<AnimatedRoute><MiCuenta onProfileUpdate={handleProfileUpdate} /></AnimatedRoute>} />
 
               {/* Rutas de Administración (Integradas en el Sidebar) */}
               <Route path="docentes" element={<AnimatedRoute><ListaDocentes isDark={isDark} /></AnimatedRoute>} />
@@ -328,6 +335,11 @@ function App() {
             {/* Módulo Principal: Gestión Global de Usuarios/Carreras */}
             <Route path="/usuarios" element={<SimpleLayout theme={theme} setTheme={setTheme} soloClaro />}>
               <Route index element={<AnimatedRoute><GestionUsuarios user={user} /></AnimatedRoute>} />
+            </Route>
+
+            {/* Mi cuenta desde el panel de módulos ("Bienvenido, ..."), con "Volver al Panel" */}
+            <Route path="/mi-cuenta" element={<SimpleLayout theme={theme} setTheme={setTheme} soloClaro />}>
+              <Route index element={<AnimatedRoute><MiCuenta onProfileUpdate={handleProfileUpdate} enPanel /></AnimatedRoute>} />
             </Route>
 
             <Route path="/carreras" element={<SimpleLayout theme={theme} setTheme={setTheme} soloClaro />}>

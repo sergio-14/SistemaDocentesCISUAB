@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import ProfilePicture from './ProfilePicture';
+import FotoPerfil from './cuenta/FotoPerfil';
 import {
   Archive,
   ArrowLeft,
@@ -11,7 +11,6 @@ import {
   GraduationCap,
   LayoutDashboard,
   Menu,
-  UserRound,
   X,
 } from 'lucide-react';
 import { useActiveRole } from '../contexts/activeRole';
@@ -20,7 +19,7 @@ import { useActiveRole } from '../contexts/activeRole';
 // grosor del trazo se fija una vez para todo el menú.
 const TRAZO = 1.75;
 
-function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil = false, menuMovilAbierto = false, onCerrarMenuMovil, onProfileUpdate }) {
+function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil = false, menuMovilAbierto = false, onCerrarMenuMovil }) {
   // En el celular el menú se abre siempre completo; el modo contraído es solo de escritorio.
   const collapsed = collapsedEscritorio && !esMovil;
   const location = useLocation();
@@ -68,7 +67,6 @@ function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil =
       { path: '/fondo-tiempo/comparar', icon: ArrowLeftRight, label: 'Comparar Fondos', roles: ['director', 'jefe_estudios'], superuser: true },
       { path: '/fondo-tiempo/archivados', icon: Archive, label: 'Fondos Archivados', roles: ['director', 'jefe_estudios'], superuser: true },
       { path: '/fondo-tiempo/informe-gestion', icon: FileText, label: 'Informe de gestión', roles: ['director'], superuser: true },
-      { path: '/fondo-tiempo/mi-perfil', icon: UserRound, label: 'Mi perfil', roles: ['docente'] },
     ],
     administracion: [
       { path: '/fondo-tiempo/docentes', icon: GraduationCap, label: 'Docentes', roles: ['iiisyp', 'director', 'jefe_estudios'], superuser: true },
@@ -106,24 +104,29 @@ function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil =
           </button>
         </div>
 
-        {/* --- 1. CABECERA CON PERFIL DE USUARIO --- */}
+        {/* --- 1. CABECERA CON PERFIL DE USUARIO: lleva a Mi cuenta --- */}
         <div className="px-4 pb-2">
-          {/* Perfil de usuario */}
-          <div className={`flex flex-col items-center gap-3 p-2 rounded-lg transition-all duration-300`}>
+          <Link
+            to="/fondo-tiempo/mi-cuenta"
+            title="Mi cuenta"
+            aria-label={`Mi cuenta de ${fullName}`}
+            className={`group flex flex-col items-center gap-3 p-2 rounded-2xl transition-colors duration-300 outline-none hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/50 ${
+              isActive('/fondo-tiempo/mi-cuenta') ? 'bg-white/10' : ''
+            }`}
+          >
             <div className={`transition-all duration-300 ${collapsed ? 'w-12 h-12' : 'w-40 h-40'}`}>
-              <ProfilePicture user={currentUser} onUpdate={onProfileUpdate} />
+              <FotoPerfil user={currentUser} />
             </div>
             {/* Nombre y Rol (visible solo si no está colapsado) */}
             {!collapsed && (
               <div className="flex-1 min-w-0 text-center">
-                <p className="text-sm font-semibold text-white leading-snug break-words" title={fullName}>
+                <p className="text-sm font-semibold text-white leading-snug break-words underline-offset-4 group-hover:underline">
                   {fullName}
                 </p>
                 <p className="text-xs text-blue-300 truncate" title={getRoleName(currentUser)}>{getRoleName(currentUser)}</p>
               </div>
             )}
-          </div>
-
+          </Link>
         </div>
 
         {/* --- 2. NAVEGACIÓN PRINCIPAL (CON SCROLL) --- */}

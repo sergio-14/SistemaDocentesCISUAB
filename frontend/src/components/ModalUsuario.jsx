@@ -473,9 +473,9 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     : '';
   // La ficha de docente solo se elige si el rol principal es Docente y aún no tiene una.
   const docenteEditable = formData.rol === 'docente' && !tieneDocenteVinculado;
-  const avisoRoles = !puedeElegirCarrera
-    ? 'La carrera es la tuya: se asigna sola.'
-    : (identidadBloqueada ? 'La carrera no se puede cambiar: el usuario tiene datos registrados.' : '');
+  const avisoRoles = puedeElegirCarrera && identidadBloqueada
+    ? 'La carrera no se puede cambiar: el usuario tiene datos registrados.'
+    : '';
 
   // Debajo de la fila "Docente": su ficha de docente.
   const fichaDocente = (item, index) => {

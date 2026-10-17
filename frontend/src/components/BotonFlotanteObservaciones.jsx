@@ -464,7 +464,9 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
   }, [mensajes, mensajesNuevosIds, open]);
 
   const hayConversacionActiva = observaciones.length > 0;
-  const puedeResponder = esAutoridad || estadoFondo === 'observado' || hayConversacionActiva;
+  // Con el fondo finalizado el chat queda de solo lectura: se lee, no se escribe ni se resuelve.
+  const chatFinalizado = estadoFondo === 'finalizado';
+  const puedeResponder = !chatFinalizado && (esAutoridad || estadoFondo === 'observado' || hayConversacionActiva);
 
   const esMiMensaje = (mensaje) => {
     const usuarioActualId = Number(usuarioActual?.id);
@@ -1037,7 +1039,7 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
                           <span className="ft-chat-observation-state">
                             ({mensaje.observacionResuelta ? 'Resuelta' : 'Pendiente'})
                           </span>
-                          {!mensaje.observacionResuelta && puedeMarcarObservacionResuelta && (
+                          {!mensaje.observacionResuelta && puedeMarcarObservacionResuelta && !chatFinalizado && (
                             <button
                               type="button"
                               className="ft-chat-resolve-link"
@@ -1135,7 +1137,9 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
                     }
                   }}
                   placeholder={
-                    !hayConversacionActiva
+                    chatFinalizado
+                      ? 'Fondo finalizado: el chat es de solo lectura'
+                      : !hayConversacionActiva
                       ? 'No hay observaciones activas'
                       : !puedeResponder
                         ? 'No puedes responder en este estado'

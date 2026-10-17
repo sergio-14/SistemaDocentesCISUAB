@@ -33,7 +33,6 @@ import FormularioFondo from './components/FormularioFondo';
 import GestionUsuarios from './components/GestionUsuarios';
 import FondosArchivados from './components/FondosArchivados';
 import InformeGestion from './components/InformeGestion';
-import MiCuenta from './components/cuenta/MiCuenta';
 import ListaDocentes from './components/ListaDocentes';
 import ListaCarreras from './components/ListaCarreras';
 import ListaCalendarios from './components/ListaCalendarios';
@@ -276,7 +275,7 @@ function App() {
           </>
         ) : (
           <>
-            <Route path="/" element={<ModuleSelector user={user} onLogout={handleLogout} theme={theme} setTheme={setTheme} />} />
+            <Route path="/" element={<ModuleSelector user={user} onLogout={handleLogout} theme={theme} setTheme={setTheme} onProfileUpdate={handleProfileUpdate} />} />
 
             {/* Página completa (sin sidebar) para redactar/ver el Informe de Fondo de Tiempo */}
             <Route path="/fondos/:id/informe" element={<EditorInformePage />} />
@@ -290,6 +289,7 @@ function App() {
                   onLogout={handleLogout}
                   sidebarCollapsed={sidebarCollapsed}
                   setSidebarCollapsed={setSidebarCollapsed}
+                  onProfileUpdate={handleProfileUpdate}
                   onCarreraActivaChange={handleCarreraActivaChange}
                 />
               }
@@ -311,8 +311,6 @@ function App() {
               {/* Ruta para los fondos archivados dentro del módulo de Fondo de Tiempo */}
               <Route path="archivados" element={<RutaPorRol roles={['director', 'jefe_estudios']}><AnimatedRoute><FondosArchivados /></AnimatedRoute></RutaPorRol>} />
               <Route path="informe-gestion" element={<RutaPorRol roles={['director']}><AnimatedRoute><InformeGestion /></AnimatedRoute></RutaPorRol>} />
-              {/* Mi cuenta (todos los roles): foto, datos y, para el docente, su ficha (antes "Mi perfil"). */}
-              <Route path="mi-cuenta" element={<AnimatedRoute><MiCuenta onProfileUpdate={handleProfileUpdate} /></AnimatedRoute>} />
 
               {/* Rutas de Administración (Integradas en el Sidebar) */}
               <Route path="docentes" element={<AnimatedRoute><ListaDocentes isDark={isDark} /></AnimatedRoute>} />
@@ -328,11 +326,6 @@ function App() {
             {/* Módulo Principal: Gestión Global de Usuarios/Carreras */}
             <Route path="/usuarios" element={<SimpleLayout theme={theme} setTheme={setTheme} soloClaro />}>
               <Route index element={<AnimatedRoute><GestionUsuarios user={user} /></AnimatedRoute>} />
-            </Route>
-
-            {/* Mi cuenta desde el panel de módulos ("Bienvenido, ..."), con "Volver al Panel" */}
-            <Route path="/mi-cuenta" element={<SimpleLayout theme={theme} setTheme={setTheme} soloClaro />}>
-              <Route index element={<AnimatedRoute><MiCuenta onProfileUpdate={handleProfileUpdate} enPanel /></AnimatedRoute>} />
             </Route>
 
             <Route path="/carreras" element={<SimpleLayout theme={theme} setTheme={setTheme} soloClaro />}>

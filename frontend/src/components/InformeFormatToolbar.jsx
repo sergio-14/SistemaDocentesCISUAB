@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import {
   Strikethrough, List, ListOrdered,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Indent, Outdent, Palette, Image as ImageIcon, PenLine, Table,
+  Indent, Outdent, Palette, Image as ImageIcon, Table,
   PanelLeft, PanelTop, PanelRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -167,13 +167,8 @@ export default function InformeFormatToolbar({ posicion = 'arriba', onCambiarPos
     ? <span className="h-px w-full bg-azulado-300" />
     : <span className="w-px h-6 bg-azulado-300 mx-1" />;
 
-  if (soloLectura) {
-    return (
-      <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm text-slate-500 ring-1 ring-azulado-300 shadow-[0_2px_6px_rgba(30,58,138,0.08)]">
-        <PenLine className="w-4 h-4" /> Documento en modo solo lectura
-      </div>
-    );
-  }
+  // En solo lectura no hay barra (el editor tampoco la muestra).
+  if (soloLectura) return null;
 
   return (
     <div className="rounded-2xl bg-white ring-1 ring-azulado-300 shadow-[0_2px_6px_rgba(30,58,138,0.08)]">

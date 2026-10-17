@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Save, Eye, Send, Loader2, FileWarning, Lock, Download } from 'lucide-react';
+import { ArrowLeft, Save, Eye, Send, Loader2, FileWarning, Lock, Download, X } from 'lucide-react';
 import api, { getFondoTiempoDetalle, guardarInformeBorrador } from '../apis/api';
 import { getApiErrorMessage, getDownloadErrorMessage } from '../utils/formErrors';
 import useConsultaPeriodica from '../utils/useConsultaPeriodica';
@@ -264,6 +264,14 @@ export default function EditorInformePage() {
   };
 
   const volverAlFondo = () => navigate(`/fondo-tiempo/fondo/${id}`);
+  // El informe se abre en una pestaña aparte (desde el fondo): la X la cierra. Si no se
+  // puede cerrar (se entró escribiendo la dirección), vuelve al fondo.
+  const cerrarVentana = () => {
+    window.close();
+    window.setTimeout(() => {
+      if (!window.closed) volverAlFondo();
+    }, 150);
+  };
 
   const barraLateral = pantallaAncha && !soloLectura && posicionBarra !== 'arriba';
 
@@ -311,12 +319,12 @@ export default function EditorInformePage() {
             <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-3 flex flex-col gap-3 2xl:flex-row 2xl:items-center">
               <div className="flex items-center gap-3 min-w-0 2xl:flex-1">
                 <button
-                  onClick={volverAlFondo}
-                  title="Volver al fondo"
-                  aria-label="Volver al fondo"
+                  onClick={cerrarVentana}
+                  title="Cerrar"
+                  aria-label="Cerrar el informe"
                   className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
                 >
-                  <ArrowLeft className="w-5 h-5" />
+                  <X className="w-5 h-5" />
                 </button>
                 <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-wider text-sky-200">
@@ -376,8 +384,9 @@ export default function EditorInformePage() {
             </div>
           </header>
 
-          {/* Barra de formato arriba, sobre el panel azulado */}
-          {!barraLateral && (
+          {/* Barra de formato arriba, sobre el panel azulado (no en solo lectura: el
+              indicador "Solo lectura" ya está junto a los botones) */}
+          {!barraLateral && !soloLectura && (
             <div className="bg-azulado-100 rounded-t-[2rem] px-4 md:px-6 pt-4 pb-3">
               <div className="max-w-[1100px] mx-auto">
                 <InformeFormatToolbar posicion="arriba" onCambiarPosicion={pantallaAncha ? cambiarPosicionBarra : null} />
@@ -386,7 +395,7 @@ export default function EditorInformePage() {
           )}
         </div>
 
-        <main className={`flex-1 bg-azulado-100 px-4 md:px-6 pb-16 ${barraLateral ? 'rounded-t-[2rem] pt-5' : ''}`}>
+        <main className={`flex-1 bg-azulado-100 px-4 md:px-6 pb-16 ${barraLateral || soloLectura ? 'rounded-t-[2rem] pt-5' : ''}`}>
           <div className={barraLateral ? `flex items-start justify-center gap-6 ${posicionBarra === 'derecha' ? 'flex-row-reverse' : ''}` : ''}>
           {/* Barra de formato a un costado de la hoja, fija al bajar */}
           {barraLateral && (

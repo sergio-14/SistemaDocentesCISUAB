@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeftRight, Plus } from 'lucide-react';
-import { getDocentes } from '../apis/api';
+import { getCarreras, getDocentes } from '../apis/api';
+import { useActiveRole } from '../contexts/activeRole';
 import { ETIQUETAS_DEDICACION } from '../utils/dedicaciones';
 import { paginar } from '../utils/paginacion';
 import AsignarMateriaOtraCarrera from './AsignarMateriaOtraCarrera';
 import CampoBusqueda from './common/CampoBusqueda';
+import FiltroDesplegable from './common/FiltroDesplegable';
 import NumeroAnimado from './common/NumeroAnimado';
 import Paginacion from './common/Paginacion';
 import SelectorVista from './common/SelectorVista';
@@ -51,6 +53,11 @@ const CargaHorariaGeneral = () => {
   const [pagina, setPagina] = useState(1);
   // Ventana para asignar una materia a un docente de otra carrera.
   const [asignando, setAsignando] = useState(false);
+  // El superusuario ve los docentes de todas las carreras y puede elegir una.
+  const { effectiveUser } = useActiveRole();
+  const esSuperusuario = effectiveUser?.is_superuser === true;
+  const [carreras, setCarreras] = useState([]);
+  const [carreraFiltro, setCarreraFiltro] = useState('');
   const listaRef = useRef(null);
 
   useEffect(() => {
@@ -68,8 +75,15 @@ const CargaHorariaGeneral = () => {
   }, []);
 
   useEffect(() => {
+    if (!esSuperusuario) return;
+    getCarreras()
+      .then((data) => setCarreras(Array.isArray(data) ? data : []))
+      .catch(() => setCarreras([]));
+  }, [esSuperusuario]);
+
+  useEffect(() => {
     setPagina(1);
-  }, [searchTerm]);
+  }, [searchTerm, carreraFiltro]);
 
   const cambiarVista = (nuevaVista) => {
     setVista(nuevaVista);
@@ -105,6 +119,7 @@ const CargaHorariaGeneral = () => {
   // Búsqueda por nombre o C.I., sin importar mayúsculas ni tildes.
   const texto = normalizar(searchTerm.trim());
   const filteredDocentes = docentes.filter((docente) => {
+    if (carreraFiltro && String(docente?.carrera_id || '') !== String(carreraFiltro)) return false;
     if (!texto) return true;
     const nombre = `${docente?.nombres || ''} ${docente?.apellido_paterno || ''} ${docente?.apellido_materno || ''} ${docente?.nombre_completo || ''}`;
     return normalizar(nombre).includes(texto) || String(docente?.ci || '').includes(searchTerm.trim());
@@ -200,6 +215,19 @@ const CargaHorariaGeneral = () => {
             onChange={setSearchTerm}
             placeholder={verMaterias ? 'Buscar docente o materia' : 'Buscar por nombre o C.I.'}
           />
+          {/* Filtro de carrera: solo el superusuario ve todas las carreras */}
+          {esSuperusuario && !verMaterias && (
+            <div className="min-w-0 flex-1 sm:flex-none sm:w-64">
+              <FiltroDesplegable
+                value={carreraFiltro}
+                onChange={setCarreraFiltro}
+                options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
+                placeholder="Todas las carreras"
+                ariaLabel="Filtrar por carrera"
+                emptyText="No hay carreras que coincidan"
+              />
+            </div>
+          )}
           <div className="ml-auto flex flex-wrap items-center gap-2">
             {/* Materias de esta carrera asignadas a docentes de otra carrera: vista aparte. */}
             <div className="flex items-center p-1 rounded-full bg-azulado-100 ring-1 ring-inset ring-azulado-300">

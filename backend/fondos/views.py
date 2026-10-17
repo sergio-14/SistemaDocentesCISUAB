@@ -19,7 +19,9 @@ from .utils.informe_gestion_pdf import InformeGestionCarreraPDF
 from .utils.pdf_generator import FondoPDFGenerator, InformePDFGenerator
 from .utils.informe_texto import CAMPOS_TEXTO_INFORME, construir_defaults_informe
 from .utils.informe_word import generar_informe_word
+from .utils.usuario_sugerido import usuario_sugerido
 from .avisos import avisos_para_usuario, clave_rol, reclamar_avisos
+from .mi_cuenta import datos_mi_cuenta
 from .tiempo_real import publicar_leidos
 from .utils.informe_imagenes import ImagenInformeInvalida, carpeta_imagenes, validar_imagenes_informe
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -33,7 +35,7 @@ from .models import (
 from .serializers import TIPO_ACTIVIDAD_OTROS, validar_fondo_con_cargas_editables
 from django.contrib.auth.password_validation import validate_password
 from .serializers import (
-    DocenteSerializer, CarreraSerializer, MateriaSerializer, FondoTiempoSerializer,
+    DocenteSerializer, DatosContactoDocenteSerializer, CarreraSerializer, MateriaSerializer, FondoTiempoSerializer,
     FondoTiempoListSerializer, CargaHorariaSerializer,
     UsuarioSerializer, CrearUsuarioSerializer, ActualizarUsuarioSerializer,
     FotoPerfilSerializer, PerfilUsuarioSerializer,
@@ -205,6 +207,25 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
             return [IsAuthenticated()]
             
         return [IsAuthenticated()]
+
+    @action(detail=True, methods=['patch'], url_path='datos-contacto')
+    def datos_contacto(self, request, pk=None):
+        """Teléfono y correo de la ficha. Los completan el superusuario y el Director o el
+        Jefe de Estudios de la carrera del docente, aunque la ficha esté fija por su
+        historial: el resto de la ficha sigue editándolo solo el superusuario."""
+        docente = self.get_object()
+        if not request.user.is_superuser:
+            perfil = _obtener_perfil_efectivo(request.user, request)
+            de_su_carrera = docente.vinculos_carrera.filter(
+                activo=True, carrera__in=_obtener_carreras_activas_usuario(request.user, request),
+            ).exists()
+            if not (perfil and perfil.rol in ('director', 'jefe_estudios') and de_su_carrera):
+                raise PermissionDenied('Solo el Director o el Jefe de Estudios de la carrera del docente completan sus datos de contacto.')
+        serializer = DatosContactoDocenteSerializer(docente, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        docente.refresh_from_db()
+        return Response(self.get_serializer(docente).data)
 
     @action(detail=False, methods=['get'], url_path='buscar')
     def buscar(self, request):
@@ -2077,6 +2098,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             return Response(errores_secciones, status=status.HTTP_400_BAD_REQUEST)
 
         # Transición directa para informe (Modo Flexible)
+        # El reenvío tras las correcciones del Director atiende esa ronda del chat.
+        fondo.resolver_observaciones_pendientes(request.user)
         estado_anterior = fondo.estado
         fondo.estado = 'informe_presentado'
         fondo.fecha_informe = timezone.now()
@@ -2146,8 +2169,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
 
         estado_anterior = fondo.estado
         if estado_anterior == 'observado':
-            for observacion in ObservacionFondo.objects.filter(fondo_tiempo=fondo, resuelta=False):
-                observacion.marcar_resuelta(user)
+            fondo.resolver_observaciones_pendientes(user)
 
         fondo.estado = 'presentado_director'
         fondo.fecha_presentacion = timezone.now()
@@ -2517,6 +2539,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
 
         # Cambiar estado del fondo a finalizado
         estado_anterior = fondo.estado
+        # Al finalizar no queda ninguna observación pendiente; el chat queda de solo lectura.
+        fondo.resolver_observaciones_pendientes(user)
         fondo.estado = 'finalizado'
         fondo.fecha_finalizacion = timezone.now()
         if documento_decanatura:
@@ -2534,7 +2558,9 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         )
 
         # Notificar al docente que su informe fue aprobado.
-        observacion = ObservacionFondo.objects.create(fondo_tiempo=fondo, resuelta=True)
+        observacion = ObservacionFondo.objects.create(
+            fondo_tiempo=fondo, resuelta=True, resuelta_por=user, fecha_resolucion=timezone.now(),
+        )
         MensajeObservacion.objects.create(
             observacion=observacion,
             autor=request.user,
@@ -2764,6 +2790,9 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
 # OBSERVACIÓN FONDO VIEWSET
 # =====================================================
 
+CHAT_FINALIZADO = 'El fondo está finalizado: el chat es de solo lectura.'
+
+
 class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ReadOnlyModelViewSet):
     """Hilos de observaciones del fondo (chat).
 
@@ -2858,6 +2887,8 @@ class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ReadOnly
         """Agregar un mensaje al hilo. get_object ya limita el hilo al alcance del
         usuario (el docente, a su fondo) y el Instituto es solo lectura (mixin)."""
         observacion = self.get_object()
+        if observacion.fondo_tiempo.estado == 'finalizado':
+            return Response({'error': CHAT_FINALIZADO}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validar que haya texto
         texto = request.data.get('texto', '').strip()
@@ -2910,6 +2941,8 @@ class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ReadOnly
         if not (request.user.is_superuser or (perfil and perfil.rol in ('docente', 'jefe_estudios'))):
             raise PermissionDenied('Solo el docente del fondo o Jefatura de Estudios marcan la observación como resuelta.')
 
+        if observacion.fondo_tiempo.estado == 'finalizado':
+            return Response({'error': CHAT_FINALIZADO}, status=status.HTTP_400_BAD_REQUEST)
         if observacion.resuelta:
             return Response(
                 {'error': 'Esta observación ya fue resuelta'},
@@ -3004,7 +3037,7 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         """
         if self.action == 'list':
             return [IsAuthenticated()]
-        if self.action in ['create', 'update', 'partial_update', 'toggle_activo', 'resetear_password']:
+        if self.action in ['create', 'update', 'partial_update', 'toggle_activo', 'resetear_password', 'sugerir_usuario']:
             return [IsFullAdminOrDirectorCarrera()]
         # Eliminar: superusuario, o el Director dentro de su carrera (ver destroy).
         if self.action in ['destroy']:
@@ -3249,6 +3282,12 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
         DatosLaborales.objects.filter(
             pk__in=datos_laborales_ids, docente__isnull=True, perfiles__isnull=True,
         ).delete()
+
+    @action(detail=False, methods=['get'], url_path='sugerir-usuario')
+    def sugerir_usuario(self, request):
+        """Usuario sugerido para una cuenta nueva a partir del nombre completo (ver
+        utils/usuario_sugerido.py). Solo lectura; el formulario lo deja editar."""
+        return Response({'usuario': usuario_sugerido(request.query_params.get('nombre', ''))})
 
     @action(detail=True, methods=['post'], permission_classes=[IsFullAdminOrDirectorCarrera])
     def resetear_password(self, request, pk=None):
@@ -3556,6 +3595,15 @@ def cambiar_password_inicial(request):
     user.perfil.save()
     
     return Response({'message': 'Contraseña actualizada correctamente. Por favor inicie sesión nuevamente.'})
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def mi_cuenta(request):
+    """Mi cuenta (solo lectura y solo del usuario autenticado): último ingreso, designaciones
+    de cargo y, si tiene ficha de docente, su fondo de la gestión actual, las carreras donde
+    dicta y los próximos plazos (ver fondos/mi_cuenta.py)."""
+    return Response(datos_mi_cuenta(request.user))
+
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     """Vista de login personalizada que usa el serializer extendido"""

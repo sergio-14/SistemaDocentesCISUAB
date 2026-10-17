@@ -1055,6 +1055,13 @@ class FondoTiempo(models.Model):
             activo=True,
         ).exists()
 
+    def resolver_observaciones_pendientes(self, usuario):
+        """Resuelve los hilos del chat que siguen pendientes, con quién y cuándo. Se llama al
+        reenviar (el fondo Jefatura, el informe el docente: esa ronda queda atendida) y al
+        finalizar el fondo (no queda ninguna pendiente)."""
+        for observacion in self.observaciones_detalladas.filter(resuelta=False):
+            observacion.marcar_resuelta(usuario)
+
     def calendarios_de_la_gestion(self):
         """Calendarios académicos de la carrera del fondo en su gestión."""
         return CalendarioAcademico.objects.filter(carrera_id=self.carrera_id, gestion=self.gestion)

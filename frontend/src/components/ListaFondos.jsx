@@ -93,6 +93,7 @@ function ListaFondos() {
   const [fondoPorArchivar, setFondoPorArchivar] = useState(null);
   const [busqueda, setBusqueda] = useState('');
   const [gestionFiltro, setGestionFiltro] = useState('todas');
+  const [estadoFiltro, setEstadoFiltro] = useState('todos');
   const [pagina, setPagina] = useState(1);
   const listaRef = useRef(null);
   const [vista, setVista] = useState(() => {
@@ -255,8 +256,11 @@ function ListaFondos() {
     }
   };
   const texto = busqueda.trim().toLowerCase();
+  // Estados con algún fondo, en el orden del flujo (ESTADOS_FONDO).
+  const estadosConFondos = Object.keys(ESTADOS_FONDO).filter((estado) => fondos.some((fondo) => estadoVisibleFondo(fondo) === estado));
   const fondosFiltrados = fondos.filter((fondo) => {
     if (gestionFiltro !== 'todas' && String(fondo.gestion) !== gestionFiltro) return false;
+    if (estadoFiltro !== 'todos' && estadoVisibleFondo(fondo) !== estadoFiltro) return false;
     if (!texto) return true;
     // Los demás roles solo ven su carrera: buscan por docente.
     return (esSuperusuario ? [fondo.docente_nombre, fondo.carrera_nombre] : [fondo.docente_nombre])
@@ -265,8 +269,8 @@ function ListaFondos() {
 
   const { paginaActual, totalPaginas, itemsPagina: fondosPagina } = paginar(fondosFiltrados, pagina, vista);
 
-  // Lo pendiente según el rol: el Director lo que tiene por revisar, el Jefe lo
-  // observado y el docente el estado de su fondo (el de la gestión más reciente).
+  // Lo pendiente según el rol: el Director lo que tiene por revisar y el docente el estado
+  // de su fondo (el de la gestión más reciente). El Jefe no lleva resumen.
   const plural = (n, palabra) => `${n} ${palabra}${n === 1 ? '' : 's'}`;
   const ajenos = fondos.filter((fondo) => String(fondo.docente) !== String(effectiveUser?.perfil?.docente));
   const contar = (lista, condicion) => lista.filter(condicion).length;
@@ -277,13 +281,6 @@ function ListaFondos() {
     resumenRol = {
       texto: `Por revisar: ${plural(porRevisar, 'fondo')} · ${plural(informes, 'informe')}`,
       punto: porRevisar + informes > 0 ? ESTADOS_FONDO.presentado_director.dot : 'bg-slate-300',
-    };
-  } else if (activeRole === 'jefe_estudios') {
-    const observados = contar(fondos, (f) => f.estado === 'observado');
-    const informes = contar(fondos, (f) => estadoVisibleFondo(f) === 'informe_observado');
-    resumenRol = {
-      texto: `Observados: ${plural(observados, 'fondo')} · ${plural(informes, 'informe')}`,
-      punto: observados + informes > 0 ? ESTADOS_FONDO.observado.dot : 'bg-slate-300',
     };
   } else if (activeRole === 'docente' && fondos.length > 0) {
     const propio = [...fondos].sort((a, b) => (b.gestion || 0) - (a.gestion || 0))[0];
@@ -456,6 +453,17 @@ function ListaFondos() {
           }}
           placeholder="Todas las gestiones"
           options={gestiones.map((gestion) => ({ value: String(gestion), label: `Gestión ${gestion}` }))}
+        />
+
+        <SelectorGestion
+          value={estadoFiltro}
+          onChange={(estado) => {
+            setEstadoFiltro(estado ?? 'todos');
+            setPagina(1);
+          }}
+          placeholder="Todos los estados"
+          ariaLabel="Filtrar por estado"
+          options={estadosConFondos.map((estado) => ({ value: estado, label: ESTADOS_FONDO[estado].label }))}
         />
 
         <SelectorVista vista={vista} onCambiar={cambiarVista} className="ml-auto" />

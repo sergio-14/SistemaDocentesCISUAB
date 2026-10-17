@@ -30,3 +30,19 @@ export const finAnteriorAInicio = (inicioIso, finIso) => {
   const fin = fechaIsoADate(finIso);
   return Boolean(inicio && fin && fin.getTime() < inicio.getTime());
 };
+
+// 'YYYY-MM-DD' -> 'DD/MM/AAAA' ('—' si no hay fecha).
+export const fechaCorta = (iso) => {
+  const [anio, mes, dia] = String(iso || '').slice(0, 10).split('-');
+  return anio && mes && dia ? `${dia}/${mes}/${anio}` : '—';
+};
+
+// Fecha de Bolivia ('YYYY-MM-DD') de un momento con hora (p. ej. '2026-10-16T01:30:00Z').
+export const fechaBoliviaDe = (momentoIso) => (momentoIso ? formatoIsoBolivia.format(new Date(momentoIso)) : '');
+
+// Días desde hoy (Bolivia) hasta la fecha 'YYYY-MM-DD': negativo si ya pasó, null si no hay fecha.
+export const diasDesdeHoy = (iso) => {
+  const fecha = fechaIsoADate(iso);
+  const hoy = fechaIsoADate(hoyBolivia());
+  return fecha && hoy ? Math.round((fecha - hoy) / (24 * 60 * 60 * 1000)) : null;
+};

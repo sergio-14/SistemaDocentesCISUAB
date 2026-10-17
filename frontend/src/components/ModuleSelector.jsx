@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import ThemeToggle from './ThemeToggle';
+import ModalMiCuenta from './cuenta/ModalMiCuenta';
 import { useActiveRole } from '../contexts/activeRole';
 import {
     ERROR_FIELD_BORDER_CLASS,
@@ -46,10 +47,11 @@ const BuildingIcon = (props) => (
 );
 
 // --- COMPONENTE PRINCIPAL ---
-const ModuleSelector = ({ user, onLogout, theme, setTheme }) => {
+const ModuleSelector = ({ user, onLogout, theme, setTheme, onProfileUpdate }) => {
     const navigate = useNavigate();
     const [roleSelectionError, setRoleSelectionError] = useState('');
     const [roleErrorPulse, setRoleErrorPulse] = useState(0);
+    const [cuentaAbierta, setCuentaAbierta] = useState(false);
     const activeRoleContext = useActiveRole();
     const {
         activeAssignment,
@@ -333,14 +335,23 @@ const ModuleSelector = ({ user, onLogout, theme, setTheme }) => {
                 {/* Header */}
                 <header className="module-selector-header absolute top-0 left-0 right-0 p-6 flex justify-between items-center">
                     {/* Lado Izquierdo: Mensaje de Bienvenida */}
-                    {/* El nombre lleva a Mi cuenta (mismo aspecto de siempre). */}
-                    <Link
-                        to="/mi-cuenta"
+                    {/* El nombre abre Mi cuenta (mismo aspecto de siempre). */}
+                    <div
+                        role="button"
+                        tabIndex={0}
                         title="Mi cuenta"
-                        className="module-selector-welcome text-sm font-medium backdrop-blur-sm bg-black/5 dark:bg-white/5 py-2 px-4 rounded-full"
+                        onClick={() => setCuentaAbierta(true)}
+                        onKeyDown={(evento) => {
+                            if (evento.key === 'Enter' || evento.key === ' ') {
+                                evento.preventDefault();
+                                setCuentaAbierta(true);
+                            }
+                        }}
+                        className="module-selector-welcome text-sm font-medium backdrop-blur-sm bg-black/5 dark:bg-white/5 py-2 px-4 rounded-full cursor-pointer"
                     >
                         Bienvenido, <span className="font-bold text-uab-blue-800 dark:text-uab-blue-300">{displayName}</span>
-                    </Link>
+                    </div>
+                    {cuentaAbierta && <ModalMiCuenta onClose={() => setCuentaAbierta(false)} onProfileUpdate={onProfileUpdate} />}
 
                     {/* Lado Derecho: Botones de Acción */}
                     <div className="flex items-center gap-4">

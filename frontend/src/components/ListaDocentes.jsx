@@ -19,6 +19,7 @@ import CampoBusqueda from './common/CampoBusqueda';
 import Paginacion from './common/Paginacion';
 import SelectorVista from './common/SelectorVista';
 import { paginar } from '../utils/paginacion';
+import ModalFichaDocente from './docentes/ModalFichaDocente';
 import { useActiveRole } from '../contexts/activeRole';
 import { BLOQUE, BOTON } from './fondos/estilosFondo';
 import { Avatar, Etiqueta } from './fondos/ElementosFondo';
@@ -562,7 +563,8 @@ function ListaDocentes() {
   // Modal de crear/editar
   const [showModal, setShowModal] = useState(false);
   // El Director ve la ficha de los docentes de su carrera sin poder editarla.
-  const [fichaSoloLectura, setFichaSoloLectura] = useState(false);
+  // Ficha del docente (diseño de Mi cuenta) que abre el Director con "Ver ficha".
+  const [fichaDocenteId, setFichaDocenteId] = useState(null);
   const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
 
   // Formulario
@@ -1070,8 +1072,7 @@ function ListaDocentes() {
     });
   };
 
-  const abrirModalEditar = (docente, { soloLectura = false } = {}) => {
-    setFichaSoloLectura(soloLectura);
+  const abrirModalEditar = (docente) => {
     setDocenteSeleccionado(docente);
     setFormData({
       user: docente.user_id || docente.usuario_id || '',
@@ -1749,7 +1750,7 @@ function ListaDocentes() {
         {!esSuperusuario && (
           <button
             type="button"
-            onClick={() => abrirModalEditar(docente, { soloLectura: true })}
+            onClick={() => setFichaDocenteId(docente.id)}
             className={`${BOTON} bg-blue-900 hover:bg-blue-950 text-white`}
           >
             <FaEye size={14} />
@@ -2335,6 +2336,18 @@ function ListaDocentes() {
         />
       </div>
 
+      {/* Ficha del docente (diseño de Mi cuenta): el Director completa teléfono y correo */}
+      {fichaDocenteId && (
+        <ModalFichaDocente
+          docenteId={fichaDocenteId}
+          puedeEditarContacto
+          onClose={() => setFichaDocenteId(null)}
+          onActualizado={(actualizado) => setDocentes((prev) => prev.map((item) => (
+            item.id === actualizado.id ? { ...item, telefono: actualizado.telefono, email: actualizado.email } : item
+          )))}
+        />
+      )}
+
       {/* Modal Crear/Editar */}
       {showModal && docenteSeleccionado && createPortal((
         <div
@@ -2346,11 +2359,10 @@ function ListaDocentes() {
             <div className="px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-blue-900 flex items-center gap-2">
-                  {fichaSoloLectura ? 'Ficha del Docente' : 'Editar Docente'}
+                  Editar Docente
                 </h2>
                 <button
                   type="button"
-                  disabled={fichaSoloLectura}
                   role="switch"
                   aria-checked={formData.activo}
                   aria-label={formData.activo ? 'Marcar docente como inactivo' : 'Marcar docente como activo'}
@@ -2381,7 +2393,7 @@ function ListaDocentes() {
 
             {/* Body */}
             <form id="editar-docente-form" onSubmit={handleUpdateSubmit} noValidate className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 transition-all duration-300 ease-out">
-              <fieldset disabled={fichaSoloLectura} className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <fieldset className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <InputField
                   label="Nombre completo"
                   name="nombre_completo"
@@ -2524,7 +2536,6 @@ function ListaDocentes() {
                     </p>
                   </div>
                 </div>
-                {!fichaSoloLectura && (
                 <div className="md:col-span-2 slide-down min-h-[180px] rounded-2xl bg-blue-50 p-4 ring-1 ring-inset ring-blue-200">
                   <div className="flex items-start gap-3">
                     <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-800 dark:text-blue-300" />
@@ -2570,13 +2581,12 @@ function ListaDocentes() {
                     </div>
                   </div>
                 </div>
-                )}
               </fieldset>
             </form>
 
             {/* Footer */}
             <div className="px-6 py-4 [border-top:1px_solid_#B8C9E1] flex flex-col-reverse sm:flex-row justify-end gap-2">
-                {!fichaSoloLectura && docenteVinculadoAUsuario && infoEdicionIndex === 0 && (
+                {docenteVinculadoAUsuario && infoEdicionIndex === 0 && (
                   <button
                     type="button"
                     onClick={handleEditarEnUsuarios}
@@ -2590,9 +2600,8 @@ function ListaDocentes() {
                 onClick={() => setShowModal(false)}
                 className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200`}
               >
-                {fichaSoloLectura ? 'Cerrar' : 'Cancelar'}
+                Cancelar
               </button>
-              {!fichaSoloLectura && (
               <button
                 type="submit"
                 form="editar-docente-form"
@@ -2610,7 +2619,6 @@ function ListaDocentes() {
                   </>
                 )}
               </button>
-              )}
             </div>
           </div>
         </div>

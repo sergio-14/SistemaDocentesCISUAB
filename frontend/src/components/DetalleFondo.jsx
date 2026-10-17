@@ -20,10 +20,10 @@ import ProgramaAnaliticoAccion from './fondos/ProgramaAnaliticoAccion';
 import DocumentoActividadAccion from './fondos/DocumentoActividadAccion';
 import { BLOQUE, BOTON, BOTON_DOCUMENTO, ORDEN_UNIDADES, colorUnidad, estadoVisibleFondo } from './fondos/estilosFondo';
 import { Avatar, BarraProgreso, EstadoPill, Etiqueta, EtiquetaFueraDePlazo } from './fondos/ElementosFondo';
+import { avisoDeEspera } from '../utils/avisoDeEspera';
 import { getApiErrorMessage, getDownloadErrorMessage } from '../utils/formErrors';
 import { ZONA_HORARIA_BOLIVIA } from '../utils/fechas';
 import useConsultaConRespaldo, { useFondoActualizado } from '../tiempoReal/useTiempoReal';
-import mostrarAviso from '../avisos/mostrarAviso';
 
 // Helpers para extraer datos del vínculo DocenteCarrera desde docente.vinculos
 const getVinculoCarrera = (docente, carreraId) => {
@@ -290,22 +290,11 @@ function DetalleFondo() {
       });
   }, 10000, debeVigilarCambios);
 
-  // Docente con el informe observado por el Director: al entrar al fondo se le avisa
-  // (una vez por entrada) y arriba queda el comentario con lo que debe corregir.
+  // Docente con el informe observado: el aviso es uno solo, el del sistema ("Tu informe
+  // tiene correcciones · Corregir"); aquí arriba queda el comentario con lo que debe corregir.
   const informeObservadoDelDocente = Boolean(fondo?.es_fondo_propio)
     && rolOperativo === 'docente'
     && estadoVisibleFondo(fondo) === 'informe_observado';
-  const avisoInformeObservadoRef = useRef(null);
-  const fondoId = fondo?.id;
-  useEffect(() => {
-    if (!informeObservadoDelDocente || avisoInformeObservadoRef.current === fondoId) return;
-    avisoInformeObservadoRef.current = fondoId;
-    mostrarAviso({
-      id: `informe-observado-${fondoId}`,
-      texto: 'Tu informe fue observado. Revisa las correcciones solicitadas.',
-      tono: 'atencion',
-    });
-  }, [informeObservadoDelDocente, fondoId]);
 
   const handleActualizacionHoras = () => {
     cargarDetalle({ silencioso: true });
@@ -376,7 +365,7 @@ function DetalleFondo() {
   };
 
   const abrirPdfEnNuevaPestana = () => {
-    toast.loading('Generando PDF...', { id: 'pdf-oficial' });
+    const quitarEspera = avisoDeEspera('Generando PDF...', 'pdf-oficial');
     api.get(`/fondos-tiempo/${id}/pdf-oficial/`, { responseType: 'blob' })
       .then((response) => {
         const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
@@ -391,11 +380,11 @@ function DetalleFondo() {
         link.click();
         document.body.removeChild(link);
         window.setTimeout(() => window.URL.revokeObjectURL(url), 60000);
-        toast.dismiss('pdf-oficial');
+        quitarEspera();
       })
       .catch(async (error) => {
         console.error('Error al generar PDF:', error);
-        toast.dismiss('pdf-oficial');
+        quitarEspera();
         // El motivo del backend (checklist de salud, permisos...) aunque la respuesta sea un blob.
         toast.error(await getDownloadErrorMessage(error, 'No se pudo generar el PDF del fondo'));
       });
@@ -1435,7 +1424,7 @@ function DetalleFondo() {
         <ModalConfirmar
           etiqueta="Fondo de tiempo"
           titulo="Aprobar fondo"
-          mensaje={<>Se aprobará el fondo de tiempo {fondo.gestion} de <strong className="text-slate-900">{fondo.docente?.nombre_completo || 'el docente'}</strong>. Al aprobarlo:</>}
+          mensaje={<>Se aprobará el fondo de tiempo {fondo.gestion} de <strong className="text-blue-900">{fondo.docente?.nombre_completo || 'el docente'}</strong>. Al aprobarlo:</>}
           detalle={[
             'El fondo quedará bloqueado para edición',
             'Se registrará la fecha de aprobación',
@@ -1467,7 +1456,7 @@ function DetalleFondo() {
         <ModalConfirmar
           etiqueta="Fondo de tiempo"
           titulo="Iniciar ejecución"
-          mensaje={<>Se iniciará la ejecución del fondo de tiempo {fondo.gestion} de <strong className="text-slate-900">{fondo.docente?.nombre_completo || 'el docente'}</strong>. Al iniciarla:</>}
+          mensaje={<>Se iniciará la ejecución del fondo de tiempo {fondo.gestion} de <strong className="text-blue-900">{fondo.docente?.nombre_completo || 'el docente'}</strong>. Al iniciarla:</>}
           detalle={[
             'El fondo quedará activo durante el semestre',
             'El docente podrá ejecutar las actividades planificadas',
@@ -1488,7 +1477,7 @@ function DetalleFondo() {
             <div className="px-6 pt-6">
               <h3 className="text-xl font-bold text-blue-900">Solicitar correcciones al informe</h3>
               <p className="mt-1 text-sm text-slate-600">
-                Explique qué debe corregir {fondo.docente?.nombre_completo}. El informe volverá a estado editable para que lo actualice y lo reenvíe.
+                Explique qué debe corregir <strong className="text-blue-900">{fondo.docente?.nombre_completo}</strong>. El informe volverá a estado editable para que lo actualice y lo reenvíe.
               </p>
             </div>
             <div className="px-6 py-4">

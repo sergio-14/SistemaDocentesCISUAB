@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { FaEdit, FaTrash } from 'react-icons/fa';
 import api, { getCalendarios, getCarreras } from '../apis/api';
 import { finAnteriorAInicio, hoyBolivia } from '../utils/fechas';
+import { avisoDeEspera } from '../utils/avisoDeEspera';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useActiveRole } from '../contexts/activeRole';
@@ -1306,10 +1307,10 @@ function ListaCalendarios() {
 
   const confirmarToggleActivo = async () => {
     if (!calendarioToToggle) return;
-    toast.loading(calendarioToToggle.activo ? 'Desactivando calendario...' : 'Activando calendario...');
+    const quitarEspera = avisoDeEspera(calendarioToToggle.activo ? 'Desactivando calendario...' : 'Activando calendario...', 'calendario-estado');
     try {
       const response = await api.patch(`/calendarios/${calendarioToToggle.id}/`, { activo: !calendarioToToggle.activo });
-      toast.dismiss();
+      quitarEspera();
       toast.success(`Calendario ${calendarioToToggle.activo ? 'desactivado' : 'activado'} correctamente.`);
       setShowToggleModal(false);
       setCalendarioToToggle(null);
@@ -1319,7 +1320,7 @@ function ListaCalendarios() {
           : calendario
       )));
     } catch (err) {
-      toast.dismiss();
+      quitarEspera();
       toast.error('Error al cambiar el estado del calendario.');
       console.error(err);
     }

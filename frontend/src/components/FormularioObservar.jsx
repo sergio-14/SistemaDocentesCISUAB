@@ -1,16 +1,26 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Info } from 'lucide-react';
 import { observarFondo } from '../apis/api';
 import toast from 'react-hot-toast';
 import { ERROR_FIELD_BORDER_CLASS, MENSAJE_REVISA_CAMPOS, getApiErrorMessage } from '../utils/formErrors';
 import MensajeErrorCampo from './common/MensajeErrorCampo';
 import ModalCentrado from './common/ModalCentrado';
-import { BOTON } from './fondos/estilosFondo';
+import { BOTON, BOTON_CHICO } from './fondos/estilosFondo';
+
+// El aviso de qué pasa al enviar se oculta solo a los 5 s; un botón pequeño lo vuelve a mostrar.
+const AVISO_VISIBLE_MS = 5000;
 
 function FormularioObservar({ fondo, onObservar, onCancelar }) {
   const [observacion, setObservacion] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
   const [pulso, setPulso] = useState(0);
+  const [avisoVisible, setAvisoVisible] = useState(true);
+
+  useEffect(() => {
+    const temporizador = setTimeout(() => setAvisoVisible(false), AVISO_VISIBLE_MS);
+    return () => clearTimeout(temporizador);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -87,15 +97,26 @@ function FormularioObservar({ fondo, onObservar, onCancelar }) {
             </p>
           </div>
 
-          <div className="rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-900">
-            <p className="font-semibold">Al enviar esta observación:</p>
-            <ul className="mt-1 space-y-0.5 list-disc pl-5 text-sky-800">
-              <li>El fondo volverá a estado <strong>"Con observaciones"</strong></li>
-              <li>Se podrá editar y corregir el fondo</li>
-              <li>Sus comentarios quedarán en el historial del fondo</li>
-              <li>Deberá revisarlo nuevamente cuando se vuelva a presentar</li>
-            </ul>
-          </div>
+          {avisoVisible ? (
+            <div className="animate-fade-in rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-900">
+              <p className="font-semibold">Al enviar esta observación:</p>
+              <ul className="mt-1 space-y-0.5 list-disc pl-5 text-sky-800">
+                <li>El fondo volverá a estado <strong>"Con observaciones"</strong></li>
+                <li>Se podrá editar y corregir el fondo</li>
+                <li>Sus comentarios quedarán en el historial del fondo</li>
+                <li>Deberá revisarlo nuevamente cuando se vuelva a presentar</li>
+              </ul>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setAvisoVisible(true)}
+              className={`${BOTON_CHICO} bg-sky-50 text-sky-900 ring-1 ring-inset ring-sky-200 hover:bg-sky-100`}
+            >
+              <Info className="w-3.5 h-3.5" strokeWidth={2} />
+              <span>¿Qué pasa al enviar?</span>
+            </button>
+          )}
         </div>
 
         <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 pb-6">

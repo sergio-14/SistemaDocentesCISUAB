@@ -643,6 +643,31 @@ const initialData = {
     setPerfilId(null);
   };
 
+  // Usuario sugerido a partir del nombre completo (WChao, WChaoR, WChao2…: lo calcula el
+  // backend contra todos los usuarios). Se sugiere mientras el campo esté vacío o tenga la
+  // última sugerencia; si se escribe a mano, se respeta.
+  const ultimoSugeridoRef = useRef('');
+  const nombreParaSugerir = String(formData.nombre_completo || '').trim();
+  const usuarioActualForm = String(formData.username || '');
+  useEffect(() => {
+    if (usuarioActualForm && usuarioActualForm !== ultimoSugeridoRef.current) return undefined;
+    if (nombreParaSugerir.split(/\s+/).length < 2) return undefined;
+    const temporizador = setTimeout(async () => {
+      try {
+        const { data } = await api.get('/usuarios/sugerir-usuario/', { params: { nombre: nombreParaSugerir } });
+        const sugerido = data?.usuario || '';
+        setFormData((prev) => {
+          if (prev.username && prev.username !== ultimoSugeridoRef.current) return prev;
+          return { ...prev, username: sugerido, password: `${sugerido}UABJB`, password_confirm: `${sugerido}UABJB` };
+        });
+        ultimoSugeridoRef.current = sugerido;
+      } catch {
+        // Sin sugerencia: el usuario se escribe a mano.
+      }
+    }, 300);
+    return () => clearTimeout(temporizador);
+  }, [nombreParaSugerir, usuarioActualForm]);
+
   // --- FORM LOGIC FOR INLINE CREATION ---
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -1523,7 +1548,6 @@ const initialData = {
                       elegirCarrera={esSuperuserActual}
                       onCambiarCarrera={cambiarCarreraUsuario}
                       error={errorBajoListaCreacion}
-                      aviso={esSuperuserActual ? '' : 'La carrera es la tuya: se asigna sola.'}
                       pulso={leftPanelPulsing || rightPanelPulsing}
                     />
 

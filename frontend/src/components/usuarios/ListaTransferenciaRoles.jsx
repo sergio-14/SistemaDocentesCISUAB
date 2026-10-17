@@ -8,7 +8,8 @@ import { AvisoUsuario, CandadoIcon } from './PiezasFormularioUsuario';
 //
 // La carrera es UNA para todos los roles (la del contrato): el superusuario la elige
 // en la fila de cualquier rol asignado y se aplica a todos. Al pasar el primer rol sin
-// carrera, su lista de carreras se abre sola. Los avisos de los roles (errores, bloqueo
+// carrera, su lista de carreras se abre sola. Si hay una sola carrera posible (p. ej. la
+// del Director), no hay nada que elegir: se asigna sola y se muestra como texto. Los avisos de los roles (errores, bloqueo
 // de la carrera) van en el pie del panel de asignados, y debajo de cada fila puede ir
 // contenido propio del rol (p. ej. la ficha de docente).
 const ListaTransferenciaRoles = ({
@@ -37,18 +38,27 @@ const ListaTransferenciaRoles = ({
   contenidoFila,
 }) => {
   const rolesAsignados = new Set(asignados.map((item) => item.rol));
+  const unicaCarrera = carreras.length === 1 ? carreras[0] : null;
+  const puedeElegirCarrera = elegirCarrera && !unicaCarrera;
   const nombreCarrera = carreras.find((item) => String(item.id) === String(carrera))?.nombre || '';
   const [carreraAbierta, setCarreraAbierta] = useState(null);
   const cantidadAnterior = useRef(asignados.length);
 
   // Primer rol (o uno nuevo) sin carrera: se abre su lista de carreras.
   useEffect(() => {
-    if (asignados.length > cantidadAnterior.current && elegirCarrera && !carrera && !carreraBloqueada) {
+    if (asignados.length > cantidadAnterior.current && puedeElegirCarrera && !carrera && !carreraBloqueada) {
       setCarreraAbierta(asignados.length - 1);
     }
     if (asignados.length < cantidadAnterior.current) setCarreraAbierta(null);
     cantidadAnterior.current = asignados.length;
-  }, [asignados.length, elegirCarrera, carrera, carreraBloqueada]);
+  }, [asignados.length, puedeElegirCarrera, carrera, carreraBloqueada]);
+
+  // Una sola carrera posible: se asigna sola.
+  useEffect(() => {
+    if (elegirCarrera && unicaCarrera && !carrera && !carreraBloqueada && asignados.length > 0) {
+      onCambiarCarrera(String(unicaCarrera.id));
+    }
+  }, [elegirCarrera, unicaCarrera, carrera, carreraBloqueada, asignados.length, onCambiarCarrera]);
 
   const elegir = (id) => {
     onCambiarCarrera(String(id));
@@ -150,7 +160,7 @@ const ListaTransferenciaRoles = ({
                       <span className="flex-shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/25">Principal</span>
                     )}
                   </span>
-                  {elegirCarrera ? (
+                  {puedeElegirCarrera ? (
                     <button
                       type="button"
                       disabled={carreraBloqueada}
@@ -175,7 +185,7 @@ const ListaTransferenciaRoles = ({
                     nombreCarrera && <span className="flex-shrink-0 max-w-[60%] truncate px-2.5 py-1 rounded-full text-xs font-semibold bg-white/20">{nombreCarrera}</span>
                   )}
                 </div>
-                {elegirCarrera && carreraAbierta === index && (
+                {puedeElegirCarrera && carreraAbierta === index && (
                   <div className="px-1 pt-1.5 pb-1">
                     <div role="listbox" aria-label="Carrera del usuario" className="ml-auto w-full sm:w-[75%] rounded-2xl bg-white ring-1 ring-azulado-300 shadow-lg max-h-40 overflow-y-auto p-1.5">
                       {carreras.map((opcion) => (

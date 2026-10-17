@@ -12,6 +12,7 @@ const FondoTiempoLayout = ({
     onLogout, 
     sidebarCollapsed, 
     setSidebarCollapsed,
+    onProfileUpdate, // <-- Recibimos la prop
     onCarreraActivaChange,
 }) => {
     const {
@@ -79,6 +80,7 @@ const FondoTiempoLayout = ({
                 esMovil={esMovil}
                 menuMovilAbierto={menuMovilAbierto}
                 onCerrarMenuMovil={() => setMenuMovilAbierto(false)}
+                onProfileUpdate={onProfileUpdate} // <-- La pasamos a Sidebar
                 onCarreraActivaChange={onCarreraActivaChange}
             />
 

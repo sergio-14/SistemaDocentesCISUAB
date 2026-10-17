@@ -2917,6 +2917,28 @@ class UsuarioSerializer(serializers.ModelSerializer):
         return serialize_assignment(get_active_assignment(request))
 
 
+class DatosContactoDocenteSerializer(serializers.ModelSerializer):
+    """Teléfono y correo de la ficha del docente: datos de contacto que se completan aunque
+    la ficha esté fija por su historial (no cambian el fondo ni los informes)."""
+
+    class Meta:
+        model = Docente
+        fields = ['telefono', 'email']
+        extra_kwargs = {
+            'telefono': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'email': {'required': False, 'allow_blank': True, 'allow_null': True},
+        }
+
+    def validate_telefono(self, valor):
+        valor = (valor or '').strip()
+        if valor and not re.fullmatch(r'[0-9+\- ]{6,20}', valor):
+            raise serializers.ValidationError('Ingrese un teléfono válido (solo números, espacios, + y -).')
+        return valor
+
+    def validate_email(self, valor):
+        return (valor or '').strip()
+
+
 MENSAJES_CORREO_OBLIGATORIO = {
     'required': 'El correo institucional es obligatorio.',
     'blank': 'El correo institucional es obligatorio.',

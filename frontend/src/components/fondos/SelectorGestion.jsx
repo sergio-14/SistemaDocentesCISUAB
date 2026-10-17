@@ -4,7 +4,8 @@ import { createPortal } from 'react-dom';
 // Selector de gestión: mismo borde que el buscador, el cuadrito azul con la flecha que
 // gira (como en Docentes) y menú flotante con hover azul. Sin gestión elegida muestra
 // "Todas las gestiones"; volver a pulsar la gestión elegida la quita.
-export default function SelectorGestion({ value, onChange, options, placeholder }) {
+// ariaLabel: lo que filtra (también se usa para el estado del fondo en el Dashboard).
+export default function SelectorGestion({ value, onChange, options, placeholder, ariaLabel = 'Filtrar por gestión' }) {
   const [open, setOpen] = useState(false);
   const [menuStyle, setMenuStyle] = useState(null);
   const containerRef = useRef(null);
@@ -61,7 +62,7 @@ export default function SelectorGestion({ value, onChange, options, placeholder 
         onClick={() => setOpen((prev) => !prev)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label="Filtrar por gestión"
+        aria-label={ariaLabel}
         className="w-full h-11 text-left pl-4 pr-2.5 rounded-full bg-azulado-100 ring-1 ring-inset ring-azulado-300 text-sm text-slate-800 flex items-center justify-between gap-2"
       >
         <span className={`truncate ${seleccionada ? '' : 'text-slate-500'}`}>{seleccionada?.label || placeholder}</span>

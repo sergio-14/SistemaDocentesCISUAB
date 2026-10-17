@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import FotoPerfil from './cuenta/FotoPerfil';
+import ModalMiCuenta from './cuenta/ModalMiCuenta';
 import {
   Archive,
   ArrowLeft,
@@ -19,7 +21,7 @@ import { useActiveRole } from '../contexts/activeRole';
 // grosor del trazo se fija una vez para todo el menú.
 const TRAZO = 1.75;
 
-function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil = false, menuMovilAbierto = false, onCerrarMenuMovil }) {
+function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil = false, menuMovilAbierto = false, onCerrarMenuMovil, onProfileUpdate }) {
   // En el celular el menú se abre siempre completo; el modo contraído es solo de escritorio.
   const collapsed = collapsedEscritorio && !esMovil;
   const location = useLocation();
@@ -28,6 +30,12 @@ function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil =
     effectiveUser,
   } = useActiveRole();
   const currentUser = effectiveUser || user;
+  const [cuentaAbierta, setCuentaAbierta] = useState(false);
+  // En el celular el menú se cierra para que Mi cuenta quede sola en pantalla.
+  const abrirCuenta = () => {
+    if (esMovil) onCerrarMenuMovil?.();
+    setCuentaAbierta(true);
+  };
   const fullName = `${currentUser?.first_name || ''} ${currentUser?.last_name || ''}`.trim() || currentUser?.username;
 
   const isActive = (path) => {
@@ -70,7 +78,7 @@ function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil =
     ],
     administracion: [
       { path: '/fondo-tiempo/docentes', icon: GraduationCap, label: 'Docentes', roles: ['iiisyp', 'director', 'jefe_estudios'], superuser: true },
-      { path: '/fondo-tiempo/cargas-horarias', icon: Clock, label: 'Carga Horaria', roles: ['jefe_estudios'] },
+      { path: '/fondo-tiempo/cargas-horarias', icon: Clock, label: 'Carga Horaria', roles: ['jefe_estudios'], superuser: true },
       { path: '/fondo-tiempo/calendarios', icon: CalendarDays, label: 'Calendario Académico', roles: ['director', 'jefe_estudios'], superuser: true },
       { path: '/fondo-tiempo/materias', icon: BookOpen, label: 'Materias', roles: ['director', 'jefe_estudios'], superuser: true },
     ]
@@ -104,13 +112,21 @@ function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil =
           </button>
         </div>
 
-        {/* --- 1. CABECERA CON PERFIL DE USUARIO: lleva a Mi cuenta --- */}
+        {/* --- 1. CABECERA CON PERFIL DE USUARIO: abre Mi cuenta (mismo aspecto de siempre) --- */}
         <div className="px-4 pb-2">
-          <Link
-            to="/fondo-tiempo/mi-cuenta"
+          <div
+            role="button"
+            tabIndex={0}
             title="Mi cuenta"
             aria-label={`Mi cuenta de ${fullName}`}
-            className="flex flex-col items-center gap-3 p-2 rounded-lg transition-all duration-300"
+            onClick={abrirCuenta}
+            onKeyDown={(evento) => {
+              if (evento.key === 'Enter' || evento.key === ' ') {
+                evento.preventDefault();
+                abrirCuenta();
+              }
+            }}
+            className="flex flex-col items-center gap-3 p-2 rounded-lg transition-all duration-300 cursor-pointer"
           >
             <div className={`transition-all duration-300 ${collapsed ? 'w-12 h-12' : 'w-40 h-40'}`}>
               <FotoPerfil user={currentUser} />
@@ -124,7 +140,7 @@ function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil =
                 <p className="text-xs text-blue-300 truncate" title={getRoleName(currentUser)}>{getRoleName(currentUser)}</p>
               </div>
             )}
-          </Link>
+          </div>
         </div>
 
         {/* --- 2. NAVEGACIÓN PRINCIPAL (CON SCROLL) --- */}
@@ -206,6 +222,7 @@ function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil =
           </button>
         </div>
       </div>
+      {cuentaAbierta && <ModalMiCuenta onClose={() => setCuentaAbierta(false)} onProfileUpdate={onProfileUpdate} />}
     </>
   );
 }

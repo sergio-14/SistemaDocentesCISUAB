@@ -130,6 +130,8 @@ function GestionUsuarios({ user: usuarioSesion }) {
   const navigate = useNavigate();
   const location = useLocation();
   const restoringFormRef = useRef(false);
+  // Usuario del formulario Nuevo usuario editado a mano: ya no se sobrescribe con la sugerencia.
+  const usuarioAManoRef = useRef(false);
   const restoringEditModalRef = useRef(false);
   const restoringLinkRef = useRef(false);
   const [usuarios, setUsuarios] = useState([]);
@@ -352,6 +354,7 @@ function GestionUsuarios({ user: usuarioSesion }) {
           ci: docente?.ci || '',
           carrera_id: carreraSeleccionada,
         });
+        usuarioAManoRef.current = Boolean(datosCrearUsuario?.username);
         setFormData({
           username: datosCrearUsuario?.username || '',
           email: datosCrearUsuario?.email || datos.email || '',
@@ -398,6 +401,7 @@ function GestionUsuarios({ user: usuarioSesion }) {
         } : null);
 
         restoringFormRef.current = true;
+        usuarioAManoRef.current = Boolean(datos.username);
         setFormData({
           ...datos,
           nombre_completo: nombreCompleto,
@@ -561,6 +565,7 @@ const initialData = {
   password_confirm: '',
 };
       setFormData(initialData);
+      usuarioAManoRef.current = false;
       setAsignacionesExtra([]);
       setVinculacionRapidaDocente(false);
       setDocenteReciente(null);
@@ -644,33 +649,29 @@ const initialData = {
   };
 
   // Usuario sugerido a partir del nombre completo (WChao, WChaoR, WChao2…: lo calcula el
-  // backend contra todos los usuarios). Se sugiere mientras el campo esté vacío o tenga la
-  // última sugerencia; si se escribe a mano, se respeta.
-  const ultimoSugeridoRef = useRef('');
+  // backend contra todos los usuarios). Se completa mientras se escribe el nombre; si el
+  // campo Usuario se edita a mano (aunque se deje vacío), ya no se sobrescribe.
   const nombreParaSugerir = String(formData.nombre_completo || '').trim();
-  const usuarioActualForm = String(formData.username || '');
   useEffect(() => {
-    if (usuarioActualForm && usuarioActualForm !== ultimoSugeridoRef.current) return undefined;
+    if (usuarioAManoRef.current) return undefined;
     if (nombreParaSugerir.split(/\s+/).length < 2) return undefined;
     const temporizador = setTimeout(async () => {
       try {
         const { data } = await api.get('/usuarios/sugerir-usuario/', { params: { nombre: nombreParaSugerir } });
         const sugerido = data?.usuario || '';
-        setFormData((prev) => {
-          if (prev.username && prev.username !== ultimoSugeridoRef.current) return prev;
-          return { ...prev, username: sugerido, password: `${sugerido}UABJB`, password_confirm: `${sugerido}UABJB` };
-        });
-        ultimoSugeridoRef.current = sugerido;
+        if (usuarioAManoRef.current) return;
+        setFormData((prev) => ({ ...prev, username: sugerido, password: `${sugerido}UABJB`, password_confirm: `${sugerido}UABJB` }));
       } catch {
         // Sin sugerencia: el usuario se escribe a mano.
       }
     }, 300);
     return () => clearTimeout(temporizador);
-  }, [nombreParaSugerir, usuarioActualForm]);
+  }, [nombreParaSugerir]);
 
   // --- FORM LOGIC FOR INLINE CREATION ---
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'username') usuarioAManoRef.current = true;
 
     setFormData(prev => {
       const normalizedValue = name === 'ci'
@@ -1489,7 +1490,6 @@ const initialData = {
                 <div className="divide-y divide-azulado-200">
                   <SeccionUsuario titulo="Cuenta">
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-x-4 gap-y-4">
-                      <CampoUsuario label="Usuario" name="username" value={formData.username || ''} onChange={handleChange} clearError={clearFieldError} error={errors.username} required pulse={errorPulse.username || 0} />
                       <CampoUsuario
                         label="Nombre completo"
                         name="nombre_completo"
@@ -1499,6 +1499,17 @@ const initialData = {
                         error={nombreCompletoError}
                         required
                         pulse={errorPulse.nombre_completo || errorPulse.first_name || errorPulse.last_name || 0}
+                      />
+                      <CampoUsuario
+                        label="C.I."
+                        name="ci"
+                        type="text"
+                        value={formData.ci || ''}
+                        onChange={handleChange}
+                        clearError={clearFieldError}
+                        error={errors.ci}
+                        pulse={errorPulse.ci || 0}
+                        maxLength={15}
                       />
                       <CampoUsuario
                         label="Correo institucional"
@@ -1514,15 +1525,15 @@ const initialData = {
                         inputMode="email"
                       />
                       <CampoUsuario
-                        label="C.I."
-                        name="ci"
-                        type="text"
-                        value={formData.ci || ''}
+                        label="Usuario"
+                        name="username"
+                        value={formData.username || ''}
                         onChange={handleChange}
                         clearError={clearFieldError}
-                        error={errors.ci}
-                        pulse={errorPulse.ci || 0}
-                        maxLength={15}
+                        error={errors.username}
+                        required
+                        pulse={errorPulse.username || 0}
+                        ayuda="Se genera a partir del nombre; puedes cambiarlo"
                       />
                     </div>
                   </SeccionUsuario>

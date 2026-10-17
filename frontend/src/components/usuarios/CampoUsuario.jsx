@@ -6,8 +6,8 @@ const textoError = (error) => (Array.isArray(error) ? (error[0] || '') : (typeof
 
 // Campo de texto de los formularios de usuario (crear y editar): borde azulado, rojo
 // con un brinco si hay error (el aviso va debajo, como en el resto del formulario) y
-// el error se limpia al enfocar el campo.
-const CampoUsuario = ({ idPrefijo = 'usuario', label, name, type = 'text', value, onChange, onFocus, required, disabled, error, pulse = 0, clearError, ...rest }) => {
+// el error se limpia al enfocar el campo. `ayuda` es un texto pequeño debajo (sin error).
+const CampoUsuario = ({ idPrefijo = 'usuario', label, name, type = 'text', value, onChange, onFocus, required, disabled, error, pulse = 0, clearError, ayuda, ...rest }) => {
   const [isPulsing, setIsPulsing] = useState(false);
   const errorMessage = textoError(error);
 
@@ -56,7 +56,9 @@ const CampoUsuario = ({ idPrefijo = 'usuario', label, name, type = 'text', value
         />
         {disabled && <CandadoCampo className="absolute right-2 top-1/2 -translate-y-1/2" />}
       </div>
-      {errorMessage && <NotaUsuario tipo="error">{errorMessage}</NotaUsuario>}
+      {errorMessage
+        ? <NotaUsuario tipo="error">{errorMessage}</NotaUsuario>
+        : ayuda && <NotaUsuario>{ayuda}</NotaUsuario>}
     </div>
   );
 };

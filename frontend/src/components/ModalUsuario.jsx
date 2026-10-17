@@ -548,17 +548,6 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-x-4 gap-y-4">
                   <CampoUsuario
                     idPrefijo="editar-usuario"
-                    label="Usuario"
-                    name="username"
-                    value={formData.username || ''}
-                    onChange={handleChange}
-                    clearError={clearFieldError}
-                    error={errors.username}
-                    disabled={Boolean(identidadBloqueada)}
-                    required
-                  />
-                  <CampoUsuario
-                    idPrefijo="editar-usuario"
                     label="Nombre completo"
                     name="nombre_completo"
                     value={formData.nombre_completo || ''}
@@ -567,6 +556,17 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
                     error={errors.nombre_completo || errors.first_name || errors.last_name}
                     disabled={Boolean(identidadBloqueada)}
                     required
+                  />
+                  <CampoUsuario
+                    idPrefijo="editar-usuario"
+                    label="C.I."
+                    name="ci"
+                    value={formData.ci || ''}
+                    onChange={handleChange}
+                    clearError={clearFieldError}
+                    error={errors.ci}
+                    disabled={Boolean(identidadBloqueada)}
+                    maxLength={15}
                   />
                   <CampoUsuario
                     idPrefijo="editar-usuario"
@@ -583,14 +583,14 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
                   />
                   <CampoUsuario
                     idPrefijo="editar-usuario"
-                    label="C.I."
-                    name="ci"
-                    value={formData.ci || ''}
+                    label="Usuario"
+                    name="username"
+                    value={formData.username || ''}
                     onChange={handleChange}
                     clearError={clearFieldError}
-                    error={errors.ci}
+                    error={errors.username}
                     disabled={Boolean(identidadBloqueada)}
-                    maxLength={15}
+                    required
                   />
                 </div>
               </SeccionUsuario>

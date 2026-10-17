@@ -1,7 +1,8 @@
 // Resolución del Consejo de Carrera (PDF) que designa al Jefe de Estudios.
 // Obligatoria al asignar ese rol, también para el superusuario; el backend
 // comprueba que sea realmente un PDF.
-function CampoResolucionJefe({ archivo, onChange, error, className = '' }) {
+// Con ocultarError el campo se marca en rojo pero el mensaje va solo en el toast.
+function CampoResolucionJefe({ archivo, onChange, error, className = '', ocultarError = false }) {
   const mensajeError = Array.isArray(error) ? error[0] : error;
   return (
     <div className={className}>
@@ -17,7 +18,7 @@ function CampoResolucionJefe({ archivo, onChange, error, className = '' }) {
       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
         {archivo ? `Archivo: ${archivo.name}` : 'Obligatoria para designar al Jefe de Estudios.'}
       </p>
-      {mensajeError && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{mensajeError}</p>}
+      {mensajeError && !ocultarError && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{mensajeError}</p>}
     </div>
   );
 }

@@ -9,7 +9,6 @@ import {
   ROLES_MANDO_UABJB, cargosDelUsuario, cuerpoConArchivo, esArchivoPdf, motivoNoAsignarRol, textoErroresUsuario,
 } from '../utils/asignacionesUsuario';
 import CampoUsuario from './usuarios/CampoUsuario';
-import { SeccionUsuario } from './usuarios/PiezasFormularioUsuario';
 import ListaTransferenciaRoles from './usuarios/ListaTransferenciaRoles';
 import PerfilUsuario from './usuarios/PerfilUsuario';
 import { useActiveRole } from '../contexts/activeRole';
@@ -25,7 +24,7 @@ import SelectorVista from './common/SelectorVista';
 import { paginar } from '../utils/paginacion';
 import { BLOQUE, BOTON, BOTON_CHICO } from './fondos/estilosFondo';
 import toast from 'react-hot-toast';
-import { Copy, RefreshCw } from 'lucide-react';
+import { BadgeCheck, Copy, IdCard, RefreshCw } from 'lucide-react';
 import {
   ERROR_SHAKE_DURATION_MS,
   sanitizeApiErrors,
@@ -123,6 +122,19 @@ const usuarioTieneRolDocente = (usuario) => obtenerRolesUsuario(usuario).include
 // Rol docente sin ficha de docente (lo calcula el backend). No desactiva al usuario:
 // sus cargos funcionan y solo su parte docente queda pendiente de ficha.
 const usuarioTienePerfilDocentePendiente = (usuario) => Boolean(usuario?.ficha_docente_pendiente);
+
+// Título de los bloques de Nuevo usuario: como el de los bloques del detalle del fondo, más junto.
+const TituloBloque = ({ icono: Icono, children }) => (
+  <h3 className="mb-3 flex items-center gap-2 text-base font-bold text-blue-900">
+    <Icono className="w-[18px] h-[18px] text-blue-700 flex-shrink-0" strokeWidth={1.75} />
+    <span>{children}</span>
+  </h3>
+);
+
+// Nombre de cada campo de Nuevo usuario en el toast de validación.
+const NOMBRES_CAMPOS_USUARIO = {
+  nombre_completo: 'Nombre completo', ci: 'C.I.', email: 'Correo institucional', username: 'Usuario', rol: 'Rol', carrera: 'Carrera',
+};
 
 // Tres usuarios libres para el nombre completo; `excluir`: los ya mostrados ("Ver otras").
 const buscarSugerencias = async (nombre, excluir = []) => {
@@ -866,13 +878,17 @@ const initialData = {
     if (Object.keys(validationErrors).length > 0) {
       pulseFieldErrors(Object.keys(validationErrors));
       setErrors(validationErrors);
+      // Los mensajes van solo en el toast (los campos se marcan en rojo): el motivo si es
+      // uno; si son varios, qué campos revisar.
       const faltanSoloRolYCarrera = !rolNormalizado && !carreraNormalizada && Object.keys(validationErrors).length === 2;
+      const claves = Object.keys(NOMBRES_CAMPOS_USUARIO).filter((clave) => validationErrors[clave]);
+      const nombresCampos = claves.map((clave) => NOMBRES_CAMPOS_USUARIO[clave] || clave);
       showToastOnce(
         faltanSoloRolYCarrera
           ? 'Debes seleccionar un rol y una carrera para poder continuar.'
-          : camposFaltantes.length > 0
-            ? 'Completa los campos obligatorios marcados en rojo.'
-            : 'Revisa los campos marcados en rojo.'
+          : claves.length === 1
+            ? textoDeError(validationErrors[claves[0]])
+            : `Revisa los campos marcados en rojo: ${nombresCampos.join(', ')}.`
       );
       return;
     }
@@ -1512,38 +1528,43 @@ const initialData = {
               role="dialog"
               aria-modal="true"
               aria-labelledby="nuevo-usuario-titulo"
-              className="w-full max-w-6xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up"
+              className="w-full max-w-5xl overflow-hidden rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up"
               style={{ animationDuration: '180ms' }}
             >
-              <div className="flex items-start justify-between gap-4 px-5 sm:px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
+              {/* Bloques como el detalle del fondo: Cuenta y Roles y carrera, sin desplazarse. */}
+              <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-3">
                 <div className="min-w-0">
-                  <h2 id="nuevo-usuario-titulo" className="text-xl font-bold text-blue-900">Nuevo usuario</h2>
-                  <p className="mt-0.5 text-sm text-slate-600">Cuenta de acceso, carrera y roles del usuario.</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">Usuarios</p>
+                  <h2 id="nuevo-usuario-titulo" className="text-xl font-bold text-slate-800">Nuevo usuario</h2>
                 </div>
                 <button
                   type="button"
                   onClick={cancelarCreacion}
                   aria-label="Cerrar"
-                  className="flex-shrink-0 rounded-full p-2 -mr-2 text-slate-500 hover:text-blue-900 hover:bg-azulado-200 transition-colors"
+                  className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-azulado-200 hover:text-slate-800"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
 
               <form onSubmit={handleSubmit} noValidate>
-                <div className="divide-y divide-azulado-200">
-                  <SeccionUsuario titulo="Cuenta">
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-x-4 gap-y-4">
-                      <CampoUsuario
-                        label="Nombre completo"
-                        name="nombre_completo"
-                        value={formData.nombre_completo || ''}
-                        onChange={handleChange}
-                        clearError={clearFieldError}
-                        error={nombreCompletoError}
-                        required
-                        pulse={errorPulse.nombre_completo || errorPulse.first_name || errorPulse.last_name || 0}
-                      />
+                <div className="bg-azulado-100 p-3 sm:p-4 space-y-3 [border-top:1px_solid_#B8C9E1]">
+                  <section className={`${BLOQUE} p-5`}>
+                    <TituloBloque icono={IdCard}>Cuenta</TituloBloque>
+                    <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="sm:col-span-2">
+                        <CampoUsuario
+                          label="Nombre completo"
+                          name="nombre_completo"
+                          value={formData.nombre_completo || ''}
+                          onChange={handleChange}
+                          clearError={clearFieldError}
+                          ocultarError
+                          error={nombreCompletoError}
+                          required
+                          pulse={errorPulse.nombre_completo || errorPulse.first_name || errorPulse.last_name || 0}
+                        />
+                      </div>
                       <CampoUsuario
                         label="C.I."
                         name="ci"
@@ -1551,6 +1572,7 @@ const initialData = {
                         value={formData.ci || ''}
                         onChange={handleChange}
                         clearError={clearFieldError}
+                        ocultarError
                         error={errors.ci}
                         pulse={errorPulse.ci || 0}
                         maxLength={15}
@@ -1562,6 +1584,7 @@ const initialData = {
                         value={formData.email || ''}
                         onChange={handleChange}
                         clearError={clearFieldError}
+                        ocultarError
                         error={errors.email}
                         required
                         pulse={errorPulse.email || 0}
@@ -1574,48 +1597,61 @@ const initialData = {
                         value={formData.username || ''}
                         onChange={handleChange}
                         clearError={clearFieldError}
+                        ocultarError
                         error={errors.username}
                         required
                         readOnly
                         pulse={errorPulse.username || 0}
                         ayuda="Elija una de las sugerencias"
                       />
-                    </div>
-                    {nombreConApellido && (
-                      <div className="mt-4 flex flex-wrap items-center gap-2 animate-campo-entrada">
-                        <span className="pl-1 text-xs font-semibold text-slate-700">Sugerencias de usuario:</span>
-                        {sugerencias.map((sugerencia, indice) => {
-                          const elegida = formData.username === sugerencia;
-                          return (
+                      <div className="min-w-0 sm:col-span-2">
+                        <p className="mb-1.5 pl-1 text-xs font-semibold text-slate-700">Sugerencias</p>
+                        {nombreConApellido ? (
+                          <div className="flex min-h-11 flex-wrap items-center gap-2 animate-campo-entrada">
+                            {sugerencias.map((sugerencia, indice) => {
+                              const elegida = formData.username === sugerencia;
+                              return (
+                                <button
+                                  key={`${tandaSugerencias}-${sugerencia}`}
+                                  type="button"
+                                  onClick={() => elegirUsuario(sugerencia)}
+                                  aria-pressed={elegida}
+                                  style={{ animationDelay: `${indice * 80}ms` }}
+                                  className={`${BOTON_CHICO} font-semibold animate-sugerencia-entrada ${elegida ? 'bg-blue-900 text-white' : 'bg-blue-50 text-blue-900 ring-1 ring-inset ring-blue-200 hover:bg-blue-100'}`}
+                                >
+                                  {sugerencia}
+                                </button>
+                              );
+                            })}
+                            {sugerencias.length === 0 && !buscandoSugerencias && (
+                              <span className="text-xs text-slate-500">Sin sugerencias por ahora.</span>
+                            )}
                             <button
-                              key={`${tandaSugerencias}-${sugerencia}`}
                               type="button"
-                              onClick={() => elegirUsuario(sugerencia)}
-                              aria-pressed={elegida}
-                              style={{ animationDelay: `${indice * 80}ms` }}
-                              className={`${BOTON_CHICO} font-semibold animate-sugerencia-entrada ${elegida ? 'bg-blue-900 text-white' : 'bg-blue-50 text-blue-900 ring-1 ring-inset ring-blue-200 hover:bg-blue-100'}`}
+                              onClick={verOtrasSugerencias}
+                              disabled={buscandoSugerencias}
+                              className={`${BOTON_CHICO} bg-sky-600 hover:bg-sky-700 text-white disabled:opacity-60`}
                             >
-                              {sugerencia}
+                              <RefreshCw className={`w-3.5 h-3.5 ${buscandoSugerencias ? 'animate-spin' : ''}`} strokeWidth={2} />
+                              <span>Ver otras</span>
                             </button>
-                          );
-                        })}
-                        {sugerencias.length === 0 && !buscandoSugerencias && (
-                          <span className="text-xs text-slate-500">Sin sugerencias por ahora.</span>
+                          </div>
+                        ) : (
+                          <p className="flex min-h-11 items-center pl-1 text-sm text-slate-500">Escriba el nombre y al menos un apellido.</p>
                         )}
-                        <button
-                          type="button"
-                          onClick={verOtrasSugerencias}
-                          disabled={buscandoSugerencias}
-                          className={`${BOTON_CHICO} bg-sky-600 hover:bg-sky-700 text-white disabled:opacity-60`}
-                        >
-                          <RefreshCw className={`w-3.5 h-3.5 ${buscandoSugerencias ? 'animate-spin' : ''}`} strokeWidth={2} />
-                          <span>Ver otras</span>
-                        </button>
                       </div>
-                    )}
-                  </SeccionUsuario>
+                      <div className="min-w-0">
+                        <p className="mb-1.5 pl-1 text-xs font-semibold text-slate-700">Contraseña inicial</p>
+                        <p className="flex min-h-11 items-center pl-1 font-mono text-sm font-bold text-blue-900 break-all" aria-live="polite">
+                          {formData.username ? `${formData.username}UABJB` : 'usuarioUABJB'}
+                        </p>
+                        <p className="pl-1 text-xs text-slate-500">Deberá cambiarla al iniciar sesión.</p>
+                      </div>
+                    </div>
+                  </section>
 
-                  <SeccionUsuario titulo="Roles y carrera">
+                  <section className={`${BLOQUE} p-5`}>
+                    <TituloBloque icono={BadgeCheck}>Roles y carrera</TituloBloque>
                     <ListaTransferenciaRoles
                       roles={rolesDisponiblesLista}
                       asignados={rolesAsignadosLista}
@@ -1636,6 +1672,7 @@ const initialData = {
                       elegirCarrera={esSuperuserActual}
                       onCambiarCarrera={cambiarCarreraUsuario}
                       error={errorBajoListaCreacion}
+                      ocultarError
                       pulso={leftPanelPulsing || rightPanelPulsing}
                     />
 
@@ -1643,25 +1680,16 @@ const initialData = {
                       <CampoResolucionJefe
                         archivo={resolucionJefe}
                         error={errors.resolucion_jefe}
+                        ocultarError
                         onChange={(archivo) => {
                           setResolucionJefe(archivo);
                           setErrors((prev) => ({ ...prev, resolucion_jefe: null }));
                         }}
                       />
                     )}
-                  </SeccionUsuario>
-
-                  <SeccionUsuario titulo="Contraseña">
-                    <div className="rounded-2xl bg-white ring-1 ring-inset ring-azulado-300 px-4 py-3">
-                      <p className="text-sm text-slate-700" aria-live="polite">
-                        Contraseña inicial: <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-blue-50 ring-1 ring-inset ring-blue-200 font-bold text-blue-900">{formData.username ? `${formData.username}UABJB` : 'usuarioUABJB'}</span>
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">El usuario deberá cambiarla al iniciar sesión.</p>
-                    </div>
-                  </SeccionUsuario>
+                  </section>
                 </div>
-
-                <div className="px-5 sm:px-6 py-4 flex flex-col-reverse sm:flex-row justify-end gap-2 [border-top:1px_solid_#B8C9E1]">
+                <div className="px-5 sm:px-6 py-3 flex flex-col-reverse sm:flex-row justify-end gap-2 [border-top:1px_solid_#B8C9E1]">
                   <button
                     type="button"
                     onClick={cancelarCreacion}

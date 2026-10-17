@@ -33,6 +33,8 @@ const ListaTransferenciaRoles = ({
   onCambiarCarrera,
   // Avisos y contenido extra
   error = '',
+  // Con ocultarError el panel se marca en rojo pero el mensaje va solo en el toast.
+  ocultarError = false,
   aviso = '',
   pulso = false,
   contenidoFila,
@@ -210,9 +212,9 @@ const ListaTransferenciaRoles = ({
             ))
           )}
         </div>
-        {(error || aviso) && (
+        {((error && !ocultarError) || aviso) && (
           <div className="p-1.5 pt-0">
-            {error ? (
+            {error && !ocultarError ? (
               <p role="alert" className="rounded-xl bg-red-50 ring-1 ring-inset ring-red-200 px-3 py-2 text-xs leading-snug text-red-700">{error}</p>
             ) : (
               <AvisoUsuario>{aviso}</AvisoUsuario>

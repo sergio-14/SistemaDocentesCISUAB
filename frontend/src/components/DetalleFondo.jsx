@@ -1008,7 +1008,7 @@ function DetalleFondo() {
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={abrirFormularioObservar}
-                      className={`${ACCION} bg-amber-500 hover:bg-amber-600 text-white`}
+                      className={`${ACCION} bg-sky-600 hover:bg-sky-700 text-white`}
                     >
                       Observar
                     </button>
@@ -1065,7 +1065,7 @@ function DetalleFondo() {
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={() => setMostrarModalObservarInforme(true)}
-                        className={`${ACCION} bg-amber-500 hover:bg-amber-600 text-white`}
+                        className={`${ACCION} bg-sky-600 hover:bg-sky-700 text-white`}
                       >
                         Correcciones
                       </button>
@@ -1502,7 +1502,7 @@ function DetalleFondo() {
               <button
                 onClick={solicitarCorreccionesInforme}
                 disabled={enviandoObservacionInforme || comentarioObservarInforme.trim().length < 10}
-                className={`${BOTON} px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50 disabled:cursor-not-allowed`}
+                className={`${BOTON} px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 {enviandoObservacionInforme && (
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />

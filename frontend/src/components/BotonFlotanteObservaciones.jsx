@@ -1027,7 +1027,7 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
                         </div>
                       )}
                       {mensaje.es_interno && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 mb-1 rounded text-xs font-bold uppercase tracking-wide bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 mb-1 rounded text-xs font-bold uppercase tracking-wide bg-sky-50 text-sky-800 ring-1 ring-inset ring-sky-200 dark:bg-sky-900/40 dark:text-sky-300">
                           <EyeOff size={10} /> Interno
                         </span>
                       )}

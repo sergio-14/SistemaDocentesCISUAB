@@ -189,6 +189,8 @@ function GestionUsuarios({ user: usuarioSesion }) {
   // Sugerencias de usuario del formulario Nuevo usuario, el nombre con el que se eligió el
   // usuario (si el nombre cambia, la elección se borra) y las credenciales recién creadas.
   const [sugerencias, setSugerencias] = useState([]);
+  // Cada tanda de sugerencias (también con "Ver otras") vuelve a animar su entrada.
+  const [tandaSugerencias, setTandaSugerencias] = useState(0);
   const [buscandoSugerencias, setBuscandoSugerencias] = useState(false);
   const nombreElegidoRef = useRef('');
   const [credencialesCreadas, setCredencialesCreadas] = useState(null);
@@ -678,7 +680,10 @@ const initialData = {
     const temporizador = setTimeout(async () => {
       try {
         const lista = await buscarSugerencias(nombreParaSugerir);
-        if (vigente) setSugerencias(lista);
+        if (vigente) {
+          setSugerencias(lista);
+          setTandaSugerencias((tanda) => tanda + 1);
+        }
       } catch {
         if (vigente) setSugerencias([]);
       }
@@ -693,6 +698,7 @@ const initialData = {
     setBuscandoSugerencias(true);
     try {
       setSugerencias(await buscarSugerencias(nombreParaSugerir, sugerencias));
+      setTandaSugerencias((tanda) => tanda + 1);
     } catch {
       toast.error('No se pudieron obtener otras sugerencias.');
     } finally {
@@ -1576,17 +1582,18 @@ const initialData = {
                       />
                     </div>
                     {nombreConApellido && (
-                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <div className="mt-4 flex flex-wrap items-center gap-2 animate-campo-entrada">
                         <span className="pl-1 text-xs font-semibold text-slate-700">Sugerencias de usuario:</span>
-                        {sugerencias.map((sugerencia) => {
+                        {sugerencias.map((sugerencia, indice) => {
                           const elegida = formData.username === sugerencia;
                           return (
                             <button
-                              key={sugerencia}
+                              key={`${tandaSugerencias}-${sugerencia}`}
                               type="button"
                               onClick={() => elegirUsuario(sugerencia)}
                               aria-pressed={elegida}
-                              className={`${BOTON_CHICO} font-semibold ${elegida ? 'bg-blue-900 text-white' : 'bg-blue-50 text-blue-900 ring-1 ring-inset ring-blue-200 hover:bg-blue-100'}`}
+                              style={{ animationDelay: `${indice * 80}ms` }}
+                              className={`${BOTON_CHICO} font-semibold animate-sugerencia-entrada ${elegida ? 'bg-blue-900 text-white' : 'bg-blue-50 text-blue-900 ring-1 ring-inset ring-blue-200 hover:bg-blue-100'}`}
                             >
                               {sugerencia}
                             </button>

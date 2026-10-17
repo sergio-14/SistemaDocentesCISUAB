@@ -130,8 +130,6 @@ function GestionUsuarios({ user: usuarioSesion }) {
   const navigate = useNavigate();
   const location = useLocation();
   const restoringFormRef = useRef(false);
-  // Usuario del formulario Nuevo usuario editado a mano: ya no se sobrescribe con la sugerencia.
-  const usuarioAManoRef = useRef(false);
   const restoringEditModalRef = useRef(false);
   const restoringLinkRef = useRef(false);
   const [usuarios, setUsuarios] = useState([]);
@@ -354,7 +352,6 @@ function GestionUsuarios({ user: usuarioSesion }) {
           ci: docente?.ci || '',
           carrera_id: carreraSeleccionada,
         });
-        usuarioAManoRef.current = Boolean(datosCrearUsuario?.username);
         setFormData({
           username: datosCrearUsuario?.username || '',
           email: datosCrearUsuario?.email || datos.email || '',
@@ -401,7 +398,6 @@ function GestionUsuarios({ user: usuarioSesion }) {
         } : null);
 
         restoringFormRef.current = true;
-        usuarioAManoRef.current = Boolean(datos.username);
         setFormData({
           ...datos,
           nombre_completo: nombreCompleto,
@@ -565,7 +561,6 @@ const initialData = {
   password_confirm: '',
 };
       setFormData(initialData);
-      usuarioAManoRef.current = false;
       setAsignacionesExtra([]);
       setVinculacionRapidaDocente(false);
       setDocenteReciente(null);
@@ -649,29 +644,35 @@ const initialData = {
   };
 
   // Usuario sugerido a partir del nombre completo (WChao, WChaoR, WChao2…: lo calcula el
-  // backend contra todos los usuarios). Se completa mientras se escribe el nombre; si el
-  // campo Usuario se edita a mano (aunque se deje vacío), ya no se sobrescribe.
+  // backend contra todos los usuarios). El campo Usuario no se escribe: sigue al nombre y,
+  // sin nombre y apellido, queda vacío.
   const nombreParaSugerir = String(formData.nombre_completo || '').trim();
   useEffect(() => {
-    if (usuarioAManoRef.current) return undefined;
-    if (nombreParaSugerir.split(/\s+/).length < 2) return undefined;
+    const ponerUsuario = (usuario) => setFormData((prev) => (
+      prev.username === usuario ? prev : { ...prev, username: usuario, password: usuario ? `${usuario}UABJB` : '', password_confirm: usuario ? `${usuario}UABJB` : '' }
+    ));
+    if (nombreParaSugerir.split(/\s+/).filter(Boolean).length < 2) {
+      ponerUsuario('');
+      return undefined;
+    }
+    let vigente = true;
     const temporizador = setTimeout(async () => {
       try {
         const { data } = await api.get('/usuarios/sugerir-usuario/', { params: { nombre: nombreParaSugerir } });
-        const sugerido = data?.usuario || '';
-        if (usuarioAManoRef.current) return;
-        setFormData((prev) => ({ ...prev, username: sugerido, password: `${sugerido}UABJB`, password_confirm: `${sugerido}UABJB` }));
+        if (vigente) ponerUsuario(data?.usuario || '');
       } catch {
-        // Sin sugerencia: el usuario se escribe a mano.
+        // Sin sugerencia: el campo queda como estaba.
       }
     }, 300);
-    return () => clearTimeout(temporizador);
+    return () => {
+      vigente = false;
+      clearTimeout(temporizador);
+    };
   }, [nombreParaSugerir]);
 
   // --- FORM LOGIC FOR INLINE CREATION ---
   const handleChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'username') usuarioAManoRef.current = true;
 
     setFormData(prev => {
       const normalizedValue = name === 'ci'
@@ -683,12 +684,6 @@ const initialData = {
         const partes = normalizedValue.trim().split(/\s+/).filter(Boolean);
         updated.first_name = partes[0] || '';
         updated.last_name = partes.slice(1).join(' ');
-      }
-
-      // Auto-generar contraseña por defecto al escribir el username
-      if (name === 'username') {
-        updated.password = normalizedValue + 'UABJB';
-        updated.password_confirm = normalizedValue + 'UABJB';
       }
 
       return updated;
@@ -1532,8 +1527,9 @@ const initialData = {
                         clearError={clearFieldError}
                         error={errors.username}
                         required
+                        readOnly
                         pulse={errorPulse.username || 0}
-                        ayuda="Se genera a partir del nombre; puedes cambiarlo"
+                        ayuda="Se genera a partir del nombre"
                       />
                     </div>
                   </SeccionUsuario>

@@ -776,9 +776,11 @@ const initialData = {
     setErrors((prev) => ({ ...prev, rol: null, asignaciones: null }));
 
     const motivo = motivoNoAsignarRol(rolValue, rolesAsignadosLista);
-    // Las reglas de los roles se avisan bajo los botones, sin toast.
+    // Las reglas de los roles se avisan en el toast (el panel se marca en rojo; en Nuevo
+    // usuario no hay mensajes dentro de la ventana).
     if (motivo) {
       setErrors((prev) => ({ ...prev, rol: [motivo] }));
+      showToastOnce(motivo);
       pulseFieldErrors(['rol']);
       setSelectedRoleLeft(null);
       return;

@@ -25,6 +25,7 @@ import SelectorVista from './common/SelectorVista';
 import { paginar } from '../utils/paginacion';
 import { BLOQUE, BOTON, BOTON_CHICO } from './fondos/estilosFondo';
 import toast from 'react-hot-toast';
+import { Copy, RefreshCw } from 'lucide-react';
 import {
   ERROR_SHAKE_DURATION_MS,
   sanitizeApiErrors,
@@ -123,6 +124,12 @@ const usuarioTieneRolDocente = (usuario) => obtenerRolesUsuario(usuario).include
 // sus cargos funcionan y solo su parte docente queda pendiente de ficha.
 const usuarioTienePerfilDocentePendiente = (usuario) => Boolean(usuario?.ficha_docente_pendiente);
 
+// Tres usuarios libres para el nombre completo; `excluir`: los ya mostrados ("Ver otras").
+const buscarSugerencias = async (nombre, excluir = []) => {
+  const { data } = await api.get('/usuarios/sugerir-usuario/', { params: { nombre, excluir: excluir.join(',') } });
+  return data?.sugerencias || [];
+};
+
 function GestionUsuarios({ user: usuarioSesion }) {
   // Usuario con su rol ACTIVO (contexto de rol), no el guardado al iniciar sesión.
   const { effectiveUser } = useActiveRole();
@@ -179,6 +186,12 @@ function GestionUsuarios({ user: usuarioSesion }) {
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Sugerencias de usuario del formulario Nuevo usuario, el nombre con el que se eligió el
+  // usuario (si el nombre cambia, la elección se borra) y las credenciales recién creadas.
+  const [sugerencias, setSugerencias] = useState([]);
+  const [buscandoSugerencias, setBuscandoSugerencias] = useState(false);
+  const nombreElegidoRef = useRef('');
+  const [credencialesCreadas, setCredencialesCreadas] = useState(null);
   const [errors, setErrors] = useState({});
   const [errorPulse, setErrorPulse] = useState({});
 
@@ -352,6 +365,7 @@ function GestionUsuarios({ user: usuarioSesion }) {
           ci: docente?.ci || '',
           carrera_id: carreraSeleccionada,
         });
+        nombreElegidoRef.current = datosCrearUsuario?.username ? String(nombreCompleto || '').trim() : '';
         setFormData({
           username: datosCrearUsuario?.username || '',
           email: datosCrearUsuario?.email || datos.email || '',
@@ -398,6 +412,7 @@ function GestionUsuarios({ user: usuarioSesion }) {
         } : null);
 
         restoringFormRef.current = true;
+        nombreElegidoRef.current = datos.username ? String(nombreCompleto || '').trim() : '';
         setFormData({
           ...datos,
           nombre_completo: nombreCompleto,
@@ -561,6 +576,8 @@ const initialData = {
   password_confirm: '',
 };
       setFormData(initialData);
+      nombreElegidoRef.current = '';
+      setSugerencias([]);
       setAsignacionesExtra([]);
       setVinculacionRapidaDocente(false);
       setDocenteReciente(null);
@@ -643,32 +660,51 @@ const initialData = {
     setPerfilId(null);
   };
 
-  // Usuario sugerido a partir del nombre completo (WChao, WChaoR, WChao2…: lo calcula el
-  // backend contra todos los usuarios). El campo Usuario no se escribe: sigue al nombre y,
-  // sin nombre y apellido, queda vacío.
+  // Sugerencias de usuario a partir del nombre completo: tres al azar, en minúsculas y libres
+  // (las calcula el backend). El campo Usuario no se escribe: se elige una sugerencia; si el
+  // nombre cambia o se borra, la elección se borra.
   const nombreParaSugerir = String(formData.nombre_completo || '').trim();
+  const nombreConApellido = nombreParaSugerir.split(/\s+/).filter(Boolean).length >= 2;
   useEffect(() => {
-    const ponerUsuario = (usuario) => setFormData((prev) => (
-      prev.username === usuario ? prev : { ...prev, username: usuario, password: usuario ? `${usuario}UABJB` : '', password_confirm: usuario ? `${usuario}UABJB` : '' }
-    ));
-    if (nombreParaSugerir.split(/\s+/).filter(Boolean).length < 2) {
-      ponerUsuario('');
+    if (nombreElegidoRef.current !== nombreParaSugerir) {
+      nombreElegidoRef.current = '';
+      setFormData((prev) => (prev.username ? { ...prev, username: '', password: '', password_confirm: '' } : prev));
+    }
+    if (!nombreConApellido) {
+      setSugerencias([]);
       return undefined;
     }
     let vigente = true;
     const temporizador = setTimeout(async () => {
       try {
-        const { data } = await api.get('/usuarios/sugerir-usuario/', { params: { nombre: nombreParaSugerir } });
-        if (vigente) ponerUsuario(data?.usuario || '');
+        const lista = await buscarSugerencias(nombreParaSugerir);
+        if (vigente) setSugerencias(lista);
       } catch {
-        // Sin sugerencia: el campo queda como estaba.
+        if (vigente) setSugerencias([]);
       }
     }, 300);
     return () => {
       vigente = false;
       clearTimeout(temporizador);
     };
-  }, [nombreParaSugerir]);
+  }, [nombreParaSugerir, nombreConApellido]);
+
+  const verOtrasSugerencias = async () => {
+    setBuscandoSugerencias(true);
+    try {
+      setSugerencias(await buscarSugerencias(nombreParaSugerir, sugerencias));
+    } catch {
+      toast.error('No se pudieron obtener otras sugerencias.');
+    } finally {
+      setBuscandoSugerencias(false);
+    }
+  };
+
+  const elegirUsuario = (usuario) => {
+    nombreElegidoRef.current = nombreParaSugerir;
+    setFormData((prev) => ({ ...prev, username: usuario, password: `${usuario}UABJB`, password_confirm: `${usuario}UABJB` }));
+    clearFieldError('username');
+  };
 
   // --- FORM LOGIC FOR INLINE CREATION ---
   const handleChange = (e) => {
@@ -788,7 +824,7 @@ const initialData = {
     const carreraNormalizada = String(formData.carrera || '').trim();
 
     if (!usernameNormalizado) {
-      validationErrors.username = 'Debe ingresar un usuario.';
+      validationErrors.username = 'Elija un usuario de las sugerencias.';
       camposFaltantes.push('Usuario');
     }
 
@@ -963,11 +999,16 @@ const initialData = {
 
     try {
       const response = await api.post('/usuarios/', cuerpo, config);
-      toast.success('Usuario creado correctamente');
       setUsuarios((prev) => [response.data, ...prev]);
       setIsCreating(false);
       setAsignacionesExtra([]);
       sessionStorage.removeItem('docenteTemporalDesdeUsuarios');
+      // Usuario y contraseña inicial para que el administrador se los pase al docente.
+      const credenciales = {
+        nombre: nombreCompletoNormalizado,
+        usuario: response.data?.username || usernameNormalizado,
+        contrasena: formData.password,
+      };
       if (volverANuevoDocente) {
         sessionStorage.setItem('datosCrearUsuario', JSON.stringify({
           ...formData,
@@ -982,9 +1023,11 @@ const initialData = {
             _carreraRetornoDocente: carreraNormalizada,
           }));
         }
-        navigate('/fondo-tiempo/docentes');
+        // Vuelve a Docentes al cerrar la ventana de las credenciales.
+        setCredencialesCreadas({ ...credenciales, volverADocentes: true });
         return;
       }
+      setCredencialesCreadas(credenciales);
     } catch (err) {
       console.error('Error al crear usuario:', err.response);
       const apiErrors = err.response?.data;
@@ -1529,9 +1572,40 @@ const initialData = {
                         required
                         readOnly
                         pulse={errorPulse.username || 0}
-                        ayuda="Se genera a partir del nombre"
+                        ayuda="Elija una de las sugerencias"
                       />
                     </div>
+                    {nombreConApellido && (
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <span className="pl-1 text-xs font-semibold text-slate-700">Sugerencias de usuario:</span>
+                        {sugerencias.map((sugerencia) => {
+                          const elegida = formData.username === sugerencia;
+                          return (
+                            <button
+                              key={sugerencia}
+                              type="button"
+                              onClick={() => elegirUsuario(sugerencia)}
+                              aria-pressed={elegida}
+                              className={`${BOTON_CHICO} font-semibold ${elegida ? 'bg-blue-900 text-white' : 'bg-blue-50 text-blue-900 ring-1 ring-inset ring-blue-200 hover:bg-blue-100'}`}
+                            >
+                              {sugerencia}
+                            </button>
+                          );
+                        })}
+                        {sugerencias.length === 0 && !buscandoSugerencias && (
+                          <span className="text-xs text-slate-500">Sin sugerencias por ahora.</span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={verOtrasSugerencias}
+                          disabled={buscandoSugerencias}
+                          className={`${BOTON_CHICO} bg-sky-600 hover:bg-sky-700 text-white disabled:opacity-60`}
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${buscandoSugerencias ? 'animate-spin' : ''}`} strokeWidth={2} />
+                          <span>Ver otras</span>
+                        </button>
+                      </div>
+                    )}
                   </SeccionUsuario>
 
                   <SeccionUsuario titulo="Roles y carrera">
@@ -1721,6 +1795,43 @@ const initialData = {
           onCancelar={() => setEliminacion(null)}
         />
       ))}
+
+      {/* Usuario creado: credenciales para pasárselas al docente. */}
+      {credencialesCreadas && (
+        <ModalConfirmar
+          informativo
+          etiqueta="Usuarios"
+          titulo="Usuario creado"
+          mensaje={<>Pásele estos datos a <strong className="text-slate-900">{credencialesCreadas.nombre}</strong>. Al iniciar sesión deberá cambiar la contraseña.</>}
+          onCancelar={() => {
+            const { volverADocentes } = credencialesCreadas;
+            setCredencialesCreadas(null);
+            if (volverADocentes) navigate('/fondo-tiempo/docentes');
+          }}
+        >
+          <dl className="divide-y divide-azulado-200 rounded-2xl bg-azulado-100/60 ring-1 ring-inset ring-azulado-300">
+            {[['Usuario', credencialesCreadas.usuario], ['Contraseña inicial', credencialesCreadas.contrasena]].map(([etiqueta, valor]) => (
+              <div key={etiqueta} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <dt className="text-xs font-semibold text-slate-600">{etiqueta}</dt>
+                  <dd className="mt-0.5 font-mono text-lg font-bold text-blue-900 break-all">{valor}</dd>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => Promise.resolve()
+                    .then(() => navigator.clipboard.writeText(valor))
+                    .then(() => toast.success(`${etiqueta} copiado`))
+                    .catch(() => toast.error('No se pudo copiar.'))}
+                  className={`${BOTON_CHICO} flex-shrink-0 bg-white text-slate-700 ring-1 ring-inset ring-azulado-300 hover:bg-azulado-100`}
+                >
+                  <Copy className="w-3.5 h-3.5" strokeWidth={2} />
+                  <span>Copiar</span>
+                </button>
+              </div>
+            ))}
+          </dl>
+        </ModalConfirmar>
+      )}
     </div>
   );
 }

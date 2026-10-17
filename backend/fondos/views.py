@@ -19,7 +19,7 @@ from .utils.informe_gestion_pdf import InformeGestionCarreraPDF
 from .utils.pdf_generator import FondoPDFGenerator, InformePDFGenerator
 from .utils.informe_texto import CAMPOS_TEXTO_INFORME, construir_defaults_informe
 from .utils.informe_word import generar_informe_word
-from .utils.usuario_sugerido import usuario_sugerido
+from .utils.usuario_sugerido import sugerencias_usuario
 from .avisos import avisos_para_usuario, clave_rol, reclamar_avisos
 from .mi_cuenta import datos_mi_cuenta
 from .tiempo_real import publicar_leidos
@@ -3285,9 +3285,10 @@ class UsuarioViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='sugerir-usuario')
     def sugerir_usuario(self, request):
-        """Usuario sugerido para una cuenta nueva a partir del nombre completo (ver
-        utils/usuario_sugerido.py). Solo lectura; el formulario lo deja editar."""
-        return Response({'usuario': usuario_sugerido(request.query_params.get('nombre', ''))})
+        """Tres usuarios libres para una cuenta nueva a partir del nombre completo (ver
+        utils/usuario_sugerido.py). Solo lectura. ?excluir=a,b,c: los ya mostrados ("Ver otras")."""
+        excluir = [usuario for usuario in request.query_params.get('excluir', '').split(',') if usuario]
+        return Response({'sugerencias': sugerencias_usuario(request.query_params.get('nombre', ''), excluir=excluir)})
 
     @action(detail=True, methods=['post'], permission_classes=[IsFullAdminOrDirectorCarrera])
     def resetear_password(self, request, pk=None):

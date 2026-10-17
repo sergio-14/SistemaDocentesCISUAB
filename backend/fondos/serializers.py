@@ -2943,6 +2943,7 @@ MENSAJES_CORREO_OBLIGATORIO = {
     'required': 'El correo institucional es obligatorio.',
     'blank': 'El correo institucional es obligatorio.',
 }
+MENSAJE_USUARIO_EXISTENTE = 'Ya existe un usuario con ese nombre (sin distinguir mayúsculas).'
 
 
 class CrearUsuarioSerializer(serializers.ModelSerializer):
@@ -2983,6 +2984,12 @@ class CrearUsuarioSerializer(serializers.ModelSerializer):
             # formulario y quedaron usuarios creados sin correo).
             'email': {'required': True, 'allow_blank': False, 'error_messages': MENSAJES_CORREO_OBLIGATORIO},
         }
+
+    def validate_username(self, value):
+        # El inicio de sesión no distingue mayúsculas: tampoco puede haber dos usuarios así.
+        if User.objects.filter(username__iexact=value).exists():
+            raise serializers.ValidationError(MENSAJE_USUARIO_EXISTENTE)
+        return value
 
     def validate(self, data):
         # Obtener usuario actual del contexto (quien está creando)
@@ -3278,6 +3285,12 @@ class ActualizarUsuarioSerializer(serializers.ModelSerializer):
             'last_name': {'allow_blank': False},
             'email': {'allow_blank': False, 'error_messages': MENSAJES_CORREO_OBLIGATORIO},
         }
+
+    def validate_username(self, value):
+        # El inicio de sesión no distingue mayúsculas: tampoco puede haber dos usuarios así.
+        if User.objects.filter(username__iexact=value).exclude(pk=self.instance.pk).exists():
+            raise serializers.ValidationError(MENSAJE_USUARIO_EXISTENTE)
+        return value
 
     def to_internal_value(self, data):
         """
@@ -4492,6 +4505,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 usuario_por_correo = User.objects.filter(email__iexact=identificador).order_by('id').first()
                 if usuario_por_correo:
                     attrs[self.username_field] = usuario_por_correo.get_username()
+            else:
+                # El usuario no distingue mayúsculas (WChao = wchao). Si dos cuentas solo se
+                # diferenciaran en mayúsculas, se exige el usuario exacto.
+                coincidencias = list(User.objects.filter(username__iexact=identificador).values_list('username', flat=True)[:2])
+                if len(coincidencias) == 1:
+                    attrs[self.username_field] = coincidencias[0]
 
         data = super().validate(attrs)
         

@@ -212,7 +212,6 @@ class InformeGestionCarreraPDF:
             'cabecera': estilo('IGCab', fontName='Helvetica-Bold', fontSize=8, leading=10),
             'total': estilo('IGTotal', fontName='Helvetica-Bold', fontSize=8, leading=10),
             'total_num': estilo('IGTotalNum', fontName='Helvetica-Bold', fontSize=8, leading=10, alignment=2),
-            'nota': estilo('IGNota', fontSize=8, leading=10.5, textColor=GRIS_TEXTO),
             'nota_seccion': estilo('IGNotaSeccion', fontSize=8, leading=10.5, textColor=GRIS_TEXTO, spaceAfter=3, keepWithNext=1),
             'firma': estilo('IGFirma', alignment=1),
         }
@@ -310,12 +309,6 @@ class InformeGestionCarreraPDF:
                 + estado, 'texto',
             ),
         ]
-        if datos['borradores_excluidos']:
-            cantidad = datos['borradores_excluidos']
-            story += [Spacer(1, 0.15 * cm), p(
-                f'No se incluye{"n" if cantidad > 1 else ""} {cantidad} fondo{"s" if cantidad > 1 else ""} '
-                f'en borrador (aún no presentado{"s" if cantidad > 1 else ""} al Director).', 'nota',
-            )]
 
         # 3. Cumplimiento por docente (Art. 19).
         story += [Spacer(1, 0.45 * cm), p('1. Cumplimiento por docente', 'seccion')]

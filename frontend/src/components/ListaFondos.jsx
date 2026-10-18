@@ -269,24 +269,28 @@ function ListaFondos() {
 
   const { paginaActual, totalPaginas, itemsPagina: fondosPagina } = paginar(fondosFiltrados, pagina, vista);
 
-  // Lo pendiente según el rol: el Director lo que tiene por revisar y el docente el estado
-  // de su fondo (el de la gestión más reciente). El Jefe no lleva resumen.
-  const plural = (n, palabra) => `${n} ${palabra}${n === 1 ? '' : 's'}`;
+  // Lo pendiente según el rol, en contadores bajo el título: el Director lo que tiene por
+  // revisar (un clic filtra la lista por ese estado) y el docente el estado de su fondo (el de
+  // la gestión más reciente). El Jefe no lleva resumen.
   const ajenos = fondos.filter((fondo) => String(fondo.docente) !== String(effectiveUser?.perfil?.docente));
   const contar = (lista, condicion) => lista.filter(condicion).length;
   let resumenRol = null;
   if (activeRole === 'director' && !esSuperusuario) {
     const porRevisar = contar(ajenos, (f) => f.estado === 'presentado_director');
     const informes = contar(ajenos, (f) => f.estado === 'informe_presentado');
-    resumenRol = {
-      texto: `Por revisar: ${plural(porRevisar, 'fondo')} · ${plural(informes, 'informe')}`,
-      punto: porRevisar + informes > 0 ? ESTADOS_FONDO.presentado_director.dot : 'bg-slate-300',
-    };
+    resumenRol = [
+      { valor: porRevisar, texto: porRevisar === 1 ? 'fondo por revisar' : 'fondos por revisar', estado: 'presentado_director' },
+      { valor: informes, texto: informes === 1 ? 'informe por revisar' : 'informes por revisar', estado: 'informe_presentado' },
+    ];
   } else if (activeRole === 'docente' && fondos.length > 0) {
     const propio = [...fondos].sort((a, b) => (b.gestion || 0) - (a.gestion || 0))[0];
     const estado = ESTADOS_FONDO[estadoVisibleFondo(propio)] || ESTADOS_FONDO.borrador;
-    resumenRol = { texto: `Tu fondo ${propio.gestion}: ${estado.label}`, punto: estado.dot };
+    resumenRol = [{ valor: propio.gestion, texto: estado.label, prefijo: 'Tu fondo' }];
   }
+  const filtrarPorEstado = (estado) => {
+    setEstadoFiltro((actual) => (actual === estado ? 'todos' : estado));
+    setPagina(1);
+  };
 
   const irAPagina = (nuevaPagina) => {
     setPagina(nuevaPagina);
@@ -386,10 +390,32 @@ function ListaFondos() {
                   Dashboard de Fondos
                 </h2>
                 {resumenRol && (
-                  <p className="mt-2 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-sm text-slate-700 ring-1 ring-inset ring-azulado-300">
-                    <span className={`h-2 w-2 rounded-full ${resumenRol.punto}`} />
-                    {resumenRol.texto}
-                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {resumenRol.map((item) => {
+                      const contenido = (
+                        <>
+                          {item.prefijo && <span className="text-xs font-medium text-slate-600">{item.prefijo}</span>}
+                          <span className="text-lg font-bold leading-none text-blue-900 tabular-nums">{item.valor}</span>
+                          <span className="text-xs font-medium text-slate-600">{item.texto}</span>
+                        </>
+                      );
+                      const clase = 'inline-flex items-center gap-2 rounded-xl bg-azulado-100 px-3 py-1.5 ring-1 ring-inset ring-azulado-300';
+                      const activo = estadoFiltro === item.estado;
+                      if (!item.estado || (item.valor === 0 && !activo)) return <span key={item.texto} className={clase}>{contenido}</span>;
+                      return (
+                        <button
+                          key={item.estado}
+                          type="button"
+                          onClick={() => filtrarPorEstado(item.estado)}
+                          aria-pressed={activo}
+                          title={activo ? 'Quitar el filtro' : 'Ver solo estos fondos'}
+                          className={`${clase} transition-colors ${activo ? '!bg-blue-900 !ring-blue-900 [&>span]:!text-white' : 'hover:bg-azulado-200'}`}
+                        >
+                          {contenido}
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
                 {esIisyp && (
                   <span className="mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-cyan-50 text-cyan-700 ring-1 ring-inset ring-cyan-300">

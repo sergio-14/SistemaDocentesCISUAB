@@ -922,7 +922,7 @@ function DetalleFondo() {
                 />
               ) : (
                 <div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_5.5rem_4.5rem] gap-3 px-3 pb-2.5 text-xs font-semibold text-blue-800 [border-bottom:1px_solid_#B8C9E1]">
+                  <div className="grid grid-cols-[minmax(0,1fr)_5.5rem_5.5rem] gap-3 px-3 pb-2.5 text-xs font-semibold text-blue-800 [border-bottom:1px_solid_#B8C9E1]">
                     <span>Unidad</span>
                     <span className="text-right">Horas/año</span>
                     <span className="text-right">%</span>
@@ -930,17 +930,23 @@ function DetalleFondo() {
                   <div className="divide-y divide-azulado-300">
                     {[...(fondo.categorias || [])]
                       .sort((a, b) => ORDEN_UNIDADES.indexOf(a.tipo) - ORDEN_UNIDADES.indexOf(b.tipo))
-                      .map((categoria) => (
-                        <div key={categoria.tipo} className="grid grid-cols-[minmax(0,1fr)_5.5rem_4.5rem] items-center gap-3 px-3 py-2.5 text-tabla">
-                          <span className="flex items-center gap-2.5 text-slate-700 min-w-0">
-                            <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: colorUnidad(categoria.tipo) }} />
-                            <span className="truncate">{categoria.tipo_display}</span>
-                          </span>
-                          <span className="text-right font-semibold text-slate-800 tabular-nums">{Math.round(Number(categoria.total_horas || 0))}</span>
-                          <span className="text-right text-slate-600 tabular-nums">{Number(categoria.porcentaje || 0).toFixed(1)}%</span>
-                        </div>
-                      ))}
-                    <div className="grid grid-cols-[minmax(0,1fr)_5.5rem_4.5rem] items-center gap-3 px-3 py-2.5 text-tabla font-bold text-blue-900">
+                      .map((categoria) => {
+                        const porcentaje = Number(categoria.porcentaje || 0);
+                        return (
+                          <div key={categoria.tipo} className="grid grid-cols-[minmax(0,1fr)_5.5rem_5.5rem] items-center gap-3 px-3 py-2.5 text-tabla">
+                            <span className="truncate text-slate-700">{categoria.tipo_display}</span>
+                            <span className="text-right font-semibold text-slate-800 tabular-nums">{Math.round(Number(categoria.total_horas || 0))}</span>
+                            {/* Porcentaje con una barra fina en el azul del sistema (sin colores por unidad). */}
+                            <span className="flex flex-col items-end gap-1">
+                              <span className="text-slate-600 tabular-nums">{porcentaje.toFixed(1)}%</span>
+                              <span className="h-1 w-full rounded-full bg-azulado-200 overflow-hidden">
+                                <span className="block h-full rounded-full bg-blue-900" style={{ width: `${Math.min(100, porcentaje)}%` }} />
+                              </span>
+                            </span>
+                          </div>
+                        );
+                      })}
+                    <div className="grid grid-cols-[minmax(0,1fr)_5.5rem_5.5rem] items-center gap-3 px-3 py-2.5 text-tabla font-bold text-blue-900">
                       <span>Total</span>
                       <span className="text-right tabular-nums">{totalUnidades}</span>
                       <span className="text-right tabular-nums">
@@ -1116,7 +1122,7 @@ function DetalleFondo() {
                     </div>
                   </Plegable>
                   {categoriasVisibles.map((categoria) => {
-                    const color = colorUnidad(categoria.tipo);
+                    const numeroUnidad = ORDEN_UNIDADES.indexOf(categoria.tipo) + 1;
                     const totalActual = Number(categoria.total_horas || 0);
                     const totalPrevio = Number(prevTotalesCategoriasRef.current[categoria.tipo] || 0);
                     const aparecioRecien = totalPrevio <= 0 && totalActual > 0;
@@ -1129,7 +1135,12 @@ function DetalleFondo() {
                           {/* Encabezado de la unidad */}
                           <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
                             <div className="flex items-center gap-3 min-w-0">
-                              <span className="h-3.5 w-3.5 flex-shrink-0 rounded-full" style={{ backgroundColor: color }} />
+                              {/* Número de la unidad (orden del Art. 12) en lugar de un punto de color. */}
+                              {numeroUnidad > 0 && (
+                                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-azulado-100 text-base font-bold text-blue-900 ring-1 ring-inset ring-azulado-300 tabular-nums">
+                                  {numeroUnidad}
+                                </span>
+                              )}
                               <div className="min-w-0">
                                 <h4 className="text-lg font-bold text-slate-800 leading-tight">{categoria.tipo_display}</h4>
                                 <p className="text-sm text-slate-600">
@@ -1144,7 +1155,7 @@ function DetalleFondo() {
                               </div>
                               <div className="hidden sm:block w-32">
                                 <div className="h-2 w-full rounded-full bg-azulado-200 overflow-hidden">
-                                  <div className="h-full rounded-full" style={{ width: `${Math.min(100, porcentajeUnidad)}%`, backgroundColor: color }} />
+                                  <div className="h-full rounded-full bg-blue-900" style={{ width: `${Math.min(100, porcentajeUnidad)}%` }} />
                                 </div>
                               </div>
                             </div>

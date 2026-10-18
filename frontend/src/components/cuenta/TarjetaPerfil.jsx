@@ -24,7 +24,9 @@ const ultimoIngreso = (iso) => {
 
 // Tarjeta angosta de Mi cuenta: foto (subir, cambiar o eliminar), nombre, rol activo,
 // carrera(s) y último ingreso.
-function TarjetaPerfil({ user, rol, carreras, ultimoIngresoIso, onProfileUpdate }) {
+// franja: en escritorio (xl) la tarjeta va arriba, horizontal y baja, para que las tres
+// columnas de bloques usen todo el ancho de la ventana.
+function TarjetaPerfil({ user, rol, carreras, ultimoIngresoIso, onProfileUpdate, franja = false }) {
   const entradaRef = useRef(null);
   const [vistaPrevia, setVistaPrevia] = useState(null);
   const [subiendo, setSubiendo] = useState(false);
@@ -72,15 +74,16 @@ function TarjetaPerfil({ user, rol, carreras, ultimoIngresoIso, onProfileUpdate 
     avisarCambio();
   };
 
+  const x = (clases) => (franja ? clases : '');
   return (
-    <aside className={`${BLOQUE} p-6 flex flex-col items-center text-center`}>
-      <div className="w-28 h-28">
+    <aside className={`${BLOQUE} p-6 flex flex-col items-center text-center ${x('xl:flex-row xl:items-center xl:gap-5 xl:py-3 xl:text-left')}`}>
+      <div className={`w-28 h-28 flex-shrink-0 ${x('xl:w-16 xl:h-16')}`}>
         {vistaPrevia
           ? <img src={vistaPrevia} alt="Perfil" className="w-full h-full rounded-full object-cover bg-white shadow-md" />
           : <FotoPerfil user={user} />}
       </div>
       <input ref={entradaRef} type="file" accept="image/png, image/jpeg" className="hidden" onChange={subir} />
-      <div className="mt-3 flex flex-wrap justify-center gap-2">
+      <div className={`mt-3 flex flex-wrap justify-center gap-2 ${x('xl:order-3 xl:mt-0 xl:ml-auto')}`}>
         <button
           type="button"
           onClick={() => entradaRef.current?.click()}
@@ -103,16 +106,18 @@ function TarjetaPerfil({ user, rol, carreras, ultimoIngresoIso, onProfileUpdate 
         )}
       </div>
 
-      <h2 className="mt-4 text-lg font-bold text-blue-900 leading-tight break-words">{nombre}</h2>
-      <p className="text-sm text-slate-600 break-all">@{user?.username}</p>
-      <p className="mt-2 text-sm font-semibold text-blue-800">{rol}</p>
-      {carreras.length > 0 && (
-        <div className="mt-2 flex flex-wrap justify-center gap-1.5">
+      <div className={`flex flex-col items-center min-w-0 ${x('xl:order-2 xl:items-start')}`}>
+        <div className={`flex flex-col items-center ${x('xl:flex-row xl:items-baseline xl:gap-2')}`}>
+          <h2 className={`mt-4 text-lg font-bold text-blue-900 leading-tight break-words ${x('xl:mt-0')}`}>{nombre}</h2>
+          <p className="text-sm text-slate-600 break-all">@{user?.username}</p>
+        </div>
+        <div className={`mt-2 flex flex-wrap items-center justify-center gap-1.5 ${x('xl:justify-start')}`}>
+          <span className={`text-sm font-semibold text-blue-800 w-full ${x('xl:w-auto')}`}>{rol}</span>
           {carreras.map((carrera) => <Etiqueta key={carrera}>{carrera}</Etiqueta>)}
         </div>
-      )}
+      </div>
 
-      <div className="mt-5 w-full pt-4 [border-top:1px_solid_#B8C9E1] text-left">
+      <div className={`mt-5 w-full pt-4 [border-top:1px_solid_#B8C9E1] text-left ${x('xl:order-4 xl:mt-0 xl:w-auto xl:pt-0 xl:pl-5 xl:[border-top:0] xl:[border-left:1px_solid_#B8C9E1]')}`}>
         <p className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
           <LogIn className="w-3.5 h-3.5" strokeWidth={1.75} />
           Último ingreso

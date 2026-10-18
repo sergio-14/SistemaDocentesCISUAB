@@ -73,11 +73,13 @@ function ModalMiCuenta({ onClose, onProfileUpdate }) {
         { label: assignments.length > 1 ? 'Roles' : 'Rol', valor: <span className="flex flex-wrap gap-1.5 font-medium">{roles}</span>, ancho: true },
       ]}
       />
-      <p className="mt-auto pt-4 text-xs text-slate-500">Para corregir estos datos, pídaselo a la administración del sistema.</p>
+      <p className="mt-auto pt-4 text-xs text-slate-500">Solo la administración puede corregir estos datos.</p>
     </Tarjeta>
   );
 
   let bloques;
+  // En escritorio, tres columnas cuando hay cuatro o cinco bloques: la ventana entra sin desplazarse.
+  let tresColumnas = false;
   if (error) bloques = <Tarjeta titulo="Mi cuenta" icono={UserRound} ancha><SinDatos>{error}</SinDatos></Tarjeta>;
   else if (!cuenta) bloques = <Tarjeta titulo="Mi cuenta" icono={UserRound} ancha><Cargando /></Tarjeta>;
   else if (activeRole === 'docente' && !esSuperusuario) {
@@ -91,15 +93,17 @@ function ModalMiCuenta({ onClose, onProfileUpdate }) {
         <CarrerasDondeDicto carreras={docente?.carreras_donde_dicta || []} gestion={gestion} />
       </>
     );
+    tresColumnas = true;
   } else if (conResumen) {
     bloques = (
       <>
         {datosCuenta(false)}
         <MiDesignacion designacion={designacion} />
-        <ResumenCarrera fondos={fondosDeLaGestion} gestion={gestion} />
+        <ResumenCarrera fondos={fondosDeLaGestion} gestion={gestion} ancho />
         <Pendientes fondos={fondosDeLaGestion} rol={activeRole} />
       </>
     );
+    tresColumnas = true;
   } else if (!esSuperusuario && activeRole === 'iiisyp') {
     bloques = (
       <>
@@ -113,7 +117,7 @@ function ModalMiCuenta({ onClose, onProfileUpdate }) {
 
   return (
     <ModalCentrado onClose={onClose}>
-      <div role="dialog" aria-modal="true" aria-label="Mi cuenta" className="w-full max-w-5xl overflow-hidden rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-label="Mi cuenta" className="w-full max-w-5xl xl:max-w-7xl overflow-hidden rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
         <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">Cuenta personal</p>
@@ -128,16 +132,17 @@ function ModalMiCuenta({ onClose, onProfileUpdate }) {
             <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
-        <div className="max-h-[78vh] overflow-y-auto bg-azulado-100 p-4 sm:p-5 [border-top:1px_solid_#B8C9E1]">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start">
+        <div className={`max-h-[78vh] xl:max-h-[calc(100vh-8.5rem)] overflow-y-auto bg-azulado-100 p-4 sm:p-5 [border-top:1px_solid_#B8C9E1] ${tresColumnas ? 'xl:p-4' : ''}`}>
+          <div className={`grid grid-cols-1 gap-4 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start ${tresColumnas ? 'xl:grid-cols-1 xl:gap-3' : ''}`}>
             <TarjetaPerfil
               user={effectiveUser}
               rol={rol}
               carreras={carreras}
               ultimoIngresoIso={cuenta?.ultimo_ingreso || effectiveUser?.last_login}
               onProfileUpdate={onProfileUpdate}
+              franja={tresColumnas}
             />
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{bloques}</div>
+            <div className={`grid grid-cols-1 gap-4 md:grid-cols-2 ${tresColumnas ? 'xl:grid-cols-3 xl:gap-3 xl:[&>section]:p-5 xl:[&>section>div:first-child]:mb-3' : ''}`}>{bloques}</div>
           </div>
         </div>
       </div>

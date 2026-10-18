@@ -231,16 +231,25 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     def buscar(self, request):
         """Búsqueda por nombre de docentes de OTRAS carreras, para el Jefe de Estudios que les
         asigna una materia de la suya (doble carrera). Solo nombre completo y los últimos 4
-        dígitos del C.I.: no expone la ficha de otra carrera."""
+        dígitos del C.I.: no expone la ficha de otra carrera.
+        Con ?gestion=AAAA devuelve la lista de docentes disponibles (con Fondo de Tiempo vigente
+        en esa gestión), aunque no se haya escrito nada; ?q la filtra por nombre."""
         perfil = _obtener_perfil_efectivo(request.user, request)
         if not request.user.is_superuser and (not perfil or perfil.rol != 'jefe_estudios'):
             raise PermissionDenied('Solo Jefatura de Estudios busca docentes de otras carreras.')
         palabras = str(request.query_params.get('q') or '').split()
-        if sum(len(palabra) for palabra in palabras) < 2:
+        gestion = request.query_params.get('gestion')
+        if gestion is not None and not str(gestion).isdigit():
+            return Response({'gestion': 'La gestión debe ser un año.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not gestion and sum(len(palabra) for palabra in palabras) < 2:
             return Response([])
         docentes = Docente.objects.filter(activo=True, vinculos_carrera__activo=True).select_related(
             'user', 'datos_laborales',
         )
+        if gestion:
+            docentes = docentes.filter(pk__in=FondoTiempo.objects.filter(
+                gestion=int(gestion), archivado=False,
+            ).values('docente'))
         if not request.user.is_superuser:
             # Los docentes de su propia carrera se gestionan desde su fondo. Con subconsulta:
             # un exclude() con las dos condiciones podía cumplirlas en vínculos distintos y
@@ -255,7 +264,8 @@ class DocenteViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
                 | Q(user__last_name__icontains=palabra)
             )
         resultados = []
-        for docente in docentes.distinct().order_by('apellido_paterno', 'nombres')[:20]:
+        limite = 300 if gestion else 20
+        for docente in docentes.distinct().order_by('apellido_paterno', 'nombres')[:limite]:
             ci = (docente.ci or '').strip()
             resultados.append({
                 'id': docente.pk,

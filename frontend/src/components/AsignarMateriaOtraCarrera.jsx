@@ -25,8 +25,6 @@ const DIAS = [
 const FORM_VACIO = {
   calendario: '', materia: '', paralelo: 'A', dia_semana: 'lunes', hora_inicio: '', hora_fin: '', aula: '',
 };
-// Letras mínimas para buscar docentes (las mismas que pide el backend).
-const MINIMO_BUSQUEDA = 2;
 const EDITABLE = ['borrador', 'observado'];
 const COLUMNAS = 'lg:grid-cols-[minmax(0,1.6fr)_minmax(0,2.2fr)_minmax(0,1.4fr)_minmax(0,1.2fr)_5rem_6rem]';
 
@@ -43,8 +41,9 @@ const AsignarMateriaOtraCarrera = ({ mostrarLista = false, filtro = '', modalAbi
   const [cargaPorQuitar, setCargaPorQuitar] = useState(null);
   // Ventana de asignación
   const [busqueda, setBusqueda] = useState('');
-  const [resultados, setResultados] = useState([]);
-  const [buscando, setBuscando] = useState(false);
+  // Docentes disponibles (de otras carreras, con fondo vigente en la gestión): se eligen de la
+  // lista con un clic y el buscador la filtra.
+  const [disponibles, setDisponibles] = useState(null);
   const [docente, setDocente] = useState(null);
   const [materias, setMaterias] = useState([]);
   const [form, setForm] = useState(FORM_VACIO);
@@ -67,24 +66,23 @@ const AsignarMateriaOtraCarrera = ({ mostrarLista = false, filtro = '', modalAbi
     cargarCargas();
   }, []);
 
-  // Búsqueda mientras se escribe (una pausa corta para no consultar en cada tecla).
+  // Gestión de la lista: la de los calendarios activos de la carrera (si no hay, la más reciente).
+  const gestionesActivas = calendarios.filter((cal) => cal.activo).map((cal) => cal.gestion);
+  const gestionLista = Math.max(...(gestionesActivas.length ? gestionesActivas : calendarios.map((cal) => cal.gestion)), 0) || null;
+
   useEffect(() => {
-    const texto = busqueda.trim();
-    if (texto.replace(/\s/g, '').length < MINIMO_BUSQUEDA) {
-      setResultados([]);
-      setBuscando(false);
-      return undefined;
-    }
-    setBuscando(true);
+    if (!modalAbierto || !gestionLista) return undefined;
     let vigente = true;
-    const temporizador = setTimeout(() => {
-      api.get('/docentes/buscar/', { params: { q: texto } })
-        .then((respuesta) => vigente && setResultados(respuesta.data))
-        .catch((error) => vigente && toast.error(getApiErrorMessage(error, 'No se pudo buscar docentes')))
-        .finally(() => vigente && setBuscando(false));
-    }, 200);
-    return () => { vigente = false; clearTimeout(temporizador); };
-  }, [busqueda]);
+    setDisponibles(null);
+    api.get('/docentes/buscar/', { params: { gestion: gestionLista } })
+      .then((respuesta) => vigente && setDisponibles(respuesta.data))
+      .catch((error) => {
+        if (!vigente) return;
+        setDisponibles([]);
+        toast.error(getApiErrorMessage(error, 'No se pudo cargar la lista de docentes'));
+      });
+    return () => { vigente = false; };
+  }, [modalAbierto, gestionLista]);
 
   const calendario = calendarios.find((cal) => String(cal.id) === String(form.calendario));
 
@@ -101,7 +99,6 @@ const AsignarMateriaOtraCarrera = ({ mostrarLista = false, filtro = '', modalAbi
     if (!modalAbierto) return;
     setDocente(null);
     setBusqueda('');
-    setResultados([]);
     setForm(FORM_VACIO);
     setErrores({});
   }, [modalAbierto]);
@@ -112,7 +109,6 @@ const AsignarMateriaOtraCarrera = ({ mostrarLista = false, filtro = '', modalAbi
   const elegirDocente = (elegido) => {
     setDocente(elegido);
     setBusqueda('');
-    setResultados([]);
   };
   // Volver a buscar otro docente sin cerrar la ventana (lo ya llenado de la materia se conserva).
   const cambiarDocente = () => setDocente(null);
@@ -206,7 +202,11 @@ const AsignarMateriaOtraCarrera = ({ mostrarLista = false, filtro = '', modalAbi
     ? cargas.filter((carga) => [carga.docente_nombre, carga.materia_nombre, carga.materia_sigla]
       .some((campo) => normalizar(campo).includes(textoFiltro)))
     : cargas;
-  const faltanLetras = busqueda.trim().replace(/\s/g, '').length < MINIMO_BUSQUEDA;
+  // El buscador filtra la lista de disponibles (todas las palabras, sin tildes).
+  const palabrasBusqueda = normalizar(busqueda).split(/\s+/).filter(Boolean);
+  const listaDocentes = (disponibles || []).filter((persona) => (
+    palabrasBusqueda.every((palabra) => normalizar(persona.nombre_completo).includes(palabra))
+  ));
 
   return (
     <>
@@ -320,18 +320,25 @@ const AsignarMateriaOtraCarrera = ({ mostrarLista = false, filtro = '', modalAbi
                       autoComplete="off"
                       value={busqueda}
                       onChange={(evento) => setBusqueda(evento.target.value)}
-                      placeholder="Escriba el nombre o apellido del docente"
+                      placeholder="Filtrar por nombre o apellido"
                       className="w-full text-sm text-slate-800 placeholder:text-slate-500 outline-none"
                       style={{ background: 'transparent', border: 'none', boxShadow: 'none', padding: 0 }}
                     />
                   </label>
-                  {!faltanLetras && (
-                  <div className="mt-2 max-h-64 overflow-y-auto rounded-2xl bg-white ring-1 ring-azulado-300 p-2">
-                    {buscando && resultados.length === 0 ? (
-                      <p className="px-3 py-2 text-xs text-slate-500">Buscando...</p>
-                    ) : resultados.length === 0 ? (
-                      <p className="px-3 py-2 text-xs text-slate-500">No hay docentes de otras carreras con ese nombre.</p>
-                    ) : resultados.map((resultado) => (
+                  <p className="mt-3 mb-1.5 pl-1 text-xs font-semibold text-slate-700">
+                    Docentes disponibles{gestionLista ? ` · gestión ${gestionLista}` : ''}
+                    {disponibles && <span className="font-normal text-slate-500"> ({listaDocentes.length})</span>}
+                  </p>
+                  <div className="max-h-64 overflow-y-auto rounded-2xl bg-white ring-1 ring-azulado-300 p-2">
+                    {disponibles === null ? (
+                      <p className="px-3 py-2 text-xs text-slate-500">{gestionLista ? 'Cargando docentes...' : 'Registre primero un calendario académico de la carrera.'}</p>
+                    ) : listaDocentes.length === 0 ? (
+                      <p className="px-3 py-2 text-xs text-slate-500">
+                        {disponibles.length === 0
+                          ? `No hay docentes de otras carreras con Fondo de Tiempo en la gestión ${gestionLista}.`
+                          : 'Ningún docente coincide con lo escrito.'}
+                      </p>
+                    ) : listaDocentes.map((resultado) => (
                       <button
                         key={resultado.id}
                         type="button"
@@ -346,7 +353,6 @@ const AsignarMateriaOtraCarrera = ({ mostrarLista = false, filtro = '', modalAbi
                       </button>
                     ))}
                   </div>
-                  )}
                 </div>
               )}
 

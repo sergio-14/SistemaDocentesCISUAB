@@ -4,9 +4,10 @@ import { BLOQUE } from '../fondos/estilosFondo';
 // text-base font-bold text-blue-900; datos en cuadrícula (etiqueta gris pequeña arriba,
 // valor en negrita debajo) y listas separadas por líneas como "Balance de horas".
 
-export function Tarjeta({ titulo, icono: Icono, accion, ancha = false, children }) {
+// `clase`: clases extra de la cuadrícula (p. ej. ocupar las tres columnas en escritorio).
+export function Tarjeta({ titulo, icono: Icono, accion, ancha = false, clase = '', children }) {
   return (
-    <section className={`${BLOQUE} p-6 flex flex-col min-w-0 ${ancha ? 'md:col-span-2' : ''}`}>
+    <section className={`${BLOQUE} p-6 flex flex-col min-w-0 ${ancha ? 'md:col-span-2' : ''} ${clase}`}>
       <div className="mb-4 min-h-7 flex items-center justify-between gap-3">
         <h3 className="flex items-center gap-2 text-base font-bold text-blue-900">
           {Icono && <Icono className="w-[18px] h-[18px] text-blue-700 flex-shrink-0" strokeWidth={1.75} />}

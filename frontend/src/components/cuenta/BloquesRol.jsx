@@ -160,7 +160,9 @@ export function MiDesignacion({ designacion }) {
   );
 }
 
-export function ResumenCarrera({ fondos, gestion }) {
+// ancho: en escritorio va al final, a lo ancho de las tres columnas, con los estados uno al
+// lado del otro (debajo de xl, la lista de siempre).
+export function ResumenCarrera({ fondos, gestion, ancho = false }) {
   let contenido = <Cargando />;
   if (fondos) {
     const conteo = {};
@@ -172,21 +174,43 @@ export function ResumenCarrera({ fondos, gestion }) {
     contenido = estados.length === 0 ? (
       <SinDatos>Sin fondos en la gestión {gestion}</SinDatos>
     ) : (
-      <Lista>
-        {estados.map((estado) => (
-          <FilaLista key={estado}>
-            <EstadoPill estado={estado} />
-            <span className="font-bold text-slate-900 tabular-nums">{conteo[estado]}</span>
-          </FilaLista>
-        ))}
-        <FilaLista>
-          <span className="font-semibold text-slate-600">Total</span>
-          <span className="font-bold text-blue-900 tabular-nums">{fondos.length}</span>
-        </FilaLista>
-      </Lista>
+      <>
+        <div className={ancho ? 'xl:hidden' : ''}>
+          <Lista>
+            {estados.map((estado) => (
+              <FilaLista key={estado}>
+                <EstadoPill estado={estado} />
+                <span className="font-bold text-slate-900 tabular-nums">{conteo[estado]}</span>
+              </FilaLista>
+            ))}
+            <FilaLista>
+              <span className="font-semibold text-slate-600">Total</span>
+              <span className="font-bold text-blue-900 tabular-nums">{fondos.length}</span>
+            </FilaLista>
+          </Lista>
+        </div>
+        {ancho && (
+          <div className="hidden xl:flex flex-wrap items-stretch divide-x divide-azulado-300 text-sm">
+            {estados.map((estado) => (
+              <div key={estado} className="flex flex-1 flex-col items-start gap-2 px-4 first:pl-0">
+                <EstadoPill estado={estado} />
+                <span className="text-2xl font-bold leading-none text-slate-900 tabular-nums">{conteo[estado]}</span>
+              </div>
+            ))}
+            <div className="flex flex-col items-start gap-2 px-4 pr-0">
+              <span className="py-0.5 font-semibold text-slate-600">Total</span>
+              <span className="text-2xl font-bold leading-none text-blue-900 tabular-nums">{fondos.length}</span>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
-  return <Tarjeta titulo={`Resumen de mi carrera · ${gestion}`} icono={ChartColumn}>{contenido}</Tarjeta>;
+  return (
+    <Tarjeta titulo={`Resumen de mi carrera · ${gestion}`} icono={ChartColumn} clase={ancho ? 'xl:order-last xl:col-span-3' : ''}>
+      {contenido}
+    </Tarjeta>
+  );
 }
 
 // Director: fondos presentados por revisar (y los informes presentados); Jefe: fondos

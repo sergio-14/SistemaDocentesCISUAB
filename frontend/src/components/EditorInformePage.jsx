@@ -11,7 +11,7 @@ import useModoClaro from '../utils/useModoClaro';
 import ModalConfirmar from './common/ModalConfirmar';
 import FormularioEvaluarInforme from './FormularioEvaluarInforme';
 import ModalCorreccionesInforme from './ModalCorreccionesInforme';
-import { BLOQUE, BOTON, BOTON_DOCUMENTO } from './fondos/estilosFondo';
+import { BLOQUE, BOTON, BOTON_CHICO, BOTON_DOCUMENTO } from './fondos/estilosFondo';
 import InformeCampoRico from './InformeCampoRico';
 import InformeCampoPlano from './InformeCampoPlano';
 import InformeFormatToolbar from './InformeFormatToolbar';
@@ -146,7 +146,6 @@ export default function EditorInformePage() {
   const informe = fondo?.informe_actual || null;
   const seccionesInforme = informe?.formato_secciones === 'anterior' ? SECCIONES_INFORME_ANTERIOR : SECCIONES_INFORME;
   const estadoInforme = informe?.estado || null;
-  const informeEnviado = estadoInforme === 'enviado' || estadoInforme === 'aprobado';
   // Lo decide el backend (docente dueño, fondo en ejecución, informe sin
   // enviar): Director, Jefatura y los demás lo ven en solo lectura.
   const soloLectura = !fondo?.puede_editar_informe;
@@ -312,8 +311,16 @@ export default function EditorInformePage() {
     );
   }
 
+  // Un solo aviso arriba: en solo lectura, el motivo según el estado; al redactar, el guardado.
+  const motivoSoloLectura = fondo.estado === 'finalizado' || estadoInforme === 'aprobado'
+    ? 'Informe evaluado, fondo finalizado.'
+    : estadoInforme === 'enviado'
+      ? 'Informe enviado, en espera de la revisión del Director.'
+      : estadoInforme === 'observado'
+        ? 'El docente está corrigiendo el informe.'
+        : 'El informe lo redacta el docente del fondo mientras está en ejecución.';
   const estadoGuardado = soloLectura
-    ? 'Solo lectura'
+    ? `Solo lectura · ${motivoSoloLectura}`
     : guardando
       ? 'Guardando…'
       : ultimoGuardado
@@ -323,110 +330,112 @@ export default function EditorInformePage() {
   return (
     <InformeDocumentoContext.Provider value={contexto}>
       <div className="min-h-screen flex flex-col bg-gradient-to-b from-blue-900 to-blue-950">
-        {/* Cabecera (azul del sidebar) y barra de formato, fijas juntas arriba */}
-        <div className="sticky top-0 z-30">
-          <header ref={cabeceraRef} className="bg-gradient-to-r from-blue-900 to-blue-950 text-white">
-            {/* Arriba el dueño del informe (nombre completo, sin cortar); abajo, o a la
-                derecha en pantallas anchas, el estado y las acciones. */}
-            <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-3 flex flex-col gap-3 2xl:flex-row 2xl:items-center">
-              <div className="flex items-center gap-3 min-w-0 2xl:flex-1">
-                <button
-                  onClick={cerrarVentana}
-                  title="Cerrar"
-                  aria-label="Cerrar el informe"
-                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-sky-200">
-                    Informe de cumplimiento{fondo.gestion ? ` · Gestión ${fondo.gestion}` : ''}
-                  </p>
-                  <h1 className="text-base md:text-lg font-bold leading-tight break-words">{nombreDocente || 'Fondo de tiempo'}</h1>
-                </div>
+        {/* Cabecera (azul del sidebar): el dueño del informe y el único aviso de estado. */}
+        <header className="bg-gradient-to-r from-blue-900 to-blue-950 text-white">
+          <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <button
+                onClick={cerrarVentana}
+                title="Cerrar"
+                aria-label="Cerrar el informe"
+                className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wider text-sky-200">
+                  Informe de cumplimiento{fondo.gestion ? ` · Gestión ${fondo.gestion}` : ''}
+                </p>
+                <h1 className="text-base md:text-lg font-bold leading-tight break-words">{nombreDocente || 'Fondo de tiempo'}</h1>
               </div>
-              {/* Estado del guardado | Documento (ver, PDF, Word) | Guardar y enviar */}
-              <div className="flex flex-wrap items-center gap-2.5 2xl:justify-end">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-2 text-xs text-sky-100 mr-auto 2xl:mr-1">
-                  {soloLectura ? <Lock className="w-3.5 h-3.5" /> : guardando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                  {estadoGuardado}
-                </span>
+            </div>
+            <p className="inline-flex items-start gap-1.5 self-start lg:self-auto rounded-2xl bg-white/10 px-3 py-2 text-xs text-sky-100">
+              {soloLectura ? <Lock className="w-3.5 h-3.5 mt-px shrink-0" /> : guardando ? <Loader2 className="w-3.5 h-3.5 mt-px shrink-0 animate-spin" /> : <Save className="w-3.5 h-3.5 mt-px shrink-0" />}
+              {estadoGuardado}
+            </p>
+          </div>
+        </header>
 
-                {/* Documento: botones sólidos con el color secundario del Dashboard (sky-600). */}
-                <div className="inline-flex items-center gap-1.5">
-                  {[
-                    { accion: 'ver', etiqueta: 'Vista previa', titulo: 'Ver el PDF en una pestaña nueva', icono: Eye },
-                    { accion: 'pdf', etiqueta: 'PDF', titulo: 'Descargar en PDF', icono: Download },
-                    { accion: 'word', etiqueta: 'Word', titulo: 'Descargar en Word (.docx) para editarlo', icono: Download },
-                  ].map(({ accion, etiqueta, titulo, icono: Icono }) => (
-                    <button
-                      key={accion}
-                      onClick={() => obtenerDocumento(accion)}
-                      disabled={Boolean(generando)}
-                      title={titulo}
-                      className={`${BOTON} ${BOTON_DOCUMENTO} disabled:opacity-60 disabled:cursor-not-allowed`}
-                    >
-                      {generando === accion ? <Loader2 className="w-4 h-4 animate-spin" /> : <Icono className="w-4 h-4" />}
-                      {etiqueta}
-                    </button>
-                  ))}
-                </div>
+        {/* Barra fija al tope del informe, con dos grupos: a la izquierda las descargas; a la
+            derecha la decisión del Director (informe presentado) o, al redactar, guardar y
+            enviar. En celular los grupos van uno debajo del otro. Debajo, la barra de formato
+            cuando va arriba. */}
+        <div ref={cabeceraRef} className="sticky top-0 z-30 bg-azulado-100 rounded-t-[2rem] px-4 md:px-6 pt-4 pb-3">
+          <div className="max-w-[1100px] mx-auto space-y-3">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-blue-800">Descargar:</span>
+                {[
+                  { accion: 'ver', etiqueta: 'Vista previa', titulo: 'Ver el PDF en una pestaña nueva', icono: Eye },
+                  { accion: 'pdf', etiqueta: 'PDF', titulo: 'Descargar en PDF', icono: Download },
+                  { accion: 'word', etiqueta: 'Word', titulo: 'Descargar en Word (.docx) para editarlo', icono: Download },
+                ].map(({ accion, etiqueta, titulo, icono: Icono }) => (
+                  <button
+                    key={accion}
+                    onClick={() => obtenerDocumento(accion)}
+                    disabled={Boolean(generando)}
+                    title={titulo}
+                    className={`${BOTON_CHICO} ${BOTON_DOCUMENTO} disabled:opacity-60 disabled:cursor-not-allowed`}
+                  >
+                    {generando === accion ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Icono className="w-3.5 h-3.5" />}
+                    {etiqueta}
+                  </button>
+                ))}
+              </div>
 
-                {puedeRevisar && (
-                  <div className="inline-flex items-center gap-2">
+              {puedeRevisar && (
+                // En celular la etiqueta va arriba y los dos botones, compactos, a la par.
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <span className="text-xs font-semibold text-blue-800">Decisión:</span>
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
                     <button
                       onClick={() => setVentanaRevision('correcciones')}
-                      className={`${BOTON} text-white ring-1 ring-inset ring-white/30 hover:bg-white/10`}
+                      className={`${BOTON_CHICO} sm:gap-1.5 sm:px-3.5 sm:py-2 sm:text-sm text-blue-900 ring-1 ring-inset ring-blue-900/40 hover:bg-azulado-200`}
                     >
-                      <MessageSquare className="w-4 h-4" />
+                      <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       Pedir correcciones
                     </button>
                     <button
                       onClick={() => setVentanaRevision('evaluar')}
-                      className={`${BOTON} bg-white text-blue-900 font-semibold shadow-sm hover:bg-azulado-100`}
+                      className={`${BOTON_CHICO} sm:gap-1.5 sm:px-3.5 sm:py-2 sm:text-sm bg-blue-900 hover:bg-blue-950 text-white shadow-sm`}
                     >
-                      <ClipboardCheck className="w-4 h-4" />
+                      <ClipboardCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       Evaluar cumplimiento
                     </button>
                   </div>
-                )}
+                </div>
+              )}
 
-                {!soloLectura && (
-                  <div className="inline-flex items-center gap-2">
-                    <button
-                      onClick={() => guardarBorrador()}
-                      disabled={guardando || Boolean(generando) || enviando}
-                      className={`${BOTON} text-white ring-1 ring-inset ring-white/30 hover:bg-white/10 disabled:opacity-60`}
-                    >
-                      {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                      Guardar borrador
-                    </button>
-                    <button
-                      onClick={abrirConfirmacionEnvio}
-                      disabled={enviando}
-                      className={`${BOTON} bg-white text-blue-900 font-semibold shadow-sm hover:bg-azulado-100 disabled:opacity-60`}
-                    >
-                      <Send className="w-4 h-4" />
-                      Enviar informe
-                    </button>
-                  </div>
-                )}
-              </div>
+              {!soloLectura && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => guardarBorrador()}
+                    disabled={guardando || Boolean(generando) || enviando}
+                    className={`${BOTON} text-blue-900 ring-1 ring-inset ring-blue-900/40 hover:bg-azulado-200 disabled:opacity-60`}
+                  >
+                    {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    Guardar borrador
+                  </button>
+                  <button
+                    onClick={abrirConfirmacionEnvio}
+                    disabled={enviando}
+                    className={`${BOTON} bg-blue-900 hover:bg-blue-950 text-white shadow-sm disabled:opacity-60`}
+                  >
+                    <Send className="w-4 h-4" />
+                    Enviar informe
+                  </button>
+                </div>
+              )}
             </div>
-          </header>
 
-          {/* Barra de formato arriba, sobre el panel azulado (no en solo lectura: el
-              indicador "Solo lectura" ya está junto a los botones) */}
-          {!barraLateral && !soloLectura && (
-            <div className="bg-azulado-100 rounded-t-[2rem] px-4 md:px-6 pt-4 pb-3">
-              <div className="max-w-[1100px] mx-auto">
-                <InformeFormatToolbar posicion="arriba" onCambiarPosicion={pantallaAncha ? cambiarPosicionBarra : null} />
-              </div>
-            </div>
-          )}
+            {/* Barra de formato arriba (no en solo lectura) */}
+            {!barraLateral && !soloLectura && (
+              <InformeFormatToolbar posicion="arriba" onCambiarPosicion={pantallaAncha ? cambiarPosicionBarra : null} />
+            )}
+          </div>
         </div>
 
-        <main className={`flex-1 bg-azulado-100 px-4 md:px-6 pb-16 ${barraLateral || soloLectura ? 'rounded-t-[2rem] pt-5' : ''}`}>
+        <main className="flex-1 bg-azulado-100 px-4 md:px-6 pb-16 pt-2">
           <div className={barraLateral ? `flex items-start justify-center gap-6 ${posicionBarra === 'derecha' ? 'flex-row-reverse' : ''}` : ''}>
           {/* Barra de formato a un costado de la hoja, fija al bajar */}
           {barraLateral && (
@@ -435,26 +444,9 @@ export default function EditorInformePage() {
             </aside>
           )}
           <div className={barraLateral ? 'w-full max-w-[850px] min-w-0' : ''}>
-          {/* Avisos de estado */}
+          {/* Avisos: el motivo de solo lectura ya está arriba; aquí, lo que pidió corregir el
+              Director y la ayuda para redactar. */}
           <div className="max-w-[850px] mx-auto space-y-3 pt-1">
-            {soloLectura && informeEnviado && (
-              <div className="flex items-start gap-3 rounded-2xl bg-emerald-50 px-4 py-3 ring-1 ring-inset ring-emerald-200">
-                <Lock className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
-                <p className="text-sm text-emerald-800">
-                  {estadoInforme === 'aprobado'
-                    ? 'Informe aprobado por el Director: el Fondo de Tiempo está finalizado. Solo lectura.'
-                    : 'Informe enviado, en espera de la revisión del Director. Ya no se puede editar, salvo que el Director solicite correcciones.'}
-                </p>
-              </div>
-            )}
-            {soloLectura && !informeEnviado && (
-              <div className="flex items-start gap-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-inset ring-azulado-300">
-                <Lock className="w-5 h-5 text-slate-500 mt-0.5 shrink-0" />
-                <p className="text-sm text-slate-700">
-                  Solo lectura: el informe lo redacta el docente del fondo mientras está en ejecución.
-                </p>
-              </div>
-            )}
             {estadoInforme === 'observado' && (
               <div className="rounded-2xl bg-red-50 px-4 py-3 ring-1 ring-inset ring-red-200">
                 <p className="text-sm font-semibold text-red-700 mb-1">El Director solicitó correcciones:</p>
@@ -474,10 +466,11 @@ export default function EditorInformePage() {
             className="max-w-[850px] mx-auto mt-4 bg-white rounded-lg ring-1 ring-azulado-300 shadow-[0_8px_30px_rgba(30,58,138,0.12)] px-8 py-10 md:px-16 md:py-12 text-slate-900"
             style={FUENTE_DOCUMENTO}
           >
-            {/* 1. Encabezado institucional */}
+            {/* 1. Encabezado institucional (en celular el logo va arriba, centrado, para no
+                montarse sobre el texto) */}
             <div className="relative mb-1 min-h-[3.2rem]">
               {logoCarrera && (
-                <img src={logoCarrera} alt="Logo de la carrera" className="absolute left-0 top-0 w-14 h-14 object-contain" />
+                <img src={logoCarrera} alt="Logo de la carrera" className="block mx-auto mb-2 w-14 h-14 object-contain md:absolute md:left-0 md:top-0 md:mb-0" />
               )}
               <InformeCampoPlano
                 value={informeData.encabezado_texto}

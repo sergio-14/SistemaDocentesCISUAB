@@ -426,8 +426,12 @@ def _validar_fondo_tiempo_contractual_doble_rol(bloques, docente_por_defecto=Non
     if not docente:
         return
 
+    # Las horas de cada carrera se cuentan una sola vez: Jefe (o Director) y docente en la misma
+    # carrera usan el mismo vínculo, y el cargo va dentro de esas horas del fondo (ver
+    # horas_semanales_contractuales). Antes se sumaban por rol y se rechazaba con 20/10.
+    carreras = {carrera.pk: carrera for _, carrera in bloques_validos}
     horas_consumidas = sum(
-        (_obtener_horas_vinculo_activo(docente, carrera) for _, carrera in bloques_validos),
+        (_obtener_horas_vinculo_activo(docente, carrera) for carrera in carreras.values()),
         Decimal('0'),
     )
 

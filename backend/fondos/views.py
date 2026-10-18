@@ -20,7 +20,7 @@ from .utils.pdf_generator import FondoPDFGenerator, InformePDFGenerator
 from .utils.informe_texto import CAMPOS_TEXTO_INFORME, construir_defaults_informe
 from .utils.informe_word import generar_informe_word
 from .utils.usuario_sugerido import sugerencias_usuario
-from .avisos import avisos_para_usuario, clave_rol, reclamar_avisos
+from .avisos import avisos_para_usuario, clave_rol, reclamar_avisos, texto_fondo_evaluado
 from .mi_cuenta import datos_mi_cuenta
 from .tiempo_real import publicar_leidos
 from .utils.informe_imagenes import ImagenInformeInvalida, carpeta_imagenes, validar_imagenes_informe
@@ -2524,21 +2524,15 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         
         # Validar datos de evaluación
         cumplimiento = request.data.get('cumplimiento', '').strip()
-        evaluacion_director = request.data.get('evaluacion_director', '').strip()
-        
+        evaluacion_director = request.data.get('evaluacion_director', '').strip()  # opcional
+
         cumplimientos_validos = ['cumplido', 'parcial', 'incumplido']
         if cumplimiento not in cumplimientos_validos:
             return Response(
                 {'error': f'Cumplimiento inválido. Valores válidos: {", ".join(cumplimientos_validos)}'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        if not evaluacion_director or len(evaluacion_director) < 30:
-            return Response(
-                {'error': 'Debe proporcionar una evaluación detallada (mínimo 30 caracteres)'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+
         # Actualizar el informe con la evaluación
         informe.estado = 'aprobado'
         informe.cumplimiento = cumplimiento
@@ -2567,14 +2561,17 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             estado_nuevo=fondo.estado
         )
 
-        # Notificar al docente que su informe fue aprobado.
+        # Notificar al docente el resultado (con la observación, si el Director la escribió).
+        texto = texto_fondo_evaluado(fondo)
+        if evaluacion_director:
+            texto += f'\n\nObservación del Director: {evaluacion_director}'
         observacion = ObservacionFondo.objects.create(
             fondo_tiempo=fondo, resuelta=True, resuelta_por=user, fecha_resolucion=timezone.now(),
         )
         MensajeObservacion.objects.create(
             observacion=observacion,
             autor=request.user,
-            texto=f'Tu Informe de Cumplimiento fue aprobado (Cumplimiento: {dict(InformeFondo.CUMPLIMIENTO_CHOICES).get(cumplimiento, cumplimiento)}).\n\n{evaluacion_director}',
+            texto=texto,
             es_admin=True,
         )
 

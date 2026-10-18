@@ -119,7 +119,7 @@ class AvisosPorRolTests(UsuariosBaseTestCase):
         self._informe_presentado()
         self._accion(self.director, 'evaluar-y-finalizar', EVALUACION)
         self._reciben({
-            self.usuario_docente: ['Tu fondo fue finalizado · Cumplimiento: cumplido'],
+            self.usuario_docente: ['Tu informe fue evaluado: Cumplido. Tu fondo de tiempo 2026 quedó finalizado.'],
             self.jefe: [f'Fondo de {self.nombre} finalizado'],
         })
 

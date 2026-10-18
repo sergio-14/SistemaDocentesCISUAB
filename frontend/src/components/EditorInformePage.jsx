@@ -1,12 +1,16 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Save, Eye, Send, Loader2, FileWarning, Lock, Download, X } from 'lucide-react';
+import { ArrowLeft, Save, Eye, Send, Loader2, FileWarning, Lock, Download, X, MessageSquare, ClipboardCheck } from 'lucide-react';
 import api, { getFondoTiempoDetalle, guardarInformeBorrador } from '../apis/api';
+import { useActiveRole } from '../contexts/activeRole';
 import { getApiErrorMessage, getDownloadErrorMessage } from '../utils/formErrors';
+import { esRevisorDelFondo } from '../utils/fondoTiempoPermissions';
 import useConsultaPeriodica from '../utils/useConsultaPeriodica';
 import useModoClaro from '../utils/useModoClaro';
 import ModalConfirmar from './common/ModalConfirmar';
+import FormularioEvaluarInforme from './FormularioEvaluarInforme';
+import ModalCorreccionesInforme from './ModalCorreccionesInforme';
 import { BLOQUE, BOTON, BOTON_DOCUMENTO } from './fondos/estilosFondo';
 import InformeCampoRico from './InformeCampoRico';
 import InformeCampoPlano from './InformeCampoPlano';
@@ -77,6 +81,7 @@ const datosVacios = () => Object.fromEntries(TODOS_LOS_CAMPOS.map((c) => [c, '']
 export default function EditorInformePage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { activeRole, effectiveUser } = useActiveRole();
 
   const [fondo, setFondo] = useState(null);
   const [informeData, setInformeData] = useState(datosVacios());
@@ -89,6 +94,8 @@ export default function EditorInformePage() {
   const [mostrarConfirmarEnvio, setMostrarConfirmarEnvio] = useState(false);
   const [ultimoGuardado, setUltimoGuardado] = useState(null);
   const [campoActivo, setCampoActivo] = useState(null);
+  // Ventana abierta por el revisor: 'correcciones' o 'evaluar'.
+  const [ventanaRevision, setVentanaRevision] = useState(null);
 
   // Como el resto del módulo de Fondo de Tiempo, solo en modo claro.
   useModoClaro();
@@ -143,6 +150,11 @@ export default function EditorInformePage() {
   // Lo decide el backend (docente dueño, fondo en ejecución, informe sin
   // enviar): Director, Jefatura y los demás lo ven en solo lectura.
   const soloLectura = !fondo?.puede_editar_informe;
+  // Informe presentado, abierto por el revisor del fondo (Director; en el fondo del
+  // Director, el superusuario): puede pedir correcciones o evaluarlo. Los demás, y en
+  // cualquier otro estado, lo ven en solo lectura.
+  const puedeRevisar = fondo?.estado === 'informe_presentado'
+    && esRevisorDelFondo(fondo, { rol: activeRole, esSuperusuario: effectiveUser?.is_superuser === true });
   const nombreDocente = fondo?.docente?.nombre_completo || '';
   const logoCarrera = fondo?.carrera?.logo_carrera || null;
 
@@ -359,6 +371,25 @@ export default function EditorInformePage() {
                     </button>
                   ))}
                 </div>
+
+                {puedeRevisar && (
+                  <div className="inline-flex items-center gap-2">
+                    <button
+                      onClick={() => setVentanaRevision('correcciones')}
+                      className={`${BOTON} text-white ring-1 ring-inset ring-white/30 hover:bg-white/10`}
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      Pedir correcciones
+                    </button>
+                    <button
+                      onClick={() => setVentanaRevision('evaluar')}
+                      className={`${BOTON} bg-white text-blue-900 font-semibold shadow-sm hover:bg-azulado-100`}
+                    >
+                      <ClipboardCheck className="w-4 h-4" />
+                      Evaluar cumplimiento
+                    </button>
+                  </div>
+                )}
 
                 {!soloLectura && (
                   <div className="inline-flex items-center gap-2">
@@ -597,6 +628,29 @@ export default function EditorInformePage() {
           textoTrabajando="Enviando..."
           onConfirmar={enviarInformeFinal}
           onCancelar={() => setMostrarConfirmarEnvio(false)}
+        />
+      )}
+
+      {/* Revisión del Director: al terminar se recarga y el informe queda en solo lectura. */}
+      {ventanaRevision === 'correcciones' && (
+        <ModalCorreccionesInforme
+          fondo={fondo}
+          onEnviado={async () => {
+            setVentanaRevision(null);
+            await cargarFondo();
+          }}
+          onCancelar={() => setVentanaRevision(null)}
+        />
+      )}
+      {ventanaRevision === 'evaluar' && (
+        <FormularioEvaluarInforme
+          fondoId={fondo.id}
+          requiereDocumentoDecanatura={Boolean(fondo.es_fondo_de_director)}
+          onInformeEvaluado={async () => {
+            setVentanaRevision(null);
+            await cargarFondo();
+          }}
+          onCancelar={() => setVentanaRevision(null)}
         />
       )}
     </InformeDocumentoContext.Provider>

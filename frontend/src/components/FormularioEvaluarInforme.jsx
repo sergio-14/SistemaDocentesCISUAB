@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
-import { ERROR_FIELD_BORDER_CLASS, MENSAJE_REVISA_CAMPOS, getApiErrorMessage } from '../utils/formErrors';
+import { MENSAJE_REVISA_CAMPOS, getApiErrorMessage } from '../utils/formErrors';
 import ModalCentrado from './common/ModalCentrado';
 import { BOTON } from './fondos/estilosFondo';
 
+// Evaluación de cumplimiento del informe (Art. 19): uno de tres resultados y una
+// observación opcional para el docente. Evaluar finaliza el fondo.
 // requiereDocumentoDecanatura: fondo del Director (lo evalúa el superusuario y, por el
 // Art. 28, el informe final se eleva a Decanatura con un PDF obligatorio).
 function FormularioEvaluarInforme({ fondoId, onInformeEvaluado, onCancelar, requiereDocumentoDecanatura = false }) {
@@ -36,10 +38,6 @@ function FormularioEvaluarInforme({ fondoId, onInformeEvaluado, onCancelar, requ
 
     if (!formData.cumplimiento) {
       nuevosErrores.cumplimiento = 'Debe seleccionar un nivel de cumplimiento';
-    }
-
-    if (!formData.evaluacion_director || formData.evaluacion_director.trim().length < 30) {
-      nuevosErrores.evaluacion_director = 'Debe proporcionar una evaluación detallada (mínimo 30 caracteres)';
     }
 
     if (requiereDocumentoDecanatura && !documentoDecanatura) {
@@ -83,18 +81,17 @@ function FormularioEvaluarInforme({ fondoId, onInformeEvaluado, onCancelar, requ
 
   const opcionesCumplimiento = [
     { value: 'cumplido', label: 'Cumplido', descripcion: 'Actividades completadas satisfactoriamente', activo: 'bg-emerald-50 text-emerald-800', punto: 'bg-emerald-500' },
-    { value: 'parcial', label: 'Parcial', descripcion: 'Cumplimiento incompleto de actividades', activo: 'bg-amber-50 text-amber-800', punto: 'bg-amber-500' },
+    { value: 'parcial', label: 'Cumplimiento parcial', descripcion: 'Cumplimiento incompleto de actividades', activo: 'bg-amber-50 text-amber-800', punto: 'bg-amber-500' },
     { value: 'incumplido', label: 'Incumplido', descripcion: 'Actividades no realizadas', activo: 'bg-red-50 text-red-800', punto: 'bg-red-400' },
   ];
-  const evaluacionCorta = formData.evaluacion_director.length < 30;
-  const envioDeshabilitado = loading || !formData.cumplimiento || evaluacionCorta;
+  const envioDeshabilitado = loading || !formData.cumplimiento;
 
   return (
     <ModalCentrado>
       <div className="w-full max-w-4xl max-h-[calc(100vh-3rem)] rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl flex flex-col overflow-hidden">
         <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
           <div>
-            <h3 className="text-xl font-bold text-blue-900">Evaluación del informe</h3>
+            <h3 className="text-xl font-bold text-blue-900">Evaluación de cumplimiento (Art. 19)</h3>
             <p className="text-sm text-slate-600">Califique el cumplimiento y finalice el fondo.</p>
           </div>
           <button
@@ -150,28 +147,21 @@ function FormularioEvaluarInforme({ fondoId, onInformeEvaluado, onCancelar, requ
               )}
             </div>
 
-            {/* Evaluación detallada */}
+            {/* Observación opcional: el docente la recibe junto con el resultado */}
             <div className="md:col-span-2 flex flex-col">
-              <label className="block text-sm font-semibold text-slate-800 mb-2 pl-1">Evaluación del Director</label>
+              <label htmlFor="evaluacion-observacion" className="block text-sm font-semibold text-slate-800 mb-2 pl-1">
+                Observación <span className="font-normal text-slate-500">(opcional)</span>
+              </label>
               <textarea
+                id="evaluacion-observacion"
                 name="evaluacion_director"
                 value={formData.evaluacion_director}
                 onChange={handleChange}
                 disabled={loading}
-                rows="10"
-                placeholder="Proporcione una evaluación objetiva y detallada del desempeño del docente. Incluya:&#10;&#10;• Análisis del cumplimiento de las actividades planificadas&#10;• Calidad del trabajo realizado&#10;• Fortalezas identificadas&#10;• Áreas de mejora&#10;• Recomendaciones para futuras gestiones"
-                className={`flex-1 w-full px-4 py-3 rounded-2xl text-sm text-slate-800 placeholder:text-slate-500 outline-none resize-none ring-1 ring-inset ring-azulado-300 focus:ring-2 focus:ring-blue-900/40 !bg-azulado-100 ${errores.evaluacion_director ? ERROR_FIELD_BORDER_CLASS : ''}`}
+                rows="7"
+                placeholder="Observación para el docente sobre el cumplimiento de su fondo de tiempo..."
+                className="flex-1 w-full px-4 py-3 rounded-2xl text-sm text-slate-800 placeholder:text-slate-500 outline-none resize-none ring-1 ring-inset ring-azulado-300 focus:ring-2 focus:ring-blue-900/40 !bg-azulado-100"
               />
-              <div className="flex justify-between items-center gap-3 mt-1.5 px-1">
-                {errores.evaluacion_director ? (
-                  <p className="text-xs text-red-600">{errores.evaluacion_director}</p>
-                ) : (
-                  <p className="text-xs text-slate-500">Mínimo 30 caracteres</p>
-                )}
-                <p className={`text-xs font-semibold tabular-nums ${evaluacionCorta ? 'text-slate-500' : 'text-emerald-600'}`}>
-                  {formData.evaluacion_director.length} caracteres
-                </p>
-              </div>
 
               {requiereDocumentoDecanatura && (
                 <div className={`mt-4 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 space-y-2 ${errores.documento_decanatura ? 'ring-2 ring-red-400/80' : ''}`}>
@@ -193,8 +183,8 @@ function FormularioEvaluarInforme({ fondoId, onInformeEvaluado, onCancelar, requ
                 </div>
               )}
 
-              <p className="mt-4 rounded-2xl bg-sky-50 px-4 py-3 text-xs text-sky-900">
-                <span className="font-semibold">Nota:</span> esta evaluación será permanente y el fondo se marcará como finalizado. La acción no puede revertirse.
+              <p className="mt-4 rounded-2xl bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-900">
+                Al confirmar, el fondo de tiempo quedará finalizado y no podrá modificarse.
               </p>
             </div>
           </div>
@@ -216,7 +206,7 @@ function FormularioEvaluarInforme({ fondoId, onInformeEvaluado, onCancelar, requ
             className={`${BOTON} px-5 py-2.5 ${envioDeshabilitado ? 'bg-slate-200 text-slate-500 cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-600 text-white'}`}
           >
             {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
-            {loading ? 'Procesando...' : 'Evaluar y finalizar'}
+            {loading ? 'Procesando...' : 'Evaluar y finalizar fondo'}
           </button>
         </div>
       </div>

@@ -63,7 +63,7 @@ AVISOS = {
     },
     'fondo_finalizado': {
         'tono': 'exito',
-        'docente': ('Tu fondo fue finalizado · Cumplimiento: {nivel}', 'Ver'),
+        'docente': ('Tu informe fue evaluado: {nivel}. Tu fondo de tiempo {gestion} quedó finalizado.', 'Ver'),
         'jefe': ('Fondo de {docente} finalizado', 'Ver'),
     },
 }
@@ -111,8 +111,18 @@ def destinatario(user, perfil, fondo):
 
 
 def _nivel_cumplimiento(fondo):
+    """Resultado de la evaluación como en la ventana de evaluación: Cumplido,
+    Cumplimiento parcial o Incumplido."""
     informe = fondo.informes.filter(tipo='parcial').order_by('-fecha_elaboracion').first()
-    return informe.get_cumplimiento_display().lower() if informe and informe.cumplimiento else 'sin registrar'
+    if not (informe and informe.cumplimiento):
+        return 'sin registrar'
+    etiqueta = informe.get_cumplimiento_display()
+    return etiqueta[:1] + etiqueta[1:].lower()
+
+
+def texto_fondo_evaluado(fondo):
+    """Mensaje al docente cuando el Director evalúa su informe (el aviso y el chat del fondo)."""
+    return AVISOS['fondo_finalizado']['docente'][0].format(nivel=_nivel_cumplimiento(fondo), gestion=fondo.gestion)
 
 
 def aviso_de_evento(historial, papel):

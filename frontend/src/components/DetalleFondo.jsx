@@ -9,7 +9,6 @@ import { Pencil as PencilIcon, Trash2 as TrashIcon } from 'lucide-react';
 import { useActiveRole } from '../contexts/activeRole';
 import FormularioObservar from './FormularioObservar';
 import BotonFlotanteObservaciones from './BotonFlotanteObservaciones';
-import FormularioEvaluarInforme from './FormularioEvaluarInforme';
 import CargaHorariaManager from './CargaHorariaManager';
 import ModalCentrado from './common/ModalCentrado';
 import ModalConfirmar from './common/ModalConfirmar';
@@ -21,6 +20,7 @@ import DocumentoActividadAccion from './fondos/DocumentoActividadAccion';
 import { BLOQUE, BOTON, BOTON_DOCUMENTO, ORDEN_UNIDADES, colorUnidad, estadoVisibleFondo } from './fondos/estilosFondo';
 import { Avatar, BarraProgreso, EstadoPill, Etiqueta, EtiquetaFueraDePlazo } from './fondos/ElementosFondo';
 import { avisoDeEspera } from '../utils/avisoDeEspera';
+import { esRevisorDelFondo as esRevisor } from '../utils/fondoTiempoPermissions';
 import { getApiErrorMessage, getDownloadErrorMessage } from '../utils/formErrors';
 import { ZONA_HORARIA_BOLIVIA } from '../utils/fechas';
 import useConsultaConRespaldo, { useFondoActualizado } from '../tiempoReal/useTiempoReal';
@@ -92,7 +92,6 @@ function DetalleFondo() {
   const [mostrarModalAprobar, setMostrarModalAprobar] = useState(false);
   const [documentoDecanatura, setDocumentoDecanatura] = useState(null);
   const observacionesRef = useRef();
-  const [mostrarFormEvaluarInforme, setMostrarFormEvaluarInforme] = useState(false);
   const [mostrarModalIniciarEjecucion, setMostrarModalIniciarEjecucion] = useState(false);
   // Carga que se corrige en su fila de la tabla: solo horas (y descripción en "Otros").
   // { id, horas, titulo, esOtros, error, guardando }
@@ -112,25 +111,12 @@ function DetalleFondo() {
   const prevTotalesCategoriasRef = useRef({});
   const estadoFondoRef = useRef(null);
   const observacionesPendientesRef = useRef(0);
-  // La redacción/edición del Informe de Cumplimiento vive ahora en una página
-  // dedicada (EditorInformePage.jsx, ruta /fondos/:id/informe) en vez de un
-  // modal aquí (se ve con "Ver informe"). Solo queda aquí
-  // el flujo de correcciones del Director.
-  const [mostrarModalObservarInforme, setMostrarModalObservarInforme] = useState(false);
-  const [comentarioObservarInforme, setComentarioObservarInforme] = useState('');
-  const [enviandoObservacionInforme, setEnviandoObservacionInforme] = useState(false);
-
   // iiisyp es solo lectura: no puede aprobar ni gestionar fondos
   const rolOperativo = activeRole || activeAssignment?.rol || effectiveUser?.perfil?.rol || usuarioActual?.perfil?.rol;
   const esSuperAdmin = usuarioActual?.is_superuser === true;
   const esDirector = rolOperativo === 'director';
   const esJefeEstudios = rolOperativo === 'jefe_estudios';
-  const esIisyp = rolOperativo === 'iiisyp';
-  // Nadie revisa (aprueba, observa, inicia o evalúa) su propio fondo; el fondo del
-  // Director de la carrera lo revisa el superusuario con el documento de la Decanatura.
-  const esRevisorDelFondo = Boolean(fondo) && !fondo.es_fondo_propio && (
-    fondo.es_fondo_de_director ? esSuperAdmin : (esDirector && !esIisyp)
-  );
+  const esRevisorDelFondo = esRevisor(fondo, { rol: rolOperativo, esSuperusuario: esSuperAdmin });
   const requiereDocumentoDecanatura = Boolean(fondo?.es_fondo_de_director);
   const puedeGestionarCarga = esSuperAdmin || esJefeEstudios;
   const soloLecturaPorRol = !puedeGestionarCarga;
@@ -139,27 +125,6 @@ function DetalleFondo() {
   const fondoPresentadoADirector = fondo?.estado === 'presentado_director' && (esJefeEstudios || esSuperAdmin);
   // Un fondo rechazado vuelve a borrador para corregirlo (Jefe de su carrera o superusuario).
   const puedeVolverABorrador = fondo?.estado === 'rechazado' && (esJefeEstudios || esSuperAdmin);
-
-  const solicitarCorreccionesInforme = async () => {
-    if (comentarioObservarInforme.trim().length < 10) {
-      toast.error('Debes explicar qué debe corregir el docente (mínimo 10 caracteres).');
-      return;
-    }
-    try {
-      setEnviandoObservacionInforme(true);
-      await api.post(`/fondos-tiempo/${fondo.id}/observar-informe/`, { comentario: comentarioObservarInforme.trim() });
-      toast.success('Se solicitaron correcciones al docente.');
-      setMostrarModalObservarInforme(false);
-      setComentarioObservarInforme('');
-      await cargarDetalle({ silencioso: true });
-    } catch (err) {
-      console.error('Error al observar informe:', err);
-      toast.error(getApiErrorMessage(err, 'No se pudo enviar la solicitud de corrección'));
-    } finally {
-      setEnviandoObservacionInforme(false);
-    }
-  };
-
 
   useEffect(() => {
     estadoFondoRef.current = null;
@@ -182,7 +147,6 @@ function DetalleFondo() {
   useEffect(() => {
     setUnidadesOcultas(new Set());
     setMostrarFormObservar(false);
-    setMostrarFormEvaluarInforme(false);
     setMostrarModalAprobar(false);
     setMostrarModalIniciarEjecucion(false);
   }, [id]);
@@ -191,7 +155,6 @@ function DetalleFondo() {
   useEffect(() => {
     return () => {
       setMostrarFormObservar(false);
-      setMostrarFormEvaluarInforme(false);
       setMostrarModalAprobar(false);
       setMostrarModalIniciarEjecucion(false);
     };
@@ -1053,36 +1016,17 @@ function DetalleFondo() {
                   </button>
                 )}
 
-                {/* Informe presentado o aprobado: solo lectura y PDF para todo el que ve el
-                    fondo (el backend ya limita el detalle: docente dueño, Jefe, Director e
-                    Instituto de la carrera, superusuario). */}
+                {/* Informe presentado o evaluado: se abre en su página. El revisor del fondo
+                    (Director; en el fondo del Director, el superusuario) lo revisa allí, con
+                    "Pedir correcciones" y "Evaluar cumplimiento"; los demás, y todos una vez
+                    finalizado, lo ven en solo lectura (el backend ya limita quién ve el fondo). */}
                 {['informe_presentado', 'finalizado'].includes(fondo.estado) && (
                   <button
                     onClick={() => window.open(`/fondos/${fondo.id}/informe`, '_blank', 'noopener,noreferrer')}
                     className={`${ACCION} bg-blue-900 hover:bg-blue-950 text-white`}
                   >
-                    Ver informe
+                    {fondo.estado === 'informe_presentado' && esRevisorDelFondo ? 'Revisar informe' : 'Ver informe'}
                   </button>
-                )}
-
-                {/* ADMIN: Evaluar Informe */}
-                {fondo.estado === 'informe_presentado' && esRevisorDelFondo && (
-                  <>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={() => setMostrarModalObservarInforme(true)}
-                        className={`${ACCION} bg-sky-600 hover:bg-sky-700 text-white`}
-                      >
-                        Correcciones
-                      </button>
-                      <button
-                        onClick={() => setMostrarFormEvaluarInforme(true)}
-                        className={`${ACCION} bg-emerald-500 hover:bg-emerald-600 text-white`}
-                      >
-                        Aprobar
-                      </button>
-                    </div>
-                  </>
                 )}
 
                 <button
@@ -1394,19 +1338,6 @@ function DetalleFondo() {
         />
       )}
 
-      {/* Modal Evaluar Informe */}
-      {fondo && mostrarFormEvaluarInforme && (
-        <FormularioEvaluarInforme
-          fondoId={fondo.id}
-          requiereDocumentoDecanatura={requiereDocumentoDecanatura}
-          onInformeEvaluado={async () => {
-            setMostrarFormEvaluarInforme(false);
-            await cargarDetalle({ silencioso: true });
-          }}
-          onCancelar={() => setMostrarFormEvaluarInforme(false)}
-        />
-      )}
-
       {cargaPorEliminar && (() => {
         const { detalle, categoria } = cargaPorEliminar;
         const horas = Number(detalle.horas || 0);
@@ -1479,50 +1410,6 @@ function DetalleFondo() {
           onConfirmar={iniciarEjecucionHandler}
           onCancelar={() => setMostrarModalIniciarEjecucion(false)}
         />
-      )}
-
-      {/* Modal Solicitar Correcciones al Informe */}
-      {mostrarModalObservarInforme && (
-        <ModalCentrado>
-          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
-            <div className="px-6 pt-6">
-              <h3 className="text-xl font-bold text-blue-900">Solicitar correcciones al informe</h3>
-              <p className="mt-1 text-sm text-slate-600">
-                Explique qué debe corregir <strong className="text-blue-900">{fondo.docente?.nombre_completo}</strong>. El informe volverá a estado editable para que lo actualice y lo reenvíe.
-              </p>
-            </div>
-            <div className="px-6 py-4">
-              <textarea
-                value={comentarioObservarInforme}
-                onChange={(e) => setComentarioObservarInforme(e.target.value)}
-                rows={5}
-                disabled={enviandoObservacionInforme}
-                placeholder="Ej: Falta detallar los resultados por materia en la sección Académica..."
-                className="w-full px-4 py-3 rounded-2xl text-sm text-slate-800 placeholder:text-slate-500 outline-none resize-none ring-1 ring-inset ring-azulado-300 focus:ring-2 focus:ring-blue-900/40 !bg-azulado-100"
-              />
-              <p className="mt-1.5 pl-1 text-xs text-slate-500">Mínimo 10 caracteres.</p>
-            </div>
-            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 pb-6">
-              <button
-                onClick={() => { setMostrarModalObservarInforme(false); setComentarioObservarInforme(''); }}
-                disabled={enviandoObservacionInforme}
-                className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200 disabled:opacity-50`}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={solicitarCorreccionesInforme}
-                disabled={enviandoObservacionInforme || comentarioObservarInforme.trim().length < 10}
-                className={`${BOTON} px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                {enviandoObservacionInforme && (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                )}
-                Enviar solicitud
-              </button>
-            </div>
-          </div>
-        </ModalCentrado>
       )}
 
     </div>

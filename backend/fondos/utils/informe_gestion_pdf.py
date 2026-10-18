@@ -75,15 +75,20 @@ def datos_informe_gestion(carrera, gestion):
         .annotate(asignado=Sum('cargas__horas'))
         .order_by('docente__apellido_paterno', 'docente__apellido_materno', 'docente__nombres')
     )
-    # Evaluación del informe (Art. 19), la del último informe de cada fondo; solo cuenta con
-    # el fondo finalizado (evaluar y finalizar van juntos).
+    # Evaluación del informe (Art. 19), la del último informe de cada fondo: con el fondo
+    # finalizado, el resultado; evaluado sin finalizar, el resultado "(sin finalizar)".
     evaluaciones = {}
     informes = InformeFondo.objects.filter(fondo_tiempo__in=fondos, tipo='parcial').order_by('fecha_elaboracion', 'id')
     for informe in informes:  # el último de cada fondo queda al final
         evaluaciones[informe.fondo_tiempo_id] = informe.get_cumplimiento_display() if informe.cumplimiento else ''
 
     def evaluacion(fondo):
-        return (fondo.estado == 'finalizado' and evaluaciones.get(fondo.pk)) or PENDIENTE_EVALUACION
+        resultado = evaluaciones.get(fondo.pk)
+        if resultado and fondo.estado == 'finalizado':
+            return resultado
+        if resultado and fondo.estado == 'informe_evaluado':
+            return f'{resultado} (sin finalizar)'  # sigue contando como pendiente
+        return PENDIENTE_EVALUACION
 
     filas = [
         {

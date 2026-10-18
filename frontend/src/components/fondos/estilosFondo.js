@@ -17,6 +17,7 @@ export const ESTADOS_FONDO = {
   aprobado_director: { label: 'Aprobado por Director', pill: 'bg-blue-50 text-blue-900 ring-blue-200', dot: 'bg-blue-700' },
   en_ejecucion: { label: 'En ejecución', pill: 'bg-cyan-50 text-cyan-800 ring-cyan-200', dot: 'bg-cyan-600' },
   informe_presentado: { label: 'Informe presentado', pill: 'bg-indigo-50 text-indigo-800 ring-indigo-200', dot: 'bg-indigo-500' },
+  informe_evaluado: { label: 'Informe evaluado', pill: 'bg-sky-50 text-sky-800 ring-sky-200', dot: 'bg-sky-600' },
   // No es un estado del fondo: en ejecución con el informe observado (ver estadoVisibleFondo).
   informe_observado: { label: 'Informe observado', pill: 'bg-orange-50 text-orange-800 ring-orange-200', dot: 'bg-orange-500' },
   finalizado: { label: 'Finalizado', pill: 'bg-emerald-50 text-emerald-800 ring-emerald-200', dot: 'bg-emerald-600' },

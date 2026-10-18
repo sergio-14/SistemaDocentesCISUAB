@@ -143,7 +143,8 @@ class AutoaprobacionTests(UsuariosBaseTestCase):
             'aprobar': ('presentado_director', 'aprobar', {}),
             'observar': ('presentado_director', 'observar', {'accion': 'observar', 'observacion': 'x'}),
             'iniciar': ('aprobado_director', 'iniciar_ejecucion', {}),
-            'evaluar': ('informe_presentado', 'evaluar-y-finalizar', {}),
+            'evaluar': ('informe_presentado', 'evaluar-informe', {}),
+            'finalizar': ('informe_evaluado', 'finalizar', {}),
             'observar informe': ('informe_presentado', 'observar-informe', {'comentario': 'x'}),
         }
         for accion, (estado, ruta, datos) in acciones.items():
@@ -213,37 +214,42 @@ class AutoaprobacionTests(UsuariosBaseTestCase):
         self._estado(fondo, 'informe_presentado')
         InformeFondo.objects.create(fondo_tiempo=fondo, elaborado_por=self.superuser, tipo='parcial')
 
-    def test_evaluar_el_fondo_del_director_exige_el_pdf_de_decanatura(self):
+    def test_finalizar_el_fondo_del_director_exige_el_pdf_de_decanatura(self):
+        # Art. 28: el documento de la Decanatura se adjunta al finalizar, no al evaluar.
         self._con_informe(self.fondo_director)
         self.client.force_authenticate(self.superuser)
-        url = f'/api/fondos-tiempo/{self.fondo_director.pk}/evaluar-y-finalizar/'
         evaluacion = {'cumplimiento': 'cumplido', 'evaluacion_director': 'Cumplió todas las actividades planificadas en la gestión.'}
+        evaluar = self.client.post(f'/api/fondos-tiempo/{self.fondo_director.pk}/evaluar-informe/', evaluacion, format='json')
+        self.assertEqual(evaluar.status_code, status.HTTP_200_OK, evaluar.data)
+        url = f'/api/fondos-tiempo/{self.fondo_director.pk}/finalizar/'
 
-        sin_pdf = self.client.post(url, evaluacion, format='multipart')
-        no_pdf = self.client.post(url, {**evaluacion, 'documento_decanatura': _pdf('nota.pdf', b'texto plano')}, format='multipart')
+        sin_pdf = self.client.post(url, {}, format='multipart')
+        no_pdf = self.client.post(url, {'documento_decanatura': _pdf('nota.pdf', b'texto plano')}, format='multipart')
         self.assertEqual(sin_pdf.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('documento_decanatura', sin_pdf.data)
         self.assertEqual(no_pdf.status_code, status.HTTP_400_BAD_REQUEST)
         self.fondo_director.refresh_from_db()
-        self.assertEqual(self.fondo_director.estado, 'informe_presentado')
+        self.assertEqual(self.fondo_director.estado, 'informe_evaluado')
 
-        response = self.client.post(url, {**evaluacion, 'documento_decanatura': _pdf('informe.pdf')}, format='multipart')
+        response = self.client.post(url, {'documento_decanatura': _pdf('informe.pdf')}, format='multipart')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.fondo_director.refresh_from_db()
         self.assertEqual(self.fondo_director.estado, 'finalizado')
         self.assertTrue(self.fondo_director.documento_decanatura_informe.name.endswith('.pdf'))
 
-    def test_evaluar_el_fondo_de_un_docente_no_pide_pdf(self):
+    def test_evaluar_y_finalizar_el_fondo_de_un_docente_no_pide_pdf(self):
         self._con_informe(self.fondo_comun)
         self.client.force_authenticate(self.director)
 
-        response = self.client.post(
-            f'/api/fondos-tiempo/{self.fondo_comun.pk}/evaluar-y-finalizar/',
+        evaluar = self.client.post(
+            f'/api/fondos-tiempo/{self.fondo_comun.pk}/evaluar-informe/',
             {'cumplimiento': 'cumplido', 'evaluacion_director': 'Cumplió todas las actividades planificadas en la gestión.'},
             format='json',
         )
+        response = self.client.post(f'/api/fondos-tiempo/{self.fondo_comun.pk}/finalizar/', {}, format='json')
 
+        self.assertEqual(evaluar.status_code, status.HTTP_200_OK, evaluar.data)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.fondo_comun.refresh_from_db()
         self.assertEqual(self.fondo_comun.estado, 'finalizado')
@@ -255,7 +261,7 @@ class AutoaprobacionTests(UsuariosBaseTestCase):
         self.client.force_authenticate(director_ajeno)
 
         response = self.client.post(
-            f'/api/fondos-tiempo/{self.fondo_comun.pk}/evaluar-y-finalizar/',
+            f'/api/fondos-tiempo/{self.fondo_comun.pk}/evaluar-informe/',
             {'cumplimiento': 'cumplido', 'evaluacion_director': 'Cumplió todas las actividades planificadas en la gestión.'},
             format='json',
         )
@@ -278,7 +284,7 @@ class AutoaprobacionTests(UsuariosBaseTestCase):
         casos = ((self.fondo_comun, status.HTTP_404_NOT_FOUND), (fondo_propio, status.HTTP_403_FORBIDDEN))
         for fondo, esperado in casos:
             with self.subTest(fondo=fondo.pk):
-                response = self.client.post(f'/api/fondos-tiempo/{fondo.pk}/evaluar-y-finalizar/', evaluacion, format='json')
+                response = self.client.post(f'/api/fondos-tiempo/{fondo.pk}/evaluar-informe/', evaluacion, format='json')
 
                 self.assertEqual(response.status_code, esperado)
                 fondo.refresh_from_db()

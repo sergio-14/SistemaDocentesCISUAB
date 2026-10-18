@@ -6,17 +6,16 @@ import ModalCentrado from './common/ModalCentrado';
 import { BOTON } from './fondos/estilosFondo';
 
 // Evaluación de cumplimiento del informe (Art. 19): uno de tres resultados y una
-// observación opcional para el docente. Evaluar finaliza el fondo.
-// requiereDocumentoDecanatura: fondo del Director (lo evalúa el superusuario y, por el
-// Art. 28, el informe final se eleva a Decanatura con un PDF obligatorio).
-function FormularioEvaluarInforme({ fondoId, onInformeEvaluado, onCancelar, requiereDocumentoDecanatura = false }) {
+// observación opcional para el docente. Solo la guarda (el fondo pasa a "Informe
+// evaluado"); se puede cambiar hasta que el fondo se finalice desde su panel.
+// evaluacionInicial: la ya guardada, al cambiarla ({ cumplimiento, evaluacion_director }).
+function FormularioEvaluarInforme({ fondoId, evaluacionInicial = null, onInformeEvaluado, onCancelar }) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    cumplimiento: '',
-    evaluacion_director: ''
+    cumplimiento: evaluacionInicial?.cumplimiento || '',
+    evaluacion_director: evaluacionInicial?.evaluacion_director || '',
   });
   const [errores, setErrores] = useState({});
-  const [documentoDecanatura, setDocumentoDecanatura] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -40,10 +39,6 @@ function FormularioEvaluarInforme({ fondoId, onInformeEvaluado, onCancelar, requ
       nuevosErrores.cumplimiento = 'Debe seleccionar un nivel de cumplimiento';
     }
 
-    if (requiereDocumentoDecanatura && !documentoDecanatura) {
-      nuevosErrores.documento_decanatura = 'Adjunte el documento de la Decanatura (PDF).';
-    }
-
     setErrores(nuevosErrores);
     return Object.keys(nuevosErrores).length === 0;
   };
@@ -59,17 +54,8 @@ function FormularioEvaluarInforme({ fondoId, onInformeEvaluado, onCancelar, requ
     setLoading(true);
 
     try {
-      if (requiereDocumentoDecanatura) {
-        const payload = new FormData();
-        Object.entries(formData).forEach(([clave, valor]) => payload.append(clave, valor));
-        payload.append('documento_decanatura', documentoDecanatura);
-        await api.post(`/fondos-tiempo/${fondoId}/evaluar-y-finalizar/`, payload, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-      } else {
-        await api.post(`/fondos-tiempo/${fondoId}/evaluar-y-finalizar/`, formData);
-      }
-      toast.success('Informe evaluado y fondo finalizado exitosamente');
+      await api.post(`/fondos-tiempo/${fondoId}/evaluar-informe/`, formData);
+      toast.success('Evaluación guardada.');
       onInformeEvaluado();
     } catch (err) {
       console.error('Error al evaluar informe:', err);
@@ -92,7 +78,7 @@ function FormularioEvaluarInforme({ fondoId, onInformeEvaluado, onCancelar, requ
         <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
           <div>
             <h3 className="text-xl font-bold text-blue-900">Evaluación de cumplimiento (Art. 19)</h3>
-            <p className="text-sm text-slate-600">Califique el cumplimiento y finalice el fondo.</p>
+            <p className="text-sm text-slate-600">Califique el cumplimiento del informe.</p>
           </div>
           <button
             onClick={onCancelar}
@@ -162,30 +148,6 @@ function FormularioEvaluarInforme({ fondoId, onInformeEvaluado, onCancelar, requ
                 placeholder="Observación para el docente sobre el cumplimiento de su fondo de tiempo..."
                 className="flex-1 w-full px-4 py-3 rounded-2xl text-sm text-slate-800 placeholder:text-slate-500 outline-none resize-none ring-1 ring-inset ring-azulado-300 focus:ring-2 focus:ring-blue-900/40 !bg-azulado-100"
               />
-
-              {requiereDocumentoDecanatura && (
-                <div className={`mt-4 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 space-y-2 ${errores.documento_decanatura ? 'ring-2 ring-red-400/80' : ''}`}>
-                  <p className="font-semibold">Fondo del Director de la carrera (Art. 28)</p>
-                  <p>El informe final se eleva a Decanatura: adjunte su documento (PDF, obligatorio).</p>
-                  <input
-                    type="file"
-                    accept="application/pdf,.pdf"
-                    disabled={loading}
-                    onChange={(e) => {
-                      setDocumentoDecanatura(e.target.files?.[0] || null);
-                      setErrores((prev) => ({ ...prev, documento_decanatura: '' }));
-                    }}
-                    className="block w-full text-xs file:mr-3 file:rounded-full file:border-0 file:bg-amber-100 file:px-3 file:py-1.5 file:font-semibold file:text-amber-800"
-                  />
-                  {errores.documento_decanatura && (
-                    <p className="text-xs text-red-600">{errores.documento_decanatura}</p>
-                  )}
-                </div>
-              )}
-
-              <p className="mt-4 rounded-2xl bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-900">
-                Al confirmar, el fondo de tiempo quedará finalizado y no podrá modificarse.
-              </p>
             </div>
           </div>
         </div>
@@ -206,7 +168,7 @@ function FormularioEvaluarInforme({ fondoId, onInformeEvaluado, onCancelar, requ
             className={`${BOTON} px-5 py-2.5 ${envioDeshabilitado ? 'bg-slate-200 text-slate-500 cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-600 text-white'}`}
           >
             {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
-            {loading ? 'Procesando...' : 'Evaluar y finalizar fondo'}
+            {loading ? 'Guardando...' : 'Guardar evaluación'}
           </button>
         </div>
       </div>

@@ -259,10 +259,21 @@ class AvisosPorSocketTests(SocketBaseTests):
             },
         )
 
-    async def test_director_evalua_y_finaliza(self):
+    def _informe_evaluado(self):
+        self._estado('informe_presentado', informe=True)
+        self._accion(self.director, 'evaluar-informe', EVALUACION)
+
+    async def test_director_evalua_sin_aviso(self):
         await self._fila(
             lambda: self._estado('informe_presentado', informe=True),
-            lambda: self._accion(self.director, 'evaluar-y-finalizar', EVALUACION),
+            lambda: self._accion(self.director, 'evaluar-informe', EVALUACION),
+            {},
+        )
+
+    async def test_director_finaliza_el_fondo(self):
+        await self._fila(
+            self._informe_evaluado,
+            lambda: self._accion(self.director, 'finalizar'),
             {
                 self.usuario_docente: 'Tu informe fue evaluado: Cumplido. Tu fondo de tiempo 2026 quedó finalizado.',
                 self.jefe: f'Fondo de {self.nombre} finalizado',

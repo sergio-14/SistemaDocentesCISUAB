@@ -222,6 +222,7 @@ class FondoTiempoAdmin(admin.ModelAdmin):
             'revision_director': '#f59e0b',
             'aprobado_director': '#10b981',
             'en_ejecucion': '#8b5cf6',
+            'informe_evaluado': '#0284c7',
             'finalizado': '#059669',
             'observado': '#ef4444',
             'rechazado': '#dc2626',

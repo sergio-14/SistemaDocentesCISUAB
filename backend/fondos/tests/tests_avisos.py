@@ -115,9 +115,11 @@ class AvisosPorRolTests(UsuariosBaseTestCase):
             self.jefe: [f'Informe de {self.nombre} observado'],
         })
 
-    def test_director_evalua_y_finaliza(self):
+    def test_director_evalua_sin_aviso_y_al_finalizar_avisa_el_resultado(self):
         self._informe_presentado()
-        self._accion(self.director, 'evaluar-y-finalizar', EVALUACION)
+        self._accion(self.director, 'evaluar-informe', EVALUACION)
+        self._reciben({})  # evaluar solo guarda el resultado: nadie recibe aviso
+        self._accion(self.director, 'finalizar')
         self._reciben({
             self.usuario_docente: ['Tu informe fue evaluado: Cumplido. Tu fondo de tiempo 2026 quedó finalizado.'],
             self.jefe: [f'Fondo de {self.nombre} finalizado'],
@@ -206,7 +208,8 @@ class AvisosPorRolTests(UsuariosBaseTestCase):
             'seccion_academica': '<p>Dicté mis materias.</p>', 'conclusiones_generales': '<p>Cumplí lo planificado.</p>',
         })
         presentado = HistorialFondo.objects.filter(fondo_tiempo=self.fondo, estado_nuevo='informe_presentado').latest('id')
-        self._accion(self.director, 'evaluar-y-finalizar', EVALUACION)
+        self._accion(self.director, 'evaluar-informe', EVALUACION)
+        self._accion(self.director, 'finalizar')
 
         self.assertEqual(self._avisos(self.jefe), [f'Fondo de {self.nombre} finalizado'])
         self.assertEqual(self._reclamar(self.jefe, [presentado.pk]), [])

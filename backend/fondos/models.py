@@ -129,6 +129,7 @@ ESTADOS_FONDO_BLOQUEADOS = [
     'aprobado_director',
     'en_ejecucion',
     'informe_presentado',
+    'informe_evaluado',
     'finalizado',
     'archivado',
 ]
@@ -904,6 +905,8 @@ class FondoTiempo(models.Model):
         ('aprobado_director', 'Aprobado por Director de Carrera'),
         ('en_ejecucion', 'En Ejecución'),
         ('informe_presentado', 'Informe Presentado'),
+        # Evaluado por el Director (Art. 19); la evaluación se puede cambiar hasta finalizar.
+        ('informe_evaluado', 'Informe Evaluado'),
         ('finalizado', 'Finalizado'),
         ('rechazado', 'Rechazado'),
         ('archivado', 'Archivado'),
@@ -1259,7 +1262,9 @@ class FondoTiempo(models.Model):
             ('rechazado', 'borrador'),
             ('aprobado_director', 'en_ejecucion'),
             ('en_ejecucion', 'informe_presentado'),
-            ('informe_presentado', 'finalizado'),
+            # Evaluar el informe y finalizar el fondo son dos pasos.
+            ('informe_presentado', 'informe_evaluado'),
+            ('informe_evaluado', 'finalizado'),
             # El Director solicita correcciones al informe: vuelve a ejecucion
             # para que el docente pueda editarlo y reenviarlo.
             ('informe_presentado', 'en_ejecucion'),
@@ -1958,6 +1963,7 @@ class HistorialFondo(models.Model):
         ('rechazo', 'Rechazo'),
         ('inicio_ejecucion', 'Inicio de Ejecución'),
         ('informe_presentado', 'Informe Presentado'),
+        ('evaluacion', 'Evaluación del Informe'),
         ('finalizacion', 'Finalización'),
         ('archivado', 'Archivado'),
     ]

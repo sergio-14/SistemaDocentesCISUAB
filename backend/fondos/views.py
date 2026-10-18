@@ -2470,70 +2470,45 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         return Response(output_serializer.data)
 
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated], url_path='evaluar-y-finalizar')
+    def _revisor_evaluacion(self, request, fondo, accion):
+        """Evaluar el informe y finalizar el fondo: el Director de la carrera (el fondo del
+        Director, el superusuario; Art. 19). Devuelve True si actúa el superusuario."""
+        perfil = _obtener_perfil_efectivo(request.user, request)
+        actua_superusuario = _validar_revisor_del_fondo(request, fondo, accion)
+        if not actua_superusuario and not (
+            perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(request.user, fondo.carrera, request)
+        ):
+            raise PermissionDenied(f'Solo el Director de la carrera correspondiente puede {accion} el fondo.')
+        return actua_superusuario
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated], url_path='evaluar-informe')
     @transaction.atomic
-    def evaluar_y_finalizar(self, request, pk=None):
-        """
-        Evaluar informe y finalizar el ciclo del fondo
-        Solo el Director de Carrera puede hacerlo (Art. 19)
-        Estado: informe_presentado → finalizado
-        """
+    def evaluar_informe(self, request, pk=None):
+        """Evaluación de cumplimiento del informe (Art. 19): Cumplido, Cumplimiento parcial o
+        Incumplido y una observación opcional. Solo la guarda: informe_presentado →
+        informe_evaluado. Mientras el fondo no se finalice se puede cambiar (vuelve a llamarse
+        en informe_evaluado). El docente no la ve ni recibe aviso hasta que se finaliza."""
         fondo = self.get_object()
-        user = request.user
-        try:
-            perfil = _obtener_perfil_efectivo(user, request)
-        except Exception:
-            perfil = None
+        self._revisor_evaluacion(request, fondo, 'evaluar')
 
-        # REGLA: Solo el Director de la carrera correspondiente puede evaluar
-        # (el fondo del Director lo evalúa el superusuario).
-        evalua_superusuario = _validar_revisor_del_fondo(request, fondo, 'evaluar')
-        if not evalua_superusuario:
-            if not (perfil and perfil.rol == 'director' and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, request)):
-                raise PermissionDenied("Solo el Director de la carrera correspondiente puede evaluar y finalizar el fondo.")
-
-        # Art. 28: el informe final del Director se eleva a Decanatura.
-        documento_decanatura = None
-        if evalua_superusuario:
-            documento_decanatura = request.FILES.get('documento_decanatura')
-            if not documento_decanatura:
-                return Response(
-                    {'documento_decanatura': 'Adjunte el documento de la Decanatura (PDF) para evaluar y finalizar el fondo del Director.'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            if not _es_pdf(documento_decanatura):
-                return Response(
-                    {'documento_decanatura': 'El documento de la Decanatura debe ser un archivo PDF.'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-        
-        # Validar estado actual
-        if fondo.estado != 'informe_presentado':
+        if fondo.estado not in ('informe_presentado', 'informe_evaluado'):
             return Response(
-                {'error': f'Solo se pueden evaluar fondos con informe presentado. Estado actual: {fondo.get_estado_display()}'},
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': f'Solo se puede evaluar un informe presentado. Estado actual: {fondo.get_estado_display()}.'},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        
-        # Validar que exista al menos un informe
         informe = fondo.informes.filter(tipo='parcial').order_by('-fecha_elaboracion').first()
         if not informe:
-            return Response(
-                {'error': 'No se encontró informe asociado al fondo'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Validar datos de evaluación
-        cumplimiento = request.data.get('cumplimiento', '').strip()
-        evaluacion_director = request.data.get('evaluacion_director', '').strip()  # opcional
+            return Response({'error': 'No se encontró informe asociado al fondo.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        cumplimientos_validos = ['cumplido', 'parcial', 'incumplido']
-        if cumplimiento not in cumplimientos_validos:
+        cumplimiento = (request.data.get('cumplimiento') or '').strip()
+        evaluacion_director = (request.data.get('evaluacion_director') or '').strip()  # opcional
+        if cumplimiento not in dict(InformeFondo.CUMPLIMIENTO_CHOICES):
             return Response(
-                {'error': f'Cumplimiento inválido. Valores válidos: {", ".join(cumplimientos_validos)}'},
-                status=status.HTTP_400_BAD_REQUEST
+                {'cumplimiento': 'Elija el resultado: Cumplido, Cumplimiento parcial o Incumplido.'},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Actualizar el informe con la evaluación
+        cambio = fondo.estado == 'informe_evaluado'
         informe.estado = 'aprobado'
         informe.cumplimiento = cumplimiento
         informe.evaluacion_director = evaluacion_director
@@ -2541,7 +2516,52 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         informe.fecha_evaluacion = timezone.localdate()
         informe.save()
 
-        # Cambiar estado del fondo a finalizado
+        estado_anterior = fondo.estado
+        if not cambio:
+            fondo.estado = 'informe_evaluado'
+            fondo.save()
+        # Sin el resultado en la descripción: el historial lo lee también el docente.
+        HistorialFondo.objects.create(
+            fondo_tiempo=fondo,
+            usuario=request.user,
+            tipo_cambio='evaluacion',
+            descripcion='Evaluación del informe cambiada' if cambio else 'Informe evaluado, pendiente de finalización',
+            estado_anterior=estado_anterior,
+            estado_nuevo=fondo.estado,
+        )
+        return Response(FondoTiempoDetalleSerializer(fondo, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated], url_path='finalizar')
+    @transaction.atomic
+    def finalizar(self, request, pk=None):
+        """Finaliza el fondo con el informe ya evaluado: informe_evaluado → finalizado. Desde
+        aquí solo se consulta (el chat queda de solo lectura) y el docente recibe el resultado.
+        El fondo del Director lo finaliza el superusuario con el documento de la Decanatura
+        (Art. 28: el informe final se eleva a Decanatura)."""
+        fondo = self.get_object()
+        user = request.user
+        finaliza_superusuario = self._revisor_evaluacion(request, fondo, 'finalizar')
+
+        if fondo.estado != 'informe_evaluado':
+            return Response(
+                {'error': f'Solo se puede finalizar un fondo con el informe evaluado. Estado actual: {fondo.get_estado_display()}.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        documento_decanatura = None
+        if finaliza_superusuario:
+            documento_decanatura = request.FILES.get('documento_decanatura')
+            if not documento_decanatura:
+                return Response(
+                    {'documento_decanatura': 'Adjunte el documento de la Decanatura (PDF) para finalizar el fondo del Director.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if not _es_pdf(documento_decanatura):
+                return Response(
+                    {'documento_decanatura': 'El documento de la Decanatura debe ser un archivo PDF.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        informe = fondo.informes.filter(tipo='parcial').order_by('-fecha_elaboracion').first()
+
         estado_anterior = fondo.estado
         # Al finalizar no queda ninguna observación pendiente; el chat queda de solo lectura.
         fondo.resolver_observaciones_pendientes(user)
@@ -2551,37 +2571,25 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             fondo.documento_decanatura_informe = documento_decanatura
         fondo.save()
 
-        # Registrar en historial
         HistorialFondo.objects.create(
             fondo_tiempo=fondo,
-            usuario=request.user,
+            usuario=user,
             tipo_cambio='finalizacion',
-            descripcion=f'Fondo evaluado y finalizado - Cumplimiento: {cumplimiento}',
+            descripcion=f'Fondo finalizado - Cumplimiento: {informe.get_cumplimiento_display()}',
             estado_anterior=estado_anterior,
-            estado_nuevo=fondo.estado
+            estado_nuevo=fondo.estado,
         )
 
-        # Notificar al docente el resultado (con la observación, si el Director la escribió).
+        # El docente recibe el resultado al finalizar (con la observación, si la hay).
         texto = texto_fondo_evaluado(fondo)
-        if evaluacion_director:
-            texto += f'\n\nObservación del Director: {evaluacion_director}'
+        if informe.evaluacion_director:
+            texto += f'\n\nObservación del Director: {informe.evaluacion_director}'
         observacion = ObservacionFondo.objects.create(
             fondo_tiempo=fondo, resuelta=True, resuelta_por=user, fecha_resolucion=timezone.now(),
         )
-        MensajeObservacion.objects.create(
-            observacion=observacion,
-            autor=request.user,
-            texto=texto,
-            es_admin=True,
-        )
+        MensajeObservacion.objects.create(observacion=observacion, autor=user, texto=texto, es_admin=True)
 
-        output_serializer = FondoTiempoDetalleSerializer(fondo, context={'request': request})
-        return Response({
-            'fondo': output_serializer.data,
-            'informe_id': informe.id,
-            'cumplimiento': cumplimiento,
-            'message': 'Fondo evaluado y finalizado exitosamente'
-        })
+        return Response(FondoTiempoDetalleSerializer(fondo, context={'request': request}).data)
 
     @action(detail=True, methods=['get'], url_path='pdf-oficial')
     def generar_pdf_oficial(self, request, pk=None):

@@ -270,7 +270,7 @@ function ListaFondos() {
   const { paginaActual, totalPaginas, itemsPagina: fondosPagina } = paginar(fondosFiltrados, pagina, vista);
 
   // Lo pendiente según el rol, en contadores bajo el título: el Director lo que tiene por
-  // revisar (un clic filtra la lista por ese estado) y el docente el estado de su fondo (el de
+  // revisar y por finalizar (un clic filtra la lista por ese estado) y el docente el estado de su fondo (el de
   // la gestión más reciente). El Jefe no lleva resumen.
   const ajenos = fondos.filter((fondo) => String(fondo.docente) !== String(effectiveUser?.perfil?.docente));
   const contar = (lista, condicion) => lista.filter(condicion).length;
@@ -278,9 +278,11 @@ function ListaFondos() {
   if (activeRole === 'director' && !esSuperusuario) {
     const porRevisar = contar(ajenos, (f) => f.estado === 'presentado_director');
     const informes = contar(ajenos, (f) => f.estado === 'informe_presentado');
+    const porFinalizar = contar(ajenos, (f) => f.estado === 'informe_evaluado');
     resumenRol = [
       { valor: porRevisar, texto: porRevisar === 1 ? 'fondo por revisar' : 'fondos por revisar', estado: 'presentado_director' },
       { valor: informes, texto: informes === 1 ? 'informe por revisar' : 'informes por revisar', estado: 'informe_presentado' },
+      { valor: porFinalizar, texto: porFinalizar === 1 ? 'fondo por finalizar' : 'fondos por finalizar', estado: 'informe_evaluado' },
     ];
   } else if (activeRole === 'docente' && fondos.length > 0) {
     const propio = [...fondos].sort((a, b) => (b.gestion || 0) - (a.gestion || 0))[0];

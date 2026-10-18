@@ -312,9 +312,11 @@ export default function EditorInformePage() {
   }
 
   // Un solo aviso arriba: en solo lectura, el motivo según el estado; al redactar, el guardado.
-  const motivoSoloLectura = fondo.estado === 'finalizado' || estadoInforme === 'aprobado'
+  const motivoSoloLectura = fondo.estado === 'finalizado'
     ? 'Informe evaluado, fondo finalizado.'
-    : estadoInforme === 'enviado'
+    : fondo.estado === 'informe_evaluado'
+      ? 'Informe evaluado, pendiente de finalización.'
+      : estadoInforme === 'enviado'
       ? 'Informe enviado, en espera de la revisión del Director.'
       : estadoInforme === 'observado'
         ? 'El docente está corrigiendo el informe.'
@@ -638,7 +640,6 @@ export default function EditorInformePage() {
       {ventanaRevision === 'evaluar' && (
         <FormularioEvaluarInforme
           fondoId={fondo.id}
-          requiereDocumentoDecanatura={Boolean(fondo.es_fondo_de_director)}
           onInformeEvaluado={async () => {
             setVentanaRevision(null);
             await cargarFondo();

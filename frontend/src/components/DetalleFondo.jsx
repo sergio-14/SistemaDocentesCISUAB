@@ -5,10 +5,11 @@ import { getFondoTiempoDetalle, getHistorialPorFondo, presentarFondoADirector, a
 import api from '../apis/api';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import toast from 'react-hot-toast';
-import { Pencil as PencilIcon, Trash2 as TrashIcon } from 'lucide-react';
+import { Check, Pencil as PencilIcon, Trash2 as TrashIcon, X as XIcon } from 'lucide-react';
 import { useActiveRole } from '../contexts/activeRole';
 import FormularioObservar from './FormularioObservar';
 import BotonFlotanteObservaciones from './BotonFlotanteObservaciones';
+import FormularioEvaluarInforme from './FormularioEvaluarInforme';
 import CargaHorariaManager from './CargaHorariaManager';
 import ModalCentrado from './common/ModalCentrado';
 import ModalConfirmar from './common/ModalConfirmar';
@@ -74,6 +75,13 @@ const ABREVIATURA_DEDICACION = {
 // Botones del panel de acciones: a lo ancho y con el estilo de los botones del dashboard.
 const ACCION = `${BOTON} w-full py-2.5`;
 const ACCION_DESHABILITADA = 'bg-slate-200 text-slate-500 cursor-not-allowed';
+const ACCION_BORDE = 'text-blue-900 ring-1 ring-inset ring-blue-900/40 hover:bg-azulado-200';
+
+// Resultado de la evaluación del informe, como en la ventana de evaluación.
+const RESULTADO_EVALUACION = { cumplido: 'Cumplido', parcial: 'Cumplimiento parcial', incumplido: 'Incumplido' };
+const fechaLarga = (fecha) => new Date(fecha).toLocaleDateString('es-BO', {
+  timeZone: ZONA_HORARIA_BOLIVIA, day: 'numeric', month: 'long', year: 'numeric',
+});
 
 function DetalleFondo() {
   const { activeAssignment, activeRole, effectiveUser } = useActiveRole();
@@ -93,6 +101,11 @@ function DetalleFondo() {
   const [documentoDecanatura, setDocumentoDecanatura] = useState(null);
   const observacionesRef = useRef();
   const [mostrarModalIniciarEjecucion, setMostrarModalIniciarEjecucion] = useState(false);
+  // Informe evaluado: cambiar la evaluación o finalizar el fondo (con el documento de la
+  // Decanatura si es el fondo del Director, Art. 28).
+  const [mostrarCambiarEvaluacion, setMostrarCambiarEvaluacion] = useState(false);
+  const [mostrarModalFinalizar, setMostrarModalFinalizar] = useState(false);
+  const [documentoDecanaturaFinal, setDocumentoDecanaturaFinal] = useState(null);
   // Carga que se corrige en su fila de la tabla: solo horas (y descripción en "Otros").
   // { id, horas, titulo, esOtros, error, guardando }
   const [edicionCarga, setEdicionCarga] = useState(null);
@@ -327,6 +340,27 @@ function DetalleFondo() {
     }
   };
 
+  const finalizarFondoHandler = async () => {
+    if (requiereDocumentoDecanatura && !documentoDecanaturaFinal) {
+      throw new Error('Adjunte el documento de la Decanatura (PDF) para finalizar el fondo del Director.');
+    }
+    try {
+      if (requiereDocumentoDecanatura) {
+        const payload = new FormData();
+        payload.append('documento_decanatura', documentoDecanaturaFinal);
+        await api.post(`/fondos-tiempo/${fondo.id}/finalizar/`, payload, { headers: { 'Content-Type': 'multipart/form-data' } });
+      } else {
+        await api.post(`/fondos-tiempo/${fondo.id}/finalizar/`, {});
+      }
+    } catch (err) {
+      throw new Error(getApiErrorMessage(err, 'No se pudo finalizar el fondo.'));
+    }
+    toast.success('Fondo finalizado.');
+    setMostrarModalFinalizar(false);
+    setDocumentoDecanaturaFinal(null);
+    await cargarDetalle({ silencioso: true });
+  };
+
   const abrirPdfEnNuevaPestana = () => {
     const quitarEspera = avisoDeEspera('Generando PDF...', 'pdf-oficial');
     api.get(`/fondos-tiempo/${id}/pdf-oficial/`, { responseType: 'blob' })
@@ -388,29 +422,7 @@ function DetalleFondo() {
     }
   };
 
-  const calcularDiasEnEtapa = () => {
-    if (!fondo || !fondo.fecha_creacion) return 0;
-    const fechaCreacion = new Date(fondo.fecha_creacion);
-    const ahora = new Date();
-    const diferenciaMilisegundos = ahora - fechaCreacion;
-    const dias = Math.floor(diferenciaMilisegundos / (1000 * 60 * 60 * 24));
-    return dias;
-  };
-
-  const verificarEstadoCronometro = () => {
-    if (!fondo || !fondo.fecha_finalizacion) return { activo: false, vencido: false };
-    
-    const ahora = new Date();
-    const fechaFinalizacion = new Date(fondo.fecha_finalizacion);
-    
-    // Si la fecha de hoy es igual o mayor a la fecha de finalización estimada, está vencido
-    const vencido = ahora >= fechaFinalizacion;
-    
-    return { 
-      activo: !vencido,  // Activo si NO está vencido
-      vencido: vencido
-    };
-  };
+  const diasDesde = (fecha) => (fecha ? Math.max(0, Math.floor((new Date() - new Date(fecha)) / (1000 * 60 * 60 * 24))) : 0);
 
   const iniciarEdicionCarga = (detalle) => {
     setEdicionCarga({
@@ -578,7 +590,10 @@ function DetalleFondo() {
   const mostrarAccionesCarga = puedeGestionarCarga && fondoEditable;
 
   const ocultarDetallePorBorradorDirector = esDirector && !esSuperAdmin && fondo.estado === 'borrador';
-  const { activo: etapaActiva, vencido: etapaVencida } = verificarEstadoCronometro();
+  // Tiempo en etapa: días desde la creación del fondo; con el informe evaluado, desde la
+  // evaluación. Finalizado no cuenta: muestra la fecha en que se finalizó.
+  const etapaFinalizada = fondo.estado === 'finalizado';
+  const desdeEvaluacion = fondo.estado === 'informe_evaluado' && fondo.evaluado_el;
   const categoriasVisibles = [...(fondo.categorias || [])]
     .sort((a, b) => ORDEN_UNIDADES.indexOf(a.tipo) - ORDEN_UNIDADES.indexOf(b.tipo))
     .filter((categoria) => Number(categoria.total_horas || 0) > 0);
@@ -656,18 +671,22 @@ function DetalleFondo() {
         <div className="rounded-3xl bg-gradient-to-br from-blue-900 to-blue-950 text-white p-5 sm:p-6 flex items-center justify-between gap-4 shadow-[0_4px_14px_rgba(30,58,138,0.25)]">
           <div>
             <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-200">
-              <span className={`h-2 w-2 rounded-full ${etapaActiva ? 'bg-emerald-400' : 'bg-red-400'} animate-pulse`} />
+              <span className={`h-2 w-2 rounded-full ${etapaFinalizada ? 'bg-blue-300' : 'bg-emerald-400 animate-pulse'}`} />
               Tiempo en etapa
             </p>
-            <p className="mt-1 text-sm text-blue-100">
-              {etapaVencida ? 'plazo de la etapa cumplido' : 'desde la creación del fondo'}
-            </p>
+            {etapaFinalizada ? (
+              <p className="mt-1 text-lg font-bold leading-snug">
+                Finalizado{fondo.finalizado_el ? ` el ${fechaLarga(fondo.finalizado_el)}` : ''}
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-blue-100">
+                {desdeEvaluacion ? 'desde la evaluación del informe' : 'desde la creación del fondo'}
+              </p>
+            )}
           </div>
-          {etapaVencida ? (
-            <span className="text-2xl font-bold leading-none">Vencido</span>
-          ) : (
+          {!etapaFinalizada && (
             <span className="text-right leading-none">
-              <span className="block text-5xl font-bold tabular-nums">{etapaActiva ? calcularDiasEnEtapa() : 0}</span>
+              <span className="block text-5xl font-bold tabular-nums">{diasDesde(desdeEvaluacion ? fondo.evaluado_el : fondo.fecha_creacion)}</span>
               <span className="text-sm font-medium text-blue-100">días</span>
             </span>
           )}
@@ -931,6 +950,16 @@ function DetalleFondo() {
 
               <div className="mt-5 pt-5 space-y-2 [border-top:1px_solid_#B8C9E1]">
                 <p className="pb-1 text-xs font-semibold text-blue-800">Acciones</p>
+                {/* Fondo finalizado: un solo aviso, para todos los roles. */}
+                {fondo.estado === 'finalizado' && (
+                  <p className="rounded-2xl bg-azulado-100 px-4 py-3 text-sm text-blue-900 ring-1 ring-inset ring-azulado-300">
+                    <span className="font-semibold">
+                      Fondo finalizado{fondo.finalizado_el ? ` el ${fechaLarga(fondo.finalizado_el)}` : ''}
+                      {RESULTADO_EVALUACION[fondo.informe_actual?.cumplimiento] ? ` · Cumplimiento: ${RESULTADO_EVALUACION[fondo.informe_actual.cumplimiento]}` : ''}.
+                    </span>{' '}
+                    Solo consulta: puedes ver y descargar el informe y el PDF.
+                  </p>
+                )}
                 {/* JEFATURA: acciones principales de flujo */}
                 {puedeVolverABorrador && (
                   <button data-escritura
@@ -1016,14 +1045,32 @@ function DetalleFondo() {
                   </button>
                 )}
 
-                {/* Informe presentado o evaluado: se abre en su página. El revisor del fondo
-                    (Director; en el fondo del Director, el superusuario) lo revisa allí, con
-                    "Pedir correcciones" y "Evaluar cumplimiento"; los demás, y todos una vez
-                    finalizado, lo ven en solo lectura (el backend ya limita quién ve el fondo). */}
-                {['informe_presentado', 'finalizado'].includes(fondo.estado) && (
+                {/* Informe evaluado: el revisor finaliza el fondo o cambia la evaluación. */}
+                {fondo.estado === 'informe_evaluado' && esRevisorDelFondo && (
+                  <>
+                    <button
+                      onClick={() => setMostrarModalFinalizar(true)}
+                      className={`${ACCION} bg-blue-900 hover:bg-blue-950 text-white`}
+                    >
+                      Finalizar fondo
+                    </button>
+                    <button
+                      onClick={() => setMostrarCambiarEvaluacion(true)}
+                      className={`${ACCION} ${ACCION_BORDE}`}
+                    >
+                      Cambiar evaluación
+                    </button>
+                  </>
+                )}
+
+                {/* Informe presentado, evaluado o finalizado: se abre en su página. El revisor
+                    del fondo (Director; en el fondo del Director, el superusuario) lo revisa allí,
+                    con "Pedir correcciones" y "Evaluar cumplimiento"; los demás, y todos después
+                    de evaluarlo, lo ven en solo lectura (el backend ya limita quién ve el fondo). */}
+                {['informe_presentado', 'informe_evaluado', 'finalizado'].includes(fondo.estado) && (
                   <button
                     onClick={() => window.open(`/fondos/${fondo.id}/informe`, '_blank', 'noopener,noreferrer')}
-                    className={`${ACCION} bg-blue-900 hover:bg-blue-950 text-white`}
+                    className={`${ACCION} ${fondo.estado === 'informe_evaluado' && esRevisorDelFondo ? ACCION_BORDE : 'bg-blue-900 hover:bg-blue-950 text-white'}`}
                   >
                     {fondo.estado === 'informe_presentado' && esRevisorDelFondo ? 'Revisar informe' : 'Ver informe'}
                   </button>
@@ -1386,6 +1433,55 @@ function DetalleFondo() {
                 type="file"
                 accept="application/pdf,.pdf"
                 onChange={(e) => setDocumentoDecanatura(e.target.files?.[0] || null)}
+                className="block w-full text-xs text-slate-600 file:mr-3 file:rounded-full file:border-0 file:bg-azulado-100 file:px-3 file:py-1.5 file:font-semibold file:text-blue-900 hover:file:bg-azulado-200"
+              />
+            </div>
+          )}
+        </ModalConfirmar>
+      )}
+
+      {/* Cambiar la evaluación guardada (mientras el fondo no se finalice) */}
+      {fondo && mostrarCambiarEvaluacion && (
+        <FormularioEvaluarInforme
+          fondoId={fondo.id}
+          evaluacionInicial={fondo.informe_actual}
+          onInformeEvaluado={async () => {
+            setMostrarCambiarEvaluacion(false);
+            await cargarDetalle({ silencioso: true });
+          }}
+          onCancelar={() => setMostrarCambiarEvaluacion(false)}
+        />
+      )}
+
+      {/* Confirmación para finalizar el fondo */}
+      {fondo && mostrarModalFinalizar && (
+        <ModalConfirmar
+          etiqueta="Fondo de tiempo"
+          titulo="Finalizar fondo"
+          mensaje="Al confirmar, el fondo de tiempo quedará finalizado."
+          textoAccion="Finalizar fondo"
+          textoTrabajando="Finalizando..."
+          onConfirmar={finalizarFondoHandler}
+          onCancelar={() => { setMostrarModalFinalizar(false); setDocumentoDecanaturaFinal(null); }}
+        >
+          <ul className="space-y-2 text-sm text-slate-700">
+            <li className="flex items-start gap-2">
+              <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-900" strokeWidth={2.5} />
+              <span>Se podrá ver y descargar el informe y el PDF del fondo.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <XIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-500" strokeWidth={2.5} />
+              <span>No se podrá editar el fondo ni el informe, pedir correcciones, cambiar la evaluación ni escribir en el chat.</span>
+            </li>
+          </ul>
+          {requiereDocumentoDecanatura && (
+            <div className="space-y-2 rounded-2xl bg-white px-4 py-3 text-sm ring-1 ring-inset ring-azulado-300">
+              <p className="font-semibold text-blue-900">Fondo del Director de la carrera (Art. 28)</p>
+              <p className="text-slate-600">El informe final se eleva a Decanatura: adjunte su documento (PDF, obligatorio).</p>
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                onChange={(e) => setDocumentoDecanaturaFinal(e.target.files?.[0] || null)}
                 className="block w-full text-xs text-slate-600 file:mr-3 file:rounded-full file:border-0 file:bg-azulado-100 file:px-3 file:py-1.5 file:font-semibold file:text-blue-900 hover:file:bg-azulado-200"
               />
             </div>

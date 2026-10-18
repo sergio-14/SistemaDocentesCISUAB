@@ -642,7 +642,8 @@ def obtener_perfil_por_ci(ci):
 
 # Estados en los que el fondo ya se presentó: desde ahí la ficha del docente queda fija.
 ESTADOS_FONDO_CON_HISTORIAL = [
-    'presentado_director', 'aprobado_director', 'en_ejecucion', 'informe_presentado', 'finalizado',
+    'presentado_director', 'aprobado_director', 'en_ejecucion', 'informe_presentado', 'informe_evaluado',
+    'finalizado',
 ]
 MENSAJE_FICHA_CON_HISTORIAL = (
     'La ficha no se puede cambiar: el docente tiene un Fondo de Tiempo presentado o informes.'
@@ -1813,7 +1814,9 @@ class DocenteSerializer(serializers.ModelSerializer):
         return int(total_horas)
 
     def get_fondos_validados(self, obj):
-        estados_con_historial = ['aprobado_director', 'en_ejecucion', 'informe_presentado', 'finalizado', 'archivado']
+        estados_con_historial = [
+            'aprobado_director', 'en_ejecucion', 'informe_presentado', 'informe_evaluado', 'finalizado', 'archivado',
+        ]
         fondos = obj.fondos_tiempo.filter(estado__in=estados_con_historial)
         propias = carreras_del_director(self.context)
         if propias is not None:
@@ -4069,7 +4072,25 @@ class InformeFondoSerializer(serializers.ModelSerializer):
         for campo in CAMPOS_HTML_RICO_INFORME:
             if data.get(campo):
                 data[campo] = firmar_imagenes_html(sanitizar_html_informe(data[campo]), request)
-        return data
+        return _ocultar_evaluacion_al_docente(data, instance, request)
+
+
+# La evaluación del informe (Art. 19): el docente la ve recién al finalizar el fondo.
+CAMPOS_EVALUACION_INFORME = {
+    'cumplimiento': '', 'cumplimiento_display': '', 'evaluacion_director': '',
+    'fecha_evaluacion': None, 'evaluado_por': None, 'evaluado_por_nombre': None,
+}
+
+
+def _ocultar_evaluacion_al_docente(data, informe, request):
+    """Con el fondo en informe_evaluado, el docente dueño no ve el resultado ni la
+    observación: los recibe al finalizar el fondo. Los demás (Director, Jefe) sí los ven."""
+    fondo = informe.fondo_tiempo
+    if fondo.estado == 'informe_evaluado' and request and fondo.pertenece_a(request.user):
+        for campo, vacio in CAMPOS_EVALUACION_INFORME.items():
+            if campo in data:
+                data[campo] = vacio
+    return data
 
 
 def _informe_actual_o_borrador(fondo, context=None):
@@ -4112,6 +4133,9 @@ class InformeFondoListSerializer(serializers.ModelSerializer):
             'id', 'fondo_tiempo', 'fondo_descripcion', 'tipo', 'tipo_display',
             'cumplimiento', 'cumplimiento_display', 'fecha_elaboracion',
         ]
+
+    def to_representation(self, instance):
+        return _ocultar_evaluacion_al_docente(super().to_representation(instance), instance, self.context.get('request'))
 
 
 # =====================================================
@@ -4334,6 +4358,10 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     # Revisión: nadie revisa su propio fondo; el del Director lo revisa el superusuario.
     es_fondo_propio = serializers.SerializerMethodField()
     es_fondo_de_director = serializers.SerializerMethodField()
+    # Fecha en que se finalizó (aviso del panel y recuadro "Tiempo en etapa").
+    finalizado_el = serializers.DateTimeField(source='fecha_finalizacion', read_only=True)
+    # Con el informe evaluado, desde cuándo (el "Tiempo en etapa" cuenta desde ahí).
+    evaluado_el = serializers.SerializerMethodField()
     # Arts. 15 y 18: presentado después de los plazos del calendario. Va tal cual
     # ([{plazo, calendario, fecha_limite, fecha_presentacion}]): el detalle lo muestra
     # como una etiqueta "Fuera de plazo" con su explicación al pasar el mouse.
@@ -4360,6 +4388,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             # Permisos
             'puede_editar', 'puede_editar_informe', 'tipos_ejercicio_cargo', 'puede_iniciar_ejecucion',
             'es_fondo_propio', 'es_fondo_de_director', 'documento_decanatura', 'documento_decanatura_informe',
+            'finalizado_el', 'evaluado_el',
         ]
         read_only_fields = [
             'estado', 'horas_efectivas',
@@ -4452,6 +4481,15 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
 
     def get_es_fondo_de_director(self, obj):
         return obj.es_de_director_de_su_carrera()
+
+    def get_evaluado_el(self, obj):
+        """Cuándo pasó a informe_evaluado (cambiar la evaluación no reinicia la etapa)."""
+        if obj.estado != 'informe_evaluado':
+            return None
+        registro = obj.historial.filter(
+            estado_anterior='informe_presentado', estado_nuevo='informe_evaluado',
+        ).order_by('-fecha').first()
+        return registro.fecha if registro else None
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

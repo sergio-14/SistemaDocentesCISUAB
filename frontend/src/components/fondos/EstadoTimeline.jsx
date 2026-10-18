@@ -7,6 +7,7 @@ const ETAPAS = [
   { key: 'aprobado_director', label: 'Aprobado por Director' },
   { key: 'en_ejecucion', label: 'En ejecución' },
   { key: 'informe_presentado', label: 'Informe presentado' },
+  { key: 'informe_evaluado', label: 'Informe evaluado' },
   { key: 'finalizado', label: 'Finalizado' },
 ];
 
@@ -20,7 +21,8 @@ const INDICE_POR_ESTADO = {
   informe_presentado: 4,
   // En ejecución con el informe observado (estadoVisibleFondo).
   informe_observado: 4,
-  finalizado: 5,
+  informe_evaluado: 5,
+  finalizado: 6,
 };
 
 // Observaciones: ya se presentó (el fondo o el informe) y el Director pidió

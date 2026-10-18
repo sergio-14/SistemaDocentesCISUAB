@@ -213,10 +213,10 @@ export function ResumenCarrera({ fondos, gestion, ancho = false }) {
   );
 }
 
-// Director: fondos presentados por revisar (y los informes presentados); Jefe: fondos
-// observados por corregir (y los informes observados).
+// Director: fondos presentados por revisar (y los informes presentados) y los evaluados por
+// finalizar; Jefe: fondos observados por corregir (y los informes observados).
 const PENDIENTES = {
-  director: { estados: ['presentado_director', 'informe_presentado'], vacio: 'No hay fondos presentados por revisar' },
+  director: { estados: ['presentado_director', 'informe_presentado', 'informe_evaluado'], vacio: 'No hay fondos por revisar ni por finalizar' },
   jefe_estudios: { estados: ['observado', 'informe_observado'], vacio: 'No hay fondos observados por corregir' },
 };
 

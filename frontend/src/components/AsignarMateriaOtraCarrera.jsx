@@ -182,16 +182,16 @@ const AsignarMateriaOtraCarrera = ({ mostrarLista = false, filtro = '', modalAbi
   };
 
   const opcionesCalendario = calendarios.map((cal) => ({ value: String(cal.id), label: nombreCalendario(cal.id) }));
-  // Gestiones de los calendarios de su carrera sin Fondo de Tiempo vigente del docente:
-  // ahí no se le puede asignar una materia.
-  const gestionesCarrera = [...new Set(calendarios.map((cal) => cal.gestion))].sort();
-  const avisoSinFondo = (persona) => gestionesCarrera
-    .filter((gestion) => !(persona?.gestiones_con_fondo || []).includes(gestion))
-    .map((gestion) => (
-      <span key={gestion} className="whitespace-nowrap rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-900 ring-1 ring-inset ring-sky-200">
-        Sin fondo {gestion}
+  // Solo la gestión del calendario elegido: si el docente no tiene Fondo de Tiempo vigente en
+  // ella, no se le puede asignar la materia. Sin calendario elegido no hay aviso.
+  const avisoSinFondo = (persona) => {
+    if (!calendario || (persona?.gestiones_con_fondo || []).includes(calendario.gestion)) return null;
+    return (
+      <span className="whitespace-nowrap rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-900 ring-1 ring-inset ring-sky-200">
+        Sin fondo {calendario.gestion}
       </span>
-    ));
+    );
+  };
   const opcionesMateria = materias.map((m) => ({ value: String(m.id), label: `${m.sigla} - ${m.nombre} (${m.horas_totales} h/sem)` }));
   const opcionesParalelo = PARALELOS.map((p) => ({ value: p, label: `Paralelo ${p}` }));
   const opcionesDia = DIAS.map(([valor, etiqueta]) => ({ value: valor, label: etiqueta }));

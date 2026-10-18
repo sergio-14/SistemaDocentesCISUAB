@@ -11,7 +11,7 @@ import useModoClaro from '../utils/useModoClaro';
 import ModalConfirmar from './common/ModalConfirmar';
 import FormularioEvaluarInforme from './FormularioEvaluarInforme';
 import ModalCorreccionesInforme from './ModalCorreccionesInforme';
-import { BLOQUE, BOTON, BOTON_CHICO, BOTON_DOCUMENTO } from './fondos/estilosFondo';
+import { BLOQUE, BOTON } from './fondos/estilosFondo';
 import InformeCampoRico from './InformeCampoRico';
 import InformeCampoPlano from './InformeCampoPlano';
 import InformeFormatToolbar from './InformeFormatToolbar';
@@ -65,6 +65,16 @@ const DOCUMENTOS_INFORME = {
 };
 const PANTALLA_ANCHA = '(min-width: 1280px)';
 const FUENTE_DOCUMENTO = { fontFamily: 'Verdana, Geneva, Tahoma, sans-serif' };
+
+// Botones de la cabecera azul (36 px de alto): el principal de cada grupo en blanco sólido
+// con texto azul; los demás con borde blanco.
+const BOTON_CABECERA = `${BOTON} h-9 py-0`;
+const BOTON_CABECERA_PRINCIPAL = 'bg-white text-blue-900 font-semibold shadow-sm hover:bg-azulado-100';
+const BOTON_CABECERA_BORDE = 'text-white ring-1 ring-inset ring-white/60 hover:bg-white/10';
+// Cada grupo: su etiqueta y sus botones (en celular, la etiqueta arriba). Del segundo grupo en
+// adelante, una línea los separa: vertical a la par, horizontal cuando bajan de fila.
+const GRUPO_CABECERA = 'flex flex-col gap-2 sm:flex-row sm:items-center';
+const SEPARADOR_GRUPO = 'pt-3 [border-top:1px_solid_rgba(255,255,255,0.25)] lg:pt-0 lg:pl-3 lg:[border-top:0] lg:[border-left:1px_solid_rgba(255,255,255,0.25)]';
 
 const contenidoHtmlVacio = (html) => !((html || '').replace(/<[^>]*>/g, '').trim() || /<img\b/i.test(html || ''));
 
@@ -332,112 +342,118 @@ export default function EditorInformePage() {
   return (
     <InformeDocumentoContext.Provider value={contexto}>
       <div className="min-h-screen flex flex-col bg-gradient-to-b from-blue-900 to-blue-950">
-        {/* Cabecera (azul del sidebar): el dueño del informe y el único aviso de estado. */}
-        <header className="bg-gradient-to-r from-blue-900 to-blue-950 text-white">
-          <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-3 min-w-0">
-              <button
-                onClick={cerrarVentana}
-                title="Cerrar"
-                aria-label="Cerrar el informe"
-                className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-wider text-sky-200">
-                  Informe de cumplimiento{fondo.gestion ? ` · Gestión ${fondo.gestion}` : ''}
+        {/* Cabecera (azul del sidebar) y barra de formato, fijas juntas arriba */}
+        <div className="sticky top-0 z-30">
+          <header ref={cabeceraRef} className="bg-gradient-to-r from-blue-900 to-blue-950 text-white">
+            {/* Arriba el dueño del informe (nombre completo, sin cortar); abajo, o a la
+                derecha en pantallas anchas, el aviso de estado y los dos grupos de botones. */}
+            <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-3 flex flex-col gap-3 2xl:flex-row 2xl:items-center">
+              <div className="flex items-center gap-3 min-w-0 2xl:flex-1">
+                <button
+                  onClick={cerrarVentana}
+                  title="Cerrar"
+                  aria-label="Cerrar el informe"
+                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-sky-200">
+                    Informe de cumplimiento{fondo.gestion ? ` · Gestión ${fondo.gestion}` : ''}
+                  </p>
+                  <h1 className="text-base md:text-lg font-bold leading-tight break-words">{nombreDocente || 'Fondo de tiempo'}</h1>
+                </div>
+              </div>
+              {/* Aviso único | Descargar | Decisión del Director (o Guardar y Enviar del docente).
+                  Los grupos van separados por una línea; en celular, cada uno en su fila. */}
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center 2xl:justify-end">
+                <p className="inline-flex items-start gap-1.5 self-start lg:self-auto lg:mr-auto 2xl:mr-1 rounded-2xl bg-white/10 px-3 py-2 text-xs text-sky-100">
+                  {soloLectura ? <Lock className="w-3.5 h-3.5 mt-px shrink-0" /> : guardando ? <Loader2 className="w-3.5 h-3.5 mt-px shrink-0 animate-spin" /> : <Save className="w-3.5 h-3.5 mt-px shrink-0" />}
+                  {estadoGuardado}
                 </p>
-                <h1 className="text-base md:text-lg font-bold leading-tight break-words">{nombreDocente || 'Fondo de tiempo'}</h1>
-              </div>
-            </div>
-            <p className="inline-flex items-start gap-1.5 self-start lg:self-auto rounded-2xl bg-white/10 px-3 py-2 text-xs text-sky-100">
-              {soloLectura ? <Lock className="w-3.5 h-3.5 mt-px shrink-0" /> : guardando ? <Loader2 className="w-3.5 h-3.5 mt-px shrink-0 animate-spin" /> : <Save className="w-3.5 h-3.5 mt-px shrink-0" />}
-              {estadoGuardado}
-            </p>
-          </div>
-        </header>
 
-        {/* Barra fija al tope del informe, con dos grupos: a la izquierda las descargas; a la
-            derecha la decisión del Director (informe presentado) o, al redactar, guardar y
-            enviar. En celular los grupos van uno debajo del otro. Debajo, la barra de formato
-            cuando va arriba. */}
-        <div ref={cabeceraRef} className="sticky top-0 z-30 bg-azulado-100 rounded-t-[2rem] px-4 md:px-6 pt-4 pb-3">
-          <div className="max-w-[1100px] mx-auto space-y-3">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-semibold text-blue-800">Descargar:</span>
-                {[
-                  { accion: 'ver', etiqueta: 'Vista previa', titulo: 'Ver el PDF en una pestaña nueva', icono: Eye },
-                  { accion: 'pdf', etiqueta: 'PDF', titulo: 'Descargar en PDF', icono: Download },
-                  { accion: 'word', etiqueta: 'Word', titulo: 'Descargar en Word (.docx) para editarlo', icono: Download },
-                ].map(({ accion, etiqueta, titulo, icono: Icono }) => (
-                  <button
-                    key={accion}
-                    onClick={() => obtenerDocumento(accion)}
-                    disabled={Boolean(generando)}
-                    title={titulo}
-                    className={`${BOTON_CHICO} ${BOTON_DOCUMENTO} disabled:opacity-60 disabled:cursor-not-allowed`}
-                  >
-                    {generando === accion ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Icono className="w-3.5 h-3.5" />}
-                    {etiqueta}
-                  </button>
-                ))}
-              </div>
-
-              {puedeRevisar && (
-                // En celular la etiqueta va arriba y los dos botones, compactos, a la par.
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <span className="text-xs font-semibold text-blue-800">Decisión:</span>
-                  <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-                    <button
-                      onClick={() => setVentanaRevision('correcciones')}
-                      className={`${BOTON_CHICO} sm:gap-1.5 sm:px-3.5 sm:py-2 sm:text-sm text-blue-900 ring-1 ring-inset ring-blue-900/40 hover:bg-azulado-200`}
-                    >
-                      <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      Pedir correcciones
-                    </button>
-                    <button
-                      onClick={() => setVentanaRevision('evaluar')}
-                      className={`${BOTON_CHICO} sm:gap-1.5 sm:px-3.5 sm:py-2 sm:text-sm bg-blue-900 hover:bg-blue-950 text-white shadow-sm`}
-                    >
-                      <ClipboardCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      Evaluar cumplimiento
-                    </button>
+                <div className={GRUPO_CABECERA}>
+                  <span className="text-xs font-semibold text-sky-200">Descargar:</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {[
+                      { accion: 'ver', etiqueta: 'Vista previa', titulo: 'Ver el PDF en una pestaña nueva', icono: Eye },
+                      { accion: 'pdf', etiqueta: 'PDF', titulo: 'Descargar en PDF', icono: Download, principal: true },
+                      { accion: 'word', etiqueta: 'Word', titulo: 'Descargar en Word (.docx) para editarlo', icono: Download },
+                    ].map(({ accion, etiqueta, titulo, icono: Icono, principal }) => (
+                      <button
+                        key={accion}
+                        onClick={() => obtenerDocumento(accion)}
+                        disabled={Boolean(generando)}
+                        title={titulo}
+                        className={`${BOTON_CABECERA} ${principal ? BOTON_CABECERA_PRINCIPAL : BOTON_CABECERA_BORDE} disabled:opacity-60 disabled:cursor-not-allowed`}
+                      >
+                        {generando === accion ? <Loader2 className="w-4 h-4 animate-spin" /> : <Icono className="w-4 h-4" />}
+                        {etiqueta}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              )}
 
-              {!soloLectura && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={() => guardarBorrador()}
-                    disabled={guardando || Boolean(generando) || enviando}
-                    className={`${BOTON} text-blue-900 ring-1 ring-inset ring-blue-900/40 hover:bg-azulado-200 disabled:opacity-60`}
-                  >
-                    {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    Guardar borrador
-                  </button>
-                  <button
-                    onClick={abrirConfirmacionEnvio}
-                    disabled={enviando}
-                    className={`${BOTON} bg-blue-900 hover:bg-blue-950 text-white shadow-sm disabled:opacity-60`}
-                  >
-                    <Send className="w-4 h-4" />
-                    Enviar informe
-                  </button>
-                </div>
-              )}
+                {puedeRevisar && (
+                  <div className={`${GRUPO_CABECERA} ${SEPARADOR_GRUPO}`}>
+                    <span className="text-xs font-semibold text-sky-200">Decisión:</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => setVentanaRevision('correcciones')}
+                        className={`${BOTON_CABECERA} ${BOTON_CABECERA_BORDE}`}
+                      >
+                        <MessageSquare className="hidden sm:block w-4 h-4" />
+                        Pedir correcciones
+                      </button>
+                      <button
+                        onClick={() => setVentanaRevision('evaluar')}
+                        className={`${BOTON_CABECERA} ${BOTON_CABECERA_PRINCIPAL}`}
+                      >
+                        <ClipboardCheck className="hidden sm:block w-4 h-4" />
+                        Evaluar cumplimiento
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!soloLectura && (
+                  <div className={`${GRUPO_CABECERA} ${SEPARADOR_GRUPO}`}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => guardarBorrador()}
+                        disabled={guardando || Boolean(generando) || enviando}
+                        className={`${BOTON_CABECERA} ${BOTON_CABECERA_BORDE} disabled:opacity-60`}
+                      >
+                        {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        Guardar borrador
+                      </button>
+                      <button
+                        onClick={abrirConfirmacionEnvio}
+                        disabled={enviando}
+                        className={`${BOTON_CABECERA} ${BOTON_CABECERA_PRINCIPAL} disabled:opacity-60`}
+                      >
+                        <Send className="w-4 h-4" />
+                        Enviar informe
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
+          </header>
 
-            {/* Barra de formato arriba (no en solo lectura) */}
-            {!barraLateral && !soloLectura && (
-              <InformeFormatToolbar posicion="arriba" onCambiarPosicion={pantallaAncha ? cambiarPosicionBarra : null} />
-            )}
-          </div>
+          {/* Barra de formato arriba, sobre el panel azulado (no en solo lectura: el
+              aviso "Solo lectura" ya está junto a los botones) */}
+          {!barraLateral && !soloLectura && (
+            <div className="bg-azulado-100 rounded-t-[2rem] px-4 md:px-6 pt-4 pb-3">
+              <div className="max-w-[1100px] mx-auto">
+                <InformeFormatToolbar posicion="arriba" onCambiarPosicion={pantallaAncha ? cambiarPosicionBarra : null} />
+              </div>
+            </div>
+          )}
         </div>
 
-        <main className="flex-1 bg-azulado-100 px-4 md:px-6 pb-16 pt-2">
+        <main className={`flex-1 bg-azulado-100 px-4 md:px-6 pb-16 ${barraLateral || soloLectura ? 'rounded-t-[2rem] pt-5' : ''}`}>
           <div className={barraLateral ? `flex items-start justify-center gap-6 ${posicionBarra === 'derecha' ? 'flex-row-reverse' : ''}` : ''}>
           {/* Barra de formato a un costado de la hoja, fija al bajar */}
           {barraLateral && (

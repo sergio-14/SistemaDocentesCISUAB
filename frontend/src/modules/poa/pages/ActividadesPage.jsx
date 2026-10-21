@@ -269,7 +269,7 @@ const ActividadesPage = () => {
         onCancel={() => setDeleteDialogActividad(null)}
       />
       {/* Tarjeta del objetivo con diseño mejorado */}
-      <div className="w-full mb-4 mt-0">
+      <div className="w-full mb-[0.8rem] mt-0">
         {objetivoLoading ? (
           <div className="text-blue-800">Cargando objetivo...</div>
         ) : objetivoError ? (
@@ -281,28 +281,28 @@ const ActividadesPage = () => {
             <div className="absolute bottom-0 left-0 w-40 h-40 bg-blue-300 dark:bg-blue-700/50 rounded-full blur-3xl opacity-50"></div>
             
             {/* Content */}
-            <div className="relative p-6 space-y-4">
-              <div className="flex items-start justify-between gap-3">
+            <div className="relative p-[1.2rem] space-y-[0.8rem]">
+              <div className="flex items-start justify-between gap-[0.6rem]">
                 <div>
-                  <h3 className="text-2xl font-bold tracking-tight text-blue-900 dark:text-white drop-shadow-sm">{objetivo.descripcion}</h3>
+                  <h3 className="text-[1.2rem] font-bold tracking-tight text-blue-900 dark:text-white drop-shadow-sm">{objetivo.descripcion}</h3>
                 </div>
-                <div className="inline-flex items-center px-6 py-3 rounded-lg text-sm font-semibold bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg hover:shadow-xl transition-shadow whitespace-nowrap">
-                  <span className="font-mono text-2xl font-bold">{objetivo.codigo}</span>
+                <div className="inline-flex items-center px-[1.2rem] py-[0.6rem] rounded-lg text-[0.7rem] font-semibold bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg hover:shadow-xl transition-shadow whitespace-nowrap">
+                  <span className="font-mono text-[1.2rem] font-bold">{objetivo.codigo}</span>
                 </div>
               </div>
               
-              <div className="poa-mobile-kpi-strip poa-mobile-kpi-strip-3 grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                <div className="poa-mobile-kpi-card flex flex-col bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 backdrop-blur-sm rounded-lg p-4 shadow-xl dark:shadow-2xl dark:shadow-blue-900/50 hover:shadow-2xl transition-shadow transform hover:scale-105">
+              <div className="poa-mobile-kpi-strip poa-mobile-kpi-strip-3 grid grid-cols-1 sm:grid-cols-3 gap-[0.8rem] pt-[0.4rem]">
+                <div className="poa-mobile-kpi-card flex flex-col bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 backdrop-blur-sm rounded-lg p-[0.8rem] shadow-xl dark:shadow-2xl dark:shadow-blue-900/50 hover:shadow-2xl transition-shadow transform hover:scale-105">
                   <span className="poa-kpi-label text-xs font-bold uppercase tracking-widest text-blue-100 mb-1">Total Actividades</span>
-                  <span className="poa-kpi-value text-5xl font-bold text-white">{totalActividades}</span>
+                  <span className="poa-kpi-value text-[2.4rem] font-bold text-white">{totalActividades}</span>
                 </div>
-                <div className="poa-mobile-kpi-card flex flex-col bg-gradient-to-r from-emerald-500 to-emerald-600 dark:from-emerald-600 dark:to-emerald-700 backdrop-blur-sm rounded-lg p-4 shadow-xl dark:shadow-2xl dark:shadow-blue-900/50 hover:shadow-2xl transition-shadow transform hover:scale-105">
+                <div className="poa-mobile-kpi-card flex flex-col bg-gradient-to-r from-emerald-500 to-emerald-600 dark:from-emerald-600 dark:to-emerald-700 backdrop-blur-sm rounded-lg p-[0.8rem] shadow-xl dark:shadow-2xl dark:shadow-blue-900/50 hover:shadow-2xl transition-shadow transform hover:scale-105">
                   <span className="poa-kpi-label text-xs font-bold uppercase tracking-widest text-emerald-100 mb-1">Actividades Completadas</span>
-                  <span className="poa-kpi-value text-5xl font-bold text-white">{actividadesCompletadas}</span>
+                  <span className="poa-kpi-value text-[2.4rem] font-bold text-white">{actividadesCompletadas}</span>
                 </div>
-                <div className="poa-mobile-kpi-card flex flex-col bg-gradient-to-r from-amber-500 to-orange-500 dark:from-amber-600 dark:to-orange-600 backdrop-blur-sm rounded-lg p-4 shadow-xl dark:shadow-2xl dark:shadow-blue-900/50 hover:shadow-2xl transition-shadow transform hover:scale-105">
+                <div className="poa-mobile-kpi-card flex flex-col bg-gradient-to-r from-amber-500 to-orange-500 dark:from-amber-600 dark:to-orange-600 backdrop-blur-sm rounded-lg p-[0.8rem] shadow-xl dark:shadow-2xl dark:shadow-blue-900/50 hover:shadow-2xl transition-shadow transform hover:scale-105">
                   <span className="poa-kpi-label text-xs font-bold uppercase tracking-widest text-amber-100 mb-1">Actividades Programadas</span>
-                  <span className="poa-kpi-value text-5xl font-bold text-white">{actividadesProgramadas}</span>
+                  <span className="poa-kpi-value text-[2.4rem] font-bold text-white">{actividadesProgramadas}</span>
                 </div>
               </div>
             </div>
@@ -314,19 +314,19 @@ const ActividadesPage = () => {
 
       {/* Indicadores de montos */}
       {!loading && !error && actividades && actividades.length > 0 && (
-        <div className="w-full mb-4">
+        <div className="w-full mb-[0.8rem]">
           <div className="poa-mobile-kpi-strip poa-mobile-kpi-strip-3 flex flex-col gap-3 sm:flex-row">
-            <div className="poa-mobile-kpi-card flex-1 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg shadow-lg p-4 text-white">
-              <p className="poa-kpi-label text-sm font-bold uppercase tracking-widest opacity-90">Monto Total</p>
-              <p className="poa-kpi-value text-3xl font-bold">Bs. {formatMoney(montoTotal)}</p>
+            <div className="poa-mobile-kpi-card flex-1 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg shadow-lg p-[0.8rem] text-white">
+              <p className="poa-kpi-label text-[0.7rem] font-bold uppercase tracking-widest opacity-90">Monto Total</p>
+              <p className="poa-kpi-value text-right text-2xl font-bold">Bs. {formatMoney(montoTotal)}</p>
             </div>
-            <div className="poa-mobile-kpi-card flex-1 bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg shadow-lg p-4 text-white">
-              <p className="poa-kpi-label text-sm font-bold uppercase tracking-widest opacity-90">Monto Función</p>
-              <p className="poa-kpi-value text-3xl font-bold">Bs. {formatMoney(montoTotalFuncion)}</p>
+            <div className="poa-mobile-kpi-card flex-1 bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg shadow-lg p-[0.8rem] text-white">
+              <p className="poa-kpi-label text-[0.7rem] font-bold uppercase tracking-widest opacity-90">Monto Función</p>
+              <p className="poa-kpi-value text-right text-2xl font-bold">Bs. {formatMoney(montoTotalFuncion)}</p>
             </div>
-            <div className="poa-mobile-kpi-card flex-1 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-lg p-4 text-white">
-              <p className="poa-kpi-label text-sm font-bold uppercase tracking-widest opacity-90">Monto Inversión</p>
-              <p className="poa-kpi-value text-3xl font-bold">Bs. {formatMoney(montoTotalInversion)}</p>
+            <div className="poa-mobile-kpi-card flex-1 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-lg p-[0.8rem] text-white">
+              <p className="poa-kpi-label text-[0.7rem] font-bold uppercase tracking-widest opacity-90">Monto Inversión</p>
+              <p className="poa-kpi-value text-right text-2xl font-bold">Bs. {formatMoney(montoTotalInversion)}</p>
             </div>
           </div>
         </div>
@@ -476,10 +476,10 @@ const ActividadesPage = () => {
                       ])}
                     </div>
                   </td>
-                  <td data-label="Funcion Bs." className="px-2 py-2 border border-blue-300 dark:border-gray-600 align-top text-right">
+                  <td data-label="Funcion Bs." className="poa-currency-cell px-2 py-2 border border-blue-300 dark:border-gray-600 align-top text-right">
                     {formatMoney(act.monto_funcion || act.monto_funcion_valor || act.monto_funcion_bs)}
                   </td>
-                  <td data-label="Inversion Bs." className="px-2 py-2 border border-blue-300 dark:border-gray-600 align-top text-right">
+                  <td data-label="Inversion Bs." className="poa-currency-cell px-2 py-2 border border-blue-300 dark:border-gray-600 align-top text-right">
                     {formatMoney(act.monto_inversion || act.monto_inversion_valor || act.monto_inversion_bs)}
                   </td>
                 </tr>

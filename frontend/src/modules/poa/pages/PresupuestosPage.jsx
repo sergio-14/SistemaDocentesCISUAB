@@ -462,25 +462,25 @@ const PresupuestosPage = () => {
         <div className="w-full bg-white border rounded p-6 text-gray-700">Seleccione una actividad en la lista de actividades para ver o agregar su presupuesto detallado.</div>
       ) : (
         <>
-          <div className="w-full mb-4 mt-0">
+          <div className="w-full mb-[0.8rem] mt-0">
             <div className="poa-mobile-page-card relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-800 border border-blue-300 dark:border-blue-700 shadow-2xl dark:shadow-blue-900/50">
               {/* Decorative background elements */}
               <div className="absolute top-0 right-0 w-40 h-40 bg-blue-200 dark:bg-blue-700/50 rounded-full blur-3xl opacity-50"></div>
               <div className="absolute bottom-0 left-0 w-40 h-40 bg-blue-300 dark:bg-blue-700/50 rounded-full blur-3xl opacity-50"></div>
               
               {/* Content */}
-              <div className="relative p-4 space-y-3">
-                <div className="flex items-start justify-between gap-3">
+              <div className="relative p-[0.8rem] space-y-[0.6rem]">
+                <div className="flex items-start justify-between gap-[0.6rem]">
                   <div>
-                    <h3 className="text-base sm:text-lg font-bold tracking-tight text-blue-900 dark:text-white drop-shadow-sm">{actividad.nombre}</h3>
+                    <h3 className="text-[0.8rem] sm:text-[0.9rem] font-bold tracking-tight text-blue-900 dark:text-white drop-shadow-sm">{actividad.nombre}</h3>
                   </div>
-                  <div className="inline-flex items-center px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg hover:shadow-xl transition-shadow whitespace-nowrap">
-                    <span className="font-mono text-sm sm:text-base font-bold">{actividad.codigo}</span>
+                  <div className="inline-flex items-center px-[0.8rem] py-[0.4rem] rounded-lg text-[0.6rem] sm:text-[0.7rem] font-semibold bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg hover:shadow-xl transition-shadow whitespace-nowrap">
+                    <span className="font-mono text-[0.7rem] sm:text-[0.8rem] font-bold">{actividad.codigo}</span>
                   </div>
                 </div>
                 
-                <div className="poa-mobile-kpi-strip poa-mobile-kpi-strip-2 grid grid-cols-2 gap-3 pt-1">
-                  <div className="poa-mobile-kpi-card flex flex-col bg-white dark:bg-slate-900 rounded-lg p-3 shadow-xl">
+                <div className="poa-mobile-kpi-strip poa-mobile-kpi-strip-2 grid grid-cols-2 gap-[0.6rem] pt-[0.2rem]">
+                  <div className="poa-mobile-kpi-card flex flex-col bg-white dark:bg-slate-900 rounded-lg p-[0.6rem] shadow-xl">
                     <label htmlFor="unidad-destino-presupuesto" className="text-xs font-bold uppercase tracking-widest text-blue-700 dark:text-blue-300 mb-1">
                       Unidad a la que se solicitará el presupuesto
                     </label>
@@ -495,7 +495,7 @@ const PresupuestosPage = () => {
                         }
                         guardarUnidadDestino(e.target.value);
                       }}
-                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                      className="w-full rounded-md border border-slate-300 bg-white px-[0.6rem] py-[0.4rem] text-[0.6rem] font-semibold text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
                     >
                       <option value="">{cargandoUnidades ? 'Cargando unidades...' : 'Seleccione una unidad'}</option>
                       {unidadesDestino.map((unidad) => (
@@ -511,19 +511,19 @@ const PresupuestosPage = () => {
                           onChange={(e) => setNuevaUnidad(e.target.value)}
                           onKeyDown={(e) => { if (e.key === 'Enter') agregarUnidadDestino(); }}
                           placeholder="Nombre de la unidad"
-                          className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                          className="min-w-0 flex-1 rounded-md border border-slate-300 px-[0.6rem] py-[0.4rem] text-[0.6rem] text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-white"
                         />
-                        <button type="button" onClick={agregarUnidadDestino} disabled={!nuevaUnidad.trim() || guardandoUnidad} className="rounded-md bg-blue-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Guardar</button>
-                        <button type="button" onClick={() => { setAgregandoUnidad(false); setNuevaUnidad(''); }} className="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-200">Cancelar</button>
+                        <button type="button" onClick={agregarUnidadDestino} disabled={!nuevaUnidad.trim() || guardandoUnidad} className="rounded-md bg-blue-700 px-[0.6rem] py-[0.4rem] text-[0.6rem] font-semibold text-white disabled:opacity-50">Guardar</button>
+                        <button type="button" onClick={() => { setAgregandoUnidad(false); setNuevaUnidad(''); }} className="rounded-md border border-slate-300 px-[0.6rem] py-[0.4rem] text-[0.6rem] font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-200">Cancelar</button>
                       </div>
                     )}
-                    <span className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    <span className="mt-1 text-[0.6rem] text-slate-500 dark:text-slate-400">
                       {canEditDirectly ? 'Este dato aparecerá en el encabezado del Formulario Nro. 3.' : 'La unidad no se puede cambiar mientras el documento está bloqueado para edición.'}
                     </span>
                   </div>
-                  <div className="poa-mobile-kpi-card flex flex-col bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 backdrop-blur-sm rounded-lg p-3 shadow-xl dark:shadow-2xl dark:shadow-blue-900/50 hover:shadow-2xl transition-shadow transform hover:scale-105">
-                    <span className="text-xs font-bold uppercase tracking-widest text-blue-100 mb-1">Total Ítems</span>
-                    <span className="text-2xl sm:text-3xl font-bold text-white">{Array.isArray(detalle) ? detalle.length : 0}</span>
+                  <div className="poa-mobile-kpi-card flex flex-col bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 backdrop-blur-sm rounded-lg p-[0.6rem] shadow-xl dark:shadow-2xl dark:shadow-blue-900/50 hover:shadow-2xl transition-shadow transform hover:scale-105">
+                    <span className="text-[0.6rem] font-bold uppercase tracking-widest text-blue-100 mb-1">Total Ítems</span>
+                    <span className="text-[1.2rem] sm:text-[1.5rem] font-bold text-white">{Array.isArray(detalle) ? detalle.length : 0}</span>
                   </div>
                 </div>
               </div>
@@ -531,19 +531,19 @@ const PresupuestosPage = () => {
           </div>
 
           {/* Bloque de montos rediseñado */}
-          <div className="w-full mb-4">
-            <div className="poa-mobile-kpi-strip poa-mobile-kpi-strip-3 flex flex-col gap-3 sm:flex-row">
-              <div className="poa-mobile-kpi-card flex-1 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg shadow-lg p-3 text-white">
-                <p className="text-xs sm:text-sm font-bold uppercase tracking-widest opacity-90">Monto total</p>
-                <p className="text-lg sm:text-xl font-bold">Bs. {formatMoney(montoTotal)}</p>
+          <div className="w-full mb-[0.8rem]">
+            <div className="poa-mobile-kpi-strip poa-mobile-kpi-strip-3 flex flex-col gap-[0.6rem] sm:flex-row">
+              <div className="poa-mobile-kpi-card flex-1 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg shadow-lg p-[0.6rem] text-white">
+                <p className="text-[0.6rem] sm:text-[0.7rem] font-bold uppercase tracking-widest opacity-90">Monto total</p>
+                <p className="w-full text-right text-[0.9rem] sm:text-[1rem] font-bold">Bs. {formatMoney(montoTotal)}</p>
               </div>
-              <div className="poa-mobile-kpi-card flex-1 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-lg p-3 text-white">
-                <p className="text-xs sm:text-sm font-bold uppercase tracking-widest opacity-90">Monto inversión</p>
-                <p className="text-lg sm:text-xl font-bold">Bs. {formatMoney(montoInversion)}</p>
+              <div className="poa-mobile-kpi-card flex-1 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-lg p-[0.6rem] text-white">
+                <p className="text-[0.6rem] sm:text-[0.7rem] font-bold uppercase tracking-widest opacity-90">Monto inversión</p>
+                <p className="w-full text-right text-[0.9rem] sm:text-[1rem] font-bold">Bs. {formatMoney(montoInversion)}</p>
               </div>
-              <div className="poa-mobile-kpi-card flex-1 bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg shadow-lg p-3 text-white">
-                <p className="text-xs sm:text-sm font-bold uppercase tracking-widest opacity-90">Monto funcionamiento</p>
-                <p className="text-lg sm:text-xl font-bold">Bs. {formatMoney(montoFuncionamiento)}</p>
+              <div className="poa-mobile-kpi-card flex-1 bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg shadow-lg p-[0.6rem] text-white">
+                <p className="text-[0.6rem] sm:text-[0.7rem] font-bold uppercase tracking-widest opacity-90">Monto funcionamiento</p>
+                <p className="w-full text-right text-[0.9rem] sm:text-[1rem] font-bold">Bs. {formatMoney(montoFuncionamiento)}</p>
               </div>
             </div>
           </div>
@@ -645,8 +645,8 @@ const PresupuestosPage = () => {
                         <td data-label="Características" className="poa-cell poa-presupuesto-mobile-hidden align-top"><div className="table-cell-clamp">{it.caracteristicas || '—'}</div></td>
                         <td data-label="Código" className="poa-cell align-top text-center">{g.codigo}</td>
                         <td data-label="Cantidad" className="poa-cell align-top text-center">{it.cantidad}</td>
-                        <td data-label="Costo unitario" className="poa-cell poa-presupuesto-mobile-hidden align-top text-right">{formatMoney(it.costo_unitario)}</td>
-                        <td data-label="Precio total" className="poa-cell align-top text-right">{formatMoney((Number(it.cantidad) || 0) * (Number(it.costo_unitario) || 0))}</td>
+                        <td data-label="Costo unitario" className="poa-cell poa-currency-cell poa-presupuesto-mobile-hidden align-top text-right">{formatMoney(it.costo_unitario)}</td>
+                        <td data-label="Precio total" className="poa-cell poa-currency-cell align-top text-right">{formatMoney((Number(it.cantidad) || 0) * (Number(it.costo_unitario) || 0))}</td>
                         <td data-label="Mes" className="poa-cell poa-presupuesto-mobile-hidden align-top text-center">{it.mes_requerimiento || '—'}</td>
                       </tr>
                     ))}

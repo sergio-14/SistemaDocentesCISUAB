@@ -23,7 +23,7 @@ def generar_seguimiento_institucional_pdf(filas, gestion):
             parrafo(f'{fila[1]} - {fila[2]}', estilos['cell']),
             parrafo(fila[6], estilos['cell']),
             parrafo(f'{fila[7]:.2f}%', estilos['cell']),
-            parrafo(fila[8], estilos['cell']),
+            parrafo(fila[8], estilos['cell_money']),
             parrafo(fila[9], estilos['cell']),
         ])
 

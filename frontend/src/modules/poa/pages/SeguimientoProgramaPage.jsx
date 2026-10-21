@@ -89,7 +89,7 @@ export default function SeguimientoProgramaPage() {
                     <td><b>{actividad.codigo} · {actividad.nombre}</b><small className="block text-slate-500">{estado(actividad.estado)} · {actividad.avance}%</small></td>
                     <td>{actividad.mes_inicio || '—'} a {actividad.mes_fin || '—'}</td>
                     <td>{actividad.productos_esperados || 'Sin registrar'}</td>
-                    <td><ResumenPresupuesto actividad={actividad} /></td>
+                    <td className="poa-currency-cell text-right tabular-nums"><ResumenPresupuesto actividad={actividad} /></td>
                     <td><button onClick={() => setActual(actividad)} className="rounded-lg border px-3 py-2 text-xs font-bold"><FaClipboardList className="mr-1 inline" />Ver</button></td>
                   </tr>
                 ))}</tbody>

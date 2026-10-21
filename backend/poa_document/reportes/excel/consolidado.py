@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from openpyxl import Workbook
-from openpyxl.styles import Font
+from openpyxl.styles import Alignment, Font
 
 from .estilos import finalizar_tabla, guardar_en_buffer
 
@@ -29,6 +29,10 @@ def generar_consolidado_requerimientos_excel(items, gestion, total=None):
     hoja.merge_cells(start_row=1, start_column=1, end_row=1, end_column=8)
     hoja['A1'].font = Font(bold=True, size=14)
     finalizar_tabla(hoja, fila_encabezado=2)
+    for fila in range(3, hoja.max_row + 1):
+        celda_monto = hoja.cell(fila, 7)
+        celda_monto.alignment = Alignment(horizontal='right', vertical='top')
+        celda_monto.number_format = '#,##0.00'
     hoja.column_dimensions['C'].width = max(hoja.column_dimensions['C'].width, 38)
     hoja.column_dimensions['E'].width = max(hoja.column_dimensions['E'].width, 28)
     return guardar_en_buffer(libro)

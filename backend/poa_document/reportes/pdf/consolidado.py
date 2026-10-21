@@ -28,11 +28,11 @@ def generar_consolidado_requerimientos_pdf(items, gestion, total=None):
             parrafo(item['item'], estilos['cell']),
             parrafo(item['unidad_medida'], estilos['cell']),
             parrafo(item['cantidad_total'], estilos['cell']),
-            parrafo(f"{Decimal(item['monto_estimado_total']):,.2f}", estilos['cell']),
+            parrafo(f"{Decimal(item['monto_estimado_total']):,.2f}", estilos['cell_money']),
         ])
     filas.append([
         '', Paragraph('<b>TOTAL</b>', estilos['cell_bold']), '', '',
-        Paragraph(f'<b>{total:,.2f}</b>', estilos['cell_bold']),
+        Paragraph(f'<b>{total:,.2f}</b>', estilos['cell_bold_money']),
     ])
 
     buffer = BytesIO()

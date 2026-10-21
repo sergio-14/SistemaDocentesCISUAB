@@ -1,6 +1,7 @@
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
+from reportlab.lib.enums import TA_RIGHT
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, TableStyle
 
@@ -32,6 +33,14 @@ def crear_estilos_documento():
             'poa-cell-bold', parent=base['Normal'], fontName='Helvetica-Bold',
             fontSize=7, leading=9,
         ),
+        'cell_money': ParagraphStyle(
+            'poa-cell-money', parent=base['Normal'], fontName='Helvetica',
+            fontSize=7, leading=9, alignment=TA_RIGHT,
+        ),
+        'cell_bold_money': ParagraphStyle(
+            'poa-cell-bold-money', parent=base['Normal'], fontName='Helvetica-Bold',
+            fontSize=7, leading=9, alignment=TA_RIGHT,
+        ),
         'cell_small': ParagraphStyle(
             'poa-cell-small', parent=base['Normal'], fontName='Helvetica',
             fontSize=6.2, leading=8,
@@ -57,6 +66,14 @@ def crear_estilos_reporte(prefijo):
         'cell_bold': ParagraphStyle(
             f'{prefijo}-cell-bold', parent=base['Normal'], fontName='Helvetica-Bold',
             fontSize=7.5, leading=9,
+        ),
+        'cell_money': ParagraphStyle(
+            f'{prefijo}-cell-money', parent=base['Normal'], fontName='Helvetica',
+            fontSize=7.5, leading=9, alignment=TA_RIGHT,
+        ),
+        'cell_bold_money': ParagraphStyle(
+            f'{prefijo}-cell-bold-money', parent=base['Normal'], fontName='Helvetica-Bold',
+            fontSize=7.5, leading=9, alignment=TA_RIGHT,
         ),
     }
 

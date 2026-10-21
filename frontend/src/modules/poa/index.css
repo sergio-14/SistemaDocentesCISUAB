@@ -4547,6 +4547,19 @@ table tbody tr[data-selected="true"] td {
   line-height: 1.12 !important;
 }
 
+.poa-currency-cell {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.poa-app .poa-mobile-card-table td.poa-currency-cell {
+  text-align: right !important;
+}
+
+.poa-app .poa-mobile-card-table td.poa-currency-cell::before {
+  text-align: left !important;
+}
+
 @media (max-width: 767px) {
   .poa-app .poa-presupuesto-detail-table td.poa-presupuesto-mobile-hidden {
     display: none !important;

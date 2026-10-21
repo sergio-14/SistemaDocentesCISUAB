@@ -167,8 +167,8 @@ class DocumentoPOAPDFGenerator:
                 data.append([
                     Paragraph(f"<b>{DocumentoPOAPDFGenerator._texto(obj.codigo, 'OE')}</b> . {DocumentoPOAPDFGenerator._texto(obj.descripcion, 'Sin descripcion')}", styles['cell_bold']),
                     '', '', '', '', '', '', '', '',
-                    Paragraph(f"<b>{DocumentoPOAPDFGenerator._money(total_funcion)}</b>", styles['cell_bold']),
-                    Paragraph(f"<b>{DocumentoPOAPDFGenerator._money(total_inversion)}</b>", styles['cell_bold']),
+                    Paragraph(f"<b>{DocumentoPOAPDFGenerator._money(total_funcion)}</b>", styles['cell_bold_money']),
+                    Paragraph(f"<b>{DocumentoPOAPDFGenerator._money(total_inversion)}</b>", styles['cell_bold_money']),
                 ])
                 actividades = list(obj.actividades.all())
                 if not actividades:
@@ -185,8 +185,8 @@ class DocumentoPOAPDFGenerator:
                         Paragraph(DocumentoPOAPDFGenerator._texto(act.indicador_unidad), styles['cell']),
                         Paragraph(DocumentoPOAPDFGenerator._texto(act.indicador_linea_base), styles['cell']),
                         Paragraph(DocumentoPOAPDFGenerator._texto(act.indicador_meta), styles['cell']),
-                        Paragraph(DocumentoPOAPDFGenerator._money(act.monto_funcion), styles['cell']),
-                        Paragraph(DocumentoPOAPDFGenerator._money(act.monto_inversion), styles['cell']),
+                        Paragraph(DocumentoPOAPDFGenerator._money(act.monto_funcion), styles['cell_money']),
+                        Paragraph(DocumentoPOAPDFGenerator._money(act.monto_inversion), styles['cell_money']),
                     ])
 
         tabla = Table(
@@ -204,6 +204,7 @@ class DocumentoPOAPDFGenerator:
             ('SPAN', (9, 0), (10, 0)),
             ('BACKGROUND', (0, 0), (-1, 1), colors.HexColor('#e6e6e6')),
             ('ALIGN', (3, 2), (10, -1), 'CENTER'),
+            ('ALIGN', (9, 2), (10, -1), 'RIGHT'),
         ]
         for i, row in enumerate(data[2:], start=2):
             if row[1] == '':
@@ -265,8 +266,8 @@ class DocumentoPOAPDFGenerator:
                 )
                 data.append([
                     Paragraph(f'<b>{nombre_actividad}</b>', styles['cell_bold']),
-                    Paragraph(f'<b>{DocumentoPOAPDFGenerator._money(total_funcion)}</b>', styles['cell_bold']),
-                    Paragraph(f'<b>{DocumentoPOAPDFGenerator._money(total_inversion)}</b>', styles['cell_bold']),
+                    Paragraph(f'<b>{DocumentoPOAPDFGenerator._money(total_funcion)}</b>', styles['cell_bold_money']),
+                    Paragraph(f'<b>{DocumentoPOAPDFGenerator._money(total_inversion)}</b>', styles['cell_bold_money']),
                 ])
 
                 for grupo_data in sorted(
@@ -278,8 +279,8 @@ class DocumentoPOAPDFGenerator:
                     nombre = DocumentoPOAPDFGenerator._texto(grupo.nombre)
                     data.append([
                         Paragraph(f'<b>{codigo}</b> . {nombre}', styles['cell']),
-                        Paragraph(DocumentoPOAPDFGenerator._money(grupo_data['funcion']), styles['cell']),
-                        Paragraph(DocumentoPOAPDFGenerator._money(grupo_data['inversion']), styles['cell']),
+                        Paragraph(DocumentoPOAPDFGenerator._money(grupo_data['funcion']), styles['cell_money']),
+                        Paragraph(DocumentoPOAPDFGenerator._money(grupo_data['inversion']), styles['cell_money']),
                     ])
 
         if not detalles_encontrados:
@@ -367,8 +368,8 @@ class DocumentoPOAPDFGenerator:
                         Paragraph(DocumentoPOAPDFGenerator._texto(d.caracteristicas), styles['cell']),
                         Paragraph(DocumentoPOAPDFGenerator._texto(d.partida), styles['cell']),
                         Paragraph(DocumentoPOAPDFGenerator._texto(d.cantidad), styles['cell']),
-                        Paragraph(DocumentoPOAPDFGenerator._money(d.costo_unitario), styles['cell']),
-                        Paragraph(DocumentoPOAPDFGenerator._money(d.costo_total), styles['cell']),
+                        Paragraph(DocumentoPOAPDFGenerator._money(d.costo_unitario), styles['cell_money']),
+                        Paragraph(DocumentoPOAPDFGenerator._money(d.costo_total), styles['cell_money']),
                         Paragraph(DocumentoPOAPDFGenerator._texto(d.mes_requerimiento), styles['cell']),
                     ])
 

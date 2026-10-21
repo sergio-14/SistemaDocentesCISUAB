@@ -8,6 +8,25 @@ import toast from 'react-hot-toast';
 import { getActividadesPorObjetivo, getObjetivoPorId, deleteActividad, crearSolicitudCambioPOA } from '../../../apis/poa.api';
 import { getPoaNavigationContext, normalizePoaGestion, savePoaNavigationContext } from '../utils/navigationContext';
 
+const compareActividadCodigo = (first, second) => {
+  const firstParts = String(first?.codigo || '').split('-');
+  const secondParts = String(second?.codigo || '').split('-');
+  const length = Math.max(firstParts.length, secondParts.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const firstPart = firstParts[index] ?? '';
+    const secondPart = secondParts[index] ?? '';
+    const firstNumber = Number(firstPart);
+    const secondNumber = Number(secondPart);
+    const bothNumeric = Number.isFinite(firstNumber) && Number.isFinite(secondNumber);
+
+    if (bothNumeric && firstNumber !== secondNumber) return firstNumber - secondNumber;
+    if (!bothNumeric && firstPart !== secondPart) return firstPart.localeCompare(secondPart, 'es');
+  }
+
+  return Number(first?.id || 0) - Number(second?.id || 0);
+};
+
 const ActividadesPage = () => {
   const { objetivoEspecificoId } = useParams();
   const navigate = useNavigate();
@@ -232,6 +251,11 @@ const ActividadesPage = () => {
     return { actividadesCompletadas: completadas, actividadesProgramadas: programadas };
   }, [actividades]);
 
+  const actividadesOrdenadas = React.useMemo(
+    () => [...(actividades || [])].sort(compareActividadCodigo),
+    [actividades]
+  );
+
   return (
   <section className="flex flex-col items-start justify-start flex-1 pt-0 pb-12 w-full px-0">
       <Dialog
@@ -349,7 +373,7 @@ const ActividadesPage = () => {
             </tr>
           </thead>
           <tbody className="font-sans text-base leading-snug">
-            {actividades && actividades.length > 0 ? actividades.map(act => {
+            {actividadesOrdenadas.length > 0 ? actividadesOrdenadas.map(act => {
               const indicador = act.indicador && typeof act.indicador === 'object' ? act.indicador : null;
               // Determinar el rango de meses para la línea de tiempo
               const mesInicio = act.mes_inicio || act.mes || act.fecha_inicio || '';

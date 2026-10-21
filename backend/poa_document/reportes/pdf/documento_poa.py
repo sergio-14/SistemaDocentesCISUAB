@@ -1,3 +1,4 @@
+from decimal import Decimal
 from io import BytesIO
 
 from reportlab.lib import colors
@@ -68,6 +69,22 @@ class DocumentoPOAPDFGenerator:
         t = Table(data, colWidths=col_widths, repeatRows=0)
         t.setStyle(DocumentoPOAPDFGenerator._table_base_style())
         return t
+
+    @staticmethod
+    def _header_table_formulario_3(documento, actividad, styles):
+        unidad = getattr(actividad, 'unidad_destino_presupuesto', None) if actividad else None
+        if unidad is not None:
+            unidad = getattr(unidad, 'nombre', unidad)
+        operacion = getattr(actividad, 'nombre', '') if actividad else ''
+        data = [
+            [Paragraph('<b>ENTIDAD</b>', styles['cell_bold']), Paragraph(DocumentoPOAPDFGenerator.DEFAULT_ENTIDAD, styles['cell'])],
+            [Paragraph('<b>GESTIÓN</b>', styles['cell_bold']), Paragraph(DocumentoPOAPDFGenerator._texto(documento.gestion), styles['cell'])],
+            [Paragraph('<b>UNIDAD</b>', styles['cell_bold']), Paragraph(DocumentoPOAPDFGenerator._texto(unidad), styles['cell'])],
+            [Paragraph('<b>OPERACIÓN Y/O ACTIVIDAD</b>', styles['cell_bold']), Paragraph(DocumentoPOAPDFGenerator._texto(operacion), styles['cell'])],
+        ]
+        tabla = Table(data, colWidths=[130, 445], repeatRows=0)
+        tabla.setStyle(DocumentoPOAPDFGenerator._table_base_style())
+        return tabla
 
     @staticmethod
     def _responsables_table(documento, styles, orientation='landscape'):
@@ -205,110 +222,185 @@ class DocumentoPOAPDFGenerator:
         elems = [
             Paragraph('PROGRAMACIÓN DE OPERACIONES ANUAL', styles['title']),
             Paragraph('OPERACIONES POR PARTIDAS PRESUPUESTARIAS', styles['title']),
-            Paragraph('Formulario Nro. 2', styles['subtitle']),
             DocumentoPOAPDFGenerator._header_table(documento, styles, orientation='landscape'),
             Spacer(1, 6),
         ]
 
-        detalles = []
-        for objetivo in documento.objetivos.prefetch_related('actividades__detalles_presupuesto').all():
+        data = [
+            ['', Paragraph('<b>Monto Bs.</b>', styles['cell_bold']), ''],
+            ['', Paragraph('<b>Función</b>', styles['cell_bold']), Paragraph('<b>Inversión</b>', styles['cell_bold'])],
+        ]
+        filas_actividad = []
+        detalles_encontrados = False
+
+        objetivos = documento.objetivos.prefetch_related(
+            'actividades__detalles_presupuesto__grupo_partida',
+        ).all()
+        for objetivo in objetivos:
             for actividad in objetivo.actividades.all():
-                for d in actividad.detalles_presupuesto.all():
-                    detalles.append((actividad, d))
+                grupos = {}
+                for detalle in actividad.detalles_presupuesto.all():
+                    detalles_encontrados = True
+                    grupo = detalle.grupo_partida
+                    grupo_data = grupos.setdefault(grupo.pk, {
+                        'grupo': grupo,
+                        'funcion': Decimal('0'),
+                        'inversion': Decimal('0'),
+                    })
+                    monto = Decimal(str(detalle.costo_total or 0))
+                    if str(detalle.tipo).lower() == 'inversion':
+                        grupo_data['inversion'] += monto
+                    else:
+                        grupo_data['funcion'] += monto
 
-        data = [[
-            Paragraph('<b>Partida / Detalle</b>', styles['cell_bold']),
-            Paragraph('<b>Función</b>', styles['cell_bold']),
-            Paragraph('<b>Inversión</b>', styles['cell_bold']),
-        ]]
+                if not grupos:
+                    continue
 
-        total_funcion = 0
-        total_inversion = 0
-        if not detalles:
-            data.append([Paragraph('Sin partidas presupuestarias registradas.', styles['cell']), '', ''])
-        else:
-            for actividad, d in detalles:
-                monto = float(d.costo_total or 0)
-                es_inversion = str(d.tipo).lower() == 'inversion'
-                if es_inversion:
-                    total_inversion += monto
-                else:
-                    total_funcion += monto
-
+                total_funcion = sum((grupo['funcion'] for grupo in grupos.values()), Decimal('0'))
+                total_inversion = sum((grupo['inversion'] for grupo in grupos.values()), Decimal('0'))
+                filas_actividad.append(len(data))
+                nombre_actividad = (
+                    f"{DocumentoPOAPDFGenerator._texto(actividad.codigo)} - "
+                    f"{DocumentoPOAPDFGenerator._texto(actividad.nombre)}"
+                )
                 data.append([
-                    Paragraph(f"{DocumentoPOAPDFGenerator._texto(d.partida)} . {DocumentoPOAPDFGenerator._texto(d.item)}", styles['cell']),
-                    Paragraph(DocumentoPOAPDFGenerator._money(0 if es_inversion else monto), styles['cell']),
-                    Paragraph(DocumentoPOAPDFGenerator._money(monto if es_inversion else 0), styles['cell']),
+                    Paragraph(f'<b>{nombre_actividad}</b>', styles['cell_bold']),
+                    Paragraph(f'<b>{DocumentoPOAPDFGenerator._money(total_funcion)}</b>', styles['cell_bold']),
+                    Paragraph(f'<b>{DocumentoPOAPDFGenerator._money(total_inversion)}</b>', styles['cell_bold']),
                 ])
-            data.append([
-                Paragraph('<b>TOTAL</b>', styles['cell_bold']),
-                Paragraph(f"<b>{DocumentoPOAPDFGenerator._money(total_funcion)}</b>", styles['cell_bold']),
-                Paragraph(f"<b>{DocumentoPOAPDFGenerator._money(total_inversion)}</b>", styles['cell_bold']),
-            ])
 
-        tabla = Table(data, colWidths=[610, 58, 58], repeatRows=1)
-        tabla.setStyle(DocumentoPOAPDFGenerator._table_base_style([
-            ('ALIGN', (1, 1), (-1, -1), 'RIGHT'),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e6e6e6')),
-            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#f2f2f2')),
-        ]))
+                for grupo_data in sorted(
+                    grupos.values(),
+                    key=lambda row: (str(row['grupo'].codigo or '').strip(), row['grupo'].id),
+                ):
+                    grupo = grupo_data['grupo']
+                    codigo = DocumentoPOAPDFGenerator._texto(grupo.codigo)
+                    nombre = DocumentoPOAPDFGenerator._texto(grupo.nombre)
+                    data.append([
+                        Paragraph(f'<b>{codigo}</b> . {nombre}', styles['cell']),
+                        Paragraph(DocumentoPOAPDFGenerator._money(grupo_data['funcion']), styles['cell']),
+                        Paragraph(DocumentoPOAPDFGenerator._money(grupo_data['inversion']), styles['cell']),
+                    ])
+
+        if not detalles_encontrados:
+            data.append([Paragraph('Sin partidas presupuestarias registradas.', styles['cell']), '', ''])
+
+        tabla = Table(data, colWidths=[610, 58, 58], repeatRows=2)
+        estilo = [
+            ('SPAN', (0, 0), (0, 1)),
+            ('SPAN', (1, 0), (2, 0)),
+            ('ALIGN', (0, 0), (-1, 1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ALIGN', (1, 2), (-1, -1), 'RIGHT'),
+            ('BACKGROUND', (0, 0), (-1, 1), colors.white),
+        ]
+        if not detalles_encontrados:
+            estilo.extend([
+                ('SPAN', (0, 2), (-1, 2)),
+                ('ALIGN', (0, 2), (0, 2), 'LEFT'),
+            ])
+        for fila in filas_actividad:
+            estilo.extend([
+                ('BACKGROUND', (0, fila), (-1, fila), colors.HexColor('#c9c9c9')),
+                ('FONTNAME', (0, fila), (-1, fila), 'Helvetica-Bold'),
+                ('ALIGN', (1, fila), (-1, fila), 'RIGHT'),
+            ])
+        tabla.setStyle(DocumentoPOAPDFGenerator._table_base_style(estilo))
 
         elems.extend([tabla, Spacer(1, 8), DocumentoPOAPDFGenerator._responsables_table(documento, styles, orientation='landscape')])
         return elems
 
     @staticmethod
     def _formulario_3_actividad(documento, actividad, detalles, styles):
-        titulo_actividad = 'Sin actividad específica'
-        if actividad is not None:
-            titulo_actividad = f"{DocumentoPOAPDFGenerator._texto(actividad.codigo)} - {DocumentoPOAPDFGenerator._texto(actividad.nombre)}"
-
         elems = [
             Paragraph('REQUERIMIENTO DE RECURSOS FÍSICOS Y FINANCIEROS', styles['title']),
             Paragraph('Formulario Nro. 3', styles['subtitle']),
-            Paragraph(titulo_actividad, styles['cell_bold']),
-            Spacer(1, 4),
-            DocumentoPOAPDFGenerator._header_table(documento, styles, orientation='portrait'),
+            Spacer(1, 3),
+            DocumentoPOAPDFGenerator._header_table_formulario_3(documento, actividad, styles),
             Spacer(1, 6),
         ]
 
-        data = [[
-            Paragraph('<b>Detalle</b>', styles['cell_bold']),
-            Paragraph('<b>Unidad de medida</b>', styles['cell_bold']),
-            Paragraph('<b>Características</b>', styles['cell_bold']),
-            Paragraph('<b>Partida Presupuestaria</b>', styles['cell_bold']),
-            Paragraph('<b>Cantidad Requerida</b>', styles['cell_bold']),
-            Paragraph('<b>Costo Bs.<br/>Unitario</b>', styles['cell_bold']),
-            Paragraph('<b>Costo Bs.<br/>Total</b>', styles['cell_bold']),
-            Paragraph('<b>Mes Requerimiento</b>', styles['cell_bold']),
-        ]]
+        data = [
+            [
+                Paragraph('<b>Detalle</b>', styles['cell_bold']),
+                Paragraph('<b>Unidad de<br/>medida</b>', styles['cell_bold']),
+                Paragraph('<b>Características</b>', styles['cell_bold']),
+                Paragraph('<b>Partida<br/>Presup</b>', styles['cell_bold']),
+                Paragraph('<b>Cantidad<br/>Requerida</b>', styles['cell_bold']),
+                Paragraph('<b>Costo Bs.</b>', styles['cell_bold']),
+                '',
+                Paragraph('<b>Mes<br/>Requerimiento</b>', styles['cell_bold']),
+            ],
+            ['', '', '', '', '', Paragraph('<b>Unitario</b>', styles['cell_bold']), Paragraph('<b>Total</b>', styles['cell_bold']), ''],
+        ]
+        filas_categoria = []
 
         if not detalles:
             data.append([Paragraph('Sin requerimientos físicos/financieros registrados para esta actividad.', styles['cell'])] + [''] * 7)
         else:
-            for d in detalles:
+            grupos = {}
+            for detalle in sorted(detalles, key=lambda item: (str(item.grupo_partida.codigo or '').strip(), item.id or 0)):
+                grupo = detalle.grupo_partida
+                grupo_info = grupos.setdefault(grupo.pk, {'grupo': grupo, 'items': []})
+                grupo_info['items'].append(detalle)
+
+            for grupo_info in grupos.values():
+                grupo = grupo_info['grupo']
+                codigo = str(grupo.codigo or '').strip()
+                etiqueta = grupo.nombre
+                items = grupo_info['items']
+                filas_categoria.append(len(data))
                 data.append([
-                    Paragraph(DocumentoPOAPDFGenerator._texto(d.item), styles['cell']),
-                    Paragraph(DocumentoPOAPDFGenerator._texto(d.unidad_medida), styles['cell']),
-                    Paragraph(DocumentoPOAPDFGenerator._texto(d.caracteristicas), styles['cell']),
-                    Paragraph(DocumentoPOAPDFGenerator._texto(d.partida), styles['cell']),
-                    Paragraph(DocumentoPOAPDFGenerator._texto(d.cantidad), styles['cell']),
-                    Paragraph(DocumentoPOAPDFGenerator._money(d.costo_unitario), styles['cell']),
-                    Paragraph(DocumentoPOAPDFGenerator._money(d.costo_total), styles['cell']),
-                    Paragraph(DocumentoPOAPDFGenerator._texto(d.mes_requerimiento), styles['cell']),
+                    Paragraph(f'<b>{DocumentoPOAPDFGenerator._texto(etiqueta)}</b>', styles['cell_bold']),
+                    '',
+                    '',
+                    Paragraph(f'<b>{DocumentoPOAPDFGenerator._texto(codigo)}</b>', styles['cell_bold']),
+                    '',
+                    '',
+                    '',
+                    '',
                 ])
+                for d in items:
+                    data.append([
+                        Paragraph(DocumentoPOAPDFGenerator._texto(d.item), styles['cell']),
+                        Paragraph(DocumentoPOAPDFGenerator._texto(d.unidad_medida), styles['cell']),
+                        Paragraph(DocumentoPOAPDFGenerator._texto(d.caracteristicas), styles['cell']),
+                        Paragraph(DocumentoPOAPDFGenerator._texto(d.partida), styles['cell']),
+                        Paragraph(DocumentoPOAPDFGenerator._texto(d.cantidad), styles['cell']),
+                        Paragraph(DocumentoPOAPDFGenerator._money(d.costo_unitario), styles['cell']),
+                        Paragraph(DocumentoPOAPDFGenerator._money(d.costo_total), styles['cell']),
+                        Paragraph(DocumentoPOAPDFGenerator._texto(d.mes_requerimiento), styles['cell']),
+                    ])
 
         tabla = Table(
             data,
-            colWidths=[154, 42, 95, 36, 44, 40, 44, 120],
-            repeatRows=1,
+            colWidths=[170, 46, 110, 36, 46, 44, 44, 79],
+            repeatRows=2,
         )
         style = [
-            ('ALIGN', (4, 1), (6, -1), 'RIGHT'),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e6e6e6')),
+            ('SPAN', (0, 0), (0, 1)),
+            ('SPAN', (1, 0), (1, 1)),
+            ('SPAN', (2, 0), (2, 1)),
+            ('SPAN', (3, 0), (3, 1)),
+            ('SPAN', (4, 0), (4, 1)),
+            ('SPAN', (5, 0), (6, 0)),
+            ('SPAN', (7, 0), (7, 1)),
+            ('ALIGN', (0, 0), (-1, 1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, 1), 'MIDDLE'),
+            ('ALIGN', (4, 2), (6, -1), 'RIGHT'),
+            ('ALIGN', (7, 2), (7, -1), 'CENTER'),
+            ('BACKGROUND', (0, 0), (-1, 1), colors.HexColor('#e6e6e6')),
         ]
-        if len(data) == 2 and not detalles:
-            style.append(('SPAN', (0, 1), (-1, 1)))
-            style.append(('BACKGROUND', (0, 1), (-1, 1), colors.HexColor('#f2f2f2')))
+        if len(data) == 3 and not detalles:
+            style.append(('SPAN', (0, 2), (-1, 2)))
+            style.append(('BACKGROUND', (0, 2), (-1, 2), colors.HexColor('#f2f2f2')))
+        for row_index in filas_categoria:
+            style.extend([
+                ('SPAN', (0, row_index), (2, row_index)),
+                ('SPAN', (4, row_index), (7, row_index)),
+                ('ALIGN', (3, row_index), (3, row_index), 'RIGHT'),
+                ('BACKGROUND', (0, row_index), (-1, row_index), colors.HexColor('#f2f2f2')),
+            ])
         tabla.setStyle(DocumentoPOAPDFGenerator._table_base_style(style))
 
         elems.extend([tabla, Spacer(1, 8), DocumentoPOAPDFGenerator._responsables_table(documento, styles, orientation='portrait')])
@@ -330,7 +422,11 @@ class DocumentoPOAPDFGenerator:
         story.extend(DocumentoPOAPDFGenerator._formulario_2(documento, styles))
         story.append(NextPageTemplate('portrait'))
 
-        objetivos = list(documento.objetivos.prefetch_related('actividades__detalles_presupuesto').all())
+        objetivos = list(documento.objetivos.prefetch_related(
+            'actividades__detalles_presupuesto',
+            'actividades__detalles_presupuesto__grupo_partida',
+            'actividades__unidad_destino_presupuesto',
+        ).all())
         actividades_con_presupuesto = []
         for objetivo in objetivos:
             for actividad in objetivo.actividades.all():

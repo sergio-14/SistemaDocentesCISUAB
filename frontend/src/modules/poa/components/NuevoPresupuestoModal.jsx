@@ -15,7 +15,7 @@ const parsearRangoMeses = (valor, inicioPorDefecto, finPorDefecto) => {
   return { inicio: partes[0] || inicioPorDefecto, fin: partes[1] || partes[0] || finPorDefecto };
 };
 
-const NuevoPresupuestoModal = ({ actividadId, actividad, documentoId, documentoEstado = '', detalle, onClose, onCreated, onUpdated }) => {
+const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documentoId, documentoEstado = '', detalle, onClose, onCreated, onUpdated }) => {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessages, setErrorMessages] = useState([]);
   const [fieldErrors, setFieldErrors] = useState({});
@@ -23,7 +23,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, documentoId, documentoE
     item: '',
     unidad_medida: '',
     caracteristicas: '',
-    partida: '',
+    partida: grupoPartida?.codigo || '',
     cantidad: '',
     costo_unitario: '',
     mes_requerimiento: '',
@@ -58,7 +58,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, documentoId, documentoE
         item: detalle.item ?? '',
         unidad_medida: unidadSinRegistrar(detalle.unidad_medida) ? '' : (detalle.unidad_medida ?? ''),
         caracteristicas: detalle.caracteristicas ?? '',
-        partida: detalle.partida ?? '',
+        partida: grupoPartida?.codigo ?? detalle.grupo_partida?.codigo ?? detalle.partida ?? '',
         cantidad: detalle.cantidad ?? '',
         costo_unitario: detalle.costo_unitario ?? '',
         mes_requerimiento: detalle.mes_requerimiento ?? '',
@@ -75,7 +75,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, documentoId, documentoE
         });
       }
     }
-  }, [detalle, actividad?.mes_inicio, actividad?.mes_fin]);
+  }, [detalle, grupoPartida, actividad?.mes_inicio, actividad?.mes_fin]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -117,7 +117,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, documentoId, documentoE
     setShowDropdown(true);
 
     try {
-      const res = await getItemsCatalogo({ q: query });
+      const res = await getItemsCatalogo({ q: query, ...(grupoPartida?.codigo ? { partida: grupoPartida.codigo } : {}) });
       const data = res?.data ?? [];
       const list = Array.isArray(data)
         ? data
@@ -132,6 +132,8 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, documentoId, documentoE
   };
 
   const filteredItems = (catalogItems || []).filter((it) => {
+    const codigoPartida = String(it.partida?.codigo ?? it.partida ?? it.codigo_partida ?? '').trim();
+    if (grupoPartida?.codigo && codigoPartida !== String(grupoPartida.codigo).trim()) return false;
     if (!itemQuery) return true;
     const q = String(itemQuery).toLowerCase();
     const descripcion = String(it.detalle || it.descripcion || it.nombre || it.nombre_item || it.codigo || '').toLowerCase();
@@ -142,12 +144,16 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, documentoId, documentoE
   const handleSelectCatalogItem = (itemData) => {
     const descripcion = itemData.detalle ?? itemData.descripcion ?? itemData.nombre ?? itemData.nombre_item ?? itemData.codigo ?? '';
     const partidaCodigo = itemData.partida?.codigo ?? itemData.partida ?? itemData.codigo_partida ?? '';
+    if (grupoPartida?.codigo && String(partidaCodigo).trim() !== String(grupoPartida.codigo).trim()) {
+      toast.error('El ítem del catálogo pertenece a otra partida.');
+      return;
+    }
     const unidadMedidaCatalogo = itemData.unidad_medida ?? itemData.unidad ?? '';
     const unidadMedida = unidadSinRegistrar(unidadMedidaCatalogo) ? '' : unidadMedidaCatalogo;
     setForm(prev => ({
       ...prev,
       item: descripcion,
-      partida: partidaCodigo || prev.partida,
+      partida: grupoPartida?.codigo || partidaCodigo || prev.partida,
       unidad_medida: unidadMedida || prev.unidad_medida,
     }));
     setSelectedCatalogItem(itemData);
@@ -172,6 +178,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, documentoId, documentoE
     setErrorMessages([]);
     const errs = {};
     if (!actividadId) errs.actividad_id = 'Actividad desconocida';
+    if (!grupoPartida?.id) errs.grupo_partida_id = 'Selecciona o crea una partida presupuestaria antes de agregar ítems.';
     if (!form.item || String(form.item).trim() === '') {
       errs.item = 'Requerido';
     } else if (!selectedCatalogItem) {
@@ -204,7 +211,8 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, documentoId, documentoE
 
     const payload = {
       actividad_id: Number(actividadId),
-      partida: form.partida,
+      grupo_partida_id: Number(grupoPartida.id),
+      partida: grupoPartida.codigo,
       item: form.item,
       unidad_medida: form.unidad_medida || null,
       caracteristicas: form.caracteristicas || null,
@@ -415,7 +423,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, documentoId, documentoE
                 required
                 error={fieldErrors.partida}
               />
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">La partida se autocompleta desde el item seleccionado.</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">El ítem quedará dentro de la partida seleccionada: {grupoPartida?.nombre || 'sin seleccionar'}.</div>
             </div>
           </div>
 
@@ -525,7 +533,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, documentoId, documentoE
       {showNuevoCatalogoItemModal && (
         <NuevoCatalogoItemModal
           stacked
-          partida={null}
+          partida={grupoPartida ? { codigo: grupoPartida.codigo } : null}
           item={{
             detalle: itemQuery || '',
             partida: form.partida || '',

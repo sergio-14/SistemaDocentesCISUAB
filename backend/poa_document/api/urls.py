@@ -27,6 +27,8 @@ from .views import (
     IndicadorCatalogoViewSet,
     IndicadorCatalogoReadOnlyViewSet,
     PartidaPresupuestariaViewSet,
+    PartidaPresupuestoViewSet,
+    UnidadDestinoPresupuestoViewSet,
 )
 
 router = routers.DefaultRouter()
@@ -49,6 +51,8 @@ router.register(r'mensajes-chat', MensajeChatViewSet, basename='mensaje_chat')
 
 # Catálogos internos del módulo POA.
 router.register(r'catalogos/partidas', PartidaPresupuestariaViewSet, basename='poa_partidapresupuestaria')
+router.register(r'catalogos/unidades-presupuesto', UnidadDestinoPresupuestoViewSet, basename='poa_unidad_destino_presupuesto')
+router.register(r'partidas-presupuesto', PartidaPresupuestoViewSet, basename='poa_partidas_presupuesto')
 router.register(r'catalogos/items', ItemCatalogoViewSet, basename='poa_itemcatalogo')
 router.register(r'catalogos/indicadores', IndicadorCatalogoViewSet, basename='poa_indicadorcatalogo')
 router.register(r'catalogos/items-catalogo', ItemCatalogoReadOnlyViewSet, basename='poa_itemcatalogo_readonly')

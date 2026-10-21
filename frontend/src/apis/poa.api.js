@@ -303,6 +303,14 @@ export const descargarCatalogoItemsExcel = (options = {}) =>
 // Partidas presupuestarias
 // Endpoint: GET /api/poa/catalogos/partidas/
 export const getCatalogoPartidas = () => api.get('/api/poa/catalogos/partidas/');
+export const getUnidadesDestinoPresupuesto = () => api.get('/api/poa/catalogos/unidades-presupuesto/');
+export const createUnidadDestinoPresupuesto = (nombre) =>
+	api.post('/api/poa/catalogos/unidades-presupuesto/', { nombre });
+export const getPartidasPresupuestoPorActividad = (actividad_id) =>
+	api.get('/api/poa/partidas-presupuesto/', { params: { actividad_id: Number(actividad_id) } });
+export const createPartidaPresupuesto = (payload) => api.post('/api/poa/partidas-presupuesto/', payload);
+export const updatePartidaPresupuesto = (id, payload) => api.patch(`/api/poa/partidas-presupuesto/${id}/`, payload);
+export const deletePartidaPresupuesto = (id) => api.delete(`/api/poa/partidas-presupuesto/${id}/`);
 
 // Indicadores planos para POA (catálogo nuevo de una sola columna)
 export const getIndicadoresCatalogo = (params) => api.get('/api/poa/catalogos/indicadores/', { params });

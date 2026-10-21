@@ -19,7 +19,11 @@ from poa_document.models import (
     SeguimientoActividadPOA,
     OrdenCompraPOA, DetalleOrdenCompraPOA, RecepcionMaterialPOA, DetalleRecepcionMaterialPOA, EntregaMaterialActividad,
 )
-from poa_document.models import Evidencia, EvidenciaArchivo, ProgramaPOA, ItemCatalogo, IndicadorCatalogo
+from poa_document.models import (
+    Evidencia, EvidenciaArchivo, ProgramaPOA, ItemCatalogo, IndicadorCatalogo,
+    UnidadDestinoPresupuesto,
+    PartidaPresupuesto,
+)
 from fondos.models import Docente, Carrera
 
 
@@ -34,6 +38,65 @@ class ItemCatalogoSerializer(serializers.ModelSerializer):
         model = ItemCatalogo
         fields = ['id', 'detalle', 'unidad_medida', 'partida']
         read_only_fields = ['id']
+
+
+class UnidadDestinoPresupuestoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UnidadDestinoPresupuesto
+        fields = ['id', 'nombre']
+        read_only_fields = ['id']
+
+    def validate_nombre(self, value):
+        nombre = str(value or '').strip()
+        if not nombre:
+            raise serializers.ValidationError('Ingrese el nombre de la unidad.')
+        duplicada = UnidadDestinoPresupuesto.objects.filter(nombre__iexact=nombre)
+        if self.instance:
+            duplicada = duplicada.exclude(pk=self.instance.pk)
+        if duplicada.exists():
+            raise serializers.ValidationError('Esta unidad ya está registrada.')
+        return nombre
+
+
+class PartidaPresupuestoSerializer(serializers.ModelSerializer):
+    actividad_id = serializers.PrimaryKeyRelatedField(
+        source='actividad', queryset=Actividad.objects.all(), required=False
+    )
+    cantidad_items = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PartidaPresupuesto
+        fields = ['id', 'actividad_id', 'codigo', 'nombre', 'cantidad_items']
+        read_only_fields = ['id', 'cantidad_items']
+        validators = []
+
+    def validate_codigo(self, value):
+        codigo = str(value or '').strip()
+        if not codigo:
+            raise serializers.ValidationError('Ingrese el código de la partida.')
+        return codigo
+
+    def validate_nombre(self, value):
+        nombre = str(value or '').strip()
+        if not nombre:
+            raise serializers.ValidationError('Ingrese el nombre de la partida.')
+        return nombre
+
+    def validate(self, attrs):
+        actividad = attrs.get('actividad', getattr(self.instance, 'actividad', None))
+        codigo = attrs.get('codigo', getattr(self.instance, 'codigo', ''))
+        if self.instance and actividad and actividad.id != self.instance.actividad_id:
+            raise serializers.ValidationError({'actividad_id': 'No se puede mover una partida a otra actividad.'})
+        if actividad and codigo:
+            duplicada = PartidaPresupuesto.objects.filter(actividad=actividad, codigo=codigo)
+            if self.instance:
+                duplicada = duplicada.exclude(pk=self.instance.pk)
+            if duplicada.exists():
+                raise serializers.ValidationError({'codigo': 'Ya existe una partida con este código para la actividad.'})
+        return attrs
+
+    def get_cantidad_items(self, obj):
+        return obj.items.count()
 
 
 class IndicadorCatalogoSerializer(serializers.ModelSerializer):
@@ -419,11 +482,18 @@ class ActividadSerializer(serializers.ModelSerializer):
     documento_id = serializers.IntegerField(source='objetivo.documento_id', read_only=True)
     documento_estado = serializers.CharField(source='objetivo.documento.estado', read_only=True)
     documento_gestion = serializers.IntegerField(source='objetivo.documento.gestion', read_only=True)
+    unidad_destino_presupuesto_nombre = serializers.CharField(
+        source='unidad_destino_presupuesto.nombre', read_only=True, allow_null=True
+    )
+    unidad_destino_presupuesto = serializers.PrimaryKeyRelatedField(
+        queryset=UnidadDestinoPresupuesto.objects.all(), required=False, allow_null=True
+    )
 
     class Meta:
         model = Actividad
         fields = [
             'id', 'objetivo_id', 'objetivo', 'documento_id', 'documento_estado', 'documento_gestion',
+            'unidad_destino_presupuesto', 'unidad_destino_presupuesto_nombre',
             'codigo', 'nombre', 'responsable', 'productos_esperados',
             'mes_inicio', 'mes_fin', 'indicador_descripcion', 'indicador_descripcion_texto',
             'indicadores_disponibles',
@@ -600,6 +670,10 @@ class DetallePresupuestoSerializer(serializers.ModelSerializer):
     actividad = serializers.IntegerField(source='actividad_id', read_only=True)
     documento_id = serializers.IntegerField(source='actividad.objetivo.documento_id', read_only=True)
     documento_estado = serializers.CharField(source='actividad.objetivo.documento.estado', read_only=True)
+    grupo_partida_id = serializers.PrimaryKeyRelatedField(
+        queryset=PartidaPresupuesto.objects.all(), source='grupo_partida', required=True
+    )
+    grupo_partida = PartidaPresupuestoSerializer(read_only=True)
     # Asegurar que 'cantidad' sea validada como entero en el endpoint
     cantidad = serializers.IntegerField(min_value=1)
     costo_unitario = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=0)
@@ -616,6 +690,8 @@ class DetallePresupuestoSerializer(serializers.ModelSerializer):
             'actividad',
             'documento_id',
             'documento_estado',
+            'grupo_partida_id',
+            'grupo_partida',
             'tipo',
             'partida',
             'item',
@@ -637,11 +713,19 @@ class DetallePresupuestoSerializer(serializers.ModelSerializer):
             'julio': 7, 'agosto': 8, 'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12,
         }
         actividad = attrs.get('actividad', getattr(self.instance, 'actividad', None))
+        grupo_partida = attrs.get('grupo_partida', getattr(self.instance, 'grupo_partida', None))
         catalogo_item_ref = attrs.get('catalogo_item_ref')
         unidad_medida = str(attrs.get('unidad_medida', getattr(self.instance, 'unidad_medida', '')) or '').strip()
         valor = str(attrs.get('mes_requerimiento', getattr(self.instance, 'mes_requerimiento', '')) or '').strip().lower()
         partes = [parte.strip() for parte in re.split(r'\s*(?:-|hasta|\ba\b)\s*', valor) if parte.strip()]
         errors = {}
+
+        if not grupo_partida:
+            errors['grupo_partida_id'] = 'Seleccione una partida antes de agregar ítems.'
+        elif actividad and grupo_partida.actividad_id != actividad.id:
+            errors['grupo_partida_id'] = 'La partida seleccionada no pertenece a esta actividad.'
+        else:
+            attrs['partida'] = grupo_partida.codigo
 
         if not unidad_medida or unidad_medida.lower() in {'sin unidad', 'sin_unidad'}:
             errors['unidad_medida'] = 'Ingrese una unidad de medida válida.'

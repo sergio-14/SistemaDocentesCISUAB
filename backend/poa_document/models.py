@@ -30,6 +30,20 @@ class IndicadorCatalogo(models.Model):
         return self.indicador
 
 
+class UnidadDestinoPresupuesto(models.Model):
+    """Unidades institucionales a las que se solicitan recursos en el POA."""
+
+    nombre = models.CharField(max_length=150, unique=True)
+
+    class Meta:
+        ordering = ['nombre', 'id']
+        verbose_name = 'Unidad destino del presupuesto'
+        verbose_name_plural = 'Unidades destino del presupuesto'
+
+    def __str__(self):
+        return self.nombre
+
+
 class UsuarioPOA(models.Model):
     """
     Vincula a un usuario del sistema con un rol dentro del módulo POA.
@@ -332,6 +346,14 @@ class Actividad(models.Model):
     ]
 
     objetivo = models.ForeignKey(ObjetivoEspecifico, on_delete=models.CASCADE, related_name="actividades")
+    unidad_destino_presupuesto = models.ForeignKey(
+        UnidadDestinoPresupuesto,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='actividades',
+        verbose_name='Unidad destino del presupuesto',
+    )
     codigo = models.CharField(max_length=20)  # 510-0-1
     nombre = models.CharField(max_length=300)
     responsable = models.CharField(max_length=500)
@@ -361,6 +383,27 @@ class Actividad(models.Model):
         return f"{self.codigo} - {self.nombre}"
 
 
+class PartidaPresupuesto(models.Model):
+    """Grupo de planificación que reúne los ítems de una partida en una actividad."""
+
+    actividad = models.ForeignKey(
+        Actividad,
+        on_delete=models.CASCADE,
+        related_name='partidas_presupuesto',
+    )
+    codigo = models.CharField(max_length=50, blank=True, default='')
+    nombre = models.CharField(max_length=200)
+
+    class Meta:
+        ordering = ['codigo', 'id']
+        unique_together = ('actividad', 'codigo')
+        verbose_name = 'Partida de presupuesto'
+        verbose_name_plural = 'Partidas de presupuesto'
+
+    def __str__(self):
+        return f"{self.codigo} - {self.nombre}".strip(' -')
+
+
 class SeguimientoActividadPOA(models.Model):
     """Bitácora breve de ejecución; no otorga acceso al receptor o responsable."""
     actividad = models.ForeignKey(Actividad, on_delete=models.CASCADE, related_name='seguimientos')
@@ -381,6 +424,11 @@ class SeguimientoActividadPOA(models.Model):
 
 class DetallePresupuesto(models.Model):
     actividad = models.ForeignKey(Actividad, on_delete=models.CASCADE, related_name='detalles_presupuesto')
+    grupo_partida = models.ForeignKey(
+        PartidaPresupuesto,
+        on_delete=models.CASCADE,
+        related_name='items',
+    )
     TIPOS = [
         ('funcion', 'Funcionamiento'),
         ('funcionamiento', 'Funcionamiento'),  # alias para front

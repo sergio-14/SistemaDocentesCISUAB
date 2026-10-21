@@ -34,6 +34,8 @@ from poa_document.models import (
     ProgramaPOA,
     ItemCatalogo,
     IndicadorCatalogo,
+    UnidadDestinoPresupuesto,
+    PartidaPresupuesto,
     VersionDocumentoPOA,
     SeguimientoActividadPOA,
     OrdenCompraPOA, DetalleOrdenCompraPOA, RecepcionMaterialPOA, DetalleRecepcionMaterialPOA, EntregaMaterialActividad,
@@ -56,6 +58,8 @@ from .serializers import (
     ItemCatalogoSerializer,
     PartidaCatalogoSerializer,
     IndicadorCatalogoSerializer,
+    UnidadDestinoPresupuestoSerializer,
+    PartidaPresupuestoSerializer,
     VersionDocumentoPOASerializer,
     SeguimientoActividadPOASerializer,
     OrdenCompraPOASerializer, RecepcionMaterialPOASerializer, EntregaMaterialActividadSerializer,
@@ -333,7 +337,10 @@ def _crear_historial_documento(documento, usuario, tipo_evento, descripcion, est
 def _crear_version_documento(documento, usuario, motivo):
     """Congela el contenido aprobado; el JSON evita que cambios posteriores lo alteren."""
     objetivos = []
-    for objetivo in documento.objetivos.prefetch_related('actividades__detalles_presupuesto').all():
+    for objetivo in documento.objetivos.prefetch_related(
+        'actividades__detalles_presupuesto__grupo_partida',
+        'actividades__unidad_destino_presupuesto',
+    ).all():
         actividades = []
         for actividad in objetivo.actividades.all():
             actividades.append({
@@ -342,8 +349,15 @@ def _crear_version_documento(documento, usuario, motivo):
                 'mes_fin': actividad.mes_fin, 'indicador': actividad.indicador_descripcion,
                 'unidad': actividad.indicador_unidad, 'linea_base': actividad.indicador_linea_base,
                 'meta_anual': actividad.indicador_meta,
+                'unidad_destino_presupuesto': (
+                    actividad.unidad_destino_presupuesto.nombre
+                    if actividad.unidad_destino_presupuesto_id else None
+                ),
                 'presupuesto': [
-                    {'tipo': d.tipo, 'partida': d.partida, 'item': d.item, 'unidad_medida': d.unidad_medida,
+                    {'tipo': d.tipo, 'partida': d.partida,
+                     'grupo_partida_codigo': d.grupo_partida.codigo,
+                     'grupo_partida_nombre': d.grupo_partida.nombre,
+                     'item': d.item, 'unidad_medida': d.unidad_medida,
                      'cantidad': d.cantidad, 'costo_unitario': str(d.costo_unitario), 'costo_total': str(d.costo_total),
                      'mes_requerimiento': d.mes_requerimiento}
                     for d in actividad.detalles_presupuesto.all()
@@ -2362,7 +2376,9 @@ class ActividadViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         # indicador_descripcion ahora es texto; no es posible hacer select_related sobre él
-        qs = Actividad.objects.select_related('objetivo__documento').prefetch_related('evidencias').all()
+        qs = Actividad.objects.select_related(
+            'objetivo__documento', 'unidad_destino_presupuesto'
+        ).prefetch_related('evidencias').all()
         objetivo_id = self.request.query_params.get('objetivo_id')
         if objetivo_id:
             try:
@@ -2603,7 +2619,7 @@ class DetallePresupuestoViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         # 'partida' e 'item' ya no son ForeignKey, son CharField.
         # Mantener select_related sólo para relaciones reales (actividad).
-        qs = DetallePresupuesto.objects.select_related('actividad').all()
+        qs = DetallePresupuesto.objects.select_related('actividad', 'grupo_partida').all()
         actividad_id = self.request.query_params.get('actividad_id')
         if actividad_id:
             try:
@@ -3265,6 +3281,136 @@ class PartidaPresupuestariaViewSet(viewsets.ReadOnlyModelViewSet):
             .order_by('partida')
         )
         return [{'id': p, 'codigo': p, 'nombre': p} for p in partidas]
+
+
+class UnidadDestinoPresupuestoViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, viewsets.GenericViewSet):
+    serializer_class = UnidadDestinoPresupuestoSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = UnidadDestinoPresupuesto.objects.all().order_by('nombre', 'id')
+
+    def create(self, request, *args, **kwargs):
+        _requerir_elaborador(request)
+        return super().create(request, *args, **kwargs)
+
+
+class PartidaPresupuestoViewSet(viewsets.ModelViewSet):
+    serializer_class = PartidaPresupuestoSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        actividad_id = self.request.query_params.get('actividad_id')
+        if not actividad_id:
+            partida_id = self.kwargs.get(self.lookup_field or 'pk')
+            if partida_id:
+                return PartidaPresupuesto.objects.filter(pk=partida_id).select_related(
+                    'actividad__objetivo__documento'
+                ).prefetch_related('items')
+            return PartidaPresupuesto.objects.none()
+        try:
+            actividad = Actividad.objects.select_related('objetivo__documento').get(pk=int(actividad_id))
+        except (ValueError, TypeError, Actividad.DoesNotExist):
+            return PartidaPresupuesto.objects.none()
+        if not _documento_accesible_para_usuario(self.request.user, actividad.objetivo.documento):
+            return PartidaPresupuesto.objects.none()
+        return PartidaPresupuesto.objects.filter(actividad=actividad).select_related(
+            'actividad__objetivo__documento'
+        ).prefetch_related('items').order_by('codigo', 'id')
+
+    def list(self, request, *args, **kwargs):
+        if not request.query_params.get('actividad_id'):
+            return Response({'detail': "El parámetro 'actividad_id' es obligatorio."}, status=status.HTTP_400_BAD_REQUEST)
+        return super().list(request, *args, **kwargs)
+
+    def get_object(self):
+        partida = super().get_object()
+        documento = partida.actividad.objetivo.documento
+        if not _documento_accesible_para_usuario(self.request.user, documento):
+            from rest_framework.exceptions import NotFound
+            raise NotFound('La partida no pertenece a una actividad accesible para este usuario.')
+        return partida
+
+    def create(self, request, *args, **kwargs):
+        _requerir_elaborador(request)
+        actividad_id = request.data.get('actividad_id')
+        try:
+            actividad = Actividad.objects.select_related('objetivo__documento').get(pk=int(actividad_id))
+        except (ValueError, TypeError, Actividad.DoesNotExist):
+            return Response({'actividad_id': 'Actividad no encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        documento = actividad.objetivo.documento
+        if not _documento_accesible_para_usuario(request.user, documento):
+            return Response({'actividad_id': 'Actividad no encontrada o sin permisos.'}, status=status.HTTP_404_NOT_FOUND)
+        _requerir_documento_editable_directo(request, documento)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        partida = serializer.save(actividad=actividad)
+        _crear_historial_documento(
+            documento=documento,
+            usuario=request.user,
+            tipo_evento='edicion',
+            descripcion='Partida de presupuesto creada.',
+            estado_anterior=documento.estado,
+            estado_nuevo=documento.estado,
+            datos_evento={'partida': serializer.data},
+        )
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        _requerir_elaborador(request)
+        partida = self.get_object()
+        documento = partida.actividad.objetivo.documento
+        _requerir_documento_editable_directo(request, documento)
+        codigo_anterior = partida.codigo
+        with transaction.atomic():
+            serializer = self.get_serializer(partida, data=request.data, partial=kwargs.pop('partial', False))
+            serializer.is_valid(raise_exception=True)
+            partida = serializer.save()
+            if codigo_anterior != partida.codigo:
+                partida.items.update(partida=partida.codigo)
+            _crear_historial_documento(
+                documento=documento,
+                usuario=request.user,
+                tipo_evento='edicion',
+                descripcion='Partida de presupuesto actualizada.',
+                estado_anterior=documento.estado,
+                estado_nuevo=documento.estado,
+                datos_evento={'partida': serializer.data, 'codigo_anterior': codigo_anterior},
+            )
+        return Response(serializer.data)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        _requerir_elaborador(request)
+        partida = self.get_object()
+        documento = partida.actividad.objetivo.documento
+        actividad = partida.actividad
+        _requerir_documento_editable_directo(request, documento)
+        detalles = [
+            {
+                'id': detalle.id,
+                'item': detalle.item,
+                'partida': detalle.partida,
+                'cantidad': detalle.cantidad,
+                'costo_unitario': str(detalle.costo_unitario),
+            }
+            for detalle in partida.items.all()
+        ]
+        datos_partida = {'id': partida.id, 'codigo': partida.codigo, 'nombre': partida.nombre, 'items': detalles}
+        with transaction.atomic():
+            partida.delete()
+            _recalcular_montos_actividad(actividad)
+            _crear_historial_documento(
+                documento=documento,
+                usuario=request.user,
+                tipo_evento='edicion',
+                descripcion='Partida de presupuesto eliminada con sus ítems asociados.',
+                estado_anterior=documento.estado,
+                estado_nuevo=documento.estado,
+                datos_evento={'partida': datos_partida},
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class ItemCatalogoReadOnlyViewSet(viewsets.ReadOnlyModelViewSet):

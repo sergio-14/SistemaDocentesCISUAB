@@ -564,11 +564,11 @@ const PresupuestosPage = () => {
             )}
           </div>
 
-          <div className="w-full overflow-auto poa-table-wrapper">
+          <div className="w-full overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm poa-table-wrapper dark:border-slate-700 dark:bg-slate-900">
 
      
 
-          <table className="poa-mobile-card-table min-w-full table-fixed border-collapse poa-table poa-border-black poa-border-cyan poa-borders-ultra font-sans text-sm leading-snug text-blue-900 dark:text-white">
+          <table className="poa-mobile-card-table poa-presupuesto-detail-table min-w-[1120px] table-fixed border-collapse poa-table poa-border-black poa-border-cyan poa-borders-ultra font-sans text-sm leading-snug text-blue-900 dark:text-white">
             <colgroup>
               <col style={{ width: '29%' }} />
               <col style={{ width: '8%' }} />
@@ -603,10 +603,11 @@ const PresupuestosPage = () => {
                 grouped.map((g) => (
                   <React.Fragment key={g.id}>
                     <tr className="bg-slate-100 font-semibold text-slate-900 dark:bg-slate-800 dark:text-white">
-                      <td colSpan={3} className="poa-cell px-2 py-1.5">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
+                      <td colSpan={8} className="poa-cell p-0">
+                        <div className="flex flex-wrap items-center gap-2 border-l-4 border-blue-700 bg-slate-100 px-3 py-2 shadow-sm dark:border-blue-400 dark:bg-slate-800">
+                          <span className="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">{g.codigo || '—'}</span>
                           <span>{g.nombre} <span className="ml-1 text-xs font-normal text-slate-500">({g.items.length} ítems)</span></span>
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="ml-auto flex flex-wrap justify-end gap-1.5">
                             {(canEditDirectly || canRequestChange) && (
                               <button
                                 type="button"
@@ -627,8 +628,6 @@ const PresupuestosPage = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="poa-cell px-1 py-1.5 text-right">{g.codigo || '—'}</td>
-                      <td colSpan={4} className="poa-cell p-0" />
                     </tr>
                     {g.items.map((it) => (
                       <tr
@@ -641,7 +640,7 @@ const PresupuestosPage = () => {
                         data-selected={selectedDetalle && selectedDetalle.id === it.id ? 'true' : 'false'}
                         className={`align-top cursor-pointer transition ${selectedDetalle && selectedDetalle.id === it.id ? 'is-selected font-semibold' : 'odd:bg-white even:bg-slate-50'} text-blue-900 dark:text-white`}
                       >
-                        <td data-label="Detalle" className="poa-cell align-top"><div className="table-cell-clamp">{it.item}</div></td>
+                        <td data-label="Detalle" className="poa-cell align-top whitespace-normal break-words">{it.item}</td>
                         <td data-label="Unidad" className="poa-cell align-top text-center">{it.unidad_medida || '—'}</td>
                         <td data-label="Características" className="poa-cell align-top"><div className="table-cell-clamp">{it.caracteristicas || '—'}</div></td>
                         <td data-label="Partida" className="poa-cell align-top text-center">{g.codigo}</td>

@@ -2615,11 +2615,14 @@ class ActividadViewSet(viewsets.ModelViewSet):
 class DetallePresupuestoViewSet(viewsets.ModelViewSet):
     serializer_class = DetallePresupuestoSerializer
     permission_classes = [IsAuthenticated]
+    # El detalle de una actividad se consulta como una sola tabla; no debe
+    # recortarse a los 10 registros de la paginación global de la API.
+    pagination_class = None
 
     def get_queryset(self):
         # 'partida' e 'item' ya no son ForeignKey, son CharField.
         # Mantener select_related sólo para relaciones reales (actividad).
-        qs = DetallePresupuesto.objects.select_related('actividad', 'grupo_partida').all()
+        qs = DetallePresupuesto.objects.select_related('actividad', 'grupo_partida').order_by('id')
         actividad_id = self.request.query_params.get('actividad_id')
         if actividad_id:
             try:

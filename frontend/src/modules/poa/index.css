@@ -4518,3 +4518,12 @@ table tbody tr[data-selected="true"] td {
     min-width: 0 !important;
   }
 }
+
+/* El detalle presupuestario debe mostrar los textos completos en su tabla. */
+.poa-presupuesto-detail-table .table-cell-clamp {
+  display: block;
+  -webkit-line-clamp: unset !important;
+  line-clamp: unset !important;
+  -webkit-box-orient: initial;
+  overflow: visible !important;
+}

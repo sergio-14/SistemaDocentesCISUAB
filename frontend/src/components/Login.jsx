@@ -115,22 +115,33 @@ function Login({ onLogin }) {
   // Solo el 401 marca los dos campos: los otros errores (servidor, conexión) no son de lo escrito.
   const credencialesMal = loginError === MENSAJE_CREDENCIALES;
   const anilloCampo = (conError) => (conError ? 'ring-2 ring-red-400/80' : 'ring-1 ring-slate-200');
+  // Al entrar a cualquiera de los dos campos se quita el rojo de ambos.
+  const limpiarErrores = () => {
+    setLoginError('');
+    setErrores({});
+  };
 
   return (
     <div className={`login-escena min-h-screen w-full flex items-center justify-center overflow-hidden bg-slate-100 sm:p-6 lg:p-10 font-sans text-slate-800 ${isExiting ? 'login-salida' : ''}`}>
-      <div className="relative w-full max-w-5xl">
+      {/* --logo-alto: más alto que el modal pero dentro de la pantalla. El logo mide 722 × 629, así que
+          su media anchura es 0,574 × alto: ese espacio se deja a la izquierda para que su mitad entre. */}
+      <div
+        className="relative w-full max-w-5xl xl:max-w-[calc(64rem+var(--logo-alto)*0.574)] xl:pl-[calc(var(--logo-alto)*0.574)]"
+        style={{ '--logo-alto': 'min(88vh, 700px)' }}
+      >
         {/* Logo de la UAB fuera del modal: se ve la mitad izquierda, tenue; la otra mitad queda detrás. */}
         <img
           src="/images/LOGOUAB.png"
           alt=""
           aria-hidden="true"
-          className="pointer-events-none select-none absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-72 opacity-[0.18] hidden lg:block"
+          className="pointer-events-none select-none absolute left-0 top-1/2 -translate-y-1/2 w-auto max-w-none opacity-[0.16] hidden xl:block"
+          style={{ height: 'var(--logo-alto)' }}
         />
 
         <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:min-h-[620px] flex flex-col lg:flex-row bg-white sm:rounded-[28px] overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
 
           {/* Panel de la ilustración: a la derecha con borde ondulado; en celular, arriba y bajo. */}
-          <div className="relative h-40 sm:h-52 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[56%] flex-shrink-0" aria-hidden="true">
+          <div className="relative h-40 sm:h-52 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[54%] flex-shrink-0" aria-hidden="true">
             <PaisajeBeni className="absolute inset-0 w-full h-full" />
             <svg className="absolute bottom-0 left-0 w-full h-14 lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none">
               <path d="M0,34 C12,6 26,68 46,38 C64,12 80,64 100,26" fill="none" stroke="#ffffff" strokeOpacity="0.75" strokeWidth="1.5" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
@@ -144,50 +155,51 @@ function Login({ onLogin }) {
           </div>
 
           {/* Formulario */}
-          <div className="relative z-10 flex-1 lg:flex-none lg:w-1/2 flex flex-col px-6 sm:px-12 lg:px-14 py-6 sm:py-8 lg:py-10">
+          <div className="relative z-10 flex-1 lg:flex-none lg:w-[54%] flex flex-col px-6 sm:px-12 lg:px-12 py-6 sm:py-8 lg:py-10">
             <div className="flex-1 flex flex-col sm:justify-center w-full max-w-sm py-6 lg:py-8">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Iniciar sesión</p>
-              <h1 className="mt-3 text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900">Fondo de Tiempo Docente</h1>
-              <p className="mt-3 text-sm text-slate-500">Universidad Autónoma del Beni "José Ballivián"</p>
+              <h1 className="text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900">Iniciar sesión</h1>
+              <p className="mt-3 text-base text-slate-600">Universidad Autónoma del Beni "José Ballivián"</p>
 
-              <form onSubmit={handleSubmit} noValidate className="mt-8 space-y-4">
+              <form onSubmit={handleSubmit} noValidate className="mt-9 space-y-5">
                 {/* Usuario */}
                 <div>
-                  <div className={`login-campo group relative rounded-2xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-900 ${anilloCampo(errores.username || credencialesMal)}`}>
-                    <label htmlFor="login-usuario" className="block px-4 pt-2.5 text-xs font-semibold text-slate-500 group-focus-within:text-blue-900">Usuario</label>
+                  <label htmlFor="login-usuario" className="block mb-1.5 text-sm font-semibold text-slate-700">Usuario o correo</label>
+                  <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-900 ${anilloCampo(errores.username || credencialesMal)}`}>
                     <input
                       id="login-usuario"
                       type="text"
                       value={username}
+                      onFocus={limpiarErrores}
+                      onClick={limpiarErrores}
                       onChange={(e) => { setUsername(e.target.value); setErrores((prev) => ({ ...prev, username: undefined })); }}
                       aria-invalid={Boolean(errores.username || credencialesMal) || undefined}
-                      className="login-input block w-full bg-transparent pl-4 pr-12 pt-0.5 pb-2.5 text-base font-semibold text-slate-900 placeholder:font-normal placeholder:text-slate-400 focus:outline-none"
-                      placeholder="Usuario o correo"
+                      className="login-input block w-full h-12 bg-transparent pl-4 pr-12 text-base font-medium text-slate-900 focus:outline-none"
                       autoComplete="username"
                     />
-                    <User className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" aria-hidden="true" />
+                    <User className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" aria-hidden="true" />
                   </div>
                   <MensajeErrorCampo error={errores.username} pulse={pulso} tono={TONO_ERROR} />
                 </div>
 
                 {/* Contraseña */}
                 <div>
-                  <div className={`login-campo group relative rounded-2xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-900 ${anilloCampo(errores.password || credencialesMal)}`}>
-                    <label htmlFor="login-contrasena" className="block px-4 pt-2.5 text-xs font-semibold text-slate-500 group-focus-within:text-blue-900">Contraseña</label>
+                  <label htmlFor="login-contrasena" className="block mb-1.5 text-sm font-semibold text-slate-700">Contraseña</label>
+                  <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-900 ${anilloCampo(errores.password || credencialesMal)}`}>
                     <input
                       id="login-contrasena"
                       type="text"
                       value={password}
+                      onFocus={limpiarErrores}
+                      onClick={limpiarErrores}
                       onChange={(e) => { setPassword(e.target.value); setErrores((prev) => ({ ...prev, password: undefined })); }}
                       aria-invalid={Boolean(errores.password || credencialesMal) || undefined}
-                      className={`login-input ${showPassword ? '' : 'login-password-masked'} block w-full bg-transparent pl-4 pr-14 pt-0.5 pb-2.5 text-base font-semibold text-slate-900 placeholder:font-normal placeholder:text-slate-400 focus:outline-none`}
-                      placeholder="Contraseña"
+                      className={`login-input ${showPassword ? '' : 'login-password-masked'} block w-full h-12 bg-transparent pl-4 pr-14 text-base font-medium text-slate-900 focus:outline-none`}
                       autoComplete="current-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((prev) => !prev)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full text-slate-400 hover:text-blue-900 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900 transition-colors"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full text-slate-500 hover:text-blue-900 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900 transition-colors"
                       aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                       title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                     >
@@ -224,12 +236,12 @@ function Login({ onLogin }) {
                       </>
                     )}
                   </button>
-                  <p className="max-w-[13rem] text-xs leading-snug text-slate-500">¿No tienes cuenta? Las cuentas las crea la Dirección de Carrera.</p>
+                  <p className="max-w-[14rem] text-sm leading-snug text-slate-600">¿No tienes cuenta? Las cuentas las crea la Dirección de Carrera.</p>
                 </div>
               </form>
             </div>
 
-            <p className="text-xs text-slate-400">© {new Date().getFullYear()} UABJB</p>
+            <p className="text-xs text-slate-500">© {new Date().getFullYear()} UABJB</p>
           </div>
         </div>
       </div>

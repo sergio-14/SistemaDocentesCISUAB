@@ -147,13 +147,13 @@ function Login({ onLogin }) {
 
   return (
     <div className={`login-escena min-h-screen w-full flex items-center justify-center overflow-hidden bg-azulado-100 sm:p-6 lg:p-10 font-sans text-slate-800 ${isExiting ? 'login-salida' : ''}`}>
-      <div className="relative w-full max-w-5xl lg:mt-12">
+      <div className="relative w-full max-w-5xl lg:mt-20">
         {/* Logo de la UAB en un medallón blanco montado sobre el borde de arriba de la tarjeta, sobre el
             formulario (en celular va dentro del formulario). */}
-        <div className="login-tarjeta absolute z-20 left-[26%] -top-14 -translate-x-1/2 hidden lg:flex h-28 w-28 items-center justify-center rounded-full bg-white ring-[6px] ring-azulado-100 shadow-[0_12px_30px_rgba(15,23,42,0.18)]">
-          <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-20 w-auto" />
+        <div className="login-tarjeta absolute z-20 left-[26%] -top-[4.75rem] -translate-x-1/2 hidden lg:flex h-40 w-40 items-center justify-center rounded-full bg-white ring-[6px] ring-azulado-100 shadow-[0_12px_30px_rgba(15,23,42,0.18)]">
+          <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-28 w-auto" />
         </div>
-        <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[560px] flex flex-col lg:flex-row bg-blue-900 sm:rounded-[28px] overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.2)]">
+        <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[560px] flex flex-col lg:flex-row bg-[#3a5a8f] sm:rounded-[28px] overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.2)]">
           {/* Panel de las parabas (azulado de Fondo de Tiempo): a la derecha con borde ondulado; en celular,
               arriba. Detrás de las aves, un sol dorado suave y colinas al pie; las aves van encima de la
               onda, así pueden asomarse un poco sobre el borde. */}
@@ -165,11 +165,11 @@ function Login({ onLogin }) {
             </svg>
             <svg className="absolute bottom-0 left-0 w-full h-14 lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none">
               <path d="M0,34 C12,6 26,68 46,38 C64,12 80,64 100,26" fill="none" stroke="#0284c7" strokeOpacity="0.85" strokeWidth="2" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
-              <path d="M0,100 L0,58 C12,30 26,92 46,62 C64,36 80,88 100,50 L100,100 Z" fill="#1e3a8a" />
+              <path d="M0,100 L0,58 C12,30 26,92 46,62 C64,36 80,88 100,50 L100,100 Z" fill="#3a5a8f" />
             </svg>
             {/* Onda como la del modelo: arriba el blanco entra mucho a la derecha y baja en dos curvas. */}
             <svg className="absolute inset-0 hidden lg:block w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <path d="M0,0 L76,0 C62,4 42,9 40,21 C38,33 54,37 52,48 C50,59 31,61 29,73 C27,85 22,93 13,100 L0,100 Z" fill="#1e3a8a" />
+              <path d="M0,0 L76,0 C62,4 42,9 40,21 C38,33 54,37 52,48 C50,59 31,61 29,73 C27,85 22,93 13,100 L0,100 Z" fill="#3a5a8f" />
               <path d="M61,0 C48,4 28,9 26,21 C24,33 40,37 38,48 C36,59 17,61 15,73 C13,85 9,93 3,100" fill="none" stroke="#0284c7" strokeOpacity="0.85" strokeWidth="2" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
             </svg>
             <Suspense fallback={null}>
@@ -186,12 +186,12 @@ function Login({ onLogin }) {
               así que al aparecer no mueven nada. */}
           <div className="relative z-10 flex-1 lg:flex-none lg:w-[52%] flex flex-col sm:justify-center px-6 sm:px-12 lg:px-12 pt-8 pb-10 lg:py-10">
             <div className="w-full max-w-sm mx-auto">
-              <div className="flex flex-col items-center text-center lg:pt-8">
-                <div className="lg:hidden flex h-24 w-24 items-center justify-center rounded-full bg-white shadow-[0_10px_24px_rgba(0,0,0,0.2)]">
-                  <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-16 w-auto" />
+              <div className="flex flex-col items-center text-center lg:pt-16">
+                <div className="lg:hidden flex h-32 w-32 items-center justify-center rounded-full bg-white shadow-[0_10px_24px_rgba(0,0,0,0.2)]">
+                  <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-24 w-auto" />
                 </div>
                 <h1 className="mt-5 lg:mt-0 text-3xl font-extrabold tracking-tight text-white">Iniciar sesión</h1>
-                <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-sky-200/80">Universidad Autónoma del Beni "José Ballivián"</p>
+                <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-blue-100/80">Universidad Autónoma del Beni "José Ballivián"</p>
               </div>
 
               <form onSubmit={handleSubmit} noValidate className="mt-8">
@@ -256,11 +256,11 @@ function Login({ onLogin }) {
                   <button
                     type="submit"
                     disabled={loading || isExiting}
-                    className="group inline-flex w-44 items-center justify-between h-11 pl-5 pr-1.5 rounded-xl bg-white hover:bg-sky-50 text-blue-900 text-sm font-bold shadow-[0_8px_20px_rgba(0,0,0,0.22)] transition-colors focus:outline-none focus-visible:ring-4 focus-visible:ring-sky-300/50 disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="group inline-flex w-44 items-center justify-between h-11 pl-5 pr-1.5 rounded-xl bg-white hover:bg-sky-50 text-[#2c4775] text-sm font-bold shadow-[0_8px_20px_rgba(0,0,0,0.22)] transition-colors focus:outline-none focus-visible:ring-4 focus-visible:ring-sky-300/50 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <>
-                        <svg className="animate-spin h-4 w-4 text-blue-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                        <svg className="animate-spin h-4 w-4 text-[#2c4775]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
@@ -269,7 +269,7 @@ function Login({ onLogin }) {
                     ) : (
                       <>
                         <span>Ingresar</span>
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-900 text-white">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#3a5a8f] text-white">
                           <ArrowRight className="h-4 w-4 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5" aria-hidden="true" />
                         </span>
                       </>

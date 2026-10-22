@@ -50,3 +50,8 @@
 *.gif binary -text -eol -working-tree-encoding
 *.webp binary -text -eol -working-tree-encoding
 *.ico binary -text -eol -working-tree-encoding
+
+# Videos (never normalize line endings/encoding)
+*.mp4 binary -text -eol -working-tree-encoding
+*.webm binary -text -eol -working-tree-encoding
+*.mov binary -text -eol -working-tree-encoding

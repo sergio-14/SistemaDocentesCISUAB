@@ -1,9 +1,8 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import toast from 'react-hot-toast';
 import { API_URL } from '../apis/apiConfig';
-import { MENSAJE_REVISA_CAMPOS, useErrorPulse } from '../utils/formErrors';
+import { useErrorPulse } from '../utils/formErrors';
 import MensajeErrorCampo from './common/MensajeErrorCampo';
 import { AlertCircle, Eye, EyeOff, User } from 'lucide-react';
 import { FcGoogle } from 'react-icons/fc';
@@ -62,7 +61,6 @@ function Login({ onLogin }) {
   if (Object.keys(nuevosErrores).length > 0) {
     setErrores(nuevosErrores);
     setPulso((valor) => valor + 1);
-    toast.error(MENSAJE_REVISA_CAMPOS);
     return;
   }
   setLoading(true);
@@ -132,7 +130,8 @@ function Login({ onLogin }) {
   // Rebote de los campos en cada error (el mismo disparo que la sacudida del sistema).
   const { isPulsing: reboteUsuario } = useErrorPulse(errorUsuario, pulso);
   const { isPulsing: reboteContrasena } = useErrorPulse(errorContrasena, pulso);
-  const anilloCampo = (conError) => (conError ? 'ring-2 ring-red-400/80' : 'ring-0');
+  // Campos con solo una línea abajo: gris, celeste al escribir y roja con error.
+  const anilloCampo = (conError) => (conError ? 'border-red-400' : 'border-slate-300 focus-within:border-sky-600');
   // Al entrar a cualquiera de los dos campos se quita el rojo de ambos.
   const limpiarErrores = () => {
     setLoginError('');
@@ -181,12 +180,12 @@ function Login({ onLogin }) {
           </div>
           {/* Línea punteada suelta en la parte blanca, separada del borde del video y con su propio vaivén. */}
           <svg className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden lg:block h-full w-1/2 overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M22,0 C12,3 2,7 3,14 C4,21 25,24 27,31 C29,39 9,43 5,51 C1,59 0,68 -3,78 C-6,88 -8,95 -10,100" fill="none" stroke="#94a3b8" strokeOpacity="0.9" strokeWidth="1.5" strokeDasharray="5 6" vectorEffect="non-scaling-stroke" />
+            <path d="M20,0 C10,4 -1,9 1,18 C3,27 23,30 26,40 C29,50 12,55 6,63 C0,71 2,80 -2,88 C-4,93 -6,97 -8,100" fill="none" stroke="#7d9cc0" strokeOpacity="0.85" strokeWidth="1.5" strokeDasharray="5 6" vectorEffect="non-scaling-stroke" />
           </svg>
 
           {/* Formulario: arriba la marca (logo y nombre); al medio, título y campos. Los mensajes de error
               tienen su lugar reservado, así que al aparecer no mueven nada. */}
-          <div className="relative z-10 flex-1 lg:flex-none lg:w-1/2 flex flex-col px-6 sm:px-12 lg:px-14 pt-6 pb-6 lg:pt-8 lg:pb-8">
+          <div className="relative z-10 flex-1 lg:flex-none lg:w-1/2 flex flex-col px-6 sm:px-12 lg:px-14 pt-6 pb-5 lg:pt-8 lg:pb-6">
             <div className="flex items-center gap-3">
               <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-14 w-auto" />
               <div className="leading-tight">
@@ -195,17 +194,17 @@ function Login({ onLogin }) {
               </div>
             </div>
 
-            <div className="my-auto w-full max-w-sm pt-8 lg:pt-0">
+            <div className="w-full max-w-sm mx-auto pt-8 lg:pt-10">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Acceso institucional</p>
               <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-slate-900">
                 Iniciar sesión<span className="text-sky-600">.</span>
               </h1>
               <p className="mt-2 text-sm text-slate-500">Ingresa con tu usuario o correo institucional.</p>
 
-              <form onSubmit={handleSubmit} noValidate className="mt-7">
+              <form onSubmit={handleSubmit} noValidate className="mt-8">
                 {/* Usuario: la etiqueta va dentro del campo, arriba del texto. */}
-                <div className={`login-campo relative rounded-2xl bg-azulado-50 ring-inset transition-shadow focus-within:bg-white focus-within:ring-2 focus-within:ring-sky-600/60 ${anilloCampo(errorUsuario)} ${reboteUsuario ? 'login-rebote' : ''}`}>
-                  <label htmlFor="login-usuario" className="block px-4 pt-2 text-[11px] font-medium text-slate-500">Usuario o correo</label>
+                <div className={`login-campo relative border-b-2 transition-colors ${anilloCampo(errorUsuario)} ${reboteUsuario ? 'login-rebote' : ''}`}>
+                  <label htmlFor="login-usuario" className="block text-xs font-semibold text-blue-900/80">Usuario o correo</label>
                   <input
                     id="login-usuario"
                     type="text"
@@ -214,18 +213,18 @@ function Login({ onLogin }) {
                     onClick={limpiarErrores}
                     onChange={(e) => { setUsername(e.target.value); setErrores((prev) => ({ ...prev, username: undefined })); }}
                     aria-invalid={Boolean(errorUsuario) || undefined}
-                    className="login-input block w-full bg-transparent pl-4 pr-12 pb-2 text-sm font-semibold text-slate-900 focus:outline-none"
+                    className="login-input block w-full bg-transparent pr-10 pt-1 pb-2 text-sm font-medium text-slate-900 focus:outline-none"
                     autoComplete="username"
                   />
-                  <User className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" aria-hidden="true" />
+                  <User className="pointer-events-none absolute right-1 bottom-2.5 h-4 w-4 text-slate-400" aria-hidden="true" />
                 </div>
-                <div className="min-h-[1.25rem]">
+                <div className="mb-3 min-h-[1.25rem]">
                   <MensajeErrorCampo error={errores.username} pulse={pulso} tono={TONO_ERROR} />
                 </div>
 
                 {/* Contraseña */}
-                <div className={`login-campo relative rounded-2xl bg-azulado-50 ring-inset transition-shadow focus-within:bg-white focus-within:ring-2 focus-within:ring-sky-600/60 ${anilloCampo(errorContrasena)} ${reboteContrasena ? 'login-rebote' : ''}`}>
-                  <label htmlFor="login-contrasena" className="block px-4 pt-2 text-[11px] font-medium text-slate-500">Contraseña</label>
+                <div className={`login-campo relative border-b-2 transition-colors ${anilloCampo(errorContrasena)} ${reboteContrasena ? 'login-rebote' : ''}`}>
+                  <label htmlFor="login-contrasena" className="block text-xs font-semibold text-blue-900/80">Contraseña</label>
                   <input
                     id="login-contrasena"
                     type="text"
@@ -234,20 +233,20 @@ function Login({ onLogin }) {
                     onClick={limpiarErrores}
                     onChange={(e) => { setPassword(e.target.value); setErrores((prev) => ({ ...prev, password: undefined })); }}
                     aria-invalid={Boolean(errorContrasena) || undefined}
-                    className={`login-input ${showPassword ? '' : 'login-password-masked'} block w-full bg-transparent pl-4 pr-14 pb-2 text-sm font-semibold text-slate-900 focus:outline-none`}
+                    className={`login-input ${showPassword ? '' : 'login-password-masked'} block w-full bg-transparent pr-10 pt-1 pb-2 text-sm font-medium text-slate-900 focus:outline-none`}
                     autoComplete="current-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:text-blue-900 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900 transition-colors"
+                    className="absolute -right-1 bottom-0.5 flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:text-blue-900 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900 transition-colors"
                     aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                     title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                   </button>
                 </div>
-                <div className="min-h-[1.25rem]">
+                <div className="mb-3 min-h-[1.25rem]">
                   <MensajeErrorCampo error={errores.password} pulse={pulso} tono={TONO_ERROR} />
                   {avisoContrasena && (
                     <p className="login-aviso mt-1 flex items-center gap-1.5 text-xs font-medium text-red-700" role="alert">
@@ -257,12 +256,12 @@ function Login({ onLogin }) {
                   )}
                 </div>
 
-                {/* Botón en píldora con brillo, y al lado las redes (solo visuales, no conectan con nada). */}
-                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-3">
+                {/* Botón en píldora con brillo, al centro. */}
+                <div className="mt-2 flex justify-center">
                   <button
                     type="submit"
                     disabled={loading || isExiting}
-                    className="inline-flex h-11 w-36 items-center justify-center gap-2 rounded-full bg-blue-900 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(30,58,138,0.35)] transition-colors hover:bg-blue-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-900/25 disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="inline-flex h-11 w-52 items-center justify-center gap-2 rounded-full bg-blue-900 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(30,58,138,0.35)] transition-colors hover:bg-blue-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-900/25 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     {loading && (
                       <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
@@ -272,26 +271,28 @@ function Login({ onLogin }) {
                     )}
                     {loading ? 'Ingresando...' : 'Ingresar'}
                   </button>
-                  <div className="flex items-center gap-2">
-                    {REDES.map(({ nombre, Icono, color }) => (
-                      <button
-                        key={nombre}
-                        type="button"
-                        aria-label={nombre}
-                        title={nombre}
-                        className="flex h-9 w-9 items-center justify-center rounded-full bg-azulado-50 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_6px_14px_rgba(15,23,42,0.12)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40"
-                      >
-                        <Icono className={`h-4 w-4 ${color}`} aria-hidden="true" />
-                      </button>
-                    ))}
-                  </div>
                 </div>
               </form>
             </div>
-            <p className="mt-6 text-center text-[11px] text-slate-500 lg:hidden">© {new Date().getFullYear()} UABJB</p>
+
+            {/* Redes al pie de la tarjeta, centradas (solo visuales, no conectan con nada). */}
+            <div className="mt-auto flex justify-center gap-2 pt-8">
+              {REDES.map(({ nombre, Icono, color }) => (
+                <button
+                  key={nombre}
+                  type="button"
+                  aria-label={nombre}
+                  title={nombre}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-azulado-50 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_6px_14px_rgba(15,23,42,0.12)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40"
+                >
+                  <Icono className={`h-4 w-4 ${color}`} aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+            <p className="mt-4 text-center text-[11px] text-slate-500 lg:hidden">© {new Date().getFullYear()} UABJB</p>
           </div>
         </div>
-        <p className="mt-6 hidden lg:block text-center text-sm text-blue-900/45">Universidad Autónoma del Beni "José Ballivián" · Trinidad, Beni</p>
+        <p className="mt-5 hidden lg:block pr-8 text-right text-sm font-medium text-white [text-shadow:0_1px_10px_rgba(15,23,42,0.45)]">Universidad Autónoma del Beni "José Ballivián" · Trinidad, Beni</p>
       </div>
 
       <style>{`
@@ -334,7 +335,7 @@ function Login({ onLogin }) {
           -webkit-text-fill-color: #0f172a !important;
         }
         .login-escena .login-input:-webkit-autofill {
-          -webkit-box-shadow: 0 0 0 1000px #F7F9FD inset !important;
+          -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
           transition: background-color 9999s ease-out 0s;
         }
         .login-escena .login-campo:focus-within .login-input:-webkit-autofill {

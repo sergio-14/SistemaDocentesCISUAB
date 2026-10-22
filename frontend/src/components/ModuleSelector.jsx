@@ -7,6 +7,18 @@ import { useActiveRole } from '../contexts/activeRole';
 import { useErrorPulse } from '../utils/formErrors';
 import loroSilueta from '../assets/loro-silueta.png';
 
+// La silueta del loro se pinta con el color de fondo a través de esta máscara.
+const MASCARA_LORO = {
+    WebkitMaskImage: `url(${loroSilueta})`,
+    maskImage: `url(${loroSilueta})`,
+    WebkitMaskSize: 'contain',
+    maskSize: 'contain',
+    WebkitMaskRepeat: 'no-repeat',
+    maskRepeat: 'no-repeat',
+    WebkitMaskPosition: 'center',
+    maskPosition: 'center',
+};
+
 // --- ICONOS ---
 
 const LogoutIcon = (props) => (
@@ -256,7 +268,13 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
                     <div className="lg:hidden">{cuenta}</div>
                 </div>
 
-                <div className="panel-entrada w-full max-w-3xl lg:mx-auto pt-8 lg:pt-[9vh]">
+                <div className="panel-entrada relative w-full max-w-3xl lg:mx-auto pt-8 pr-20 sm:pr-28 lg:pr-0 lg:pt-[9vh]">
+                    {/* En celular, el loro a la derecha del título, mirando hacia las letras. */}
+                    <div
+                        className="pointer-events-none absolute right-0 bottom-0 h-[7.5rem] sm:h-36 aspect-[1/1.75] -scale-x-100 bg-[#8fa8cd] dark:bg-slate-700 lg:hidden"
+                        style={MASCARA_LORO}
+                        aria-hidden="true"
+                    />
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Panel de módulos</p>
                     <h1 className="mt-2 text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white">
                         ¿A dónde vamos hoy<span className="text-sky-600">?</span>
@@ -311,16 +329,7 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
                 <div className={`relative mx-auto w-full max-w-xs ${conColumnaLateral ? 'my-auto -translate-y-[9vh]' : 'mt-[22vh]'}`}>
                     <div
                         className="pointer-events-none absolute right-full top-1/2 mr-5 h-[24vh] max-h-[230px] aspect-[1/1.75] -translate-y-1/2 -scale-x-100 bg-[#8fa8cd] dark:bg-slate-700"
-                        style={{
-                            WebkitMaskImage: `url(${loroSilueta})`,
-                            maskImage: `url(${loroSilueta})`,
-                            WebkitMaskSize: 'contain',
-                            maskSize: 'contain',
-                            WebkitMaskRepeat: 'no-repeat',
-                            maskRepeat: 'no-repeat',
-                            WebkitMaskPosition: 'center',
-                            maskPosition: 'center',
-                        }}
+                        style={MASCARA_LORO}
                         aria-hidden="true"
                     />
                     {conColumnaLateral && <aside className="panel-entrada">{columnaLateral}</aside>}

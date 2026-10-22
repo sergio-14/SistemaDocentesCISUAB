@@ -1,14 +1,10 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { lazy, Suspense, useState } from 'react';
+import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowRight } from 'lucide-react';
-import ThemeToggle from './ThemeToggle';
 import ModalMiCuenta from './cuenta/ModalMiCuenta';
 import { useActiveRole } from '../contexts/activeRole';
 import { useErrorPulse } from '../utils/formErrors';
-
-// Los mismos videos de parabas del login (se cargan aparte).
-const VideosParabas = lazy(() => import('./login/VideosParabas'));
 
 // --- ICONOS ---
 
@@ -49,10 +45,9 @@ const TONOS_MODULO = {
 };
 
 // --- COMPONENTE PRINCIPAL ---
-// Mismo lenguaje que el login: la escena de parabas sigue fuera de la tarjeta, la tarjeta blanca
-// lleva la columna del video con la onda y la línea punteada, y el contenido usa la paleta de
-// Fondo de Tiempo (azulado, blue-900 y sky-600).
-const ModuleSelector = ({ user, onLogout, theme, setTheme, onProfileUpdate }) => {
+// Mismo lenguaje que el login, directo sobre la página (sin tarjeta ni videos): mancha azulada con
+// la línea punteada a la derecha y la paleta de Fondo de Tiempo (azulado, blue-900 y sky-600).
+const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
     const navigate = useNavigate();
     const [roleSelectionError, setRoleSelectionError] = useState('');
     const [roleErrorPulse, setRoleErrorPulse] = useState(0);
@@ -152,147 +147,116 @@ const ModuleSelector = ({ user, onLogout, theme, setTheme, onProfileUpdate }) =>
     return (
         <div className="panel-modulos relative isolate min-h-screen w-full overflow-x-hidden bg-azulado-50 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-100">
             <style>{`
-                .panel-tarjeta { animation: panelEntrada 600ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+                .panel-entrada { animation: panelEntrada 600ms cubic-bezier(0.22, 1, 0.36, 1) both; }
                 @keyframes panelEntrada {
                     from { opacity: 0; transform: translateY(12px); }
                     to { opacity: 1; transform: translateY(0); }
                 }
                 @media (prefers-reduced-motion: reduce) {
-                    .panel-tarjeta { animation: none; }
+                    .panel-entrada { animation: none; }
                 }
             `}</style>
 
-            {/* Fuera de la tarjeta, como en el login: la escena sigue en una mancha a la derecha con los
-                videos desenfocados y tenues, y una palabra enorme y muy suave detrás. */}
-            <svg width="0" height="0" className="absolute" aria-hidden="true" focusable="false">
+            {/* Decoración como la del login, sin videos: una mancha azulada a la derecha con la línea
+                punteada siguiendo su borde y "Módulos" enorme y muy tenue detrás. */}
+            <svg className="pointer-events-none fixed inset-y-0 right-0 -z-10 hidden lg:block h-full w-[46vw]" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
                 <defs>
-                    <clipPath id="panel-mancha" clipPathUnits="objectBoundingBox">
-                        <path d="M0.38,0 L1,0 L1,1 L0.3,1 C0.12,0.94 0.02,0.82 0.1,0.7 C0.2,0.56 0.42,0.6 0.4,0.44 C0.38,0.3 0.14,0.3 0.18,0.16 C0.21,0.07 0.3,0.02 0.38,0 Z" />
-                    </clipPath>
-                    <clipPath id="panel-onda" clipPathUnits="objectBoundingBox">
-                        <path d="M0.62,0 C0.42,0.03 0.18,0.08 0.22,0.2 C0.26,0.31 0.36,0.35 0.33,0.47 C0.3,0.59 0.15,0.62 0.12,0.74 C0.09,0.85 0.05,0.93 0.03,1 L1,1 L1,0 Z" />
-                    </clipPath>
+                    <linearGradient id="panel-mancha-color" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stopColor="#DFE8F5" />
+                        <stop offset="1" stopColor="#B8C9E1" />
+                    </linearGradient>
                 </defs>
+                <path className="dark:opacity-10" d="M46,0 C30,4 18,11 22,22 C26,33 40,37 37,48 C34,60 16,63 13,75 C10,86 8,94 6,100 L100,100 L100,0 Z" fill="url(#panel-mancha-color)" />
+                <path d="M32,0 C18,5 8,11 11,21 C14,31 27,35 25,46 C23,57 7,61 4,72 C1,82 0,92 -2,100" fill="none" stroke="#7d9cc0" strokeOpacity="0.8" strokeWidth="1.5" strokeDasharray="5 6" vectorEffect="non-scaling-stroke" />
             </svg>
-            <div className="pointer-events-none fixed inset-y-0 right-0 hidden lg:block w-[58vw] [clip-path:url(#panel-mancha)]" aria-hidden="true">
-                <Suspense fallback={null}>
-                    <VideosParabas className="absolute inset-0 scale-110 blur-2xl opacity-40 dark:opacity-25" />
-                </Suspense>
-                <div className="absolute inset-0 bg-gradient-to-l from-sky-200/40 to-azulado-100/60 dark:from-slate-900/40 dark:to-slate-950/60" />
-            </div>
-            <p className="pointer-events-none fixed left-[3vw] top-[2vh] hidden lg:block text-[8.5vw] font-extrabold leading-none tracking-tight text-blue-900/[0.06] dark:text-white/[0.04]" aria-hidden="true">
+            <p className="pointer-events-none fixed left-[3vw] bottom-[2vh] -z-10 hidden lg:block text-[9vw] font-extrabold leading-none tracking-tight text-blue-900/[0.05] dark:text-white/[0.04]" aria-hidden="true">
                 Módulos
             </p>
 
-            {/* Selector de tema: flotante, en la misma posición que en Fondo de Tiempo. */}
-            <ThemeToggle theme={theme} setTheme={setTheme} />
-
-            <div className="relative z-10 flex min-h-screen items-center justify-center sm:p-6 lg:p-10">
-                <div className="w-full max-w-6xl">
-                    <div className="panel-tarjeta relative w-full min-h-screen sm:min-h-[min(640px,calc(100vh-5rem))] flex flex-col bg-white dark:bg-slate-900 sm:rounded-3xl overflow-hidden shadow-[0_40px_90px_rgba(15,23,42,0.16)]">
-                        {/* Columna del video a la derecha (con la onda y la línea punteada del login); en
-                            celular, franja de arriba. */}
-                        <div className="relative order-first h-48 sm:h-56 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[34%] bg-azulado-100 dark:bg-slate-800 lg:[clip-path:url(#panel-onda)]" aria-hidden="true">
-                            <Suspense fallback={null}>
-                                <VideosParabas className="absolute inset-0 lg:scale-[1.15] lg:origin-[0%_30%]" />
-                            </Suspense>
-                            <svg className="absolute bottom-0 left-0 z-10 w-full h-12 lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none">
-                                <path className="fill-white dark:fill-slate-900" d="M0,100 L0,40 C8,10 18,62 30,36 C40,14 50,70 64,44 C76,22 88,60 100,30 L100,100 Z" />
-                            </svg>
-                        </div>
-                        <svg className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden lg:block h-full w-[34%] overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                            <path d="M18,0 C9,4 0,9 2,18 C4,27 18,31 19,41 C20,51 10,56 6,64 C2,72 3,81 0,89 C-2,94 -3,97 -5,100" fill="none" stroke="#7d9cc0" strokeOpacity="0.85" strokeWidth="1.5" strokeDasharray="5 6" vectorEffect="non-scaling-stroke" />
-                        </svg>
-
-                        {/* Contenido, a la izquierda de la columna del video. */}
-                        <div className="relative z-10 flex flex-1 flex-col px-5 sm:px-10 lg:pl-12 lg:pr-[38%] pt-6 pb-8 lg:pt-8 lg:pb-10">
-                            {/* Encabezado: marca, la persona (abre Mi cuenta) y cerrar sesión. */}
-                            <header className="flex flex-wrap items-center justify-between gap-3">
-                                <div className="flex items-center gap-3">
-                                    <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-12 w-auto" />
-                                    <div className="leading-tight">
-                                        <p className="text-sm font-extrabold text-blue-900 dark:text-sky-200">UABJB</p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">Universidad Autónoma del Beni</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        type="button"
-                                        title="Mi cuenta"
-                                        onClick={() => setCuentaAbierta(true)}
-                                        className="flex max-w-[14rem] items-center gap-2 rounded-full bg-azulado-50 dark:bg-slate-800 py-1.5 pl-1.5 pr-3 text-left text-xs ring-1 ring-inset ring-azulado-300 dark:ring-slate-700 transition-colors hover:bg-azulado-100 dark:hover:bg-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40"
-                                    >
-                                        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-900 to-blue-950 text-[11px] font-bold text-white">
-                                            {displayName.charAt(0).toUpperCase()}
-                                        </span>
-                                        <span className="truncate">
-                                            <span className="text-slate-500 dark:text-slate-400">Hola, </span>
-                                            <span className="font-semibold text-blue-900 dark:text-sky-200">{displayName}</span>
-                                        </span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={handleLogoutClick}
-                                        title="Cerrar sesión"
-                                        className="flex items-center gap-1.5 rounded-full py-2 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 transition-colors hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40 dark:hover:text-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
-                                    >
-                                        <LogoutIcon />
-                                        <span className="hidden sm:inline">Cerrar sesión</span>
-                                    </button>
-                                </div>
-                            </header>
-                            {cuentaAbierta && <ModalMiCuenta onClose={() => setCuentaAbierta(false)} onProfileUpdate={onProfileUpdate} />}
-
-                            <div className="my-auto pt-8 lg:pt-6">
-                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Panel de módulos</p>
-                                <h1 className="mt-2 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                                    ¿A dónde vamos hoy<span className="text-sky-600">?</span>
-                                </h1>
-                                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Seleccione el sistema al que desea ingresar.</p>
-
-                                <div className={`mt-7 grid gap-6 ${conColumnaLateral ? 'xl:grid-cols-[1fr_17rem]' : ''}`}>
-                                    <div className="grid gap-4 sm:grid-cols-2">
-                                        {modules.filter((m) => m.enabled).map((module) => (
-                                            <ModuleCard
-                                                key={module.name}
-                                                {...module}
-                                                onNavigateClick={(event) => handleModuleNavigation(event, module)}
-                                            />
-                                        ))}
-                                    </div>
-
-                                    {conColumnaLateral && (
-                                        <aside className="space-y-5">
-                                            {mostrarHerramientasGestion && (
-                                                <div>
-                                                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{tituloHerramientasGestion}</p>
-                                                    <div className="space-y-2">
-                                                        {herramientasVisibles.map((tool) => (
-                                                            <ToolLink key={tool.name} {...tool} />
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {hasMultipleAssignments && (
-                                                <RoleInlineSelector
-                                                    assignments={assignments}
-                                                    activeAssignment={activeAssignment}
-                                                    onSelect={handleSelectAssignment}
-                                                    getRoleLabel={getRoleLabel}
-                                                    error={roleSelectionError}
-                                                    pulse={roleErrorPulse}
-                                                />
-                                            )}
-                                        </aside>
-                                    )}
-                                </div>
-                            </div>
+            <div className="panel-entrada mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 sm:px-10 lg:px-14 py-6 lg:py-8">
+                {/* Encabezado: marca, la persona (abre Mi cuenta) y cerrar sesión. */}
+                <header className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-12 w-auto" />
+                        <div className="leading-tight">
+                            <p className="text-sm font-extrabold text-blue-900 dark:text-sky-200">UABJB</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Universidad Autónoma del Beni</p>
                         </div>
                     </div>
-                    <p className="mt-5 hidden lg:block pr-8 text-right text-sm font-medium text-white [text-shadow:0_1px_10px_rgba(15,23,42,0.45)]">
-                        Universidad Autónoma del Beni "José Ballivián" · Trinidad, Beni
-                    </p>
-                </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            title="Mi cuenta"
+                            onClick={() => setCuentaAbierta(true)}
+                            className="flex max-w-[16rem] items-center gap-2 rounded-full bg-white dark:bg-slate-800 py-1.5 pl-1.5 pr-3 text-left text-xs ring-1 ring-inset ring-azulado-300 dark:ring-slate-700 transition-colors hover:bg-azulado-100 dark:hover:bg-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40"
+                        >
+                            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-900 to-blue-950 text-[11px] font-bold text-white">
+                                {displayName.charAt(0).toUpperCase()}
+                            </span>
+                            <span className="truncate">
+                                <span className="text-slate-500 dark:text-slate-400">Hola, </span>
+                                <span className="font-semibold text-blue-900 dark:text-sky-200">{displayName}</span>
+                            </span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleLogoutClick}
+                            title="Cerrar sesión"
+                            className="flex items-center gap-1.5 rounded-full py-2 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 transition-colors hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40 dark:hover:text-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
+                        >
+                            <LogoutIcon />
+                            <span className="hidden sm:inline">Cerrar sesión</span>
+                        </button>
+                    </div>
+                </header>
+                {cuentaAbierta && <ModalMiCuenta onClose={() => setCuentaAbierta(false)} onProfileUpdate={onProfileUpdate} />}
+
+                <main className="my-auto w-full py-10 lg:max-w-[60%]">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Panel de módulos</p>
+                    <h1 className="mt-2 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                        ¿A dónde vamos hoy<span className="text-sky-600">?</span>
+                    </h1>
+                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Seleccione el sistema al que desea ingresar.</p>
+
+                    <div className={`mt-8 grid gap-6 ${conColumnaLateral ? 'xl:grid-cols-[1fr_17rem]' : ''}`}>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            {modules.filter((m) => m.enabled).map((module) => (
+                                <ModuleCard
+                                    key={module.name}
+                                    {...module}
+                                    onNavigateClick={(event) => handleModuleNavigation(event, module)}
+                                />
+                            ))}
+                        </div>
+
+                        {conColumnaLateral && (
+                            <aside className="space-y-5">
+                                {mostrarHerramientasGestion && (
+                                    <div>
+                                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{tituloHerramientasGestion}</p>
+                                        <div className="space-y-2">
+                                            {herramientasVisibles.map((tool) => (
+                                                <ToolLink key={tool.name} {...tool} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {hasMultipleAssignments && (
+                                    <RoleInlineSelector
+                                        assignments={assignments}
+                                        activeAssignment={activeAssignment}
+                                        onSelect={handleSelectAssignment}
+                                        getRoleLabel={getRoleLabel}
+                                        error={roleSelectionError}
+                                        pulse={roleErrorPulse}
+                                    />
+                                )}
+                            </aside>
+                        )}
+                    </div>
+                </main>
+
+                <p className="text-xs text-slate-500 dark:text-slate-400">Universidad Autónoma del Beni "José Ballivián" · Trinidad, Beni</p>
             </div>
         </div>
     );

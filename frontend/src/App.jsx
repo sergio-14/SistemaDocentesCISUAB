@@ -275,7 +275,7 @@ function App() {
           </>
         ) : (
           <>
-            <Route path="/" element={<ModuleSelector user={user} onLogout={handleLogout} theme={theme} setTheme={setTheme} onProfileUpdate={handleProfileUpdate} />} />
+            <Route path="/" element={<ModuleSelector user={user} onLogout={handleLogout} onProfileUpdate={handleProfileUpdate} />} />
 
             {/* Página completa (sin sidebar) para redactar/ver el Informe de Fondo de Tiempo */}
             <Route path="/fondos/:id/informe" element={<EditorInformePage />} />

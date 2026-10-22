@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { API_URL } from '../apis/apiConfig';
-import { MENSAJE_REVISA_CAMPOS } from '../utils/formErrors';
+import { MENSAJE_REVISA_CAMPOS, useErrorPulse } from '../utils/formErrors';
 import MensajeErrorCampo from './common/MensajeErrorCampo';
 import { AlertCircle, ArrowRight, Eye, EyeOff, User } from 'lucide-react';
 import PaisajeBeni from './login/PaisajeBeni';
+import ParabaPosada from './login/ParabaPosada';
 
 const TONO_ERROR = 'text-red-700';
 const MENSAJE_CREDENCIALES = 'Usuario o contraseña incorrectos.';
@@ -21,6 +22,7 @@ function Login({ onLogin }) {
   const [errores, setErrores] = useState({});
   const [pulso, setPulso] = useState(0);
   const [loginError, setLoginError] = useState('');
+  const [campoActivo, setCampoActivo] = useState(null);
   const loginErrorTimeoutRef = useRef(null);
   const navigate = useNavigate();
 
@@ -114,12 +116,31 @@ function Login({ onLogin }) {
 
   // Solo el 401 marca los dos campos: los otros errores (servidor, conexión) no son de lo escrito.
   const credencialesMal = loginError === MENSAJE_CREDENCIALES;
+  const errorUsuario = errores.username || (credencialesMal ? loginError : '');
+  const errorContrasena = errores.password || (credencialesMal ? loginError : '');
+  // Rebote de los campos en cada error (el mismo disparo que la sacudida del sistema).
+  const { isPulsing: reboteUsuario } = useErrorPulse(errorUsuario, pulso);
+  const { isPulsing: reboteContrasena } = useErrorPulse(errorContrasena, pulso);
   const anilloCampo = (conError) => (conError ? 'ring-2 ring-red-400/80' : 'ring-1 ring-slate-200');
   // Al entrar a cualquiera de los dos campos se quita el rojo de ambos.
   const limpiarErrores = () => {
     setLoginError('');
     setErrores({});
   };
+  const entrarA = (campo) => () => {
+    limpiarErrores();
+    setCampoActivo(campo);
+  };
+  const salirDelCampo = () => setCampoActivo(null);
+
+  // La paraba: mira el usuario, se tapa con la contraseña y, sin nada escrito, se acicala.
+  let estadoAve = 'atento';
+  if (campoActivo === 'contrasena') estadoAve = 'ojos-cerrados';
+  else if (campoActivo === 'usuario') estadoAve = 'mirando';
+  else if (!username && !password) estadoAve = 'reposo';
+
+  // Mensaje bajo la contraseña: el del campo o, si no hay, el del servidor.
+  const avisoContrasena = !errores.password && loginError;
 
   return (
     <div className={`login-escena min-h-screen w-full flex items-center justify-center overflow-hidden bg-slate-100 sm:p-6 lg:p-10 font-sans text-slate-800 ${isExiting ? 'login-salida' : ''}`}>
@@ -129,20 +150,32 @@ function Login({ onLogin }) {
         className="relative w-full max-w-5xl xl:max-w-[calc(64rem+var(--logo-alto)*0.574)] xl:pl-[calc(var(--logo-alto)*0.574)]"
         style={{ '--logo-alto': 'min(88vh, 700px)' }}
       >
-        {/* Logo de la UAB fuera del modal: se ve la mitad izquierda, tenue; la otra mitad queda detrás. */}
+        {/* Logo de la UAB: la mitad de afuera tenue y la de adentro se transparenta apenas en el modal. */}
         <img
           src="/images/LOGOUAB.png"
           alt=""
           aria-hidden="true"
-          className="pointer-events-none select-none absolute left-0 top-1/2 -translate-y-1/2 w-auto max-w-none opacity-[0.16] hidden xl:block"
+          className="pointer-events-none select-none absolute left-0 top-1/2 -translate-y-1/2 w-auto max-w-none opacity-[0.12] hidden xl:block"
           style={{ height: 'var(--logo-alto)' }}
         />
 
-        <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:min-h-[620px] flex flex-col lg:flex-row bg-white sm:rounded-[28px] overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
+        <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[560px] flex flex-col lg:flex-row bg-white sm:rounded-[28px] overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
+          <img
+            src="/images/LOGOUAB.png"
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none select-none absolute top-1/2 -translate-y-1/2 w-auto max-w-none opacity-[0.05] hidden xl:block"
+            style={{ height: 'var(--logo-alto)', left: 'calc(var(--logo-alto) * -0.574)' }}
+          />
 
           {/* Panel de la ilustración: a la derecha con borde ondulado; en celular, arriba y bajo. */}
           <div className="relative h-40 sm:h-52 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[54%] flex-shrink-0" aria-hidden="true">
             <PaisajeBeni className="absolute inset-0 w-full h-full" />
+            <ParabaPosada
+              estado={estadoAve}
+              seguimiento={Math.min(username.length, 28) / 28}
+              className="absolute right-0 bottom-8 h-[118px] sm:h-[150px] lg:bottom-[13%] lg:h-[46%] w-auto"
+            />
             <svg className="absolute bottom-0 left-0 w-full h-14 lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none">
               <path d="M0,34 C12,6 26,68 46,38 C64,12 80,64 100,26" fill="none" stroke="#ffffff" strokeOpacity="0.75" strokeWidth="1.5" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
               <path d="M0,100 L0,58 C12,30 26,92 46,62 C64,36 80,88 100,50 L100,100 Z" fill="#ffffff" />
@@ -154,72 +187,76 @@ function Login({ onLogin }) {
             </svg>
           </div>
 
-          {/* Formulario */}
-          <div className="relative z-10 flex-1 lg:flex-none lg:w-[54%] flex flex-col px-6 sm:px-12 lg:px-12 py-6 sm:py-8 lg:py-10">
-            <div className="flex-1 flex flex-col sm:justify-center w-full max-w-sm py-6 lg:py-8">
+          {/* Formulario: centrado en el alto del modal; los mensajes de error tienen su lugar reservado,
+              así que al aparecer no mueven nada. */}
+          <div className="relative z-10 flex-1 lg:flex-none lg:w-[54%] flex flex-col sm:justify-center px-6 sm:px-12 lg:px-12 pt-8 pb-14 lg:py-10">
+            <div className="w-full max-w-sm">
               <h1 className="text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900">Iniciar sesión</h1>
-              <p className="mt-3 text-base text-slate-600">Universidad Autónoma del Beni "José Ballivián"</p>
+              <p className="mt-2 text-base text-slate-600">Universidad Autónoma del Beni "José Ballivián"</p>
 
-              <form onSubmit={handleSubmit} noValidate className="mt-9 space-y-5">
+              <form onSubmit={handleSubmit} noValidate className="mt-8">
                 {/* Usuario */}
-                <div>
-                  <label htmlFor="login-usuario" className="block mb-1.5 text-sm font-semibold text-slate-700">Usuario o correo</label>
-                  <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-900 ${anilloCampo(errores.username || credencialesMal)}`}>
-                    <input
-                      id="login-usuario"
-                      type="text"
-                      value={username}
-                      onFocus={limpiarErrores}
-                      onClick={limpiarErrores}
-                      onChange={(e) => { setUsername(e.target.value); setErrores((prev) => ({ ...prev, username: undefined })); }}
-                      aria-invalid={Boolean(errores.username || credencialesMal) || undefined}
-                      className="login-input block w-full h-12 bg-transparent pl-4 pr-12 text-base font-medium text-slate-900 focus:outline-none"
-                      autoComplete="username"
-                    />
-                    <User className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" aria-hidden="true" />
-                  </div>
+                <label htmlFor="login-usuario" className="block mb-1.5 text-sm font-semibold text-slate-700">Usuario o correo</label>
+                <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-900 ${anilloCampo(errorUsuario)} ${reboteUsuario ? 'login-rebote' : ''}`}>
+                  <input
+                    id="login-usuario"
+                    type="text"
+                    value={username}
+                    onFocus={entrarA('usuario')}
+                    onClick={limpiarErrores}
+                    onBlur={salirDelCampo}
+                    onChange={(e) => { setUsername(e.target.value); setErrores((prev) => ({ ...prev, username: undefined })); }}
+                    aria-invalid={Boolean(errorUsuario) || undefined}
+                    className="login-input block w-full h-12 bg-transparent pl-4 pr-12 text-base font-medium text-slate-900 focus:outline-none"
+                    autoComplete="username"
+                  />
+                  <User className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" aria-hidden="true" />
+                </div>
+                <div className="min-h-[1.75rem]">
                   <MensajeErrorCampo error={errores.username} pulse={pulso} tono={TONO_ERROR} />
                 </div>
 
                 {/* Contraseña */}
-                <div>
-                  <label htmlFor="login-contrasena" className="block mb-1.5 text-sm font-semibold text-slate-700">Contraseña</label>
-                  <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-900 ${anilloCampo(errores.password || credencialesMal)}`}>
-                    <input
-                      id="login-contrasena"
-                      type="text"
-                      value={password}
-                      onFocus={limpiarErrores}
-                      onClick={limpiarErrores}
-                      onChange={(e) => { setPassword(e.target.value); setErrores((prev) => ({ ...prev, password: undefined })); }}
-                      aria-invalid={Boolean(errores.password || credencialesMal) || undefined}
-                      className={`login-input ${showPassword ? '' : 'login-password-masked'} block w-full h-12 bg-transparent pl-4 pr-14 text-base font-medium text-slate-900 focus:outline-none`}
-                      autoComplete="current-password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((prev) => !prev)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full text-slate-500 hover:text-blue-900 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900 transition-colors"
-                      aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                      title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                    >
-                      {showPassword ? <EyeOff className="h-5 w-5" aria-hidden="true" /> : <Eye className="h-5 w-5" aria-hidden="true" />}
-                    </button>
-                  </div>
+                <label htmlFor="login-contrasena" className="block mb-1.5 text-sm font-semibold text-slate-700">Contraseña</label>
+                <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-900 ${anilloCampo(errorContrasena)} ${reboteContrasena ? 'login-rebote' : ''}`}>
+                  <input
+                    id="login-contrasena"
+                    type="text"
+                    value={password}
+                    onFocus={entrarA('contrasena')}
+                    onClick={limpiarErrores}
+                    onBlur={salirDelCampo}
+                    onChange={(e) => { setPassword(e.target.value); setErrores((prev) => ({ ...prev, password: undefined })); }}
+                    aria-invalid={Boolean(errorContrasena) || undefined}
+                    className={`login-input ${showPassword ? '' : 'login-password-masked'} block w-full h-12 bg-transparent pl-4 pr-14 text-base font-medium text-slate-900 focus:outline-none`}
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full text-slate-500 hover:text-blue-900 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900 transition-colors"
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" aria-hidden="true" /> : <Eye className="h-5 w-5" aria-hidden="true" />}
+                  </button>
+                </div>
+                <div className="min-h-[1.75rem]">
                   <MensajeErrorCampo error={errores.password} pulse={pulso} tono={TONO_ERROR} />
-                  {loginError && (
-                    <p className="login-aviso mt-2 flex items-center gap-1.5 text-sm font-medium text-red-700" role="alert">
-                      <AlertCircle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                  {avisoContrasena && (
+                    <p className="login-aviso mt-1 flex items-center gap-1.5 text-xs font-medium text-red-700" role="alert">
+                      <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
                       {loginError}
                     </p>
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-x-5 gap-y-3 pt-3">
+                {/* Botón centrado y de ancho fijo: "Ingresando..." no mueve nada. */}
+                <div className="mt-3 flex flex-col items-center gap-3">
                   <button
                     type="submit"
                     disabled={loading || isExiting}
-                    className="group inline-flex items-center justify-center gap-2 h-11 px-7 rounded-full bg-blue-900 hover:bg-blue-800 text-white text-sm font-semibold shadow-[0_8px_18px_rgba(30,58,138,0.22)] transition-colors focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-900/30 disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="group inline-flex w-48 items-center justify-center gap-2 h-11 rounded-full bg-blue-900 hover:bg-blue-800 text-white text-sm font-semibold shadow-[0_8px_18px_rgba(30,58,138,0.22)] transition-colors focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-900/30 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <>
@@ -236,12 +273,12 @@ function Login({ onLogin }) {
                       </>
                     )}
                   </button>
-                  <p className="max-w-[14rem] text-sm leading-snug text-slate-600">¿No tienes cuenta? Las cuentas las crea la Dirección de Carrera.</p>
+                  <p className="text-center text-sm text-slate-600">¿No tienes cuenta? La crea la Dirección de Carrera.</p>
                 </div>
               </form>
             </div>
 
-            <p className="text-xs text-slate-500">© {new Date().getFullYear()} UABJB</p>
+            <p className="absolute left-6 sm:left-12 bottom-5 text-xs text-slate-500">© {new Date().getFullYear()} UABJB</p>
           </div>
         </div>
       </div>
@@ -263,6 +300,17 @@ function Login({ onLogin }) {
         }
         .login-aviso {
           animation: loginAvisoEntra 220ms ease-out both;
+        }
+        .login-rebote {
+          animation: loginRebote 460ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+        }
+        @keyframes loginRebote {
+          0%, 100% { transform: translateX(0); }
+          15% { transform: translateX(-9px); }
+          32% { transform: translateX(8px); }
+          50% { transform: translateX(-5px); }
+          68% { transform: translateX(3px); }
+          84% { transform: translateX(-1px); }
         }
         @keyframes loginAvisoEntra {
           from { opacity: 0; transform: translateY(-4px); }
@@ -288,7 +336,7 @@ function Login({ onLogin }) {
           to { opacity: 0; }
         }
         @media (prefers-reduced-motion: reduce) {
-          .login-tarjeta, .login-aviso { animation: none; }
+          .login-tarjeta, .login-aviso, .login-rebote { animation: none; }
           .login-salida { animation: loginSalidaQuieta 1400ms linear forwards; }
         }
       `}</style>

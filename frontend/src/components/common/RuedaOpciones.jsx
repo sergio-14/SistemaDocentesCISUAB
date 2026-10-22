@@ -47,13 +47,13 @@ const ItemRueda = ({ opcion, distance, itemHeight, onCenterClick, onSideClick, c
         <button
           type="button"
           onClick={onSideClick}
-          className={`w-full h-full tracking-wide font-semibold text-slate-700 dark:text-slate-300 select-none ${claseLateral}`}
+          className={`w-full h-full tracking-wide font-semibold text-slate-700 select-none ${claseLateral}`}
           aria-label={`Ir a ${opcion.label}`}
         >
           {opcion.label}
         </button>
       ) : (
-        <span className={`tracking-wide font-semibold text-slate-700 dark:text-slate-300 ${claseLateral}`} style={{ opacity: 1 }}>
+        <span className={`tracking-wide font-semibold text-slate-700 ${claseLateral}`} style={{ opacity: 1 }}>
           {opcion.label}
         </span>
       )}
@@ -275,7 +275,7 @@ const RuedaOpciones = ({
 
   return (
     <div
-      className="relative rounded-xl border border-[#3D6DE0]/35 dark:border-[#4B67C0]/45 bg-white/70 dark:bg-slate-800/60 overflow-hidden transition-all duration-100"
+      className="relative rounded-xl border border-[#3D6DE0]/35 bg-white/70 overflow-hidden transition-all duration-100"
       style={{
         height: `${wheelHeight}px`,
         perspective: '1000px',
@@ -284,7 +284,7 @@ const RuedaOpciones = ({
       }}
     >
       <div
-        className="pointer-events-none absolute inset-x-0 z-10 border-y-2 border-[#3D6DE0]/60 dark:border-[#6B86DE]/70 bg-gradient-to-r from-[#3D6DE0]/15 to-[#3D6DE0]/15 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.35),inset_0_-1px_0_0_rgba(255,255,255,0.25)]"
+        className="pointer-events-none absolute inset-x-0 z-10 border-y-2 border-[#3D6DE0]/60 bg-gradient-to-r from-[#3D6DE0]/15 to-[#3D6DE0]/15 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.35),inset_0_-1px_0_0_rgba(255,255,255,0.25)]"
         style={{
           top: `${centerOffset * itemHeight}px`,
           height: `${itemHeight}px`,
@@ -294,7 +294,7 @@ const RuedaOpciones = ({
           <div className="relative h-full w-full flex items-center justify-center">
             {opciones[lowerFloatIndex] !== undefined && (
               <span
-                className={`absolute whitespace-nowrap tracking-wide text-[#1F3274] dark:text-white ${claseCentro} drop-shadow-[0_1px_2px_rgba(255,255,255,0.35)] dark:drop-shadow-lg`}
+                className={`absolute whitespace-nowrap tracking-wide text-[#1F3274] ${claseCentro} drop-shadow-[0_1px_2px_rgba(255,255,255,0.35)]`}
                 style={{ ...getOverlayStyle(-centerProgress * itemHeight), fontWeight: 700 }}
               >
                 {opciones[lowerFloatIndex].label}
@@ -303,7 +303,7 @@ const RuedaOpciones = ({
 
             {upperFloatIndex !== lowerFloatIndex && opciones[upperFloatIndex] !== undefined && (
               <span
-                className={`absolute whitespace-nowrap tracking-wide text-[#1F3274] dark:text-white ${claseCentro} drop-shadow-[0_1px_2px_rgba(255,255,255,0.35)] dark:drop-shadow-lg`}
+                className={`absolute whitespace-nowrap tracking-wide text-[#1F3274] ${claseCentro} drop-shadow-[0_1px_2px_rgba(255,255,255,0.35)]`}
                 style={{ ...getOverlayStyle((1 - centerProgress) * itemHeight), fontWeight: 700 }}
               >
                 {opciones[upperFloatIndex].label}
@@ -313,8 +313,8 @@ const RuedaOpciones = ({
         </div>
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-white/70 via-white/30 to-transparent dark:from-slate-900/70 dark:via-slate-900/25 z-10" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-white/70 via-white/30 to-transparent dark:from-slate-900/70 dark:via-slate-900/25 z-10" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-white/70 via-white/30 to-transparent z-10" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-white/70 via-white/30 to-transparent z-10" />
 
       <div
         ref={viewportRef}

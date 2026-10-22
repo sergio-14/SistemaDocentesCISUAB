@@ -410,19 +410,19 @@ const CatalogoItems = () => {
 				onConfirm={confirmarEliminarItem}
 				onCancel={() => setDeleteDialogItem(null)}
 			/>
-			<div className="poa-mobile-page-card catalogo-card w-full p-6 rounded shadow border border-slate-200 bg-white/90 text-slate-900 dark:border-slate-700 dark:bg-slate-900/55 dark:text-slate-100">
+			<div className="poa-mobile-page-card catalogo-card w-full p-6 rounded shadow border border-slate-200 bg-white/90 text-slate-900">
 			{!canEdit && (
-				<div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+				<div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
 					Modo solo lectura: puedes ver y descargar el catálogo. Solo el encargado de elavorar el POA puede crear o modificar items.
 				</div>
 			)}
 			<div
 				ref={stickyControlsRef}
-				className="sticky z-30 mb-4 rounded-lg p-3 shadow-sm border border-sky-200 bg-sky-50/95 backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/55"
+				className="sticky z-30 mb-4 rounded-lg p-3 shadow-sm border border-sky-200 bg-sky-50/95 backdrop-blur-sm"
 				style={{ top: `${stickyTop}px` }}
 			>
-					<div className="mb-3 rounded-lg p-3 border border-sky-200 bg-white/80 dark:border-slate-700 dark:bg-slate-900/55">
-					<div className="text-sm font-semibold text-slate-700 mb-2 dark:text-slate-200">Ingresa un término de búsqueda: (DETALLE, PARTIDA)</div>
+					<div className="mb-3 rounded-lg p-3 border border-sky-200 bg-white/80">
+					<div className="text-sm font-semibold text-slate-700 mb-2">Ingresa un término de búsqueda: (DETALLE, PARTIDA)</div>
 					<div className="flex flex-wrap items-center gap-2">
 						<input
 							type="text"
@@ -430,16 +430,16 @@ const CatalogoItems = () => {
 							onChange={(e) => setSearchQuery(e.target.value)}
 							onKeyDown={(e) => { if (e.key === 'Enter') handleBuscarItems(); }}
 							placeholder="Ejemplo: AZULEJO / 43200 / UNIDAD"
-							className="px-3 py-2 rounded w-full md:w-[420px] border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
+							className="px-3 py-2 rounded w-full md:w-[420px] border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400"
 						/>
 						<button
 							type="button"
 							onClick={handleBuscarItems}
-							className="px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 dark:bg-slate-700 dark:text-sky-100 dark:hover:bg-slate-600 dark:border dark:border-sky-500/40"
+							className="px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
 						>
 							Buscar
 						</button>
-						<button type="button" onClick={handleLimpiarBusqueda} className="px-3 py-2 rounded bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600">
+						<button type="button" onClick={handleLimpiarBusqueda} className="px-3 py-2 rounded bg-slate-200 text-slate-800 hover:bg-slate-300">
 							Limpiar
 						</button>
 					</div>
@@ -485,7 +485,7 @@ const CatalogoItems = () => {
 						type="button"
 						onClick={handleDescargarCatalogoExcel}
 						disabled={downloading}
-						className="px-4 py-2 rounded bg-emerald-600 text-white font-semibold hover:bg-emerald-700 dark:bg-slate-700 dark:text-emerald-200 dark:hover:bg-slate-600 dark:border dark:border-emerald-500/40 disabled:opacity-60 disabled:cursor-not-allowed"
+						className="px-4 py-2 rounded bg-emerald-600 text-white font-semibold hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
 					>
 						{downloading ? 'Descargando...' : 'Descargar catálogo'}
 					</button>
@@ -537,11 +537,11 @@ const CatalogoItems = () => {
 			)}
 
 			{downloading && (
-				<div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg dark:bg-emerald-900/30 dark:border-emerald-700">
-					<div className="text-sm font-semibold text-emerald-900 dark:text-emerald-200 mb-2">
+				<div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+					<div className="text-sm font-semibold text-emerald-900 mb-2">
 						Descargando catálogo... {downloadIndeterminate ? '' : `${downloadProgress}%`}
 					</div>
-					<div className="w-full h-2 bg-emerald-200 rounded-full overflow-hidden dark:bg-emerald-800/60">
+					<div className="w-full h-2 bg-emerald-200 rounded-full overflow-hidden">
 						{downloadIndeterminate ? (
 							<div
 								className="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full"
@@ -557,7 +557,7 @@ const CatalogoItems = () => {
 							/>
 						)}
 					</div>
-					<div className="text-xs text-emerald-800 dark:text-emerald-300 mt-2">Generando archivo Excel, por favor espera...</div>
+					<div className="text-xs text-emerald-800 mt-2">Generando archivo Excel, por favor espera...</div>
 					<style>{`
 						@keyframes download-progress-indeterminate {
 							0% { transform: translateX(-100%); }
@@ -587,7 +587,7 @@ const CatalogoItems = () => {
 						</div>
 
 						<div className="modal-body p-5">
-							<div className="poa-mobile-kpi-card mb-4 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200">
+							<div className="poa-mobile-kpi-card mb-4 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-900">
 								<div className="text-sm font-medium">Cargados en base de datos</div>
 								<div className="text-2xl font-extrabold leading-tight">{importResumen.items_creados || 0}</div>
 								<div className="text-xs opacity-80">Registros nuevos insertados correctamente.</div>
@@ -659,38 +659,38 @@ const CatalogoItems = () => {
 				</Modal>
 			)}
 
-			{loading && <div className="text-blue-600 dark:text-blue-400">Cargando items...</div>}
-			{error && <div className="text-red-600 dark:text-red-400">Error al cargar items: {typeof error === 'string' ? error : JSON.stringify(error)}</div>}
+			{loading && <div className="text-blue-600">Cargando items...</div>}
+			{error && <div className="text-red-600">Error al cargar items: {typeof error === 'string' ? error : JSON.stringify(error)}</div>}
 
 			{!loading && !error && (
 				<div>
-					<div className="text-sm text-slate-500 dark:text-slate-400 mb-2">Total de registros: {totalCount}</div>
-					<div className="poa-table-wrapper overflow-auto max-h-[68vh] border rounded border-sky-200 bg-white/75 dark:border-slate-700 dark:bg-transparent">
-						<table className="poa-mobile-card-table min-w-full table-auto border-collapse font-sans text-sm leading-snug text-blue-900 dark:text-white">
+					<div className="text-sm text-slate-500 mb-2">Total de registros: {totalCount}</div>
+					<div className="poa-table-wrapper overflow-auto max-h-[68vh] border rounded border-sky-200 bg-white/75">
+						<table className="poa-mobile-card-table min-w-full table-auto border-collapse font-sans text-sm leading-snug text-blue-900">
 							<thead>
 								<tr className="text-left">
-									<th className="sticky top-0 z-20 px-3 py-2 border border-blue-300 dark:border-gray-600 font-medium bg-blue-100 text-blue-900 dark:bg-slate-900 dark:text-slate-100 shadow-sm">Partida</th>
-									<th className="sticky top-0 z-20 px-3 py-2 border border-blue-300 dark:border-gray-600 font-medium bg-blue-100 text-blue-900 dark:bg-slate-900 dark:text-slate-100 shadow-sm">DETALLE</th>
-									<th className="sticky top-0 z-20 px-3 py-2 border border-blue-300 dark:border-gray-600 font-medium bg-blue-100 text-blue-900 dark:bg-slate-900 dark:text-slate-100 shadow-sm">UNIDAD_MEDIDA</th>
+									<th className="sticky top-0 z-20 px-3 py-2 border border-blue-300 font-medium bg-blue-100 text-blue-900 shadow-sm">Partida</th>
+									<th className="sticky top-0 z-20 px-3 py-2 border border-blue-300 font-medium bg-blue-100 text-blue-900 shadow-sm">DETALLE</th>
+									<th className="sticky top-0 z-20 px-3 py-2 border border-blue-300 font-medium bg-blue-100 text-blue-900 shadow-sm">UNIDAD_MEDIDA</th>
 								</tr>
 							</thead>
 							<tbody>
 								{items.length === 0 && (
 									<tr>
-										<td className="px-3 py-3 text-slate-500 dark:text-slate-400" colSpan={3}>No hay registros para mostrar.</td>
+										<td className="px-3 py-3 text-slate-500" colSpan={3}>No hay registros para mostrar.</td>
 									</tr>
 								)}
 								{items.map((it, idx) => {
 									const isSelected = selectedItem && String(selectedItem.id) === String(it.id);
-									const rowBase = 'px-3 py-2 border border-blue-300 dark:border-gray-600 align-top';
+									const rowBase = 'px-3 py-2 border border-blue-300 align-top';
 									const cellStateClass = isSelected
-										? 'bg-amber-300 text-slate-950 font-semibold dark:bg-cyan-700 dark:text-white'
-										: 'odd:bg-white even:bg-blue-50 dark:odd:bg-slate-900 dark:even:bg-slate-800 dark:text-slate-100';
+										? 'bg-amber-300 text-slate-950 font-semibold'
+										: 'odd:bg-white even:bg-blue-50';
 									return (
 										<tr
 											key={`item-${it?.id ?? idx}`}
 											onClick={() => handleSelectItem(it)}
-											className={`cursor-pointer border-t transition-colors ${isSelected ? 'ring-1 ring-inset ring-amber-500 dark:ring-cyan-400' : ''}`}
+											className={`cursor-pointer border-t transition-colors ${isSelected ? 'ring-1 ring-inset ring-amber-500' : ''}`}
 										>
 											<td data-label="Partida" className={`${rowBase} ${cellStateClass}`}>{it?.partida || '-'}</td>
 											<td data-label="Detalle" className={`${rowBase} ${cellStateClass}`}><div className="table-cell-clamp">{it?.detalle || '-'}</div></td>
@@ -708,7 +708,7 @@ const CatalogoItems = () => {
 								type="button"
 								onClick={() => setPage((p) => Math.max(1, p - 1))}
 								disabled={!hasPrevPage}
-								className="px-3 py-1 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
+								className="px-3 py-1 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-50"
 							>
 								Anterior
 							</button>
@@ -716,7 +716,7 @@ const CatalogoItems = () => {
 								type="button"
 								onClick={() => setPage((p) => p + 1)}
 								disabled={!hasNextPage}
-								className="px-3 py-1 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
+								className="px-3 py-1 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-50"
 							>
 								Siguiente
 							</button>

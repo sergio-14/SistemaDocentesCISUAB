@@ -186,8 +186,7 @@ export const useErrorPulse = (error, pulse = 0) => {
 };
 
 /**
- * Clases Tailwind de borde + anillo rojo para el estado de error,
- * visibles tanto en modo claro como oscuro.
+ * Clases Tailwind de borde + anillo rojo para el estado de error.
  */
 export const ERROR_FIELD_BORDER_CLASS =
-  'border-2 !border-red-600 dark:!border-red-500 ring-1 ring-inset ring-red-500/50';
+  'border-2 !border-red-600 ring-1 ring-inset ring-red-500/50';

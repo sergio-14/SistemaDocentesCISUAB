@@ -5,7 +5,7 @@ import api from '../../apis/api';
 // Evento que dispara ListaCarreras al activar o desactivar una carrera.
 export const EVENTO_CARRERAS_ACTUALIZADAS = 'carreras-actualizadas';
 
-const CLASES = 'flex items-start gap-3 rounded-xl border border-amber-500/50 bg-amber-100 px-4 py-3 text-sm text-amber-900 shadow-sm dark:border-amber-400/40 dark:bg-amber-900/30 dark:text-amber-100';
+const CLASES = 'flex items-start gap-3 rounded-xl border border-amber-500/50 bg-amber-100 px-4 py-3 text-sm text-amber-900 shadow-sm';
 
 // El superusuario no trabaja en una sola carrera: se le avisa qué carreras
 // están desactivadas, porque sus datos también son de solo lectura para él.

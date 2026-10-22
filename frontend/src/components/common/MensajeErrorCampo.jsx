@@ -5,7 +5,7 @@ import { getErrorMessage, useErrorPulse } from '../../utils/formErrors';
  * Los formularios usan noValidate: este mensaje reemplaza al globo nativo del navegador.
  * `tono` cambia el color en pantallas de fondo oscuro (login, cambio de contraseña).
  */
-export default function MensajeErrorCampo({ error, pulse = 0, tono = 'text-red-600 dark:text-red-400' }) {
+export default function MensajeErrorCampo({ error, pulse = 0, tono = 'text-red-600' }) {
   const mensaje = getErrorMessage(error);
   const { motionClass } = useErrorPulse(mensaje, pulse);
   if (!mensaje) return null;

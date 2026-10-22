@@ -389,7 +389,7 @@ export default function InformeCampoRico({ value, onChange, placeholder = 'Escri
         // editor: hay que devolverle a la imagen un display inline-level
         // para que el text-align del <div data-img-wrap> (ver
         // alinearImagenSeleccionada) tenga algo que alinear.
-        className={`informe-campo-editable informe-campo-rico rounded px-1.5 -mx-1.5 focus:outline-none [&_img]:inline-block [&_img]:max-w-full [&_img]:rounded [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_table]:max-w-full [&_blockquote]:border-none [&_blockquote]:ml-8 [&_blockquote]:my-0 empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 dark:empty:before:text-slate-500 ${soloLectura ? '' : 'hover:bg-blue-50/60 dark:hover:bg-blue-900/10 focus:bg-blue-50/80 dark:focus:bg-blue-900/20 focus:ring-1 focus:ring-blue-300 dark:focus:ring-blue-700'} ${className}`}
+        className={`informe-campo-editable informe-campo-rico rounded px-1.5 -mx-1.5 focus:outline-none [&_img]:inline-block [&_img]:max-w-full [&_img]:rounded [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_table]:max-w-full [&_blockquote]:border-none [&_blockquote]:ml-8 [&_blockquote]:my-0 empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 ${soloLectura ? '' : 'hover:bg-blue-50/60 focus:bg-blue-50/80 focus:ring-1 focus:ring-blue-300'} ${className}`}
       />
       {imagenPorRecortar && (
         <RecortarImagenModal

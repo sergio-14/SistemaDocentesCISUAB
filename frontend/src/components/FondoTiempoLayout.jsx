@@ -5,7 +5,6 @@ import { useActiveRole } from '../contexts/activeRole';
 import AvisoCarreraInactiva from './common/AvisoCarreraInactiva';
 import AvisoFichaDocentePendiente from './common/AvisoFichaDocentePendiente';
 import useSinElevacionPoa from '../utils/useSinElevacionPoa';
-import useModoClaro from '../utils/useModoClaro';
 
 const FondoTiempoLayout = ({ 
     user, 
@@ -51,9 +50,6 @@ const FondoTiempoLayout = ({
         && !activeAssignment
         && !hasValidStoredAssignment
     );
-
-    // El módulo de Fondo de Tiempo solo se ve en modo claro (fondo blanco azulado).
-    useModoClaro();
 
     useEffect(() => {
         document.documentElement.style.setProperty('--fondo-sidebar-width', anchoSidebar);

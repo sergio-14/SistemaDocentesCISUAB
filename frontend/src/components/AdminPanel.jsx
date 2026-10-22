@@ -85,7 +85,7 @@ const AdminPanel = ({ user, onLogout }) => {
     };
 
     return (
-        <div className="flex h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900 font-sans">
+        <div className="flex h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 font-sans">
             {/* --- BARRA LATERAL --- */}
             <aside className="w-64 flex-shrink-0 bg-gradient-to-b from-blue-900 to-blue-950 text-slate-300 flex flex-col shadow-2xl">
                 {/* Logo/Header */}

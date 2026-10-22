@@ -43,10 +43,10 @@ const PoaBreadcrumb = () => {
     ...(actividadId && objetivoId && (path.includes('/evidencias') || path.startsWith('/poa/presupuestos')) ? [{ label: actividadLabel, onClick: () => navigate(`/poa/actividades/${objetivoId}`, { state: state({ objetivoId }) }) }] : []),
     { label: sectionLabel, onClick: null },
   ];
-  return <nav aria-label="Ruta de navegación" className="hidden md:flex items-center gap-2 min-h-7 overflow-hidden text-xs text-slate-500 dark:text-slate-400">
+  return <nav aria-label="Ruta de navegación" className="hidden md:flex items-center gap-2 min-h-7 overflow-hidden text-xs text-slate-500">
     {links.map((item, index) => <React.Fragment key={`${item.label}-${index}`}>
       {index > 0 && <FaChevronRight className="shrink-0 text-[9px] text-slate-400" />}
-      {item.onClick ? <button type="button" onClick={item.onClick} title={item.label} className="max-w-56 truncate hover:text-blue-700 hover:underline dark:hover:text-sky-300">{item.label}</button> : <span className="max-w-56 truncate font-semibold text-slate-700 dark:text-slate-200" title={item.label}>{item.label}</span>}
+      {item.onClick ? <button type="button" onClick={item.onClick} title={item.label} className="max-w-56 truncate hover:text-blue-700 hover:underline">{item.label}</button> : <span className="max-w-56 truncate font-semibold text-slate-700" title={item.label}>{item.label}</span>}
     </React.Fragment>)}
   </nav>;
 };

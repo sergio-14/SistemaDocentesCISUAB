@@ -68,9 +68,9 @@ const ProfilePicture = ({ user, onUpdate }) => {
     
     // SOLUCIÓN 2: Usar toast personalizado en lugar de window.confirm
     toast((t) => (
-      <div className="max-w-sm rounded-xl border border-red-300 bg-red-50 text-red-900 shadow-lg p-3 dark:border-red-800 dark:bg-red-950/90 dark:text-red-100">
+      <div className="max-w-sm rounded-xl border border-red-300 bg-red-50 text-red-900 shadow-lg p-3">
         <p className="font-semibold text-sm leading-tight">¿Eliminar foto de perfil?</p>
-        <p className="text-xs text-red-700 mt-1 dark:text-red-300">Se restaurara la imagen predeterminada.</p>
+        <p className="text-xs text-red-700 mt-1">Se restaurara la imagen predeterminada.</p>
 
         <div className="flex gap-2 mt-3 justify-end">
           <button
@@ -92,13 +92,13 @@ const ProfilePicture = ({ user, onUpdate }) => {
                 toast.error('Error al eliminar');
               }
             }}
-            className="px-3 py-1.5 rounded-md bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600 text-white text-xs font-semibold transition-colors"
+            className="px-3 py-1.5 rounded-md bg-red-600 hover:bg-red-700 text-white text-xs font-semibold transition-colors"
           >
             Eliminar
           </button>
           <button
             onClick={() => toast.dismiss(t.id)}
-            className="px-3 py-1.5 rounded-md bg-white hover:bg-red-100 text-red-800 text-xs font-semibold transition-colors border border-red-300 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-200 dark:border-red-700"
+            className="px-3 py-1.5 rounded-md bg-white hover:bg-red-100 text-red-800 text-xs font-semibold transition-colors border border-red-300"
           >
             Cancelar
           </button>

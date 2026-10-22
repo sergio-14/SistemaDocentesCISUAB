@@ -185,14 +185,14 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
                 type="button"
                 title="Mi cuenta"
                 onClick={() => setCuentaAbierta(true)}
-                className="flex max-w-[11rem] sm:max-w-[16rem] items-center gap-2 rounded-full bg-white dark:bg-slate-800 py-1.5 pl-1.5 pr-3 text-left text-xs shadow-sm ring-1 ring-inset ring-azulado-300 dark:ring-slate-700 transition-colors hover:bg-azulado-50 dark:hover:bg-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40"
+                className="flex max-w-[11rem] sm:max-w-[16rem] items-center gap-2 rounded-full bg-white py-1.5 pl-1.5 pr-3 text-left text-xs shadow-sm ring-1 ring-inset ring-azulado-300 transition-colors hover:bg-azulado-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40"
             >
                 <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-900 to-blue-950 text-[11px] font-bold text-white">
                     {displayName.charAt(0).toUpperCase()}
                 </span>
                 <span className="truncate">
-                    <span className="text-slate-500 dark:text-slate-400">Hola, </span>
-                    <span className="font-semibold text-blue-900 dark:text-sky-200">{displayName}</span>
+                    <span className="text-slate-500">Hola, </span>
+                    <span className="font-semibold text-blue-900">{displayName}</span>
                 </span>
             </button>
             <button
@@ -200,7 +200,7 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
                 onClick={handleLogoutClick}
                 title="Cerrar sesión"
                 aria-label="Cerrar sesión"
-                className="flex items-center gap-1.5 rounded-full bg-white/70 dark:bg-slate-800/70 py-2 px-3 text-xs font-semibold text-slate-600 dark:text-slate-300 ring-1 ring-inset ring-azulado-300 dark:ring-slate-700 transition-colors hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40 dark:hover:text-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
+                className="flex items-center gap-1.5 rounded-full bg-white/70 py-2 px-3 text-xs font-semibold text-slate-600 ring-1 ring-inset ring-azulado-300 transition-colors hover:bg-red-50 hover:text-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
             >
                 <LogoutIcon />
                 <span className="hidden sm:inline">Cerrar sesión</span>
@@ -213,7 +213,7 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
         <div className="space-y-6">
             {mostrarHerramientasGestion && (
                 <div>
-                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-900/60 dark:text-slate-400">{tituloHerramientasGestion}</p>
+                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-900/60">{tituloHerramientasGestion}</p>
                     <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-1">
                         {herramientasVisibles.map((tool) => (
                             <ToolLink key={tool.name} {...tool} />
@@ -235,7 +235,7 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
     );
 
     return (
-        <div className="panel-modulos relative isolate min-h-screen w-full overflow-x-hidden bg-azulado-50 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-100 lg:grid lg:grid-cols-[minmax(0,1fr)_40vw]">
+        <div className="panel-modulos relative isolate min-h-screen w-full overflow-x-hidden bg-azulado-50 font-sans text-slate-800 lg:grid lg:grid-cols-[minmax(0,1fr)_40vw]">
             <style>{`
                 .panel-entrada { animation: panelEntrada 600ms cubic-bezier(0.22, 1, 0.36, 1) both; }
                 @keyframes panelEntrada {
@@ -254,15 +254,15 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
                 {/* En celular, mancha azulada detrás del encabezado y el título, con la línea punteada en su
                     borde; sigue el alto del bloque (en escritorio está la división). */}
                 <svg className="pointer-events-none absolute -inset-x-5 sm:-inset-x-10 -top-5 -bottom-10 -z-10 h-[calc(100%+3.75rem)] w-[calc(100%+2.5rem)] sm:w-[calc(100%+5rem)] lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                    <path className="fill-azulado-100 dark:fill-slate-900" d="M0,0 L100,0 L100,84 C82,96 66,78 48,88 C32,97 16,80 0,90 Z" />
+                    <path className="fill-azulado-100" d="M0,0 L100,0 L100,84 C82,96 66,78 48,88 C32,97 16,80 0,90 Z" />
                     <path d="M0,97 C16,87 32,100 48,94 C66,85 82,100 100,91" fill="none" stroke="#7d9cc0" strokeOpacity="0.85" strokeWidth="1.5" strokeDasharray="5 6" vectorEffect="non-scaling-stroke" />
                 </svg>
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-11 lg:h-12 w-auto" />
                         <div className="leading-tight">
-                            <p className="text-sm font-extrabold text-blue-900 dark:text-sky-200">UABJB</p>
-                            <p className="hidden sm:block text-xs text-slate-500 dark:text-slate-400">Universidad Autónoma del Beni</p>
+                            <p className="text-sm font-extrabold text-blue-900">UABJB</p>
+                            <p className="hidden sm:block text-xs text-slate-500">Universidad Autónoma del Beni</p>
                         </div>
                     </div>
                     <div className="lg:hidden">{cuenta}</div>
@@ -271,15 +271,15 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
                 <div className="panel-entrada relative w-full max-w-3xl lg:mx-auto pt-8 pr-20 sm:pr-28 lg:pr-0 lg:pt-[9vh]">
                     {/* En celular, el loro a la derecha del título, mirando hacia las letras. */}
                     <div
-                        className="pointer-events-none absolute right-0 bottom-0 h-[7.5rem] sm:h-36 aspect-[1/1.75] -scale-x-100 bg-[#8fa8cd] dark:bg-slate-700 lg:hidden"
+                        className="pointer-events-none absolute right-0 bottom-0 h-[7.5rem] sm:h-36 aspect-[1/1.75] -scale-x-100 bg-[#8fa8cd] lg:hidden"
                         style={MASCARA_LORO}
                         aria-hidden="true"
                     />
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Panel de módulos</p>
-                    <h1 className="mt-2 text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                    <h1 className="mt-2 text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900">
                         ¿A dónde vamos hoy<span className="text-sky-600">?</span>
                     </h1>
-                    <p className="mt-2 sm:mt-3 text-sm sm:text-base text-slate-500 dark:text-slate-400">Seleccione el sistema al que desea ingresar.</p>
+                    <p className="mt-2 sm:mt-3 text-sm sm:text-base text-slate-500">Seleccione el sistema al que desea ingresar.</p>
                 </div>
                 </div>
 
@@ -299,7 +299,7 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
                     </div>
                 </main>
 
-                <p className="mt-10 text-right text-[11px] text-slate-500 dark:text-slate-400 lg:hidden">
+                <p className="mt-10 text-right text-[11px] text-slate-500 lg:hidden">
                     Universidad Autónoma del Beni "José Ballivián" · Trinidad, Beni
                 </p>
             </section>
@@ -314,10 +314,10 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
                             <stop offset="1" stopColor="#B8C9E1" />
                         </linearGradient>
                     </defs>
-                    <path className="dark:opacity-10" d="M30,0 C16,5 9,12 13,24 C17,35 27,39 23,51 C19,63 8,66 10,79 C11,89 15,95 18,100 L100,100 L100,0 Z" fill="url(#panel-division)" />
+                    <path d="M30,0 C16,5 9,12 13,24 C17,35 27,39 23,51 C19,63 8,66 10,79 C11,89 15,95 18,100 L100,100 L100,0 Z" fill="url(#panel-division)" />
                     <path d="M19,0 C7,6 2,13 5,24 C8,35 18,39 14,51 C10,63 1,67 2,79 C3,89 6,95 8,100" fill="none" stroke="#7d9cc0" strokeOpacity="0.85" strokeWidth="1.5" strokeDasharray="5 6" vectorEffect="non-scaling-stroke" />
                 </svg>
-                <p className="pointer-events-none absolute right-8 bottom-[9%] -z-10 text-[7vw] font-extrabold leading-none tracking-tight text-blue-900/[0.13] dark:text-white/[0.07]" aria-hidden="true">
+                <p className="pointer-events-none absolute right-8 bottom-[9%] -z-10 text-[7vw] font-extrabold leading-none tracking-tight text-blue-900/[0.13]" aria-hidden="true">
                     Módulos
                 </p>
 
@@ -329,13 +329,13 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
                     {/* Silueta del loro debajo de los botones, centrada bajo ellos (entre los botones y
                         "Módulos"), mirando hacia los módulos, en el azulado de la división más intenso. */}
                     <div
-                        className="pointer-events-none mx-auto mt-[6vh] h-[22vh] max-h-[210px] aspect-[1/1.75] -scale-x-100 bg-[#8fa8cd] dark:bg-slate-700"
+                        className="pointer-events-none mx-auto mt-[6vh] h-[22vh] max-h-[210px] aspect-[1/1.75] -scale-x-100 bg-[#8fa8cd]"
                         style={MASCARA_LORO}
                         aria-hidden="true"
                     />
                 </div>
 
-                <p className="mt-auto pt-8 text-right text-xs font-medium text-blue-900/70 dark:text-slate-400">
+                <p className="mt-auto pt-8 text-right text-xs font-medium text-blue-900/70">
                     Universidad Autónoma del Beni "José Ballivián" · Trinidad, Beni
                 </p>
             </section>
@@ -353,8 +353,8 @@ const RoleInlineSelector = ({ assignments, activeAssignment, onSelect, getRoleLa
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Rol de ingreso</p>
             <div className={`space-y-2 rounded-2xl p-2 transition-colors ${
                 error
-                    ? `bg-red-50 ring-2 ring-red-400/80 dark:bg-red-950/30 ${motionClass}`
-                    : 'bg-azulado-50 ring-1 ring-inset ring-azulado-300 dark:bg-slate-800 dark:ring-slate-700'
+                    ? `bg-red-50 ring-2 ring-red-400/80 ${motionClass}`
+                    : 'bg-azulado-50 ring-1 ring-inset ring-azulado-300'
             }`}>
                 {assignments.map((assignment) => {
                     const selected = String(activeAssignment?.id || '') === String(assignment.id);
@@ -366,18 +366,18 @@ const RoleInlineSelector = ({ assignments, activeAssignment, onSelect, getRoleLa
                             className={`w-full rounded-xl px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40 ${
                                 selected
                                     ? 'bg-sky-600 text-white shadow-[0_6px_14px_rgba(2,132,199,0.25)]'
-                                    : 'bg-white text-slate-800 hover:bg-azulado-100 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-700'
+                                    : 'bg-white text-slate-800 hover:bg-azulado-100'
                             }`}
                         >
                             <span className="block text-sm font-bold">{getRoleLabel(assignment.rol)}</span>
-                            <span className={`block truncate text-xs ${selected ? 'text-sky-100' : 'text-slate-500 dark:text-slate-400'}`}>
+                            <span className={`block truncate text-xs ${selected ? 'text-sky-100' : 'text-slate-500'}`}>
                                 {assignment.carrera_nombre || 'Sin carrera'}
                             </span>
                         </button>
                     );
                 })}
             </div>
-            {error && <p className="mt-2 text-xs font-semibold text-red-700 dark:text-red-400">{error}</p>}
+            {error && <p className="mt-2 text-xs font-semibold text-red-700">{error}</p>}
         </div>
     );
 };
@@ -385,14 +385,14 @@ const RoleInlineSelector = ({ assignments, activeAssignment, onSelect, getRoleLa
 const ToolLink = ({ name, description, path, icon: Icon }) => (
     <Link
         to={path}
-        className="group flex items-center gap-3 rounded-2xl bg-white/85 px-3 py-3 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_22px_rgba(30,58,138,0.12)] dark:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40"
+        className="group flex items-center gap-3 rounded-2xl bg-white/85 px-3 py-3 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_22px_rgba(30,58,138,0.12)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40"
     >
         <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-900 to-blue-950 text-white">
             <Icon className="h-5 w-5" />
         </span>
         <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold text-blue-900 dark:text-slate-100">{name}</span>
-            <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{description}</span>
+            <span className="block text-sm font-semibold text-blue-900">{name}</span>
+            <span className="block truncate text-xs text-slate-500">{description}</span>
         </span>
         <ArrowRight className="h-4 w-4 flex-shrink-0 text-blue-900/40 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5" aria-hidden="true" />
     </Link>
@@ -404,12 +404,12 @@ const ToolLink = ({ name, description, path, icon: Icon }) => (
 const ModuleCard = ({ name, description, path, icon: Icon, color, enabled, onNavigateClick }) => {
     if (!enabled) {
         return (
-            <div className="relative flex min-h-[9.5rem] sm:min-h-[11rem] flex-col justify-between overflow-hidden rounded-3xl border-2 border-dashed border-azulado-300 bg-white/60 p-4 sm:p-5 text-slate-400 dark:border-slate-700 dark:bg-slate-900/40" aria-disabled="true">
-                <span className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-azulado-100 text-blue-900/40 dark:bg-slate-800 dark:text-slate-500">
+            <div className="relative flex min-h-[9.5rem] sm:min-h-[11rem] flex-col justify-between overflow-hidden rounded-3xl border-2 border-dashed border-azulado-300 bg-white/60 p-4 sm:p-5 text-slate-400" aria-disabled="true">
+                <span className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-azulado-100 text-blue-900/40">
                     <Icon className="h-5 w-5" />
                 </span>
                 <span className="block">
-                    <span className="block text-base sm:text-lg font-bold text-blue-900/50 dark:text-slate-400">{name}</span>
+                    <span className="block text-base sm:text-lg font-bold text-blue-900/50">{name}</span>
                     <span className="mt-0.5 block text-xs sm:text-sm">{description}</span>
                 </span>
             </div>

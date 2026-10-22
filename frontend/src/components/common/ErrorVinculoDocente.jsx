@@ -26,7 +26,7 @@ function ErrorVinculoDocente({ onLogout }) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-fade-in border-2 border-amber-500">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-fade-in border-2 border-amber-500">
         {/* Header de advertencia */}
         <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4">
           <div className="flex items-center gap-3">
@@ -41,13 +41,13 @@ function ErrorVinculoDocente({ onLogout }) {
 
         {/* Contenido */}
         <div className="p-6 space-y-4">
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4">
-            <p className="text-amber-800 dark:text-amber-200 font-semibold text-center">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <p className="text-amber-800 font-semibold text-center">
               Tu usuario no tiene un registro de docente asociado
             </p>
           </div>
 
-          <div className="space-y-3 text-slate-700 dark:text-slate-300">
+          <div className="space-y-3 text-slate-700">
             <p className="text-sm">
               Esto puede deberse a:
             </p>
@@ -67,14 +67,14 @@ function ErrorVinculoDocente({ onLogout }) {
             </ul>
           </div>
 
-          <div className="bg-slate-50 dark:bg-slate-700 rounded-xl p-4 border border-slate-200 dark:border-slate-600">
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+            <p className="text-sm font-semibold text-slate-800 mb-2">
               📋 Solución:
             </p>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              Contacta al <strong className="text-blue-600 dark:text-blue-400">administrador del sistema</strong> para que:
+            <p className="text-sm text-slate-600">
+              Contacta al <strong className="text-blue-600">administrador del sistema</strong> para que:
             </p>
-            <ol className="text-sm text-slate-600 dark:text-slate-400 ml-4 mt-2 space-y-1 list-decimal">
+            <ol className="text-sm text-slate-600 ml-4 mt-2 space-y-1 list-decimal">
               <li>Verifique tu cuenta de usuario</li>
               <li>Vincule tu usuario con un registro de docente</li>
               <li>Restaure tu acceso al sistema</li>
@@ -83,14 +83,14 @@ function ErrorVinculoDocente({ onLogout }) {
         </div>
 
         {/* Footer con botón de cerrar sesión */}
-        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-700 border-t border-slate-200 dark:border-slate-600">
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
           <button
             onClick={handleLogout}
             className="w-full px-6 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 transition-all shadow-lg hover:shadow-xl"
           >
             Cerrar Sesión
           </button>
-          <p className="text-xs text-center text-slate-500 dark:text-slate-400 mt-3">
+          <p className="text-xs text-center text-slate-500 mt-3">
             No podrás acceder al sistema hasta que se resuelva este problema
           </p>
         </div>

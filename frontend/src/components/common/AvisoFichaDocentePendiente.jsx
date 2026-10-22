@@ -10,7 +10,7 @@ const AvisoFichaDocentePendiente = ({ className = '' }) => {
   return (
     <div
       role="status"
-      className={`flex items-start gap-3 rounded-xl border border-amber-500/50 bg-amber-100 px-4 py-3 text-sm text-amber-900 shadow-sm dark:border-amber-400/40 dark:bg-amber-900/30 dark:text-amber-100 ${className}`}
+      className={`flex items-start gap-3 rounded-xl border border-amber-500/50 bg-amber-100 px-4 py-3 text-sm text-amber-900 shadow-sm ${className}`}
     >
       <span aria-hidden="true" className="text-lg leading-none">📋</span>
       <p>

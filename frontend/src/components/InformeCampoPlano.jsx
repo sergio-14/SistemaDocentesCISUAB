@@ -61,7 +61,7 @@ export default function InformeCampoPlano({ value, onChange, placeholder = '', c
       // vez de centrado en todo el ancho. Por lo mismo, `bloque` (una línea
       // propia, p. ej. nombre y cargo uno debajo del otro) se decide aquí: un
       // "block" pasado en className dejaba el cargo pegado al nombre.
-      className={`informe-campo-editable informe-campo-plano min-w-[2ch] rounded px-1 -mx-1 focus:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 dark:empty:before:text-slate-500 ${soloLectura ? '' : 'hover:bg-blue-50/60 dark:hover:bg-blue-900/10 focus:bg-blue-50/80 dark:focus:bg-blue-900/20 focus:ring-1 focus:ring-blue-300 dark:focus:ring-blue-700'} ${multilinea ? 'block w-full whitespace-pre-line' : bloque ? 'block w-full whitespace-normal break-words' : 'inline-block whitespace-normal break-words'} ${className}`}
+      className={`informe-campo-editable informe-campo-plano min-w-[2ch] rounded px-1 -mx-1 focus:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 ${soloLectura ? '' : 'hover:bg-blue-50/60 focus:bg-blue-50/80 focus:ring-1 focus:ring-blue-300'} ${multilinea ? 'block w-full whitespace-pre-line' : bloque ? 'block w-full whitespace-normal break-words' : 'inline-block whitespace-normal break-words'} ${className}`}
     />
   );
 }

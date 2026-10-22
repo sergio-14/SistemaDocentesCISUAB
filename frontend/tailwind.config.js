@@ -4,7 +4,6 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
-  darkMode: 'class', // 👈 AGREGADO para soportar modo oscuro
   theme: {
     extend: {
       colors: {

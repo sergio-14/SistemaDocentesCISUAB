@@ -315,12 +315,12 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
         <form onSubmit={handleSubmit} ref={containerRef} className="p-4 space-y-4 modal-body">
           <ModalErrorAlert title="No se pudo guardar el presupuesto:" messages={errorMessages} />
           {requestChangeMode && (
-            <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/35 dark:text-amber-200">
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
               El documento esta bloqueado. Los cambios se enviaran al Director de Carrera para aprobacion antes de aplicarse.
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Ítem / Detalle</label>
+            <label className="block text-sm font-medium text-gray-700">Ítem / Detalle</label>
             <div className="relative flex items-center gap-2">
               <input
                 name="item"
@@ -335,7 +335,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
                 autoComplete="off"
                 required
                 aria-invalid={fieldErrors.item ? 'true' : undefined}
-                className={`poa-input w-full px-2 py-1 ${fieldErrors.item ? 'border-red-500 dark:border-red-500 focus:ring-red-500 dark:focus:ring-red-500' : ''}`}
+                className={`poa-input w-full px-2 py-1 ${fieldErrors.item ? 'border-red-500 focus:ring-red-500' : ''}`}
                 placeholder={catalogLoading ? 'Buscando ítems...' : 'Escribe el item y presiona Enter o Buscar'}
               />
               <button
@@ -347,26 +347,26 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
                 Buscar
               </button>
               {showDropdown && filteredItems.length > 0 && (
-                <div className="absolute z-30 left-0 right-0 mt-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-xl">
-                  <div className="px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
+                <div className="absolute z-30 left-0 right-0 mt-2 rounded-lg border border-gray-300 bg-white shadow-xl">
+                  <div className="px-3 py-2 text-xs font-semibold text-slate-600 border-b border-slate-200">
                     Resultados encontrados: {filteredItems.length}
                   </div>
                   <div className="max-h-80 overflow-auto">
-                    {catalogLoading && <div className="p-3 text-sm text-gray-600 dark:text-slate-400">Cargando...</div>}
-                    {catalogError && <div className="p-3 text-sm text-red-600 dark:text-red-400">{catalogError}</div>}
+                    {catalogLoading && <div className="p-3 text-sm text-gray-600">Cargando...</div>}
+                    {catalogError && <div className="p-3 text-sm text-red-600">{catalogError}</div>}
                     {!catalogLoading && !catalogError && filteredItems.map(it => (
                       <button
                         key={it.id ?? it.codigo ?? it.detalle ?? it.descripcion}
                         type="button"
                         onMouseDown={(e) => { e.preventDefault(); handleSelectCatalogItem(it); }}
-                        className="w-full text-left p-3 hover:bg-gray-100 dark:hover:bg-slate-700 text-sm text-gray-900 dark:text-slate-100 border-b border-slate-100 dark:border-slate-700"
+                        className="w-full text-left p-3 hover:bg-gray-100 text-sm text-gray-900 border-b border-slate-100"
                       >
                         <div className="font-medium">{it.detalle ?? it.descripcion ?? it.nombre ?? it.nombre_item ?? it.codigo}</div>
-                        {it.partida && <div className="text-xs text-gray-500 dark:text-slate-400">Partida: {it.partida.codigo ?? it.partida}</div>}
+                        {it.partida && <div className="text-xs text-gray-500">Partida: {it.partida.codigo ?? it.partida}</div>}
                       </button>
                     ))}
                   </div>
-                  <div className="p-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
+                  <div className="p-2 border-t border-slate-200 flex items-center justify-between gap-2">
                     <button
                       type="button"
                       onMouseDown={(e) => { e.preventDefault(); abrirNuevoItemCatalogo(); }}
@@ -380,7 +380,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
                         e.preventDefault();
                         setShowDropdown(false);
                       }}
-                      className="px-3 py-1.5 rounded bg-slate-200 text-slate-800 text-sm hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+                      className="px-3 py-1.5 rounded bg-slate-200 text-slate-800 text-sm hover:bg-slate-300"
                     >
                       Cerrar
                     </button>
@@ -388,8 +388,8 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
                 </div>
               )}
               {showDropdown && hasSearchedItem && !catalogLoading && !catalogError && filteredItems.length === 0 && (
-                <div className="absolute z-30 left-0 right-0 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 mt-1 rounded shadow-lg p-2">
-                  <div className="text-sm text-slate-600 dark:text-slate-300 mb-2">No se encontró el item en catálogo.</div>
+                <div className="absolute z-30 left-0 right-0 bg-white border border-gray-300 mt-1 rounded shadow-lg p-2">
+                  <div className="text-sm text-slate-600 mb-2">No se encontró el item en catálogo.</div>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -407,7 +407,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
                         e.preventDefault();
                         setShowDropdown(false);
                       }}
-                      className="px-3 py-1.5 rounded bg-slate-200 text-slate-800 text-sm hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+                      className="px-3 py-1.5 rounded bg-slate-200 text-slate-800 text-sm hover:bg-slate-300"
                     >
                       Ninguno de estos / Cerrar
                     </button>
@@ -415,7 +415,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
                 </div>
               )}
             </div>
-            {fieldErrors.item && <div className="text-xs text-red-600 dark:text-red-400 mt-1">{fieldErrors.item}</div>}
+            {fieldErrors.item && <div className="text-xs text-red-600 mt-1">{fieldErrors.item}</div>}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -443,7 +443,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
                 required
                 error={fieldErrors.partida}
               />
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">El ítem quedará dentro de la partida seleccionada: {grupoPartida?.nombre || 'sin seleccionar'}.</div>
+              <div className="text-xs text-slate-500 mt-1">El ítem quedará dentro de la partida seleccionada: {grupoPartida?.nombre || 'sin seleccionar'}.</div>
             </div>
           </div>
 
@@ -490,7 +490,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Mes de requerimiento</label>
+              <label className="block text-sm font-medium text-gray-700">Mes de requerimiento</label>
               <div className="mt-1 grid grid-cols-2 gap-2">
                 <Select
                   label="Desde"
@@ -521,7 +521,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
                   {mesesActividad.map((mes) => <option key={mes} value={mes} disabled={MESES.indexOf(mes) < MESES.indexOf(mesInicioRequerimiento)}>{capitalizarMes(mes)}</option>)}
                 </Select>
               </div>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Rango permitido por la actividad: {capitalizarMes(mesesActividad[0])} - {capitalizarMes(mesesActividad[mesesActividad.length - 1])}.</p>
+              <p className="mt-1 text-xs text-slate-500">Rango permitido por la actividad: {capitalizarMes(mesesActividad[0])} - {capitalizarMes(mesesActividad[mesesActividad.length - 1])}.</p>
             </div>
 
             <div>

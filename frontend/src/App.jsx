@@ -1,6 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
-import { useTheme } from './useTheme';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
 
@@ -69,7 +68,6 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   
-  const { theme, setTheme, isDark } = useTheme();
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');
@@ -225,7 +223,7 @@ function App() {
   if (user && user.perfil?.debe_cambiar_password) {
     return (
       <Router>
-        <ToasterSistema isDark={isDark} />
+        <ToasterSistema />
         <Routes>
           <Route path="/cambiar-password" element={<CambiarPassword onPasswordChanged={handleLogin} />} />
           <Route path="*" element={<Navigate to="/cambiar-password" replace />} />
@@ -247,7 +245,7 @@ function App() {
   return (
     <ActiveRoleProvider user={user} setUser={setUser}>
     <Router>
-      <ToasterSistema isDark={isDark} />
+      <ToasterSistema />
       {/* Conexión de tiempo real y avisos del Fondo de Tiempo para el rol activo */}
       {user && <ConexionTiempoReal />}
       {user && <AvisosFondoTiempo />}
@@ -303,7 +301,7 @@ function App() {
               </Route>
               
               {/* Las rutas hijas son relativas al padre */}
-              <Route path="fondo/:id" element={<AnimatedRoute><DetalleFondo isDark={isDark} /></AnimatedRoute>} />
+              <Route path="fondo/:id" element={<AnimatedRoute><DetalleFondo /></AnimatedRoute>} />
               <Route path="comparar" element={<RutaPorRol roles={['director', 'jefe_estudios']}><AnimatedRoute><Comparador /></AnimatedRoute></RutaPorRol>} />
 
               <Route path="cargas-horarias" element={<AnimatedRoute><CargaHorariaGeneral /></AnimatedRoute>} />
@@ -313,7 +311,7 @@ function App() {
               <Route path="informe-gestion" element={<RutaPorRol roles={['director']}><AnimatedRoute><InformeGestion /></AnimatedRoute></RutaPorRol>} />
 
               {/* Rutas de Administración (Integradas en el Sidebar) */}
-              <Route path="docentes" element={<AnimatedRoute><ListaDocentes isDark={isDark} /></AnimatedRoute>} />
+              <Route path="docentes" element={<AnimatedRoute><ListaDocentes /></AnimatedRoute>} />
               <Route path="calendarios" element={<AnimatedRoute><ListaCalendarios /></AnimatedRoute>} />
               <Route path="materias" element={<MateriaList />}>
                 <Route path="nueva" element={<MateriaForm />} />
@@ -324,11 +322,11 @@ function App() {
             </Route>
 
             {/* Módulo Principal: Gestión Global de Usuarios/Carreras */}
-            <Route path="/usuarios" element={<SimpleLayout theme={theme} setTheme={setTheme} soloClaro />}>
+            <Route path="/usuarios" element={<SimpleLayout soloClaro />}>
               <Route index element={<AnimatedRoute><GestionUsuarios user={user} /></AnimatedRoute>} />
             </Route>
 
-            <Route path="/carreras" element={<SimpleLayout theme={theme} setTheme={setTheme} soloClaro />}>
+            <Route path="/carreras" element={<SimpleLayout soloClaro />}>
               <Route index element={<AnimatedRoute><ListaCarreras /></AnimatedRoute>} />
             </Route>
 

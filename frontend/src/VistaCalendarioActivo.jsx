@@ -96,10 +96,10 @@ function VistaCalendarioActivo() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-full p-6 bg-slate-100 dark:bg-slate-900">
+            <div className="flex items-center justify-center h-full p-6 bg-slate-100">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto"></div>
-                    <p className="mt-4 text-slate-700 dark:text-slate-300">Cargando calendario...</p>
+                    <p className="mt-4 text-slate-700">Cargando calendario...</p>
                 </div>
             </div>
         );
@@ -107,25 +107,25 @@ function VistaCalendarioActivo() {
 
     if (error || !calendario) {
         return (
-            <div className="flex items-center justify-center h-full p-6 bg-slate-100 dark:bg-slate-900">
-                <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 p-6 rounded-xl shadow-md max-w-md text-center">
+            <div className="flex items-center justify-center h-full p-6 bg-slate-100">
+                <div className="bg-yellow-50 border-l-4 border-yellow-500 p-6 rounded-xl shadow-md max-w-md text-center">
                     <WarningIcon className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-                    <h2 className="text-xl font-bold text-yellow-800 dark:text-yellow-300">Atención</h2>
-                    <p className="text-yellow-700 dark:text-yellow-400 mt-2">{error || "No se encontró un calendario activo."}</p>
+                    <h2 className="text-xl font-bold text-yellow-800">Atención</h2>
+                    <p className="text-yellow-700 mt-2">{error || "No se encontró un calendario activo."}</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-full p-6 flex items-center justify-center bg-slate-100 dark:bg-slate-900">
+        <div className="min-h-full p-6 flex items-center justify-center bg-slate-100">
             <div className="w-full max-w-4xl space-y-6">
                 <div className="text-center">
-                    <h1 className="text-3xl font-bold text-slate-800 dark:text-white">Calendario Académico Activo</h1>
-                    <p className="text-slate-500 dark:text-slate-400">Información clave para el periodo actual</p>
+                    <h1 className="text-3xl font-bold text-slate-800">Calendario Académico Activo</h1>
+                    <p className="text-slate-500">Información clave para el periodo actual</p>
                 </div>
 
-                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border-2 border-slate-200 dark:border-slate-700 overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-2xl border-2 border-slate-200 overflow-hidden">
                     <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6">
                         <div className="flex items-center gap-4">
                             <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-lg">
@@ -146,33 +146,33 @@ function VistaCalendarioActivo() {
                         </div>
 
                         <div>
-                            <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">Progreso del Semestre</h3>
-                            <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-4 shadow-inner">
+                            <h3 className="text-lg font-semibold text-slate-700 mb-2">Progreso del Semestre</h3>
+                            <div className="w-full bg-slate-200 rounded-full h-4 shadow-inner">
                                 <div className="bg-gradient-to-r from-blue-500 to-green-500 h-4 rounded-full transition-all duration-500" style={{ width: `${progreso.porcentaje}%` }}></div>
                             </div>
-                            <div className="flex justify-between text-sm text-slate-500 dark:text-slate-400 mt-1">
+                            <div className="flex justify-between text-sm text-slate-500 mt-1">
                                 <span>{formatearFecha(calendario.fecha_inicio)}</span>
                                 <span className="font-semibold">{progreso.porcentaje}% completado</span>
                                 <span>{formatearFecha(calendario.fecha_fin)}</span>
                             </div>
                         </div>
 
-                        <div className={`p-5 rounded-xl border-2 shadow-lg flex items-center gap-5 ${plazo.vencido ? 'bg-red-50 dark:bg-red-900/20 border-red-500' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-500'}`}>
-                            <div className={`flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center ${plazo.vencido ? 'bg-red-100 dark:bg-red-900/50' : 'bg-yellow-100 dark:bg-yellow-900/50'}`}>
+                        <div className={`p-5 rounded-xl border-2 shadow-lg flex items-center gap-5 ${plazo.vencido ? 'bg-red-50 border-red-500' : 'bg-yellow-50 border-yellow-500'}`}>
+                            <div className={`flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center ${plazo.vencido ? 'bg-red-100' : 'bg-yellow-100'}`}>
                                 {plazo.vencido ? <CheckCircleIcon className="w-8 h-8 text-red-500" /> : <ClockIcon className="w-8 h-8 text-yellow-500" />}
                             </div>
                             <div>
-                                <h3 className={`text-lg font-bold ${plazo.vencido ? 'text-red-800 dark:text-red-300' : 'text-yellow-800 dark:text-yellow-300'}`}>
+                                <h3 className={`text-lg font-bold ${plazo.vencido ? 'text-red-800' : 'text-yellow-800'}`}>
                                     {plazo.vencido ? 'Plazo para Presentar Fondos Vencido' : 'Plazo para Presentar Fondos'}
                                 </h3>
-                                <p className={`text-sm ${plazo.vencido ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
+                                <p className={`text-sm ${plazo.vencido ? 'text-red-600' : 'text-yellow-600'}`}>
                                     La fecha límite fue el <strong>{formatearFecha(calendario.fecha_limite_presentacion_proyectos)}</strong>.
                                 </p>
                             </div>
                             {!plazo.vencido && (
                                 <div className="ml-auto text-center">
                                     <div className={`text-4xl font-black ${plazo.diasRestantes < 7 ? 'text-red-500' : 'text-yellow-600'}`}>{plazo.diasRestantes}</div>
-                                    <div className="text-sm font-semibold text-slate-600 dark:text-slate-400">días restantes</div>
+                                    <div className="text-sm font-semibold text-slate-600">días restantes</div>
                                 </div>
                             )}
                         </div>
@@ -184,9 +184,9 @@ function VistaCalendarioActivo() {
 }
 
 const InfoCard = ({ label, value }) => (
-    <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-lg border border-slate-200 dark:border-slate-600 text-center">
-        <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
-        <p className="text-lg font-bold text-slate-800 dark:text-white">{value}</p>
+    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
+        <p className="text-sm text-slate-500">{label}</p>
+        <p className="text-lg font-bold text-slate-800">{value}</p>
     </div>
 );
 

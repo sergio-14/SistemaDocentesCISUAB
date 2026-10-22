@@ -8,7 +8,6 @@ import NuevoDocumentoModal from '../components/NuevoDocumentoModal';
 import BitacoraModal from '../components/BitacoraModal';
 import Dialog from '../components/base/Dialog';
 import FullscreenPDFViewer from '../../../components/FullscreenPDFViewer';
-import { useTheme } from '../../../useTheme';
 import {
   AlertCircle,
   Building,
@@ -146,7 +145,6 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
   const [bitacoraDoc, setBitacoraDoc] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
-  const { effectiveTheme } = useTheme();
   const outletContext = useOutletContext() || {};
   const poaPermissions = outletContext.poaPermissions || {};
   const poaRoles = Array.isArray(outletContext.poaRoles) ? outletContext.poaRoles : [];
@@ -154,7 +152,6 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
   const canReview = !!poaPermissions.canReview;
   const isRevisionBoard = viewMode === 'revision-observado';
   const documentosPath = isRevisionBoard ? '/poa/documentos-revision' : '/poa/documentos';
-  const isDark = effectiveTheme === 'dark';
   const navContext = useMemo(() => getPoaNavigationContext(location?.state), [location?.key, location?.state]);
 
   const [docs, setDocs] = useState(location?.state?.documentos || []);
@@ -489,47 +486,26 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
     ? 'Aqui se concentran los documentos enviados a revision y las solicitudes de cambio pendientes.'
     : 'Seleccione una gestión para ver y administrar sus documentos.';
 
-  const summaryCardBase = 'poa-summary-stat poa-mobile-kpi-card poa-kpi-formal rounded-lg p-3 border shadow-sm bg-white/85 dark:bg-slate-900/55';
-  const statTone = isDark
-    ? {
-        total: 'poa-kpi-accent-blue border-blue-500/30 text-blue-100',
-        revision: 'poa-kpi-accent-sky border-sky-500/30 text-sky-100',
-        observado: 'poa-kpi-accent-orange border-orange-500/30 text-orange-100',
-        elaboracion: 'poa-kpi-accent-amber border-amber-500/30 text-amber-100',
-        aprobado: 'poa-kpi-accent-emerald border-emerald-500/30 text-emerald-100',
-        ejecucion: 'poa-kpi-accent-violet border-violet-500/30 text-violet-100',
-      }
-    : {
-        total: 'poa-kpi-accent-blue border-blue-200 text-blue-700',
-        revision: 'poa-kpi-accent-sky border-sky-200 text-sky-700',
-        observado: 'poa-kpi-accent-orange border-orange-200 text-orange-700',
-        elaboracion: 'poa-kpi-accent-amber border-amber-200 text-amber-700',
-        aprobado: 'poa-kpi-accent-emerald border-emerald-200 text-emerald-700',
-        ejecucion: 'poa-kpi-accent-violet border-violet-200 text-violet-700',
-      };
+  const summaryCardBase = 'poa-summary-stat poa-mobile-kpi-card poa-kpi-formal rounded-lg p-3 border shadow-sm bg-white/85';
+  const statTone = {
+    total: 'poa-kpi-accent-blue border-blue-200 text-blue-700',
+    revision: 'poa-kpi-accent-sky border-sky-200 text-sky-700',
+    observado: 'poa-kpi-accent-orange border-orange-200 text-orange-700',
+    elaboracion: 'poa-kpi-accent-amber border-amber-200 text-amber-700',
+    aprobado: 'poa-kpi-accent-emerald border-emerald-200 text-emerald-700',
+    ejecucion: 'poa-kpi-accent-violet border-violet-200 text-violet-700',
+  };
 
   const actionButtonBase = 'flex items-center justify-center gap-3 w-full rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition-all duration-200 border';
   const actionButtonStyles = {
-    send: isDark
-      ? `${actionButtonBase} bg-slate-700 hover:bg-slate-600 text-slate-100 border-slate-600/60`
-      : `${actionButtonBase} bg-sky-600 hover:bg-sky-500 text-white border-sky-500/30`,
-    pdf: isDark
-      ? `${actionButtonBase} bg-cyan-700 hover:bg-cyan-600 text-slate-100 border-cyan-600/60`
-      : `${actionButtonBase} bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-500/30`,
-    edit: isDark
-      ? `${actionButtonBase} bg-blue-700 hover:bg-blue-600 text-slate-100 border-blue-600/60`
-      : `${actionButtonBase} bg-blue-600 hover:bg-blue-500 text-white border-blue-500/30`,
-    delete: isDark
-      ? `${actionButtonBase} bg-rose-700 hover:bg-rose-600 text-slate-100 border-rose-600/60`
-      : `${actionButtonBase} bg-red-600 hover:bg-red-500 text-white border-red-500/30`,
-    bitacora: isDark
-      ? `${actionButtonBase} bg-slate-600 hover:bg-slate-500 text-slate-100 border-slate-500/60`
-      : `${actionButtonBase} bg-slate-700 hover:bg-slate-600 text-white border-slate-600/30`,
+    send: `${actionButtonBase} bg-sky-600 hover:bg-sky-500 text-white border-sky-500/30`,
+    pdf: `${actionButtonBase} bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-500/30`,
+    edit: `${actionButtonBase} bg-blue-600 hover:bg-blue-500 text-white border-blue-500/30`,
+    delete: `${actionButtonBase} bg-red-600 hover:bg-red-500 text-white border-red-500/30`,
+    bitacora: `${actionButtonBase} bg-slate-700 hover:bg-slate-600 text-white border-slate-600/30`,
   };
 
-  const actionIconWrap = isDark
-    ? 'inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-current ring-1 ring-inset ring-white/10'
-    : 'inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-current ring-1 ring-inset ring-white/15';
+  const actionIconWrap = 'inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-current ring-1 ring-inset ring-white/15';
   const generalGestion = getGestionNumberForDoc({ gestion: gestionState || navContext?.gestion }) || Number(new Date().getFullYear());
 
   return (
@@ -596,19 +572,19 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
               <div className="absolute inset-0 flex items-center justify-center p-4">
                 <div
                   onClick={(e) => e.stopPropagation()}
-                  className="w-full max-w-2xl rounded-2xl border border-sky-300/40 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden"
+                  className="w-full max-w-2xl rounded-2xl border border-sky-300/40 bg-white shadow-2xl overflow-hidden"
                 >
-                  <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/70 flex items-center justify-between gap-3">
+                  <div className="px-5 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-xs uppercase tracking-wider font-bold text-sky-700 dark:text-sky-300">Enviar a revisión</p>
-                      <h4 className="text-lg font-bold text-slate-900 dark:text-slate-100 truncate" title={revisionDoc.programa || ''}>
+                      <p className="text-xs uppercase tracking-wider font-bold text-sky-700">Enviar a revisión</p>
+                      <h4 className="text-lg font-bold text-slate-900 truncate" title={revisionDoc.programa || ''}>
                         {revisionDoc.programa || `Documento #${revisionDoc.id}`}
                       </h4>
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowRevisionModal(false)}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-white hover:border-slate-400 dark:hover:border-slate-500 transition"
+                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-300 text-slate-500 hover:text-slate-800 hover:border-slate-400 transition"
                       aria-label="Cerrar"
                     >
                       ×
@@ -616,13 +592,13 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
                   </div>
 
                   <div className="p-5">
-                    <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 px-4 py-4 mb-4 dark:border-slate-700 dark:bg-slate-800/45">
-                      <p className="text-sm uppercase tracking-wider font-bold text-indigo-700 dark:text-indigo-300">Este documento se enviará al Director de Carrera</p>
-                      <p className="text-base text-slate-800 dark:text-slate-100 mt-2 leading-relaxed">{getPersonaLabel(revisionDoc?.jefe_unidad || revisionDoc?.jefe_unidad_nombre || revisionDoc?.jefe_unidad_detalle, 'Debe asignar Director de Carrera en el documento')}</p>
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 px-4 py-4 mb-4">
+                      <p className="text-sm uppercase tracking-wider font-bold text-indigo-700">Este documento se enviará al Director de Carrera</p>
+                      <p className="text-base text-slate-800 mt-2 leading-relaxed">{getPersonaLabel(revisionDoc?.jefe_unidad || revisionDoc?.jefe_unidad_nombre || revisionDoc?.jefe_unidad_detalle, 'Debe asignar Director de Carrera en el documento')}</p>
                     </div>
 
-                    <div className="rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/25 px-4 py-4 mb-4">
-                      <p className="text-sm font-semibold text-amber-800 dark:text-amber-200 leading-relaxed">
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-4 mb-4">
+                      <p className="text-sm font-semibold text-amber-800 leading-relaxed">
                         Nota: Una vez enviado a revisión, el documento cambiará de estado a "En Revisión" y quedará bloqueado para edición hasta que el Director de Carrera emita su resolución (aprobación u observación).
                       </p>
                     </div>
@@ -639,7 +615,7 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
                                 setShowRevisionModal(false);
                                 setRevisionDoc(null);
                               }}
-                              className="flex items-center justify-center gap-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 text-base font-bold py-3 px-4 rounded-xl shadow transition-all w-full"
+                              className="flex items-center justify-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-base font-bold py-3 px-4 rounded-xl shadow transition-all w-full"
                             >
                               Cancelar
                             </button>
@@ -657,7 +633,7 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
                             </button>
                           </div>
                           {!canSubmit && (
-                            <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
+                            <p className="mt-3 text-sm text-slate-600">
                               Para enviar, verifica que el documento tenga Director de Carrera asignado.
                             </p>
                           )}
@@ -697,11 +673,11 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
         )}
 
         {!hasGestionSelected && !loading && (
-          <div className="poa-mobile-page-card rounded-xl border border-blue-200 bg-white/85 p-6 shadow-sm w-full dark:border-slate-800 dark:bg-slate-950/40">
+          <div className="poa-mobile-page-card rounded-xl border border-blue-200 bg-white/85 p-6 shadow-sm w-full">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
-                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">{boardTitle}</h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{boardDescription}</p>
+                <h3 className="text-xl font-bold text-slate-900">{boardTitle}</h3>
+                <p className="text-sm text-slate-600 mt-1">{boardDescription}</p>
               </div>
               <button
                 onClick={() => setShowModal(true)}
@@ -713,19 +689,19 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
           </div>
         )}
 
-        {loading && <div className="text-blue-800 dark:text-slate-200 mt-4">Cargando documentos...</div>}
-        {error && <div className="text-red-600 dark:text-red-400 mt-4">{String(error)}</div>}
+        {loading && <div className="text-blue-800 mt-4">Cargando documentos...</div>}
+        {error && <div className="text-red-600 mt-4">{String(error)}</div>}
 
         {hasGestionSelected && (
           <div className="mt-6 w-full">
-            <div className="poa-mobile-page-card flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4 rounded-2xl border border-blue-200/70 bg-white/75 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/55">
+            <div className="poa-mobile-page-card flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4 rounded-2xl border border-blue-200/70 bg-white/75 p-4 shadow-sm">
               <div>
-                <h3 className="text-2xl font-bold text-blue-900 dark:text-slate-100">{boardTitle}</h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Gestión: {gestionState || navContext?.gestion}</p>
+                <h3 className="text-2xl font-bold text-blue-900">{boardTitle}</h3>
+                <p className="text-sm text-slate-600 mt-1">Gestión: {gestionState || navContext?.gestion}</p>
               </div>
               <button
                 onClick={() => setShowModal(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-300 dark:border-slate-700 px-4 py-2 text-sm font-semibold text-blue-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-slate-900 transition"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 transition"
               >
                 <Calendar size={16} /> Cambiar gestión
               </button>
@@ -801,26 +777,26 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
                         onClick={() => {
                           if (canOpenDocument) handleVerActividades(doc.id, doc);
                         }}
-                        className={`relative bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900 border-2 border-blue-400/70 dark:border-slate-800 rounded-xl overflow-hidden transition-all duration-300 w-full focus:outline-none ${canOpenDocument ? 'cursor-pointer hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-900/20' : 'cursor-default'}`}
+                        className={`relative bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 border-2 border-blue-400/70 rounded-xl overflow-hidden transition-all duration-300 w-full focus:outline-none ${canOpenDocument ? 'cursor-pointer hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-900/20' : 'cursor-default'}`}
                       >
                         <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600" />
 
                         <div className="grid grid-cols-12">
-                          <div className="col-span-12 md:col-span-2 flex flex-col items-center justify-center gap-2 border-b md:border-b-0 md:border-r border-blue-300 dark:border-slate-800 bg-blue-100/50 dark:bg-transparent px-4 py-5">
-                            <span className="text-5xl md:text-4xl font-bold text-slate-900 dark:text-white font-mono leading-none">{gestion}</span>
-                            <span className="text-sm text-slate-600 dark:text-slate-500 font-bold uppercase tracking-wider">Gestión</span>
+                          <div className="col-span-12 md:col-span-2 flex flex-col items-center justify-center gap-2 border-b md:border-b-0 md:border-r border-blue-300 bg-blue-100/50 px-4 py-5">
+                            <span className="text-5xl md:text-4xl font-bold text-slate-900 font-mono leading-none">{gestion}</span>
+                            <span className="text-sm text-slate-600 font-bold uppercase tracking-wider">Gestión</span>
                             {doc.fecha_elaboracion && (
-                              <div className="mt-2 pt-2 border-t border-blue-300 dark:border-slate-800 w-full flex flex-col items-center gap-0.5">
+                              <div className="mt-2 pt-2 border-t border-blue-300 w-full flex flex-col items-center gap-0.5">
                                 <div className="flex items-center gap-2">
-                                  <Calendar size={14} className="text-slate-500 dark:text-slate-400" />
-                                  <span className="text-slate-700 dark:text-slate-300 text-sm font-semibold font-mono">{doc.fecha_elaboracion}</span>
+                                  <Calendar size={14} className="text-slate-500" />
+                                  <span className="text-slate-700 text-sm font-semibold font-mono">{doc.fecha_elaboracion}</span>
                                 </div>
-                                <span className="text-sm text-slate-600 dark:text-slate-500 font-bold uppercase tracking-wider">Elaboración</span>
+                                <span className="text-sm text-slate-600 font-bold uppercase tracking-wider">Elaboración</span>
                               </div>
                             )}
                           </div>
 
-                          <div className="col-span-12 md:col-span-7 p-5 border-b md:border-b-0 md:border-r border-blue-300 dark:border-slate-800 bg-white/55 dark:bg-transparent">
+                          <div className="col-span-12 md:col-span-7 p-5 border-b md:border-b-0 md:border-r border-blue-300 bg-white/55">
                             <div className="flex flex-wrap items-center gap-2 mb-3">
                               <span className="inline-flex items-center gap-2 px-3 py-1 rounded-md text-sm bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold">
                                 <Building size={14} />Entidad: {entidad}
@@ -838,55 +814,55 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
 
                             <div className="mb-3 space-y-2">
                               <div className="min-w-0">
-                                <p className="text-sm text-slate-600 dark:text-slate-500 font-bold uppercase tracking-wider mb-1">Programa</p>
-                                <h3 className="text-lg md:text-base font-bold text-slate-900 dark:text-white leading-tight truncate" title={programa}>{programa || 'Sin programa'}</h3>
+                                <p className="text-sm text-slate-600 font-bold uppercase tracking-wider mb-1">Programa</p>
+                                <h3 className="text-lg md:text-base font-bold text-slate-900 leading-tight truncate" title={programa}>{programa || 'Sin programa'}</h3>
                               </div>
                               <div className="min-w-0">
-                                <p className="text-sm text-slate-600 dark:text-slate-500 font-bold uppercase tracking-wider mb-1">Unidad solicitante</p>
-                                <p className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400 text-sm truncate" title={unidad || ''}>
+                                <p className="text-sm text-slate-600 font-bold uppercase tracking-wider mb-1">Unidad solicitante</p>
+                                <p className="flex items-center gap-1.5 text-slate-600 text-sm truncate" title={unidad || ''}>
                                   <Briefcase size={11} className="flex-shrink-0" />
                                   <span className="truncate">{unidad || 'No especificada'}</span>
                                 </p>
                               </div>
                             </div>
 
-                            <div className="border-y border-blue-300 dark:border-slate-800 py-3 grid grid-cols-2 gap-3">
+                            <div className="border-y border-blue-300 py-3 grid grid-cols-2 gap-3">
                               <div className="flex items-center gap-2">
-                                <div className="w-7 h-7 bg-blue-100 rounded-lg border border-blue-200 flex items-center justify-center flex-shrink-0 dark:bg-slate-800 dark:border-slate-700">
-                                  <User size={13} className="text-blue-600 dark:text-slate-400" />
+                                <div className="w-7 h-7 bg-blue-100 rounded-lg border border-blue-200 flex items-center justify-center flex-shrink-0">
+                                  <User size={13} className="text-blue-600" />
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="text-sm text-slate-600 dark:text-slate-500 font-bold uppercase tracking-wider">Elaborado por</p>
-                                  <p className="text-slate-700 dark:text-slate-300 text-sm font-semibold truncate" title={elaboradoPor || ''}>{elaboradoPor || <span className="text-slate-500 dark:text-slate-600 italic font-normal">No asignado</span>}</p>
+                                  <p className="text-sm text-slate-600 font-bold uppercase tracking-wider">Elaborado por</p>
+                                  <p className="text-slate-700 text-sm font-semibold truncate" title={elaboradoPor || ''}>{elaboradoPor || <span className="text-slate-500 italic font-normal">No asignado</span>}</p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <div className="w-7 h-7 bg-blue-100 rounded-lg border border-blue-200 flex items-center justify-center flex-shrink-0 dark:bg-slate-800 dark:border-slate-700">
-                                  <ShieldCheck size={13} className="text-blue-600 dark:text-slate-400" />
+                                <div className="w-7 h-7 bg-blue-100 rounded-lg border border-blue-200 flex items-center justify-center flex-shrink-0">
+                                  <ShieldCheck size={13} className="text-blue-600" />
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="text-sm text-slate-600 dark:text-slate-500 font-bold uppercase tracking-wider">Director de carrera</p>
-                                  <p className="text-slate-700 dark:text-slate-300 text-sm font-semibold truncate" title={jefeUnidad || ''}>{jefeUnidad || <span className="text-slate-500 dark:text-slate-600 italic font-normal">No asignado</span>}</p>
+                                  <p className="text-sm text-slate-600 font-bold uppercase tracking-wider">Director de carrera</p>
+                                  <p className="text-slate-700 text-sm font-semibold truncate" title={jefeUnidad || ''}>{jefeUnidad || <span className="text-slate-500 italic font-normal">No asignado</span>}</p>
                                 </div>
                               </div>
                             </div>
 
                             {objetivo && (
-                              <div className="mt-3 bg-blue-100/70 border border-blue-300 rounded-lg p-3 flex gap-2 items-start dark:bg-slate-950/50 dark:border-slate-800">
+                              <div className="mt-3 bg-blue-100/70 border border-blue-300 rounded-lg p-3 flex gap-2 items-start">
                                 <Target size={13} className="text-blue-400 mt-0.5 flex-shrink-0" />
                                 <div>
-                                  <p className="text-[10px] text-slate-600 dark:text-slate-500 font-bold uppercase tracking-wider mb-0.5">Objetivo institucional</p>
-                                  <p className="text-slate-700 dark:text-slate-400 text-xs leading-relaxed line-clamp-2">{objetivo}</p>
+                                  <p className="text-[10px] text-slate-600 font-bold uppercase tracking-wider mb-0.5">Objetivo institucional</p>
+                                  <p className="text-slate-700 text-xs leading-relaxed line-clamp-2">{objetivo}</p>
                                 </div>
                               </div>
                             )}
 
                             {(observaciones || observacionesChecklist.length > 0) && (
-                              <div className="mt-3 bg-orange-100/75 dark:bg-orange-950/35 border border-orange-300 dark:border-orange-800 rounded-lg p-3">
-                                <p className="text-[10px] text-orange-700 dark:text-orange-300 font-bold uppercase tracking-wider mb-1">Observaciones vigentes</p>
+                              <div className="mt-3 bg-orange-100/75 border border-orange-300 rounded-lg p-3">
+                                <p className="text-[10px] text-orange-700 font-bold uppercase tracking-wider mb-1">Observaciones vigentes</p>
                                 <ul className="space-y-1.5">
                                   {observacionesChecklist.map((item, itemIndex) => (
-                                    <li key={item.id || item.fallbackKey || `${doc.id}-obs-${itemIndex}`} className="flex items-start gap-2 text-orange-900 dark:text-orange-200 text-xs leading-relaxed">
+                                    <li key={item.id || item.fallbackKey || `${doc.id}-obs-${itemIndex}`} className="flex items-start gap-2 text-orange-900 text-xs leading-relaxed">
                                       {canEdit && estado === 'observado' && item.id ? (
                                         <input
                                           type="checkbox"
@@ -897,21 +873,21 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
                                           aria-label="Marcar observacion corregida"
                                         />
                                       ) : (
-                                        <span className={`mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0 ${item.resuelta ? 'bg-emerald-500 dark:bg-emerald-300' : 'bg-orange-500 dark:bg-orange-300'}`} />
+                                        <span className={`mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0 ${item.resuelta ? 'bg-emerald-500' : 'bg-orange-500'}`} />
                                       )}
                                       <span className={item.resuelta ? 'line-through opacity-70' : ''}>{item.texto || item}</span>
                                     </li>
                                   ))}
                                 </ul>
-                                <p className="mt-2 text-[10px] text-orange-700/90 dark:text-orange-300/90">
+                                <p className="mt-2 text-[10px] text-orange-700/90">
                                   Use este checklist como guía de corrección para el elaborador.
                                 </p>
                               </div>
                             )}
 
                             {solicitudesPendientes.length > 0 && (
-                              <div className="mt-3 rounded-lg border border-sky-300 bg-sky-50/85 p-3 dark:border-sky-800 dark:bg-sky-950/30" onClick={(e) => e.stopPropagation()}>
-                                <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-300">
+                              <div className="mt-3 rounded-lg border border-sky-300 bg-sky-50/85 p-3" onClick={(e) => e.stopPropagation()}>
+                                <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-sky-700">
                                   <ListChecks size={12} /> Solicitudes de cambio pendientes
                                 </p>
                                 <div className="space-y-2">
@@ -920,20 +896,20 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
                                     const busyApprove = updatingEstadoId === `solicitud-${solicitud.id}-aprobar`;
                                     const busyReject = updatingEstadoId === `solicitud-${solicitud.id}-rechazar`;
                                     return (
-                                      <div key={solicitud.id} className="rounded-lg border border-sky-200 bg-white/80 p-2.5 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900/55 dark:text-slate-200">
+                                      <div key={solicitud.id} className="rounded-lg border border-sky-200 bg-white/80 p-2.5 text-xs text-slate-700">
                                         <div className="flex flex-wrap items-start justify-between gap-2">
                                           <div className="min-w-0">
-                                            <p className="font-bold text-slate-900 dark:text-white">{resumen.titulo || getSolicitudTitle(solicitud)}</p>
-                                            <p className="mt-0.5 text-slate-500 dark:text-slate-400">
+                                            <p className="font-bold text-slate-900">{resumen.titulo || getSolicitudTitle(solicitud)}</p>
+                                            <p className="mt-0.5 text-slate-500">
                                               {resumen.codigo || resumen.partida || resumen.item || solicitud.solicitado_por_nombre || 'Solicitud pendiente'}
                                             </p>
                                           </div>
-                                          <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+                                          <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">
                                             Pendiente
                                           </span>
                                         </div>
                                         {solicitud.descripcion && (
-                                          <p className="mt-2 whitespace-pre-line text-slate-600 dark:text-slate-300">{solicitud.descripcion}</p>
+                                          <p className="mt-2 whitespace-pre-line text-slate-600">{solicitud.descripcion}</p>
                                         )}
                                         {canReview && (
                                           <div className="mt-2 grid grid-cols-2 gap-2">
@@ -964,7 +940,7 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
 
                           </div>
 
-                          <div className="col-span-12 md:col-span-3 flex flex-col gap-3 p-5 bg-blue-50/40 dark:bg-transparent">
+                          <div className="col-span-12 md:col-span-3 flex flex-col gap-3 p-5 bg-blue-50/40">
                             {canSendToRevision && (
                               <button
                                 onClick={(e) => {
@@ -1033,14 +1009,14 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
                             )}
 
                             {canRespondThisDoc && (
-                              <div className="rounded-lg border border-emerald-200 bg-white/80 p-3 dark:border-slate-800 dark:bg-slate-950/35" onClick={(e) => e.stopPropagation()}>
-                                <p className="text-[10px] uppercase tracking-wider font-bold text-emerald-700 dark:text-emerald-300 mb-1">Revisión de Dirección</p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">Revise el PDF y registre observaciones como lista, una por linea.</p>
+                              <div className="rounded-lg border border-emerald-200 bg-white/80 p-3" onClick={(e) => e.stopPropagation()}>
+                                <p className="text-[10px] uppercase tracking-wider font-bold text-emerald-700 mb-1">Revisión de Dirección</p>
+                                <p className="text-xs text-slate-500">Revise el PDF y registre observaciones como lista, una por linea.</p>
                                 <textarea
                                   value={note}
                                   onChange={(e) => handleNoteChange(doc.id, e.target.value)}
                                   placeholder="Una observacion por linea..."
-                                  className="mt-3 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-700 dark:text-slate-100 min-h-[92px] resize-y"
+                                  className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 min-h-[92px] resize-y"
                                 />
                                 <div className="mt-3 grid grid-cols-1 gap-2">
                                   <button
@@ -1080,7 +1056,7 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
                             </button>
 
                             {!canEdit && !canRespondThisDoc && (
-                              <div className="rounded-lg border border-slate-200 bg-white/80 px-3 py-3 text-xs text-slate-500 flex items-start gap-2 dark:border-slate-800 dark:bg-slate-950/35 dark:text-slate-400">
+                              <div className="rounded-lg border border-slate-200 bg-white/80 px-3 py-3 text-xs text-slate-500 flex items-start gap-2">
                                 <Clock3 size={14} className="mt-0.5 flex-shrink-0" />
                                 <span>Vista de solo lectura para este documento.</span>
                               </div>
@@ -1092,7 +1068,7 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
                   );
                 })
               ) : (
-                <div className="col-span-full rounded-xl border border-dashed border-slate-300 bg-white/70 px-5 py-8 text-center text-gray-500 dark:border-slate-700 dark:bg-slate-950/30 dark:text-slate-400">
+                <div className="col-span-full rounded-xl border border-dashed border-slate-300 bg-white/70 px-5 py-8 text-center text-gray-500">
                   {isRevisionBoard
                     ? 'No hay documentos en revision ni solicitudes pendientes para la gestion seleccionada.'
                     : 'No hay documentos para mostrar.'}

@@ -435,53 +435,53 @@ const DEDICACIONES_FICHA = ['tiempo_completo', 'medio_tiempo', ...DEDICACIONES_H
 
 const dedicacionStyles = {
   tiempo_completo: {
-    bg: 'bg-blue-50 dark:bg-blue-900/10',
+    bg: 'bg-blue-50',
     accent: 'ring-1 ring-inset ring-blue-200',
     icon: 'text-blue-700',
-    title: 'text-blue-900 dark:text-blue-300',
-    text: 'text-blue-800 dark:text-blue-400',
+    title: 'text-blue-900',
+    text: 'text-blue-800',
   },
   medio_tiempo: {
-    bg: 'bg-green-50 dark:bg-green-900/10',
+    bg: 'bg-green-50',
     accent: 'ring-1 ring-inset ring-green-200',
     icon: 'text-green-700',
-    title: 'text-green-900 dark:text-green-300',
-    text: 'text-green-800 dark:text-green-400',
+    title: 'text-green-900',
+    text: 'text-green-800',
   },
   horario_16: {
-    bg: 'bg-cyan-50 dark:bg-cyan-900/10',
+    bg: 'bg-cyan-50',
     accent: 'ring-1 ring-inset ring-cyan-200',
     icon: 'text-cyan-700',
-    title: 'text-cyan-900 dark:text-cyan-300',
-    text: 'text-cyan-800 dark:text-cyan-400',
+    title: 'text-cyan-900',
+    text: 'text-cyan-800',
   },
   horario_24: {
-    bg: 'bg-emerald-50 dark:bg-emerald-900/10',
+    bg: 'bg-emerald-50',
     accent: 'ring-1 ring-inset ring-emerald-200',
     icon: 'text-emerald-700',
-    title: 'text-emerald-900 dark:text-emerald-300',
-    text: 'text-emerald-800 dark:text-emerald-400',
+    title: 'text-emerald-900',
+    text: 'text-emerald-800',
   },
   horario_40: {
-    bg: 'bg-amber-50 dark:bg-amber-900/10',
+    bg: 'bg-amber-50',
     accent: 'ring-1 ring-inset ring-amber-200',
     icon: 'text-amber-700',
-    title: 'text-amber-900 dark:text-amber-300',
-    text: 'text-amber-800 dark:text-amber-400',
+    title: 'text-amber-900',
+    text: 'text-amber-800',
   },
   horario_48: {
-    bg: 'bg-rose-50 dark:bg-rose-900/10',
+    bg: 'bg-rose-50',
     accent: 'ring-1 ring-inset ring-rose-200',
     icon: 'text-rose-700',
-    title: 'text-rose-900 dark:text-rose-300',
-    text: 'text-rose-800 dark:text-rose-400',
+    title: 'text-rose-900',
+    text: 'text-rose-800',
   },
   dedicacion_exclusiva: {
-    bg: 'bg-violet-50 dark:bg-violet-900/10',
+    bg: 'bg-violet-50',
     accent: 'ring-1 ring-inset ring-violet-200',
     icon: 'text-violet-700',
-    title: 'text-violet-900 dark:text-violet-300',
-    text: 'text-violet-800 dark:text-violet-400',
+    title: 'text-violet-900',
+    text: 'text-violet-800',
   },
 };
 
@@ -1965,7 +1965,7 @@ function ListaDocentes() {
                       )}
                     </div>
                     <div className="flex items-center justify-between mt-1">
-                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                      <p className="text-xs text-slate-600">
                         ¿No encuentras al usuario?{' '}
                         <button
                           type="button"
@@ -2083,7 +2083,7 @@ function ListaDocentes() {
                             disabled
                             inputClassName="max-w-[267px]"
                           />
-                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
+                          <p className="mt-1 text-xs text-slate-500">
                             {describirDedicacion(formData.dedicacion)}
                             {(formData.dedicacion === 'tiempo_completo' || formData.dedicacion === 'medio_tiempo')
                               && 'Horas semanales fijas por reglamento.'}
@@ -2108,10 +2108,10 @@ function ListaDocentes() {
                           <div className="flex items-start gap-3">
                             <InfoIcon className="w-5 h-5 flex-shrink-0 mt-0.5 text-blue-800" />
                             <div className="space-y-1">
-                              <p className="text-sm font-bold text-blue-900 dark:text-blue-300">
+                              <p className="text-sm font-bold text-blue-900">
                                 Cargos de gestión solo compatibles con docencia a Tiempo Horario.
                               </p>
-                              <p className="text-xs leading-5 text-blue-800 dark:text-blue-400">
+                              <p className="text-xs leading-5 text-blue-800">
                                 Usuarios con rol de Director, Jefe de Estudios o Instituto solo pueden usar Tiempo Horario: 16, 24, 40 o 48 hrs/mes. TC y MT no aplican.
                               </p>
                             </div>
@@ -2155,7 +2155,7 @@ function ListaDocentes() {
                               })()}
                             </p>
                             {avisoFeriados && formData.dedicacion !== 'dedicacion_exclusiva' && (
-                              <p className="text-xs leading-5 mt-1.5 font-semibold text-amber-700 dark:text-amber-300">
+                              <p className="text-xs leading-5 mt-1.5 font-semibold text-amber-700">
                                 {avisoFeriados}
                               </p>
                             )}
@@ -2529,7 +2529,7 @@ function ListaDocentes() {
                         disabled
                       />
                     )}
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
+                    <p className="mt-1 text-xs text-slate-500">
                       {describirDedicacion(formData.dedicacion)}
                       {(formData.dedicacion === 'tiempo_completo' || formData.dedicacion === 'medio_tiempo')
                         && 'Horas semanales fijas por reglamento.'}
@@ -2538,11 +2538,11 @@ function ListaDocentes() {
                 </div>
                 <div className="md:col-span-2 slide-down min-h-[180px] rounded-2xl bg-blue-50 p-4 ring-1 ring-inset ring-blue-200">
                   <div className="flex items-start gap-3">
-                    <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-800 dark:text-blue-300" />
-                    <div className="min-w-0 flex-1 space-y-3 text-sm leading-6 text-blue-900 dark:text-blue-200">
+                    <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-800" />
+                    <div className="min-w-0 flex-1 space-y-3 text-sm leading-6 text-blue-900">
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <h5 className="font-bold uppercase tracking-wide text-blue-950 dark:text-blue-100">
+                          <h5 className="font-bold uppercase tracking-wide text-blue-950">
                             Información de edición
                           </h5>
                         </div>
@@ -2571,7 +2571,7 @@ function ListaDocentes() {
                         key={infoEdicionActual.titulo}
                         className={`min-h-[76px] ${infoEdicionDirection === 'left' ? 'slide-info-from-left' : 'slide-info-from-right'}`}
                       >
-                        <p className="text-xs font-bold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                        <p className="text-xs font-bold uppercase tracking-wide text-blue-700">
                           {infoEdicionActual.subtitulo}
                         </p>
                         <p>
@@ -2630,14 +2630,14 @@ function ListaDocentes() {
           style={{ left: 'var(--fondo-sidebar-width, 0px)' }}
         >
           <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={() => setConfirmacionDesactivarDocente(null)} />
-          <div className="relative w-full max-w-lg rounded-2xl border border-amber-500/80 dark:border-amber-700/60 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden animate-slide-up" style={{ animationDuration: '160ms' }}>
-            <div className="px-5 py-4 border-b border-amber-400/70 dark:border-slate-700/70 bg-gradient-to-r from-amber-300 via-amber-100 to-amber-50 dark:from-amber-900/30 dark:via-slate-900 dark:to-slate-900">
-              <h4 className="text-lg font-bold text-amber-900 dark:text-amber-300 flex items-center gap-2">
+          <div className="relative w-full max-w-lg rounded-2xl border border-amber-500/80 bg-white shadow-2xl overflow-hidden animate-slide-up" style={{ animationDuration: '160ms' }}>
+            <div className="px-5 py-4 border-b border-amber-400/70 bg-gradient-to-r from-amber-300 via-amber-100 to-amber-50">
+              <h4 className="text-lg font-bold text-amber-900 flex items-center gap-2">
                 <span>{confirmacionDesactivarDocente.tieneHistorial ? '⚠️' : 'ℹ️'}</span>
                 Confirmar desactivación
               </h4>
             </div>
-            <div className="px-5 py-4 text-slate-700 dark:text-slate-200">
+            <div className="px-5 py-4 text-slate-700">
               {confirmacionDesactivarDocente.tieneHistorial ? (
                 <p className="text-sm leading-relaxed whitespace-pre-line">
                   Este docente tiene horas declaradas o fondos validados.{'\n'}
@@ -2653,11 +2653,11 @@ function ListaDocentes() {
                 </p>
               )}
             </div>
-            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700/70 flex justify-end gap-3 bg-slate-50 dark:bg-slate-950/70">
+            <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-3 bg-slate-50">
               <button
                 type="button"
                 onClick={() => setConfirmacionDesactivarDocente(null)}
-                className="px-4 py-2 rounded-lg font-semibold text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="px-4 py-2 rounded-lg font-semibold text-slate-700 border border-slate-300 hover:bg-slate-100"
               >
                 Cancelar
               </button>
@@ -2667,7 +2667,7 @@ function ListaDocentes() {
                   setConfirmacionDesactivarDocente(null);
                   aplicarCambioFormulario('activo', '', 'checkbox', false);
                 }}
-                className="px-4 py-2 rounded-lg font-bold text-white bg-amber-600 hover:bg-amber-700 dark:bg-amber-700 dark:hover:bg-amber-800"
+                className="px-4 py-2 rounded-lg font-bold text-white bg-amber-600 hover:bg-amber-700"
               >
                 Desactivar
               </button>
@@ -2682,21 +2682,21 @@ function ListaDocentes() {
           style={{ left: 'var(--fondo-sidebar-width, 0px)' }}
         >
           <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={() => setConfirmacionCambioPendiente(null)} />
-          <div className="relative w-full max-w-lg rounded-2xl border border-amber-500/80 dark:border-amber-700/60 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden animate-slide-up" style={{ animationDuration: '160ms' }}>
-            <div className="px-5 py-4 border-b border-amber-400/70 dark:border-slate-700/70 bg-gradient-to-r from-amber-300 via-amber-100 to-amber-50 dark:from-amber-900/30 dark:via-slate-900 dark:to-slate-900">
-              <h4 className="text-lg font-bold text-amber-900 dark:text-amber-300 flex items-center gap-2">
+          <div className="relative w-full max-w-lg rounded-2xl border border-amber-500/80 bg-white shadow-2xl overflow-hidden animate-slide-up" style={{ animationDuration: '160ms' }}>
+            <div className="px-5 py-4 border-b border-amber-400/70 bg-gradient-to-r from-amber-300 via-amber-100 to-amber-50">
+              <h4 className="text-lg font-bold text-amber-900 flex items-center gap-2">
                 <span>⚠️</span>
                 {confirmacionCambioPendiente.titulo}
               </h4>
             </div>
-            <div className="px-5 py-4 space-y-3 text-slate-700 dark:text-slate-200">
+            <div className="px-5 py-4 space-y-3 text-slate-700">
               <p className="text-sm leading-relaxed whitespace-pre-line">{confirmacionCambioPendiente.mensaje}</p>
             </div>
-            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700/70 flex justify-end gap-3 bg-slate-50 dark:bg-slate-950/70">
+            <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-3 bg-slate-50">
               <button
                 type="button"
                 onClick={() => setConfirmacionCambioPendiente(null)}
-                className="px-4 py-2 rounded-lg font-semibold text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="px-4 py-2 rounded-lg font-semibold text-slate-700 border border-slate-300 hover:bg-slate-100"
               >
                 Cancelar
               </button>
@@ -2707,7 +2707,7 @@ function ListaDocentes() {
                   setConfirmacionCambioPendiente(null);
                   aplicarCambioFormulario(cambio.name, cambio.value, cambio.type, cambio.checked);
                 }}
-                className="px-4 py-2 rounded-lg font-bold text-white bg-amber-600 hover:bg-amber-700 dark:bg-amber-700 dark:hover:bg-amber-800"
+                className="px-4 py-2 rounded-lg font-bold text-white bg-amber-600 hover:bg-amber-700"
               >
                 Confirmar cambio
               </button>
@@ -2723,22 +2723,22 @@ function ListaDocentes() {
           style={{ left: 'var(--fondo-sidebar-width, 0px)' }}
         >
           <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={closeDeleteModal} />
-          <div className="relative w-full max-w-lg rounded-2xl border border-red-600/80 dark:border-red-700/50 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden animate-slide-up" style={{ animationDuration: '160ms' }}>
-            <div className="px-5 py-4 border-b border-red-400 dark:border-slate-700/70 bg-gradient-to-r from-red-400 via-red-200 to-red-50 dark:from-red-900/30 dark:via-slate-900 dark:to-slate-900">
-              <h4 className="text-lg font-bold text-red-900 dark:text-red-300 flex items-center gap-2">
+          <div className="relative w-full max-w-lg rounded-2xl border border-red-600/80 bg-white shadow-2xl overflow-hidden animate-slide-up" style={{ animationDuration: '160ms' }}>
+            <div className="px-5 py-4 border-b border-red-400 bg-gradient-to-r from-red-400 via-red-200 to-red-50">
+              <h4 className="text-lg font-bold text-red-900 flex items-center gap-2">
                 <span>!</span>
                 Confirmar Eliminacion
               </h4>
             </div>
-            <div className="px-5 py-4 space-y-3 text-slate-700 dark:text-slate-200">
+            <div className="px-5 py-4 space-y-3 text-slate-700">
               <p className="text-sm leading-relaxed">
-                Se eliminara el docente <strong className="text-slate-900 dark:text-white">{docenteToDelete?.nombre_completo}</strong> del sistema de forma permanente.
+                Se eliminara el docente <strong className="text-slate-900">{docenteToDelete?.nombre_completo}</strong> del sistema de forma permanente.
               </p>
-              <div className="rounded-lg border border-red-700/70 bg-red-200/70 dark:bg-red-500/10 px-3 py-2 text-sm text-red-900 dark:text-red-200">
-                Accion irreversible: <strong className="text-red-900 dark:text-red-300">El docente perdera su acceso definitivamente.</strong>
+              <div className="rounded-lg border border-red-700/70 bg-red-200/70 px-3 py-2 text-sm text-red-900">
+                Accion irreversible: <strong className="text-red-900">El docente perdera su acceso definitivamente.</strong>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
                   Escribe el nombre exacto del docente para habilitar la eliminacion:
                 </label>
                 <input
@@ -2746,18 +2746,18 @@ function ListaDocentes() {
                   value={deleteConfirmText}
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
                   placeholder="Escribe el nombre del docente para confirmar"
-                  className="w-full px-3 py-2 rounded-lg border border-red-400/40 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500/60"
+                  className="w-full px-3 py-2 rounded-lg border border-red-400/40 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500/60"
                 />
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-slate-500">
                 Esta operacion no se puede deshacer.
               </p>
             </div>
-            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700/70 flex justify-end gap-3 bg-slate-50 dark:bg-slate-950/70">
+            <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-3 bg-slate-50">
               <button
                 type="button"
                 onClick={closeDeleteModal}
-                className="px-4 py-2 rounded-lg font-semibold text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="px-4 py-2 rounded-lg font-semibold text-slate-700 border border-slate-300 hover:bg-slate-100"
               >
                 Cancelar
               </button>
@@ -2765,7 +2765,7 @@ function ListaDocentes() {
                 type="button"
                 onClick={confirmarEliminar}
                 disabled={deleteConfirmText !== (docenteToDelete?.nombre_completo || '')}
-                className="px-4 py-2 rounded-lg font-bold text-white bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 disabled:bg-red-900/40 disabled:text-slate-300 disabled:cursor-not-allowed"
+                className="px-4 py-2 rounded-lg font-bold text-white bg-red-600 hover:bg-red-700 disabled:bg-red-900/40 disabled:text-slate-300 disabled:cursor-not-allowed"
               >
                 Eliminar
               </button>

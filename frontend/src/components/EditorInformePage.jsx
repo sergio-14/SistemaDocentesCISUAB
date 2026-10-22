@@ -7,7 +7,6 @@ import { useActiveRole } from '../contexts/activeRole';
 import { getApiErrorMessage, getDownloadErrorMessage } from '../utils/formErrors';
 import { esRevisorDelFondo } from '../utils/fondoTiempoPermissions';
 import useConsultaPeriodica from '../utils/useConsultaPeriodica';
-import useModoClaro from '../utils/useModoClaro';
 import ModalConfirmar from './common/ModalConfirmar';
 import FormularioEvaluarInforme from './FormularioEvaluarInforme';
 import ModalCorreccionesInforme from './ModalCorreccionesInforme';
@@ -106,9 +105,6 @@ export default function EditorInformePage() {
   const [campoActivo, setCampoActivo] = useState(null);
   // Ventana abierta por el revisor: 'correcciones' o 'evaluar'.
   const [ventanaRevision, setVentanaRevision] = useState(null);
-
-  // Como el resto del módulo de Fondo de Tiempo, solo en modo claro.
-  useModoClaro();
 
   // Barra de formato arriba o a un costado de la hoja (se recuerda en este navegador).
   // A un costado solo cabe en pantallas anchas; en las demás va siempre arriba.

@@ -26,7 +26,7 @@ const MediosVerificacion = ({ actividad }) => {
         const etiqueta = medio.tipo === 'link' ? `Enlace ${index + 1}` : `Archivo ${index + 1}`;
         return (
           <li key={medio.id || `${medio.tipo}-${index}`}>
-            {destino ? <a href={destino} target="_blank" rel="noreferrer" className="font-medium text-blue-700 underline dark:text-sky-300">{etiqueta}</a> : etiqueta}
+            {destino ? <a href={destino} target="_blank" rel="noreferrer" className="font-medium text-blue-700 underline">{etiqueta}</a> : etiqueta}
           </li>
         );
       })}
@@ -69,17 +69,17 @@ export default function SeguimientoProgramaPage() {
 
   return (
     <section className="mx-auto w-full max-w-[1500px] pb-8">
-      <header className="rounded-2xl border bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-        <p className="text-xs text-slate-600 dark:text-slate-300">GESTIÓN {data.gestion}</p>
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{data.programa}</h2>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Actividades organizadas por Objetivo Específico.</p>
+      <header className="rounded-2xl border bg-white p-5">
+        <p className="text-xs text-slate-600">GESTIÓN {data.gestion}</p>
+        <h2 className="text-2xl font-bold text-slate-900">{data.programa}</h2>
+        <p className="mt-1 text-sm text-slate-600">Actividades organizadas por Objetivo Específico.</p>
       </header>
 
       <div className="mt-4 space-y-4">
         {data.objetivos.map((objetivo, index) => (
-          <section key={objetivo.id} className="overflow-hidden rounded-2xl border bg-white dark:border-slate-700 dark:bg-slate-900">
-            <div className="border-b bg-slate-50 px-5 py-3 dark:border-slate-700 dark:bg-slate-800">
-              <h3 className="font-bold text-slate-900 dark:text-white"><span className="mr-2 text-sm text-[#365d7d]">{objetivo.codigo || `OE-${index + 1}`}</span>{objetivo.descripcion}</h3>
+          <section key={objetivo.id} className="overflow-hidden rounded-2xl border bg-white">
+            <div className="border-b bg-slate-50 px-5 py-3">
+              <h3 className="font-bold text-slate-900"><span className="mr-2 text-sm text-[#365d7d]">{objetivo.codigo || `OE-${index + 1}`}</span>{objetivo.descripcion}</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-sm">

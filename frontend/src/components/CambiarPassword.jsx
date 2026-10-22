@@ -2,7 +2,6 @@ import { useState } from 'react';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
 import { MENSAJE_REVISA_CAMPOS } from '../utils/formErrors';
-import useModoClaro from '../utils/useModoClaro';
 import MensajeErrorCampo from './common/MensajeErrorCampo';
 import { BOTON } from './fondos/estilosFondo';
 
@@ -60,9 +59,6 @@ const CambiarPassword = ({ onPasswordChanged }) => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errores, setErrores] = useState({});
   const [pulso, setPulso] = useState(0);
-
-  // Como el módulo de Fondo de Tiempo, esta pantalla solo se ve en modo claro.
-  useModoClaro();
 
   const handleSubmit = async (e) => {
     e.preventDefault();

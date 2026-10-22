@@ -172,12 +172,12 @@ const SelectConDropdown = ({
                 </button>
               ))
             ) : (
-              <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">{emptyText}</div>
+              <div className="px-3 py-2 text-xs text-slate-500">{emptyText}</div>
             )}
           </div>
         </div>
       )}
-      {errorMessage && <p className={`text-xs text-red-600 dark:text-red-400 mt-1 ${motionClass}`}>{errorMessage}</p>}
+      {errorMessage && <p className={`text-xs text-red-600 mt-1 ${motionClass}`}>{errorMessage}</p>}
     </div>
   );
 };
@@ -503,7 +503,7 @@ const InputField = ({
         }`}
         {...props}
       />
-      {errorMessage && <p className={`text-xs text-red-600 dark:text-red-400 mt-1 ${motionClass}`}>{errorMessage}</p>}
+      {errorMessage && <p className={`text-xs text-red-600 mt-1 ${motionClass}`}>{errorMessage}</p>}
     </div>
   );
 };

@@ -39,15 +39,15 @@ const EvidenciaPage = () => {
     if (!Number.isFinite(numeric)) return '';
     return String(Math.trunc(numeric));
   };
-  const poaFieldClass = 'w-full px-4 py-3 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm';
-  const poaCompactFieldClass = 'w-full px-3 py-2 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm';
+  const poaFieldClass = 'w-full px-4 py-3 rounded-lg border-2 border-slate-300 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm';
+  const poaCompactFieldClass = 'w-full px-3 py-2 rounded-lg border-2 border-slate-300 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm';
   const poaTextAreaClass = `${poaFieldClass} resize-none`;
-  const poaCancelButtonClass = 'min-w-[88px] rounded-xl px-3 py-2 text-xs sm:px-4 sm:py-2.5 sm:text-sm font-bold transition-colors border border-slate-300 bg-slate-100 text-slate-700 shadow-sm hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600';
+  const poaCancelButtonClass = 'min-w-[88px] rounded-xl px-3 py-2 text-xs sm:px-4 sm:py-2.5 sm:text-sm font-bold transition-colors border border-slate-300 bg-slate-100 text-slate-700 shadow-sm hover:bg-slate-200';
   const poaSaveButtonClass = 'min-w-[88px] rounded-xl px-3 py-2 text-xs sm:px-4 sm:py-2.5 sm:text-sm font-bold transition-colors border border-emerald-500/60 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md hover:brightness-105';
-  const pageCardClass = 'border border-slate-200 bg-white/80 shadow-xl dark:border-slate-700 dark:bg-slate-900/55';
-  const infoCardClass = 'rounded-2xl border border-slate-200 bg-white/80 p-4 sm:p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/55';
-  const mediaCardClass = 'overflow-hidden rounded-2xl border border-slate-200 bg-white/80 shadow-lg dark:border-slate-700 dark:bg-slate-900/55';
-  const chipCardClass = 'rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300';
+  const pageCardClass = 'border border-slate-200 bg-white/80 shadow-xl';
+  const infoCardClass = 'rounded-2xl border border-slate-200 bg-white/80 p-4 sm:p-5 shadow-sm';
+  const mediaCardClass = 'overflow-hidden rounded-2xl border border-slate-200 bg-white/80 shadow-lg';
+  const chipCardClass = 'rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 text-sm text-slate-700';
   const handleFormChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -389,14 +389,14 @@ const EvidenciaPage = () => {
 
       {/* Actividad Context Card */}
       {actividad && (
-        <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-l-4 border-blue-500 p-3 rounded-r-lg dark:from-slate-900/35 dark:to-slate-900/55">
-          <div className="text-xs text-gray-600 dark:text-gray-400">Actividad:</div>
-          <div className="text-base font-semibold text-blue-900 dark:text-blue-200">{actividad.codigo} - {actividad.nombre}</div>
+        <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-l-4 border-blue-500 p-3 rounded-r-lg">
+          <div className="text-xs text-gray-600">Actividad:</div>
+          <div className="text-base font-semibold text-blue-900">{actividad.codigo} - {actividad.nombre}</div>
         </div>
       )}
 
       {actividad && canEdit && !canEditEvidence && (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           La carga de evidencias se habilita cuando el documento esta en ejecucion.
         </div>
       )}
@@ -405,10 +405,10 @@ const EvidenciaPage = () => {
       {!evidencia && !editMode ? (
         <div className="flex justify-center">
           <div className="w-full max-w-xl">
-            <div className="rounded-2xl p-6 text-center bg-white/80 border border-slate-200 shadow-lg dark:bg-slate-900/55 dark:border-slate-700">
-              <h2 className="text-2xl font-bold mb-2 text-slate-900 dark:text-white">Sin evidencia registrada</h2>
-              <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">Aún no tiene cargada la evidencia.</p>
-              <div className="mb-4 text-sm text-slate-700 dark:text-slate-300">
+            <div className="rounded-2xl p-6 text-center bg-white/80 border border-slate-200 shadow-lg">
+              <h2 className="text-2xl font-bold mb-2 text-slate-900">Sin evidencia registrada</h2>
+              <p className="mb-4 text-sm text-slate-600">Aún no tiene cargada la evidencia.</p>
+              <div className="mb-4 text-sm text-slate-700">
                 Al cargar evidencia, la actividad se marcará como <span className="font-semibold">completada</span> para incluirla en el reporte final de evidencias.
               </div>
               {canEditEvidence && (
@@ -422,13 +422,13 @@ const EvidenciaPage = () => {
       ) : showForm && (
         <div className="flex justify-center">
           <div className="w-full max-w-5xl">
-            <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 p-4 sm:p-6 shadow-lg dark:border-slate-700 dark:bg-slate-900/55" onPaste={onPaste}>
-              <h2 className="text-xl sm:text-2xl font-bold mb-4 text-slate-900 dark:text-white">{isEditingExisting ? 'Editar Evidencia' : 'Registrar Evidencia'}</h2>
+            <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 p-4 sm:p-6 shadow-lg" onPaste={onPaste}>
+              <h2 className="text-xl sm:text-2xl font-bold mb-4 text-slate-900">{isEditingExisting ? 'Editar Evidencia' : 'Registrar Evidencia'}</h2>
 
               <div className="grid gap-8 xl:grid-cols-[minmax(0,1.15fr)_minmax(380px,0.85fr)] items-start">
                 <div className="space-y-4 min-w-0">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">Resultados logrados</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Resultados logrados</label>
                     <textarea
                       placeholder="los resultados logrados en esta actividad son..."
                       className={poaTextAreaClass}
@@ -439,21 +439,21 @@ const EvidenciaPage = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-[110px_110px_160px] gap-3 items-end">
                     <div className="min-w-0">
-                      <label className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1 block">Programado</label>
+                      <label className="text-sm font-semibold text-gray-700 mb-1 block">Programado</label>
                       <select className={poaCompactFieldClass} value={formData.programado} onChange={(e) => handleFormChange('programado', Number(e.target.value))}>
                         <option value={1}>1</option>
                         <option value={2}>2</option>
                       </select>
                     </div>
                     <div className="min-w-0">
-                      <label className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1 block">Ejecutado</label>
+                      <label className="text-sm font-semibold text-gray-700 mb-1 block">Ejecutado</label>
                       <select className={poaCompactFieldClass} value={formData.ejecutado} onChange={(e) => handleFormChange('ejecutado', Number(e.target.value))}>
                         <option value={1}>1</option>
                         <option value={2}>2</option>
                       </select>
                     </div>
                     <div className="min-w-0">
-                      <label className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1 block">Grado de cumplimiento (%)</label>
+                      <label className="text-sm font-semibold text-gray-700 mb-1 block">Grado de cumplimiento (%)</label>
                       <input
                         type="text"
                         inputMode="numeric"
@@ -471,7 +471,7 @@ const EvidenciaPage = () => {
 
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm font-semibold text-gray-700 dark:text-gray-200 block">Medios (links)</label>
+                      <label className="text-sm font-semibold text-gray-700 block">Medios (links)</label>
                       <button
                         type="button"
                         onClick={addLinkItem}
@@ -493,31 +493,31 @@ const EvidenciaPage = () => {
                           <button
                             type="button"
                             onClick={() => removeLinkItem(item.id)}
-                            className="px-3 py-2 text-xs rounded-md border border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-300"
+                            className="px-3 py-2 text-xs rounded-md border border-red-300 text-red-600 hover:bg-red-50"
                           >
                             Quitar
                           </button>
                         </div>
                       ))}
                     </div>
-                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    <p className="mt-2 text-xs text-gray-500">
                       Puedes editar los enlaces existentes o eliminarlos antes de guardar.
                     </p>
                   </div>
                 </div>
 
                 <div className="space-y-4 min-w-0 xl:sticky xl:top-4 xl:self-start">
-                  <div className="rounded-xl border border-dashed border-green-400/70 bg-green-50/30 dark:bg-green-900/10 p-3 sm:p-4">
+                  <div className="rounded-xl border border-dashed border-green-400/70 bg-green-50/30 p-3 sm:p-4">
                     <div
                       onClick={() => fileInputRef.current && fileInputRef.current.click()}
                       onPaste={onPaste}
                       onDragOver={(event) => event.preventDefault()}
                       onDrop={onDrop}
                       tabIndex={0}
-                      className="mb-4 flex min-h-40 items-center justify-center flex-col gap-3 rounded-lg border-2 border-dashed border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/10 cursor-pointer px-3 py-4 sm:px-4 sm:py-5 text-center focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="mb-4 flex min-h-40 items-center justify-center flex-col gap-3 rounded-lg border-2 border-dashed border-green-300 bg-green-50 cursor-pointer px-3 py-4 sm:px-4 sm:py-5 text-center focus:outline-none focus:ring-2 focus:ring-green-500"
                     >
                       <div className="text-4xl">🖼️</div>
-                      <div className="text-sm text-gray-700 dark:text-gray-300 max-w-sm">Pega aquí tus imágenes (Ctrl+V), arrástralas o haz click para seleccionar</div>
+                      <div className="text-sm text-gray-700 max-w-sm">Pega aquí tus imágenes (Ctrl+V), arrástralas o haz click para seleccionar</div>
                       <button
                         type="button"
                         onClick={(event) => {
@@ -534,7 +534,7 @@ const EvidenciaPage = () => {
                     {pendingPreviewItems.length > 0 && (
                       <div className="mb-4">
                         <div className="flex items-center justify-between mb-2">
-                          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                          <h3 className="text-sm font-semibold text-gray-700">
                             Imágenes listas para guardar ({pendingPreviewItems.length})
                           </h3>
                           <button
@@ -547,10 +547,10 @@ const EvidenciaPage = () => {
                         </div>
                         <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
                           {pendingPreviewItems.map((item) => (
-                            <div key={item.id} className="group relative overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
+                            <div key={item.id} className="group relative overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
                               <img src={item.previewUrl} alt={item.file.name} className="h-20 sm:h-24 w-full object-cover" />
                               <div className="p-2">
-                                <div className="truncate text-[11px] text-gray-600 dark:text-gray-400">{item.file.name}</div>
+                                <div className="truncate text-[11px] text-gray-600">{item.file.name}</div>
                               </div>
                               <button
                                 type="button"
@@ -568,21 +568,21 @@ const EvidenciaPage = () => {
                     {editMode && evidencia?.archivos?.some((archivo) => archivo.tipo === 'imagen' && archivo.archivo_url) && (
                       <div className="mb-1">
                         <div className="flex items-center justify-between mb-2">
-                          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                          <h3 className="text-sm font-semibold text-gray-700">
                             Imágenes guardadas ({existingImageItems.length} activas{removedImageItems.length > 0 ? `, ${removedImageItems.length} marcadas para eliminar` : ''})
                           </h3>
                         </div>
                         {existingImageItems.length > 0 ? (
                           <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
                             {existingImageItems.map((archivo) => (
-                              <div key={archivo.id} className="group relative overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
+                              <div key={archivo.id} className="group relative overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
                                 <img src={archivo.archivo_url} alt={`Imagen guardada ${archivo.id}`} className="h-20 sm:h-24 w-full object-cover" />
                                 <div className="p-2 flex items-center justify-between gap-2">
-                                  <div className="truncate text-[11px] text-gray-600 dark:text-gray-400">Guardada</div>
+                                  <div className="truncate text-[11px] text-gray-600">Guardada</div>
                                   <button
                                     type="button"
                                     onClick={() => markImageForRemoval(archivo.id)}
-                                    className="rounded-md border border-red-300 px-2 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-300"
+                                    className="rounded-md border border-red-300 px-2 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50"
                                   >
                                     X
                                   </button>
@@ -591,7 +591,7 @@ const EvidenciaPage = () => {
                             ))}
                           </div>
                         ) : (
-                          <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-3 sm:p-4 text-sm text-gray-500 dark:text-gray-400">
+                          <div className="rounded-lg border border-dashed border-gray-300 p-3 sm:p-4 text-sm text-gray-500">
                             No quedan imágenes activas. Si cambias de idea, puedes volver a cargar nuevas antes de guardar.
                           </div>
                         )}
@@ -601,14 +601,14 @@ const EvidenciaPage = () => {
                             <div className="text-xs font-semibold uppercase tracking-wide text-red-600 mb-2">Marcadas para eliminar</div>
                             <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
                               {removedImageItems.map((archivo) => (
-                                <div key={archivo.id} className="group relative overflow-hidden rounded-lg border border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/20 opacity-75">
+                                <div key={archivo.id} className="group relative overflow-hidden rounded-lg border border-red-300 bg-red-50 opacity-75">
                                   <img src={archivo.archivo_url} alt={`Imagen marcada ${archivo.id}`} className="h-20 sm:h-24 w-full object-cover grayscale" />
                                   <div className="p-2 flex items-center justify-between gap-2">
-                                    <div className="truncate text-[11px] text-red-700 dark:text-red-300">Se eliminará al guardar</div>
+                                    <div className="truncate text-[11px] text-red-700">Se eliminará al guardar</div>
                                     <button
                                       type="button"
                                       onClick={() => unmarkImageRemoval(archivo.id)}
-                                      className="rounded-md border border-green-300 px-2 py-1 text-[11px] font-semibold text-green-700 hover:bg-green-50 dark:border-green-700 dark:text-green-300"
+                                      className="rounded-md border border-green-300 px-2 py-1 text-[11px] font-semibold text-green-700 hover:bg-green-50"
                                     >
                                       Deshacer
                                     </button>
@@ -644,15 +644,15 @@ const EvidenciaPage = () => {
       {/* Evidencia Display (si existe y no en editMode) */}
       {evidencia && !editMode && (
         <div className={`overflow-hidden rounded-3xl ${pageCardClass}`}>
-          <div className="border-b border-emerald-200 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 px-5 py-4 dark:border-emerald-500/20 dark:from-emerald-500/20 dark:via-teal-500/10 dark:to-cyan-500/10">
+          <div className="border-b border-emerald-200 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 px-5 py-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-2xl dark:bg-emerald-500/20">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-2xl">
                   ✅
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">Evidencia registrada</h3>
-                  <p className="mt-1 text-sm truncate text-slate-600 dark:text-slate-300">
+                  <h3 className="text-lg sm:text-xl font-bold text-slate-900">Evidencia registrada</h3>
+                  <p className="mt-1 text-sm truncate text-slate-600">
                     {actividad?.codigo} - {actividad?.nombre}
                   </p>
                 </div>
@@ -692,22 +692,22 @@ const EvidenciaPage = () => {
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_minmax(360px,0.88fr)]">
               <div className="space-y-6">
                 <div className="poa-mobile-kpi-strip poa-mobile-kpi-strip-3 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="poa-mobile-kpi-card rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-4 dark:border-blue-500/20 dark:from-blue-500/10 dark:to-blue-950/40">
-                    <div className="poa-kpi-label text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">Programado</div>
-                    <div className="poa-kpi-value mt-2 text-3xl sm:text-4xl font-bold leading-none text-blue-900 dark:text-blue-100">{evidencia.programado}</div>
-                    <div className="mt-1 text-xs text-blue-700/80 dark:text-blue-200/80">planificada</div>
+                  <div className="poa-mobile-kpi-card rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-4">
+                    <div className="poa-kpi-label text-[11px] font-semibold uppercase tracking-wide text-blue-700">Programado</div>
+                    <div className="poa-kpi-value mt-2 text-3xl sm:text-4xl font-bold leading-none text-blue-900">{evidencia.programado}</div>
+                    <div className="mt-1 text-xs text-blue-700/80">planificada</div>
                   </div>
 
-                  <div className="poa-mobile-kpi-card rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100 p-4 dark:border-emerald-500/20 dark:from-emerald-500/10 dark:to-emerald-950/40">
-                    <div className="poa-kpi-label text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Ejecutado</div>
-                    <div className="poa-kpi-value mt-2 text-3xl sm:text-4xl font-bold leading-none text-emerald-900 dark:text-emerald-100">{evidencia.ejecutado}</div>
-                    <div className="mt-1 text-xs text-emerald-700/80 dark:text-emerald-200/80">completada</div>
+                  <div className="poa-mobile-kpi-card rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100 p-4">
+                    <div className="poa-kpi-label text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Ejecutado</div>
+                    <div className="poa-kpi-value mt-2 text-3xl sm:text-4xl font-bold leading-none text-emerald-900">{evidencia.ejecutado}</div>
+                    <div className="mt-1 text-xs text-emerald-700/80">completada</div>
                   </div>
 
-                  <div className="poa-mobile-kpi-card rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100 p-4 dark:border-purple-500/20 dark:from-purple-500/10 dark:to-purple-950/40">
-                    <div className="poa-kpi-label text-[11px] font-semibold uppercase tracking-wide text-purple-700 dark:text-purple-300">Cumplimiento</div>
-                    <div className="poa-kpi-value mt-2 text-3xl sm:text-4xl font-bold leading-none text-purple-900 dark:text-purple-100">{evidencia.grado_cumplimiento}%</div>
-                    <div className="mt-3 h-1.5 sm:h-2 overflow-hidden rounded-full bg-purple-200 dark:bg-white/10">
+                  <div className="poa-mobile-kpi-card rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100 p-4">
+                    <div className="poa-kpi-label text-[11px] font-semibold uppercase tracking-wide text-purple-700">Cumplimiento</div>
+                    <div className="poa-kpi-value mt-2 text-3xl sm:text-4xl font-bold leading-none text-purple-900">{evidencia.grado_cumplimiento}%</div>
+                    <div className="mt-3 h-1.5 sm:h-2 overflow-hidden rounded-full bg-purple-200">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-purple-400 to-fuchsia-500"
                         style={{ width: `${Math.min(evidencia.grado_cumplimiento, 100)}%` }}
@@ -717,11 +717,11 @@ const EvidenciaPage = () => {
                 </div>
 
                 <div className={infoCardClass}>
-                  <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-900">
                     <span className="text-lg">📝</span>
                     Resultados logrados
                   </div>
-                  <p className="whitespace-pre-wrap break-words text-sm sm:text-base leading-6 sm:leading-7 text-slate-700 dark:text-slate-200">
+                  <p className="whitespace-pre-wrap break-words text-sm sm:text-base leading-6 sm:leading-7 text-slate-700">
                     {evidencia.resultados_logrados}
                   </p>
                 </div>
@@ -731,7 +731,7 @@ const EvidenciaPage = () => {
                 {links.length > 0 && (
                   <div className="mt-4 block">
                     <div className={mediaCardClass}>
-                      <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
                         <FaLink size={16} className="text-sky-300" />
                         Medios de verificación ({links.length})
                       </h4>
@@ -742,14 +742,14 @@ const EvidenciaPage = () => {
                             href={link.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 transition hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:bg-slate-950/40 dark:hover:border-sky-500/40 dark:hover:bg-slate-950/70"
+                            className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 transition hover:border-sky-300 hover:bg-sky-50"
                           >
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-500/15 text-sky-300">
                               🔗
                             </div>
                             <div className="min-w-0 flex-1">
-                              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Enlace {idx + 1}</div>
-                              <div className="truncate text-sm text-sky-700 dark:text-sky-300">{new URL(link.url).hostname || link.url}</div>
+                              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Enlace {idx + 1}</div>
+                              <div className="truncate text-sm text-sky-700">{new URL(link.url).hostname || link.url}</div>
                             </div>
                             <FaFileDownload size={13} className="shrink-0 text-sky-300/80" />
                           </a>
@@ -760,9 +760,9 @@ const EvidenciaPage = () => {
                 )}
                 <div className={chipCardClass + ' flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'}>
                   <div>
-                    📅 Registrada: <span className="font-semibold text-slate-900 dark:text-slate-100">{new Date(evidencia.creado_en).toLocaleString()}</span>
+                    📅 Registrada: <span className="font-semibold text-slate-900">{new Date(evidencia.creado_en).toLocaleString()}</span>
                   </div>
-                  <div className="inline-flex w-fit items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                  <div className="inline-flex w-fit items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
                     Estado: Completada
                   </div>
                 </div>
@@ -771,20 +771,20 @@ const EvidenciaPage = () => {
               <div className="space-y-6 xl:sticky xl:top-4 xl:self-start">
                 {imagenes.length > 0 ? (
                   <div className={mediaCardClass}>
-                    <div className="flex items-center justify-between border-b border-cyan-200 px-4 py-3 dark:border-cyan-500/10">
-                      <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    <div className="flex items-center justify-between border-b border-cyan-200 px-4 py-3">
+                      <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                         <span className="text-lg">🖼️</span>
                         Evidencia visual
                       </h4>
                       {imagenes.length > 1 && (
-                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        <div className="text-xs font-semibold text-slate-500">
                           {carouselIndex + 1} / {imagenes.length}
                         </div>
                       )}
                     </div>
 
                     <div className="p-3">
-                      <div className="group relative flex h-[clamp(12rem,26vw,20rem)] sm:h-[clamp(14rem,28vw,22rem)] items-center justify-center overflow-hidden rounded-xl bg-slate-50 p-2 dark:bg-slate-950/40">
+                      <div className="group relative flex h-[clamp(12rem,26vw,20rem)] sm:h-[clamp(14rem,28vw,22rem)] items-center justify-center overflow-hidden rounded-xl bg-slate-50 p-2">
                         <img
                           src={imagenes[carouselIndex].archivo_url}
                           alt={`Evidencia ${carouselIndex + 1}`}
@@ -834,7 +834,7 @@ const EvidenciaPage = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600">
                     No hay imágenes cargadas para esta evidencia.
                   </div>
                 )}

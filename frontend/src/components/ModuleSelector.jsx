@@ -255,7 +255,7 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
                     <div className="lg:hidden">{cuenta}</div>
                 </div>
 
-                <div className="panel-entrada w-full max-w-3xl pt-8 lg:pt-[9vh]">
+                <div className="panel-entrada w-full max-w-3xl lg:mx-auto pt-8 lg:pt-[9vh]">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Panel de módulos</p>
                     <h1 className="mt-2 text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white">
                         ¿A dónde vamos hoy<span className="text-sky-600">?</span>
@@ -264,7 +264,7 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
                 </div>
                 </div>
 
-                <main className="panel-entrada w-full max-w-3xl">
+                <main className="panel-entrada w-full max-w-3xl lg:mx-auto">
 
                     {/* En celular, la administración y el rol van antes de los módulos. */}
                     {conColumnaLateral && <div className="mt-12 lg:hidden">{columnaLateral}</div>}
@@ -305,10 +305,10 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
                 <div className="flex justify-end">{cuenta}</div>
 
                 {conColumnaLateral && (
-                    <aside className="panel-entrada w-full max-w-xs pt-[9vh]">{columnaLateral}</aside>
+                    <aside className="panel-entrada mx-auto my-auto w-full max-w-xs">{columnaLateral}</aside>
                 )}
 
-                <p className="mt-auto pt-8 text-right text-xs font-medium text-blue-900/70 dark:text-slate-400">
+                <p className={`${conColumnaLateral ? '' : 'mt-auto'} pt-8 text-right text-xs font-medium text-blue-900/70 dark:text-slate-400`}>
                     Universidad Autónoma del Beni "José Ballivián" · Trinidad, Beni
                 </p>
             </section>

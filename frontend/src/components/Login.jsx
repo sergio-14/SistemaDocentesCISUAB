@@ -6,9 +6,20 @@ import { API_URL } from '../apis/apiConfig';
 import { MENSAJE_REVISA_CAMPOS, useErrorPulse } from '../utils/formErrors';
 import MensajeErrorCampo from './common/MensajeErrorCampo';
 import { AlertCircle, ArrowRight, Eye, EyeOff, User } from 'lucide-react';
+import { FcGoogle } from 'react-icons/fc';
+import { FaFacebook, FaInstagram, FaMicrosoft, FaXTwitter } from 'react-icons/fa6';
 
 // Los videos de parabas se cargan aparte: solo los descarga quien abre el login.
 const VideosParabas = lazy(() => import('./login/VideosParabas'));
+
+// Botones de redes debajo del formulario: por ahora solo visuales (no conectan con nada).
+const REDES = [
+  { nombre: 'Google', Icono: FcGoogle, color: '' },
+  { nombre: 'Microsoft', Icono: FaMicrosoft, color: 'text-sky-600' },
+  { nombre: 'Facebook', Icono: FaFacebook, color: 'text-[#1877F2]' },
+  { nombre: 'Instagram', Icono: FaInstagram, color: 'text-[#E1306C]' },
+  { nombre: 'X', Icono: FaXTwitter, color: 'text-slate-900' },
+];
 
 const TONO_ERROR = 'text-red-700';
 const MENSAJE_CREDENCIALES = 'Usuario o contraseña incorrectos.';
@@ -132,60 +143,47 @@ function Login({ onLogin }) {
 
   return (
     <div className={`login-escena min-h-screen w-full flex items-center justify-center overflow-hidden bg-azulado-100 sm:p-6 lg:p-10 font-sans text-slate-800 ${isExiting ? 'login-salida' : ''}`}>
-      <div className="relative w-full max-w-5xl lg:mt-12">
-        {/* Logo de la UAB en la esquina de arriba a la izquierda: mitad dentro y mitad fuera de la
-            tarjeta, en un círculo blanco ceñido al escudo (en celular va en el formulario). */}
-        <div className="login-tarjeta absolute z-20 -left-5 -top-12 hidden lg:flex h-24 w-24 items-center justify-center rounded-full bg-white ring-1 ring-azulado-300 shadow-[0_8px_20px_rgba(15,23,42,0.12)]">
-          <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-[76px] w-auto" />
-        </div>
-        <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[min(660px,calc(100vh-8rem))] flex flex-col lg:flex-row bg-white sm:rounded-3xl sm:ring-1 sm:ring-azulado-300 overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
+      <div className="relative w-full max-w-5xl">
+        <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[min(640px,calc(100vh-5rem))] flex flex-col lg:flex-row bg-white sm:rounded-3xl sm:ring-1 sm:ring-azulado-300 overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
           {/* Columna de los videos de parabas, a la derecha: casi tan vertical como los videos, así se ven
               enteros. Su borde izquierdo es una onda que recorta el video (sin tapar nada con blanco) y
               la línea punteada la sigue. En celular va arriba, como una franja. */}
           <svg width="0" height="0" className="absolute" aria-hidden="true" focusable="false">
             <defs>
               <clipPath id="login-onda" clipPathUnits="objectBoundingBox">
-                <path d="M0.17,0 C0.04,0.14 0.03,0.27 0.11,0.4 C0.19,0.53 0.15,0.66 0.05,0.78 C-0.01,0.86 0.02,0.94 0.09,1 L1,1 L1,0 Z" />
+                <path d="M0.26,0 C0.07,0.05 0.04,0.15 0.15,0.23 C0.29,0.33 0.27,0.41 0.11,0.48 C-0.01,0.54 0.02,0.63 0.17,0.69 C0.31,0.75 0.25,0.85 0.09,0.9 C0.02,0.93 0.02,0.97 0.05,1 L1,1 L1,0 Z" />
               </clipPath>
             </defs>
           </svg>
-          <div className="relative order-first lg:order-last h-72 sm:h-80 lg:h-auto lg:w-[42%] flex-shrink-0 bg-azulado-100 lg:[clip-path:url(#login-onda)]">
+          <div className="relative order-first lg:order-last h-72 sm:h-80 lg:h-auto lg:w-[46%] flex-shrink-0 bg-azulado-100 lg:[clip-path:url(#login-onda)]">
             <Suspense fallback={null}>
               <VideosParabas className="absolute inset-0" />
             </Suspense>
             <svg className="absolute bottom-0 left-0 z-10 w-full h-14 lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-              <path d="M0,100 L0,34 C12,6 26,68 46,38 C64,12 80,64 100,26 L100,100 Z" fill="#ffffff" />
-              <path d="M0,34 C12,6 26,68 46,38 C64,12 80,64 100,26" fill="none" stroke="#0284c7" strokeOpacity="0.85" strokeWidth="2" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
+              <path d="M0,100 L0,40 C8,10 18,62 30,36 C40,14 50,70 64,44 C76,22 88,60 100,30 L100,100 Z" fill="#ffffff" />
+              <path d="M0,40 C8,10 18,62 30,36 C40,14 50,70 64,44 C76,22 88,60 100,30" fill="none" stroke="#0284c7" strokeOpacity="0.85" strokeWidth="2" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
             </svg>
             <p className="absolute bottom-2 right-4 z-20 hidden lg:block text-[11px] text-white/85">© {new Date().getFullYear()} UABJB</p>
           </div>
-          <svg className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden lg:block h-full w-[42%]" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M17,0 C4,14 3,27 11,40 C19,53 15,66 5,78 C-1,86 2,94 9,100" fill="none" stroke="#0284c7" strokeOpacity="0.85" strokeWidth="2" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
+          <svg className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden lg:block h-full w-[46%]" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M26,0 C7,5 4,15 15,23 C29,33 27,41 11,48 C-1,54 2,63 17,69 C31,75 25,85 9,90 C2,93 2,97 5,100" fill="none" stroke="#0284c7" strokeOpacity="0.85" strokeWidth="2" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
           </svg>
 
           {/* Formulario: los mensajes de error tienen su lugar reservado, así que al aparecer no mueven nada. */}
-          <div className="relative z-10 flex-1 lg:flex-none lg:w-[58%] flex flex-col px-6 sm:px-12 lg:px-16 pt-8 pb-8 lg:pt-6 lg:pb-12">
+          <div className="relative z-10 flex-1 lg:flex-none lg:w-[54%] flex flex-col px-6 sm:px-12 lg:px-14 pt-7 pb-6 lg:pt-9 lg:pb-7">
             <div className="w-full max-w-sm mx-auto flex flex-1 flex-col">
-              {/* Nombre de la universidad arriba, a la derecha del logo de la esquina (en celular, con el
-                  logo al lado). */}
-              <div className="flex items-center gap-3">
-                <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-14 w-auto lg:hidden" />
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Universidad Autónoma del Beni</p>
-                  <p className="mt-0.5 text-sm font-bold text-blue-900">"José Ballivián"</p>
-                </div>
-              </div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Universidad Autónoma del Beni <span className="whitespace-nowrap text-blue-900">"José Ballivián"</span>
+              </p>
 
-              <div className="my-auto pt-10 lg:pt-4">
-              <div className="text-center">
-                <h1 className="text-4xl font-extrabold tracking-tight text-blue-900">Iniciar sesión</h1>
-                <p className="mt-2 text-base text-slate-500">Ingresa con tu usuario o correo institucional.</p>
-              </div>
+              <div className="my-auto pt-8 lg:pt-0">
+              <h1 className="text-3xl font-extrabold tracking-tight text-blue-900">Iniciar sesión</h1>
+              <p className="mt-1.5 text-sm text-slate-500">Ingresa con tu usuario o correo institucional.</p>
 
-              <form onSubmit={handleSubmit} noValidate className="mt-8">
+              <form onSubmit={handleSubmit} noValidate className="mt-6">
                 {/* Usuario */}
-                <label htmlFor="login-usuario" className="block mb-2 text-sm font-semibold text-blue-900">Usuario o correo</label>
-                <div className={`login-campo relative rounded-2xl bg-azulado-50 ring-inset transition-shadow focus-within:bg-white focus-within:shadow-[0_0_0_4px_#DFE8F5] ${anilloCampo(errorUsuario)} ${reboteUsuario ? 'login-rebote' : ''}`}>
+                <label htmlFor="login-usuario" className="block mb-1.5 text-sm font-semibold text-blue-900">Usuario o correo</label>
+                <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-shadow focus-within:bg-white focus-within:shadow-[0_0_0_4px_#DFE8F5] ${anilloCampo(errorUsuario)} ${reboteUsuario ? 'login-rebote' : ''}`}>
                   <input
                     id="login-usuario"
                     type="text"
@@ -194,18 +192,18 @@ function Login({ onLogin }) {
                     onClick={limpiarErrores}
                     onChange={(e) => { setUsername(e.target.value); setErrores((prev) => ({ ...prev, username: undefined })); }}
                     aria-invalid={Boolean(errorUsuario) || undefined}
-                    className="login-input block w-full h-14 bg-transparent pl-5 pr-12 text-base font-medium text-slate-900 focus:outline-none"
+                    className="login-input block w-full h-11 bg-transparent pl-4 pr-12 text-base font-medium text-slate-900 focus:outline-none"
                     autoComplete="username"
                   />
-                  <User className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" aria-hidden="true" />
+                  <User className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" aria-hidden="true" />
                 </div>
-                <div className="min-h-[1.75rem]">
+                <div className="min-h-[1.5rem]">
                   <MensajeErrorCampo error={errores.username} pulse={pulso} tono={TONO_ERROR} />
                 </div>
 
                 {/* Contraseña */}
-                <label htmlFor="login-contrasena" className="block mb-2 text-sm font-semibold text-blue-900">Contraseña</label>
-                <div className={`login-campo relative rounded-2xl bg-azulado-50 ring-inset transition-shadow focus-within:bg-white focus-within:shadow-[0_0_0_4px_#DFE8F5] ${anilloCampo(errorContrasena)} ${reboteContrasena ? 'login-rebote' : ''}`}>
+                <label htmlFor="login-contrasena" className="block mb-1.5 text-sm font-semibold text-blue-900">Contraseña</label>
+                <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-shadow focus-within:bg-white focus-within:shadow-[0_0_0_4px_#DFE8F5] ${anilloCampo(errorContrasena)} ${reboteContrasena ? 'login-rebote' : ''}`}>
                   <input
                     id="login-contrasena"
                     type="text"
@@ -214,20 +212,20 @@ function Login({ onLogin }) {
                     onClick={limpiarErrores}
                     onChange={(e) => { setPassword(e.target.value); setErrores((prev) => ({ ...prev, password: undefined })); }}
                     aria-invalid={Boolean(errorContrasena) || undefined}
-                    className={`login-input ${showPassword ? '' : 'login-password-masked'} block w-full h-14 bg-transparent pl-5 pr-14 text-base font-medium text-slate-900 focus:outline-none`}
+                    className={`login-input ${showPassword ? '' : 'login-password-masked'} block w-full h-11 bg-transparent pl-4 pr-14 text-base font-medium text-slate-900 focus:outline-none`}
                     autoComplete="current-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full text-slate-500 hover:text-blue-900 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900 transition-colors"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:text-blue-900 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900 transition-colors"
                     aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                     title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                   >
-                    {showPassword ? <EyeOff className="h-5 w-5" aria-hidden="true" /> : <Eye className="h-5 w-5" aria-hidden="true" />}
+                    {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                   </button>
                 </div>
-                <div className="min-h-[1.75rem]">
+                <div className="min-h-[1.5rem]">
                   <MensajeErrorCampo error={errores.password} pulse={pulso} tono={TONO_ERROR} />
                   {avisoContrasena && (
                     <p className="login-aviso mt-1 flex items-center gap-1.5 text-xs font-medium text-red-700" role="alert">
@@ -239,7 +237,7 @@ function Login({ onLogin }) {
 
                 {/* Botón: la palabra y un círculo azul con la flecha, a la derecha (ancho fijo del texto:
                     "Ingresando..." no mueve nada). */}
-                <div className="mt-2 flex justify-end">
+                <div className="mt-1 flex justify-end">
                   <button
                     type="submit"
                     disabled={loading || isExiting}
@@ -259,6 +257,25 @@ function Login({ onLogin }) {
                   </button>
                 </div>
               </form>
+
+              <div className="mt-7 flex items-center gap-3 text-xs text-slate-400" aria-hidden="true">
+                <span className="h-px flex-1 bg-azulado-300" />
+                o continúa con
+                <span className="h-px flex-1 bg-azulado-300" />
+              </div>
+              <div className="mt-4 flex justify-center gap-3">
+                {REDES.map(({ nombre, Icono, color }) => (
+                  <button
+                    key={nombre}
+                    type="button"
+                    aria-label={nombre}
+                    title={nombre}
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-white ring-1 ring-azulado-300 transition hover:-translate-y-0.5 hover:shadow-[0_6px_14px_rgba(15,23,42,0.12)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40"
+                  >
+                    <Icono className={`h-[18px] w-[18px] ${color}`} aria-hidden="true" />
+                  </button>
+                ))}
+              </div>
               </div>
               <p className="mt-8 text-center text-[11px] text-slate-500 lg:hidden">© {new Date().getFullYear()} UABJB</p>
             </div>

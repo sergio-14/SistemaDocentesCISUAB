@@ -1,66 +1,292 @@
 import { useEffect, useRef } from 'react';
+import {
+  ACESFilmicToneMapping, BufferGeometry, CatmullRomCurve3, Color, CylinderGeometry, DirectionalLight, DoubleSide,
+  Float32BufferAttribute, Group, HemisphereLight, Mesh, MeshPhysicalMaterial, MeshStandardMaterial, PerspectiveCamera,
+  Scene, SphereGeometry, SRGBColorSpace, TorusGeometry, Vector3, WebGLRenderer,
+} from 'three';
 
-// Paraba barba azul (Ara glaucogularis, del Beni) posada en una rama, en el estilo plano del modelo,
-// que reacciona al formulario del login (como los avatares que miran el campo):
-//   reposo         nada escrito ni enfocado: ojos cerrados; mira a los lados, se pica el pecho,
-//                  estira el ala, se esponja y se acomoda en la rama, en un ciclo.
-//   mirando        escribiendo en un campo: se inclina un poco hacia él y las pupilas siguen el texto.
-//   ojos-cerrados  la contraseña está a la vista: cierra los ojos y aparta la cabeza.
-//   atento         campos llenos sin foco: quieta, parpadeando.
-// Cada parte va con un resorte hacia su pose (60 cuadros por segundo, sin saltos entre estados) más
-// un movimiento continuo (respira, se balancea y la cola sigue con retraso). La cabeza gira con
-// profundidad: la cara, el ojo y el pico se corren dentro de ella y el pico se acorta, sin espejarse.
-// Con prefers-reduced-motion toma la pose de cada estado sin animar.
+// Guacamayo en 3D (Three.js) posado en una rama, con los colores del logo de la UAB, que reacciona
+// al formulario del login (como los avatares que miran el campo):
+//   reposo              nada escrito ni enfocado: ojos cerrados; mira a los lados, se acicala el ala,
+//                       la estira abriendo las plumas, se esponja y se acomoda en la rama, en un ciclo.
+//   mirando-usuario     escribiendo el usuario: se inclina un poco hacia el campo y la cabeza sigue el texto.
+//   mirando-contrasena  igual, un poco más abajo (el campo de la contraseña está debajo).
+//   ojos-cerrados       la contraseña está a la vista: cierra los ojos y aparta la cabeza.
+//   atento              campos llenos sin foco: quieto, parpadeando.
+// El modelo se arma con formas de Three.js (sin archivos). Cada parte va con un resorte hacia su pose
+// (sin saltos entre estados) más un movimiento continuo: respira, se balancea y la cola sigue con
+// retraso. Con prefers-reduced-motion toma la pose de cada estado sin animar.
 
-// Puntos de giro, en las coordenadas del dibujo. El viewBox deja margen alrededor del ave para que
-// ningún movimiento se salga del cuadro, y a la derecha lugar para el ala estirada y la rama.
-const PATAS = [190, 505];
-const CUELLO = [150, 178];
-const CENTRO_CABEZA = [132, 100];
-const PICO = [100, 130];
-const HOMBRO = [212, 176];
-const BASE_COLA = [240, 505];
-const OJO = [134, 72];
+// Colores del logo de la UAB: rojo, azul, dorado del engranaje, violeta de los rayos, negro y blanco.
+const ROJO = '#f20b0d';
+const AZUL = '#1718d0';
+const VIOLETA = '#2c0dd0';
+const DORADO = '#c9b810';
+const NEGRO = '#151515';
+const BLANCO = '#f7f5ee';
 
+const ALTO_VISIBLE = 3.9; // unidades del modelo que entran a lo alto del cuadro
+const GIRO_BASE = -0.85; // de tres cuartos, mirando hacia el formulario (a la izquierda)
+
+// ---------- modelo ----------
+const plumaje = (color, extra = {}) => new MeshPhysicalMaterial({
+  color, roughness: 0.6, metalness: 0, sheen: 0.6, sheenRoughness: 0.5, sheenColor: new Color('#ffffff'), ...extra,
+});
+
+function elipsoide(radios, color, material = null) {
+  const g = new SphereGeometry(1, 48, 32);
+  g.scale(...radios);
+  return new Mesh(g, material || plumaje(color));
+}
+
+// Tubo que sigue una curva y se afina hasta la punta (pico y plumas de la cola y del ala).
+// `ancho` y `alto` aplanan la sección; `pintar(u)` da el color a lo largo (0 base, 1 punta).
+function tuboAfinado(puntos, radioBase, radioPunta, { ancho = 1, alto = 1, pintar = null, pasos = 48, lados = 18 } = {}) {
+  const curva = new CatmullRomCurve3(puntos.map((p) => new Vector3(...p)));
+  const marcos = curva.computeFrenetFrames(pasos, false);
+  const posiciones = [];
+  const colores = [];
+  const indices = [];
+  const c = new Color();
+  for (let i = 0; i <= pasos; i += 1) {
+    const u = i / pasos;
+    const centro = curva.getPointAt(u);
+    const radio = radioBase + (radioPunta - radioBase) * u;
+    const n = marcos.normals[i];
+    const b = marcos.binormals[i];
+    if (pintar) c.set(pintar(u));
+    for (let j = 0; j <= lados; j += 1) {
+      const ang = (j / lados) * Math.PI * 2;
+      const x = Math.cos(ang) * radio * ancho;
+      const y = Math.sin(ang) * radio * alto;
+      posiciones.push(centro.x + n.x * x + b.x * y, centro.y + n.y * x + b.y * y, centro.z + n.z * x + b.z * y);
+      if (pintar) colores.push(c.r, c.g, c.b);
+    }
+  }
+  for (let i = 0; i < pasos; i += 1) {
+    for (let j = 0; j < lados; j += 1) {
+      const k = i * (lados + 1) + j;
+      indices.push(k, k + lados + 1, k + 1, k + lados + 1, k + lados + 2, k + 1);
+    }
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(posiciones, 3));
+  if (pintar) g.setAttribute('color', new Float32BufferAttribute(colores, 3));
+  g.setIndex(indices);
+  g.computeVertexNormals();
+  return g;
+}
+
+function crearAla() {
+  const ala = new Group();
+  // Ala plegada: tres volúmenes apoyados en el costado (rojo arriba, banda dorada, azul abajo).
+  const azul = elipsoide([0.11, 0.72, 0.27], AZUL);
+  azul.position.set(0, -0.56, -0.13);
+  azul.rotation.x = 0.28;
+  const dorado = elipsoide([0.12, 0.3, 0.27], DORADO);
+  dorado.position.set(0.015, -0.32, -0.05);
+  dorado.rotation.x = 0.18;
+  const rojo = elipsoide([0.13, 0.3, 0.28], ROJO);
+  rojo.position.set(0.03, -0.1, 0);
+  rojo.rotation.x = 0.1;
+  ala.add(azul, dorado, rojo);
+  // Plumas largas de la punta, que se abren en abanico al estirar el ala.
+  const primarias = [];
+  for (let i = 0; i < 5; i += 1) {
+    const eje = new Group();
+    eje.position.set(0, -0.62 - i * 0.03, -0.12 - i * 0.03);
+    const geo = tuboAfinado([[0, 0, 0], [0, -0.3, -0.12], [0, -0.62, -0.3]], 0.07, 0.012, { alto: 0.25 });
+    eje.add(new Mesh(geo, plumaje(i % 2 ? VIOLETA : AZUL, { side: DoubleSide })));
+    ala.add(eje);
+    primarias.push(eje);
+  }
+  return { ala, primarias };
+}
+
+function crearAve() {
+  const partes = {};
+  const inclinacion = new Group(); // gira en el plano de la pantalla, desde las patas
+  const orientacion = new Group(); // gira el ave sobre su eje vertical
+  orientacion.rotation.y = GIRO_BASE;
+  inclinacion.add(orientacion);
+  partes.inclinacion = inclinacion;
+  partes.orientacion = orientacion;
+
+  const cuerpo = new Group();
+  orientacion.add(cuerpo);
+  partes.cuerpo = cuerpo;
+
+  const tronco = elipsoide([0.44, 0.86, 0.5], ROJO);
+  tronco.position.set(0, 1.12, 0);
+  tronco.rotation.x = 0.22;
+  const pecho = elipsoide([0.4, 0.5, 0.42], ROJO);
+  pecho.position.set(0, 1.45, 0.12);
+  cuerpo.add(tronco, pecho);
+
+  // Plumas sueltas que asoman al esponjarse.
+  partes.plumon = [];
+  for (const [x, y, z] of [[0.28, 0.85, 0.38], [-0.28, 0.85, 0.38], [0.38, 1.2, 0.22], [-0.38, 1.2, 0.22], [0, 0.68, 0.45], [0.18, 1.5, 0.45], [-0.18, 1.5, 0.45], [0, 0.42, 0.34]]) {
+    const m = elipsoide([0.1, 0.07, 0.06], ROJO);
+    m.position.set(x, y, z);
+    m.lookAt(x * 3, y, z * 3);
+    m.scale.setScalar(0.001);
+    cuerpo.add(m);
+    partes.plumon.push(m);
+  }
+
+  const izquierda = crearAla();
+  izquierda.ala.position.set(0.36, 1.62, -0.02);
+  const derecha = crearAla();
+  derecha.ala.position.set(-0.36, 1.62, -0.02);
+  derecha.ala.scale.x = -1;
+  cuerpo.add(izquierda.ala, derecha.ala);
+  partes.alaIzq = izquierda;
+  partes.alaDer = derecha;
+
+  // Cola: tres plumas largas, rojas con una franja dorada y la punta azul.
+  const cola = new Group();
+  cola.position.set(0, 0.55, -0.3);
+  const colorCola = (u) => {
+    if (u < 0.62) return ROJO;
+    return u < 0.72 ? DORADO : AZUL;
+  };
+  for (const [x, giro, largo] of [[-0.08, -0.12, 0.9], [0, 0, 1], [0.08, 0.12, 0.9]]) {
+    const geo = tuboAfinado(
+      [[0, 0, 0], [0, -0.45 * largo, -0.25], [0, -0.95 * largo, -0.42], [0, -1.35 * largo, -0.52]],
+      0.11, 0.015, { ancho: 0.3, pintar: colorCola },
+    );
+    const m = new Mesh(geo, plumaje('#ffffff', { vertexColors: true, side: DoubleSide }));
+    m.position.x = x;
+    m.rotation.z = giro;
+    cola.add(m);
+  }
+  cuerpo.add(cola);
+  partes.cola = cola;
+
+  // Cabeza, con el giro en el cuello.
+  const cuello = new Group();
+  cuello.position.set(0, 1.85, 0.08);
+  cuello.rotation.order = 'YXZ';
+  orientacion.add(cuello);
+  partes.cuello = cuello;
+
+  const cabeza = elipsoide([0.36, 0.38, 0.4], ROJO);
+  cabeza.position.set(0, 0.28, 0.08);
+  const nuca = elipsoide([0.32, 0.3, 0.32], ROJO);
+  nuca.position.set(0, 0.02, 0.02);
+  cuello.add(cabeza, nuca);
+
+  partes.ojos = [];
+  const piel = new MeshStandardMaterial({ color: BLANCO, roughness: 0.75 });
+  for (const lado of [1, -1]) {
+    const cara = elipsoide([0.07, 0.2, 0.24], null, piel);
+    cara.position.set(0.3 * lado, 0.27, 0.24);
+    cara.rotation.y = 0.45 * lado;
+    cuello.add(cara);
+
+    const ojo = new Group();
+    ojo.position.set(0.345 * lado, 0.34, 0.24);
+    ojo.rotation.y = (Math.PI / 2 - 0.45) * lado;
+    const iris = new Mesh(new SphereGeometry(0.05, 24, 16), new MeshStandardMaterial({ color: '#f4e7a0', roughness: 0.3 }));
+    const pupila = new Mesh(new SphereGeometry(0.032, 20, 14), new MeshStandardMaterial({ color: '#0a0a0a', roughness: 0.15 }));
+    pupila.position.z = 0.028;
+    ojo.add(iris, pupila);
+    // Ojo cerrado: un arco como el del modelo.
+    const parpado = new Mesh(new TorusGeometry(0.052, 0.011, 8, 24, Math.PI), new MeshStandardMaterial({ color: NEGRO }));
+    parpado.position.copy(ojo.position);
+    parpado.rotation.set(0, ojo.rotation.y, Math.PI);
+    cuello.add(ojo, parpado);
+    partes.ojos.push({ ojo, parpado, lado });
+  }
+
+  // Pico: superior dorado en gancho y mandíbula negra.
+  const superior = new Mesh(
+    tuboAfinado([[0, 0.3, 0.27], [0, 0.36, 0.44], [0, 0.27, 0.57], [0, 0.11, 0.59], [0, 0.0, 0.51]], 0.18, 0.02, { alto: 0.82 }),
+    plumaje(DORADO, { roughness: 0.32, sheen: 0, side: DoubleSide }),
+  );
+  const inferior = new Mesh(
+    tuboAfinado([[0, 0.15, 0.3], [0, 0.08, 0.43], [0, 0.03, 0.48]], 0.13, 0.05, { alto: 0.85 }),
+    plumaje(NEGRO, { roughness: 0.4, sheen: 0, side: DoubleSide }),
+  );
+  cuello.add(superior, inferior);
+
+  // Patas doradas agarradas a la rama (dedos en arco alrededor de ella).
+  const geoDedo = new TorusGeometry(0.13, 0.038, 12, 20, 1.5);
+  const matPata = plumaje(DORADO, { sheen: 0, roughness: 0.5 });
+  partes.patas = [];
+  for (const x of [0.15, -0.15]) {
+    const pata = new Group();
+    pata.position.set(x, -0.09, 0.02);
+    for (const [inicio, dx] of [[0.2, -0.03], [Math.PI - 0.2 - 1.5, 0.03]]) {
+      const dedo = new Mesh(geoDedo, matPata);
+      dedo.rotation.set(0, Math.PI / 2, inicio);
+      dedo.position.x = dx;
+      pata.add(dedo);
+    }
+    orientacion.add(pata);
+    partes.patas.push(pata);
+  }
+  return partes;
+}
+
+function crearRama() {
+  const rama = new Group();
+  const madera = new MeshStandardMaterial({ color: '#5a3d28', roughness: 0.9 });
+  const tronco = new Mesh(new CylinderGeometry(0.1, 0.12, 6, 24), madera);
+  tronco.rotation.z = Math.PI / 2;
+  tronco.position.set(2.4, -0.09, 0);
+  const ramita = new Mesh(new CylinderGeometry(0.025, 0.04, 0.6, 12), madera);
+  ramita.position.set(1.55, 0.13, 0.05);
+  ramita.rotation.z = -0.9;
+  const hoja = elipsoide([0.17, 0.055, 0.1], null, new MeshStandardMaterial({ color: '#4f7a3a', roughness: 0.7 }));
+  hoja.position.set(1.83, 0.33, 0.05);
+  hoja.rotation.z = 0.5;
+  rama.add(tronco, ramita, hoja);
+  return rama;
+}
+
+// ---------- animación ----------
 const POSE_BASE = {
-  cuerpoGiro: 0, cuerpoX: 1, cuerpoY: 1,
-  cabezaGiro: 0, cabezaX: 0, cabezaY: 0, rasgosX: 0, picoEscala: 1,
-  alaGiro: 0, alaEscala: 1, colaGiro: 0, plumon: 0, pata: 0, ojo: 1, pupila: 0,
+  inclinar: 0, girar: 0, yaw: 0, pitch: 0, roll: 0, alaIzq: 0, alaDer: 0, abanico: 0,
+  colaGiro: 0, colaAlza: 0, plumon: 0, pata: 0, ojo: 1, mirada: 0,
 };
-
 const POSES = {
   atento: {},
-  mirando: { cuerpoGiro: -4, cabezaGiro: 6, cabezaX: -6, cabezaY: 4, rasgosX: -5, picoEscala: 1.04 },
-  'ojos-cerrados': { cuerpoGiro: 2, cabezaGiro: -16, cabezaX: 6, cabezaY: -6, rasgosX: 9, picoEscala: 0.82, ojo: 0 },
+  'mirando-usuario': { inclinar: 0.1, yaw: -0.55, pitch: 0.1 },
+  'mirando-contrasena': { inclinar: 0.13, yaw: -0.5, pitch: 0.3, roll: 0.08 },
+  'ojos-cerrados': { inclinar: -0.05, yaw: 1.65, pitch: -0.22, roll: -0.1, ojo: 0 },
   reposo: { ojo: 0 },
 };
 
-// Ciclo de reposo (segundos): cada acción entra y sale con una rampa suave.
-const CICLO = 17;
+const CICLO = 18;
 const ACCIONES = [
   // Mira a un lado y al otro.
-  { desde: 1.4, hasta: 2.9, pose: { ojo: 1, cabezaGiro: 12, rasgosX: -7, picoEscala: 1.05 } },
-  { desde: 2.9, hasta: 4.3, pose: { ojo: 1, cabezaGiro: -10, rasgosX: 8, picoEscala: 0.88 } },
-  // Se pica las plumas del pecho.
-  { desde: 5.0, hasta: 8.0, pose: { cabezaGiro: 34, cabezaX: -4, cabezaY: 30, rasgosX: 4, picoEscala: 0.95, cuerpoGiro: 2 } },
-  // Estira el ala y la mira.
-  { desde: 8.7, hasta: 10.7, pose: { ojo: 1, alaGiro: -27, alaEscala: 1.05, cuerpoGiro: -3, cabezaGiro: -6, rasgosX: 7, picoEscala: 0.9, colaGiro: 4 } },
+  { desde: 1.4, hasta: 2.9, pose: { ojo: 1, yaw: -0.75, roll: 0.15 } },
+  { desde: 2.9, hasta: 4.3, pose: { ojo: 1, yaw: 0.6, roll: -0.12 } },
+  // Se acicala el ala: gira la cabeza hacia ella y se pica las plumas.
+  { desde: 5.0, hasta: 8.2, pose: { yaw: 1.9, pitch: 0.55, roll: -0.2, alaIzq: 0.18, inclinar: -0.04 } },
+  // Estira el ala, abre las plumas y la mira.
+  { desde: 8.9, hasta: 11.0, pose: { ojo: 1, alaIzq: 1, alaDer: 0.3, abanico: 1, yaw: 0.9, inclinar: -0.06, colaAlza: 0.12 } },
   // Se esponja.
-  { desde: 11.4, hasta: 13.0, pose: { cuerpoX: 1.08, cuerpoY: 1.05, plumon: 1, cabezaY: -12 } },
+  { desde: 11.7, hasta: 13.3, pose: { plumon: 1, pitch: -0.1 } },
   // Levanta una pata y se acomoda en la rama.
-  { desde: 13.7, hasta: 14.5, pose: { ojo: 1, pata: -18, cuerpoGiro: -4 } },
-  { desde: 14.5, hasta: 15.4, pose: { ojo: 1, cuerpoGiro: 3 } },
+  { desde: 14.0, hasta: 14.8, pose: { ojo: 1, pata: 1, inclinar: -0.06 } },
+  { desde: 14.8, hasta: 15.7, pose: { ojo: 1, inclinar: 0.05 } },
 ];
 
 const suave = (x) => x * x * (3 - 2 * x);
-function ventana(t, desde, hasta, rampa = 0.45) {
+function ventana(t, desde, hasta, rampa = 0.5) {
   if (t <= desde || t >= hasta) return 0;
   return suave(Math.min(1, (t - desde) / rampa, (hasta - t) / rampa));
 }
 
 function poseObjetivo(estado, t, seguimiento) {
-  const pose = { ...POSE_BASE, ...POSES[estado] };
-  if (estado === 'mirando') pose.pupila = -4 + 7 * seguimiento;
+  const pose = { ...POSE_BASE, ...(POSES[estado] || {}) };
+  if (estado.startsWith('mirando')) {
+    // La cabeza y la mirada siguen el texto: al alargarse, el cursor se acerca al ave.
+    pose.yaw += (seguimiento - 0.5) * 0.3;
+    pose.mirada = (seguimiento - 0.5) * 0.6;
+  }
   if (estado === 'reposo') {
     const c = t % CICLO;
     for (const accion of ACCIONES) {
@@ -78,35 +304,70 @@ function poseObjetivo(estado, t, seguimiento) {
 // Movimiento que no pasa por el resorte: respiración, balanceo, picoteo y parpadeo.
 function movimientoDirecto(estado, t) {
   const m = {
-    cuerpoGiro: 1.1 * Math.sin((2 * Math.PI * t) / 5.6),
-    cuerpoY: 0.012 * Math.sin((2 * Math.PI * t) / 3.4),
-    colaGiro: 2.4 * Math.sin((2 * Math.PI * t) / 5.6 - 0.9),
-    cabezaY: 1.6 * Math.sin((2 * Math.PI * t) / 3.4 + 0.6),
-    cabezaGiro: 0,
+    respira: 0.015 * Math.sin((2 * Math.PI * t) / 3.4),
+    balanceo: 0.025 * Math.sin((2 * Math.PI * t) / 5.6),
+    cola: 0.06 * Math.sin((2 * Math.PI * t) / 5.6 - 0.9),
+    cabezaY: 0.012 * Math.sin((2 * Math.PI * t) / 3.4 + 0.6),
+    pitch: 0,
     ojo: 1,
   };
-  if (estado === 'reposo') {
-    const c = t % CICLO;
-    m.cabezaGiro += 6 * ventana(c, 5.6, 7.6, 0.3) * Math.sin(2 * Math.PI * 3 * c);
-  }
-  // Parpadeo cada 3,8 s, de 160 ms.
-  const p = t % 3.8;
+  if (estado === 'reposo') m.pitch = 0.13 * ventana(t % CICLO, 5.7, 7.8, 0.3) * Math.sin(2 * Math.PI * 3 * t);
+  const p = t % 3.8; // parpadeo cada 3,8 s, de 160 ms
   if (p < 0.16) m.ojo = 1 - Math.sin((Math.PI * p) / 0.16);
   return m;
 }
 
-const alrededor = ([x, y], interior) => `translate(${x} ${y}) ${interior} translate(${-x} ${-y})`;
-
 function ParabaPosada({ estado = 'reposo', seguimiento = 0, className = '' }) {
-  const refs = {
-    ave: useRef(null), cuerpo: useRef(null), cabeza: useRef(null), rasgos: useRef(null), pico: useRef(null),
-    brillo: useRef(null), ala: useRef(null), cola: useRef(null), plumon: useRef(null), pata: useRef(null),
-    ojoAbierto: useRef(null), ojoCerrado: useRef(null), pupila: useRef(null),
-  };
+  const contenedor = useRef(null);
   const entrada = useRef({ estado, seguimiento });
   entrada.current = { estado, seguimiento: Math.min(Math.max(seguimiento, 0), 1) };
 
   useEffect(() => {
+    const caja = contenedor.current;
+    let renderer;
+    try {
+      renderer = new WebGLRenderer({ antialias: true, alpha: true });
+    } catch {
+      return undefined; // sin WebGL el panel queda solo con su fondo
+    }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.outputColorSpace = SRGBColorSpace;
+    renderer.toneMapping = ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    caja.appendChild(renderer.domElement);
+    renderer.domElement.style.width = '100%';
+    renderer.domElement.style.height = '100%';
+
+    const escena = new Scene();
+    escena.add(new HemisphereLight('#ffffff', '#b9c6dc', 1.3));
+    const clave = new DirectionalLight('#ffffff', 2.4);
+    clave.position.set(-3, 5, 5);
+    const contraluz = new DirectionalLight('#cfe0ff', 1.4);
+    contraluz.position.set(3, 3, -4);
+    escena.add(clave, contraluz);
+
+    const ave = crearAve();
+    const mundo = new Group();
+    mundo.add(ave.inclinacion, crearRama());
+    escena.add(mundo);
+
+    const camara = new PerspectiveCamera(30, 1, 0.1, 50);
+    const ajustar = () => {
+      const { clientWidth: w, clientHeight: h } = caja;
+      if (!w || !h) return;
+      renderer.setSize(w, h, false);
+      camara.aspect = w / h;
+      const distancia = ALTO_VISIBLE / (2 * Math.tan((camara.fov * Math.PI) / 360));
+      camara.position.set(0, 1.05, distancia);
+      camara.lookAt(0, 1.05, 0);
+      camara.updateProjectionMatrix();
+      // El ave a la derecha del centro; la rama sigue hasta el borde.
+      mundo.position.x = ALTO_VISIBLE * camara.aspect * 0.1;
+    };
+    ajustar();
+    const observador = new ResizeObserver(ajustar);
+    observador.observe(caja);
+
     const reducido = window.matchMedia?.('(prefers-reduced-motion: reduce)');
     const actual = { ...POSE_BASE };
     const velocidad = Object.fromEntries(Object.keys(POSE_BASE).map((k) => [k, 0]));
@@ -125,154 +386,53 @@ function ParabaPosada({ estado = 'reposo', seguimiento = 0, className = '' }) {
           actual[k] = objetivo[k];
           velocidad[k] = 0;
         } else {
-          // Resorte: rígido 80, amortiguado 14 (llega suave y con un leve rebote).
-          velocidad[k] += ((objetivo[k] - actual[k]) * 80 - velocidad[k] * 14) * dt;
+          // Resorte: rígido 60, amortiguado 12 (llega suave y con un leve rebote).
+          velocidad[k] += ((objetivo[k] - actual[k]) * 60 - velocidad[k] * 12) * dt;
           actual[k] += velocidad[k] * dt;
         }
       }
-      const d = quieto ? { cuerpoGiro: 0, cuerpoY: 0, colaGiro: 0, cabezaY: 0, cabezaGiro: 0, ojo: 1 } : movimientoDirecto(e, t);
-      const ojo = Math.max(0, Math.min(1, actual.ojo * d.ojo));
+      const d = quieto ? { respira: 0, balanceo: 0, cola: 0, cabezaY: 0, pitch: 0, ojo: 1 } : movimientoDirecto(e, t);
+      const a = actual;
 
-      refs.ave.current?.setAttribute('transform', `rotate(${actual.cuerpoGiro + d.cuerpoGiro} ${PATAS[0]} ${PATAS[1]})`);
-      refs.cuerpo.current?.setAttribute('transform', alrededor(PATAS, `scale(${actual.cuerpoX} ${actual.cuerpoY + d.cuerpoY})`));
-      refs.cola.current?.setAttribute('transform', `rotate(${actual.colaGiro + d.colaGiro} ${BASE_COLA[0]} ${BASE_COLA[1]})`);
-      refs.ala.current?.setAttribute('transform', alrededor(HOMBRO, `rotate(${actual.alaGiro}) scale(${actual.alaEscala})`));
-      refs.cabeza.current?.setAttribute(
-        'transform',
-        `translate(${actual.cabezaX} ${actual.cabezaY + d.cabezaY}) rotate(${actual.cabezaGiro + d.cabezaGiro} ${CUELLO[0]} ${CUELLO[1]})`,
-      );
-      // Giro con profundidad: los rasgos se corren, la cabeza se angosta apenas y el brillo va al revés.
-      const giro = actual.rasgosX;
-      refs.rasgos.current?.setAttribute('transform', alrededor(CENTRO_CABEZA, `translate(${giro} 0) scale(${1 - Math.abs(giro) * 0.008} 1)`));
-      refs.pico.current?.setAttribute('transform', alrededor(PICO, `scale(${actual.picoEscala} 1)`));
-      refs.brillo.current?.setAttribute('transform', `translate(${-giro * 0.6} 0)`);
-      refs.plumon.current?.setAttribute('opacity', Math.max(0, actual.plumon).toFixed(3));
-      refs.pata.current?.setAttribute('transform', `translate(0 ${actual.pata})`);
-      refs.ojoAbierto.current?.setAttribute('transform', alrededor(OJO, `scale(1 ${Math.max(ojo, 0.04)})`));
-      refs.ojoAbierto.current?.setAttribute('opacity', ojo < 0.06 ? '0' : '1');
-      refs.ojoCerrado.current?.setAttribute('opacity', (1 - ojo).toFixed(3));
-      refs.pupila.current?.setAttribute('transform', `translate(${actual.pupila} 0)`);
+      ave.inclinacion.rotation.z = a.inclinar + d.balanceo;
+      ave.orientacion.rotation.y = GIRO_BASE + a.girar;
+      const esponja = Math.max(0, a.plumon);
+      ave.cuerpo.scale.set(1 + 0.07 * esponja, 1 + 0.04 * esponja + d.respira, 1 + 0.07 * esponja);
+      ave.plumon.forEach((m) => m.scale.setScalar(Math.max(0.001, esponja)));
+      ave.cuello.position.y = 1.85 * ave.cuerpo.scale.y + d.cabezaY;
+      ave.cuello.rotation.set(a.pitch + d.pitch, a.yaw, a.roll);
+      ave.alaIzq.ala.rotation.set(-0.3 * a.alaIzq, 0, -0.12 + 1.0 * a.alaIzq);
+      ave.alaDer.ala.rotation.set(-0.3 * a.alaDer, 0, -0.12 + 1.0 * a.alaDer);
+      ave.alaIzq.primarias.forEach((p, i) => { p.rotation.x = -i * 0.22 * a.abanico; });
+      ave.alaDer.primarias.forEach((p, i) => { p.rotation.x = -i * 0.22 * a.abanico * 0.4; });
+      ave.cola.rotation.set(a.colaAlza, 0, a.colaGiro + d.cola);
+      ave.patas[1].position.y = -0.09 + 0.22 * a.pata;
+      ave.patas[1].rotation.x = -0.5 * a.pata;
+      const abierto = Math.max(0, Math.min(1, a.ojo * d.ojo));
+      ave.ojos.forEach(({ ojo, parpado, lado }) => {
+        ojo.scale.y = Math.max(abierto, 0.08);
+        ojo.visible = abierto > 0.06;
+        ojo.rotation.y = (Math.PI / 2 - 0.45) * lado + a.mirada * lado;
+        parpado.scale.setScalar(Math.max(0.001, 1 - abierto));
+      });
+      renderer.render(escena, camara);
       cuadro = requestAnimationFrame(dibujar);
     };
     cuadro = requestAnimationFrame(dibujar);
-    return () => cancelAnimationFrame(cuadro);
-  // Las refs de los grupos no cambian: el efecto corre una sola vez.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    return () => {
+      cancelAnimationFrame(cuadro);
+      observador.disconnect();
+      escena.traverse((o) => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) o.material.dispose();
+      });
+      renderer.dispose();
+      renderer.domElement.remove();
+    };
   }, []);
 
-  return (
-    <svg className={className} viewBox="-20 -24 540 760" overflow="visible" aria-hidden="true" focusable="false">
-      <defs>
-        {/* Cuerpo: azul en el lomo y el cuello, amarillo dorado en el pecho y el vientre. */}
-        <linearGradient id="pb-cuerpo" x1="0" y1="150" x2="0" y2="520" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#2a9fd6" />
-          <stop offset="0.15" stopColor="#2a9fd6" />
-          <stop offset="0.25" stopColor="#f7c84a" />
-          <stop offset="0.7" stopColor="#efa524" />
-          <stop offset="1" stopColor="#d98912" />
-        </linearGradient>
-        <radialGradient id="pb-volumen" cx="0.32" cy="0.3" r="0.85">
-          <stop offset="0" stopColor="#ffffff" stopOpacity="0.28" />
-          <stop offset="0.55" stopColor="#ffffff" stopOpacity="0" />
-          <stop offset="1" stopColor="#0b1f3a" stopOpacity="0.28" />
-        </radialGradient>
-        <radialGradient id="pb-cabeza" cx="0.35" cy="0.25" r="0.85">
-          <stop offset="0" stopColor="#5cd0e4" />
-          <stop offset="0.5" stopColor="#2a9fd6" />
-          <stop offset="1" stopColor="#17649f" />
-        </radialGradient>
-        <linearGradient id="pb-ala-alta" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#36a6dc" />
-          <stop offset="1" stopColor="#1d6db4" />
-        </linearGradient>
-        <linearGradient id="pb-banda" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#5fd3d9" />
-          <stop offset="1" stopColor="#21a3bd" />
-        </linearGradient>
-        <linearGradient id="pb-ala-baja" x1="0" y1="0" x2="0.4" y2="1">
-          <stop offset="0" stopColor="#1f5fae" />
-          <stop offset="1" stopColor="#123271" />
-        </linearGradient>
-        <linearGradient id="pb-cola" x1="0" y1="0" x2="0.6" y2="1">
-          <stop offset="0" stopColor="#2178c0" />
-          <stop offset="1" stopColor="#153f88" />
-        </linearGradient>
-        <linearGradient id="pb-pico" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#4a4a4f" />
-          <stop offset="1" stopColor="#141416" />
-        </linearGradient>
-        <linearGradient id="pb-rama" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#5a3f2b" />
-          <stop offset="1" stopColor="#24180f" />
-        </linearGradient>
-        <filter id="pb-sombra" x="-20%" y="-50%" width="140%" height="200%">
-          <feGaussianBlur stdDeviation="10" />
-        </filter>
-      </defs>
-
-      <ellipse cx="290" cy="562" rx="200" ry="16" fill="#1e293b" opacity="0.12" filter="url(#pb-sombra)" />
-
-      <g ref={refs.ave}>
-        <g ref={refs.cola}>
-          <path d="M210,500 C238,560 286,624 322,688 C330,702 350,708 366,696 C372,690 368,676 360,662 C328,600 292,548 268,500 Z" fill="url(#pb-cola)" />
-          <path d="M240,520 C268,570 300,620 330,672" fill="none" stroke="#0f2f66" strokeWidth="4" strokeLinecap="round" opacity="0.35" />
-        </g>
-
-        <g ref={refs.cuerpo}>
-          <path d="M70,240 C56,300 60,384 88,452 C98,472 118,476 124,458 C112,400 108,320 112,252 Z" fill="url(#pb-ala-baja)" />
-          <path d="M62,150 C40,230 58,350 96,440 C116,488 168,512 222,512 C262,512 300,496 304,470 C300,380 262,250 220,170 C190,120 110,110 62,150 Z" fill="url(#pb-cuerpo)" />
-          <path d="M62,150 C40,230 58,350 96,440 C116,488 168,512 222,512 C262,512 300,496 304,470 C300,380 262,250 220,170 C190,120 110,110 62,150 Z" fill="url(#pb-volumen)" />
-          <g ref={refs.plumon} opacity="0">
-            <path d="M52,268 q-16,6 -8,20 q8,-2 12,-4 Z" fill="#f5c040" />
-            <path d="M60,334 q-16,8 -6,20 q8,-4 11,-6 Z" fill="#f0ae2c" />
-            <path d="M80,404 q-15,10 -4,20 q7,-5 10,-8 Z" fill="#e89d1e" />
-            <path d="M118,470 q-10,14 4,20 q4,-7 6,-11 Z" fill="#dc9016" />
-          </g>
-          <g ref={refs.ala}>
-            <path d="M200,165 C238,170 280,200 294,240 L300,300 C270,290 236,282 214,290 C200,250 194,200 200,165 Z" fill="url(#pb-ala-alta)" />
-            <path d="M286,486 C292,520 300,548 306,566 C312,546 316,516 314,490 Z" fill="#0f2a5e" />
-            <path d="M262,470 C264,500 270,530 278,550 C286,528 290,500 288,476 Z" fill="#12306a" />
-            <path d="M214,280 C250,272 290,280 300,300 C316,360 330,430 322,480 C318,500 300,506 290,492 C262,440 232,360 214,280 Z" fill="url(#pb-ala-baja)" />
-            <path d="M206,236 C240,232 282,238 300,260 L305,300 C297,314 286,300 276,313 C266,326 254,310 244,322 C232,333 222,317 211,324 C205,296 203,266 206,236 Z" fill="url(#pb-banda)" />
-            <path d="M196,160 C188,210 196,260 214,300 C240,360 270,430 300,500" fill="none" stroke="#ffffff" strokeWidth="8" strokeLinecap="round" />
-          </g>
-        </g>
-
-        <g ref={refs.cabeza}>
-          <path d="M30,92 C30,32 90,2 150,12 C210,22 242,72 234,132 C228,176 192,202 150,202 C100,202 50,172 30,122 Z" fill="url(#pb-cabeza)" />
-          <path ref={refs.brillo} d="M80,30 C110,14 160,14 196,34" fill="none" stroke="#8fe3ee" strokeWidth="6" strokeLinecap="round" opacity="0.5" />
-          <g ref={refs.rasgos}>
-            <path d="M100,60 C110,36 150,30 172,50 C186,64 182,100 168,126 C156,148 130,156 112,146 C96,136 90,90 100,60 Z" fill="#f7f3ea" />
-            <path d="M112,96 l14,2 M114,108 l14,2 M120,120 l12,1 M126,131 l10,0" stroke="#1d3f74" strokeWidth="2.6" strokeLinecap="round" opacity="0.7" />
-            <g ref={refs.ojoAbierto} opacity="0">
-              <circle cx={OJO[0]} cy={OJO[1]} r="9" fill="#f3d36c" />
-              <g ref={refs.pupila}>
-                <circle cx={OJO[0]} cy={OJO[1]} r="5" fill="#111111" />
-                <circle cx={OJO[0] - 1.8} cy={OJO[1] - 2} r="1.6" fill="#ffffff" />
-              </g>
-            </g>
-            <path ref={refs.ojoCerrado} d="M118,70 Q133,82 150,68" fill="none" stroke="#1f1f1f" strokeWidth="4.5" strokeLinecap="round" />
-            {/* Garganta azul (la "barba" que le da el nombre). */}
-            <path d="M96,168 C110,186 140,192 162,180 C150,200 116,204 96,188 Z" fill="#1c4d93" />
-            <g ref={refs.pico}>
-              <path d="M60,82 C30,82 14,110 18,140 C22,166 40,184 58,188 C52,170 54,150 66,140 C80,128 98,118 104,100 C98,86 80,80 60,82 Z" fill="url(#pb-pico)" />
-              <path d="M40,100 C34,112 32,128 36,142" fill="none" stroke="#8a8a92" strokeWidth="4" strokeLinecap="round" opacity="0.5" />
-              <path d="M62,142 C66,160 82,176 104,176 C118,176 126,166 124,154 C112,142 90,132 70,132 Z" fill="#0d0d0e" />
-            </g>
-          </g>
-        </g>
-      </g>
-
-      <path d="M70,486 C150,474 300,482 520,508 L520,540 C300,516 150,512 78,520 C58,522 54,490 70,486 Z" fill="url(#pb-rama)" />
-      <path d="M90,492 C160,484 300,490 510,514" fill="none" stroke="#7a5a40" strokeWidth="3" strokeLinecap="round" opacity="0.55" />
-      <path d="M410,512 C424,494 440,486 462,480" fill="none" stroke="#3a2a1d" strokeWidth="8" strokeLinecap="round" />
-      <ellipse cx="466" cy="476" rx="16" ry="7" transform="rotate(-24 466 476)" fill="#4f7a3a" />
-      <path d="M128,470 C124,490 126,515 140,530 C152,534 164,526 164,512 C164,494 160,476 152,466 Z" fill="#52525b" />
-      <g ref={refs.pata}>
-        <path d="M210,478 C206,498 210,525 226,540 C238,544 252,536 252,520 C252,500 246,484 236,474 Z" fill="#52525b" />
-      </g>
-    </svg>
-  );
+  return <div ref={contenedor} className={className} aria-hidden="true" />;
 }
 
 export default ParabaPosada;

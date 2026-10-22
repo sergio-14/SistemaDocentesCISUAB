@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -6,7 +6,9 @@ import { API_URL } from '../apis/apiConfig';
 import { MENSAJE_REVISA_CAMPOS, useErrorPulse } from '../utils/formErrors';
 import MensajeErrorCampo from './common/MensajeErrorCampo';
 import { AlertCircle, ArrowRight, Eye, EyeOff, User } from 'lucide-react';
-import ParabaPosada from './login/ParabaPosada';
+
+// El guacamayo en 3D (Three.js) se carga aparte: solo lo descarga quien abre el login.
+const ParabaPosada = lazy(() => import('./login/ParabaPosada'));
 
 const TONO_ERROR = 'text-red-700';
 const MENSAJE_CREDENCIALES = 'Usuario o contraseña incorrectos.';
@@ -136,7 +138,7 @@ function Login({ onLogin }) {
   // (con el ojo de "Ocultar contraseña"); sin nada escrito, se acicala.
   let estadoAve = 'atento';
   if (showPassword && (campoActivo === 'contrasena' || password)) estadoAve = 'ojos-cerrados';
-  else if (campoActivo) estadoAve = 'mirando';
+  else if (campoActivo) estadoAve = campoActivo === 'contrasena' ? 'mirando-contrasena' : 'mirando-usuario';
   else if (!username && !password) estadoAve = 'reposo';
   const textoMirado = campoActivo === 'contrasena' ? password : username;
 
@@ -181,11 +183,13 @@ function Login({ onLogin }) {
               <path d="M0,0 L76,0 C62,4 42,9 40,21 C38,33 54,37 52,48 C50,59 31,61 29,73 C27,85 22,93 13,100 L0,100 Z" fill="#ffffff" />
               <path d="M61,0 C48,4 28,9 26,21 C24,33 40,37 38,48 C36,59 17,61 15,73 C13,85 9,93 3,100" fill="none" stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
             </svg>
-            <ParabaPosada
-              estado={estadoAve}
-              seguimiento={Math.min(textoMirado.length, 28) / 28}
-              className="absolute right-0 top-0 h-full w-auto"
-            />
+            <Suspense fallback={null}>
+              <ParabaPosada
+                estado={estadoAve}
+                seguimiento={Math.min(textoMirado.length, 28) / 28}
+                className="absolute inset-0"
+              />
+            </Suspense>
           </div>
 
           {/* Formulario: centrado en el alto del modal; los mensajes de error tienen su lugar reservado,

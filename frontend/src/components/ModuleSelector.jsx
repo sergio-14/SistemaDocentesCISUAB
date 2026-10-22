@@ -321,18 +321,18 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
                     Módulos
                 </p>
 
+                {/* Silueta del loro a media altura, en el medio entre el contenido de la izquierda y los
+                    botones, mirando hacia los módulos, en el azulado de la división pero más intenso. */}
+                <div
+                    className="pointer-events-none absolute left-[3.5rem] top-1/2 h-[24vh] max-h-[230px] aspect-[1/1.75] -translate-x-1/2 -translate-y-1/2 -scale-x-100 bg-[#8fa8cd] dark:bg-slate-700"
+                    style={MASCARA_LORO}
+                    aria-hidden="true"
+                />
                 <div className="flex justify-end">{cuenta}</div>
 
-                {/* Administración un poco arriba del centro, con la silueta del loro pegada a su izquierda
-                    (entre los módulos y la administración), mirando hacia los módulos, en el azulado de la
-                    división pero más intenso. */}
-                <div className={`relative mx-auto w-full max-w-xs ${conColumnaLateral ? 'my-auto -translate-y-[9vh]' : 'mt-[22vh]'}`}>
-                    <div
-                        className="pointer-events-none absolute right-full top-1/2 mr-5 h-[24vh] max-h-[230px] aspect-[1/1.75] -translate-y-1/2 -scale-x-100 bg-[#8fa8cd] dark:bg-slate-700"
-                        style={MASCARA_LORO}
-                        aria-hidden="true"
-                    />
-                    {conColumnaLateral && <aside className="panel-entrada">{columnaLateral}</aside>}
+                {/* Administración y rol de ingreso, arriba del centro de la división. */}
+                <div className={`relative w-full ${conColumnaLateral ? 'my-auto -translate-y-[14vh]' : 'mt-[22vh]'}`}>
+                    {conColumnaLateral && <aside className="panel-entrada mx-auto max-w-xs">{columnaLateral}</aside>}
                 </div>
 
                 <p className="mt-auto pt-8 text-right text-xs font-medium text-blue-900/70 dark:text-slate-400">

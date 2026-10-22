@@ -10,7 +10,7 @@ import { AlertCircle, ArrowRight, Eye, EyeOff, User } from 'lucide-react';
 // El guacamayo en 3D (Three.js) se carga aparte: solo lo descarga quien abre el login.
 const ParabaPosada = lazy(() => import('./login/ParabaPosada'));
 
-const TONO_ERROR = 'text-red-700';
+const TONO_ERROR = 'text-red-300'; // sobre el azul del formulario
 const MENSAJE_CREDENCIALES = 'Usuario o contraseña incorrectos.';
 
 function Login({ onLogin }) {
@@ -122,7 +122,7 @@ function Login({ onLogin }) {
   // Rebote de los campos en cada error (el mismo disparo que la sacudida del sistema).
   const { isPulsing: reboteUsuario } = useErrorPulse(errorUsuario, pulso);
   const { isPulsing: reboteContrasena } = useErrorPulse(errorContrasena, pulso);
-  const anilloCampo = (conError) => (conError ? 'ring-2 ring-red-400/80' : 'ring-1 ring-slate-200');
+  const anilloCampo = (conError) => (conError ? 'ring-2 ring-red-400/80' : 'ring-0');
   // Al entrar a cualquiera de los dos campos se quita el rojo de ambos.
   const limpiarErrores = () => {
     setLoginError('');
@@ -147,8 +147,13 @@ function Login({ onLogin }) {
 
   return (
     <div className={`login-escena min-h-screen w-full flex items-center justify-center overflow-hidden bg-azulado-100 sm:p-6 lg:p-10 font-sans text-slate-800 ${isExiting ? 'login-salida' : ''}`}>
-      <div className="relative w-full max-w-5xl">
-        <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[560px] flex flex-col lg:flex-row bg-white sm:rounded-[28px] overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
+      <div className="relative w-full max-w-5xl lg:mt-12">
+        {/* Logo de la UAB en un medallón blanco montado sobre el borde de arriba de la tarjeta, sobre el
+            formulario (en celular va dentro del formulario). */}
+        <div className="login-tarjeta absolute z-20 left-[26%] -top-14 -translate-x-1/2 hidden lg:flex h-28 w-28 items-center justify-center rounded-full bg-white ring-[6px] ring-azulado-100 shadow-[0_12px_30px_rgba(15,23,42,0.18)]">
+          <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-20 w-auto" />
+        </div>
+        <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[560px] flex flex-col lg:flex-row bg-blue-900 sm:rounded-[28px] overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.2)]">
           {/* Panel de las parabas (azulado de Fondo de Tiempo): a la derecha con borde ondulado; en celular,
               arriba. Detrás de las aves, un sol dorado suave y colinas al pie; las aves van encima de la
               onda, así pueden asomarse un poco sobre el borde. */}
@@ -159,13 +164,13 @@ function Login({ onLogin }) {
               <path d="M0,82 C18,62 40,70 58,64 C76,58 88,66 100,58 L100,100 L0,100 Z" fill="#A9BDDB" opacity="0.6" />
             </svg>
             <svg className="absolute bottom-0 left-0 w-full h-14 lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <path d="M0,34 C12,6 26,68 46,38 C64,12 80,64 100,26" fill="none" stroke="#0284c7" strokeOpacity="0.7" strokeWidth="2" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
-              <path d="M0,100 L0,58 C12,30 26,92 46,62 C64,36 80,88 100,50 L100,100 Z" fill="#ffffff" />
+              <path d="M0,34 C12,6 26,68 46,38 C64,12 80,64 100,26" fill="none" stroke="#0284c7" strokeOpacity="0.85" strokeWidth="2" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
+              <path d="M0,100 L0,58 C12,30 26,92 46,62 C64,36 80,88 100,50 L100,100 Z" fill="#1e3a8a" />
             </svg>
             {/* Onda como la del modelo: arriba el blanco entra mucho a la derecha y baja en dos curvas. */}
             <svg className="absolute inset-0 hidden lg:block w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <path d="M0,0 L76,0 C62,4 42,9 40,21 C38,33 54,37 52,48 C50,59 31,61 29,73 C27,85 22,93 13,100 L0,100 Z" fill="#ffffff" />
-              <path d="M61,0 C48,4 28,9 26,21 C24,33 40,37 38,48 C36,59 17,61 15,73 C13,85 9,93 3,100" fill="none" stroke="#0284c7" strokeOpacity="0.7" strokeWidth="2" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
+              <path d="M0,0 L76,0 C62,4 42,9 40,21 C38,33 54,37 52,48 C50,59 31,61 29,73 C27,85 22,93 13,100 L0,100 Z" fill="#1e3a8a" />
+              <path d="M61,0 C48,4 28,9 26,21 C24,33 40,37 38,48 C36,59 17,61 15,73 C13,85 9,93 3,100" fill="none" stroke="#0284c7" strokeOpacity="0.85" strokeWidth="2" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
             </svg>
             <Suspense fallback={null}>
               <ParabaPosada
@@ -174,24 +179,25 @@ function Login({ onLogin }) {
                 className="absolute inset-0"
               />
             </Suspense>
-            <p className="absolute bottom-2 right-4 text-[11px] text-slate-600/80">© {new Date().getFullYear()} UABJB</p>
+            <p className="absolute bottom-2 right-4 hidden lg:block text-[11px] text-slate-600/80">© {new Date().getFullYear()} UABJB</p>
           </div>
 
           {/* Formulario: centrado en el alto del modal; los mensajes de error tienen su lugar reservado,
               así que al aparecer no mueven nada. */}
           <div className="relative z-10 flex-1 lg:flex-none lg:w-[52%] flex flex-col sm:justify-center px-6 sm:px-12 lg:px-12 pt-8 pb-10 lg:py-10">
             <div className="w-full max-w-sm mx-auto">
-              <div className="flex flex-col items-center text-center">
-                <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-24 w-auto" />
-                <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Universidad Autónoma del Beni "José Ballivián"</p>
-                <h1 className="mt-5 text-3xl font-extrabold tracking-tight text-slate-900">Iniciar sesión</h1>
-                <span className="mt-3 block h-1 w-10 rounded-full bg-sky-600" aria-hidden="true" />
+              <div className="flex flex-col items-center text-center lg:pt-8">
+                <div className="lg:hidden flex h-24 w-24 items-center justify-center rounded-full bg-white shadow-[0_10px_24px_rgba(0,0,0,0.2)]">
+                  <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-16 w-auto" />
+                </div>
+                <h1 className="mt-5 lg:mt-0 text-3xl font-extrabold tracking-tight text-white">Iniciar sesión</h1>
+                <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-sky-200/80">Universidad Autónoma del Beni "José Ballivián"</p>
               </div>
 
               <form onSubmit={handleSubmit} noValidate className="mt-8">
                 {/* Usuario */}
-                <label htmlFor="login-usuario" className="block mb-1.5 text-sm font-semibold text-slate-700">Usuario o correo</label>
-                <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-1 focus-within:ring-slate-300 focus-within:shadow-[0_0_0_4px_#DFE8F5] ${anilloCampo(errorUsuario)} ${reboteUsuario ? 'login-rebote' : ''}`}>
+                <label htmlFor="login-usuario" className="block mb-1.5 text-sm font-semibold text-blue-100">Usuario o correo</label>
+                <div className={`login-campo relative rounded-xl bg-white ring-inset transition-shadow focus-within:shadow-[0_0_0_4px_rgba(125,211,252,0.35)] ${anilloCampo(errorUsuario)} ${reboteUsuario ? 'login-rebote' : ''}`}>
                   <input
                     id="login-usuario"
                     type="text"
@@ -211,8 +217,8 @@ function Login({ onLogin }) {
                 </div>
 
                 {/* Contraseña */}
-                <label htmlFor="login-contrasena" className="block mb-1.5 text-sm font-semibold text-slate-700">Contraseña</label>
-                <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-1 focus-within:ring-slate-300 focus-within:shadow-[0_0_0_4px_#DFE8F5] ${anilloCampo(errorContrasena)} ${reboteContrasena ? 'login-rebote' : ''}`}>
+                <label htmlFor="login-contrasena" className="block mb-1.5 text-sm font-semibold text-blue-100">Contraseña</label>
+                <div className={`login-campo relative rounded-xl bg-white ring-inset transition-shadow focus-within:shadow-[0_0_0_4px_rgba(125,211,252,0.35)] ${anilloCampo(errorContrasena)} ${reboteContrasena ? 'login-rebote' : ''}`}>
                   <input
                     id="login-contrasena"
                     type="text"
@@ -238,7 +244,7 @@ function Login({ onLogin }) {
                 <div className="min-h-[1.75rem]">
                   <MensajeErrorCampo error={errores.password} pulse={pulso} tono={TONO_ERROR} />
                   {avisoContrasena && (
-                    <p className="login-aviso mt-1 flex items-center gap-1.5 text-xs font-medium text-red-700" role="alert">
+                    <p className="login-aviso mt-1 flex items-center gap-1.5 text-xs font-medium text-red-300" role="alert">
                       <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
                       {loginError}
                     </p>
@@ -250,11 +256,11 @@ function Login({ onLogin }) {
                   <button
                     type="submit"
                     disabled={loading || isExiting}
-                    className="group inline-flex w-44 items-center justify-between h-11 pl-5 pr-1.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white text-sm font-semibold shadow-[0_6px_14px_rgba(30,58,138,0.2)] transition-colors focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-900/30 disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="group inline-flex w-44 items-center justify-between h-11 pl-5 pr-1.5 rounded-xl bg-white hover:bg-sky-50 text-blue-900 text-sm font-bold shadow-[0_8px_20px_rgba(0,0,0,0.22)] transition-colors focus:outline-none focus-visible:ring-4 focus-visible:ring-sky-300/50 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <>
-                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                        <svg className="animate-spin h-4 w-4 text-blue-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
@@ -263,7 +269,7 @@ function Login({ onLogin }) {
                     ) : (
                       <>
                         <span>Ingresar</span>
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-900 text-white">
                           <ArrowRight className="h-4 w-4 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5" aria-hidden="true" />
                         </span>
                       </>
@@ -271,6 +277,7 @@ function Login({ onLogin }) {
                   </button>
                 </div>
               </form>
+              <p className="mt-8 text-center text-[11px] text-blue-200/70 lg:hidden">© {new Date().getFullYear()} UABJB</p>
             </div>
 
           </div>
@@ -317,7 +324,7 @@ function Login({ onLogin }) {
           -webkit-text-fill-color: #0f172a !important;
         }
         .login-escena .login-input:-webkit-autofill {
-          -webkit-box-shadow: 0 0 0 1000px #F7F9FD inset !important;
+          -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
           transition: background-color 9999s ease-out 0s;
         }
         .login-escena .login-campo:focus-within .login-input:-webkit-autofill {

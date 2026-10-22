@@ -27,8 +27,8 @@ import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // Azul (#1718d0) y dorado (#c9b810) del logo de la UAB, en tres tonos de azul y un dorado algo más claro.
 const AZUL = '#2f4fd8';
-const AZUL_CLARO = '#4f7ae8';
-const AZUL_OSCURO = '#1a26a8';
+const AZUL_CLARO = '#7aa8f7'; // cobijas del ala: claras, para que el ala se distinga del cuerpo
+const AZUL_OSCURO = '#141d8a';
 const DORADO = '#f0cd36';
 const DORADO_OSCURO = '#d9a91f';
 const NEGRO = '#1b1b1f';
@@ -231,10 +231,10 @@ function crearAve({ giro = GIRO_BASE, cria = false } = {}) {
 
   const izquierda = crearAla();
   const largoAla = cria ? 1 : 1.18; // la mamá, de alas largas
-  izquierda.ala.position.set(forma.radio - 0.04, forma.ala, 0.06);
+  izquierda.ala.position.set(forma.radio + 0.03, forma.ala, 0.06); // un poco despegada del cuerpo
   izquierda.ala.scale.setScalar(largoAla);
   const derecha = crearAla();
-  derecha.ala.position.set(-(forma.radio - 0.04), forma.ala, 0.06);
+  derecha.ala.position.set(-(forma.radio + 0.03), forma.ala, 0.06);
   derecha.ala.scale.set(-largoAla, largoAla, largoAla);
   cuerpo.add(izquierda.ala, derecha.ala);
   partes.alaIzq = izquierda;
@@ -442,7 +442,8 @@ function poseObjetivo(estado, t, seguimiento) {
   const pose = { ...POSE_BASE, ...(POSES[estado] || {}) };
   // La cabeza sigue el texto: al alargarse, el cursor se acerca al ave.
   if (estado.startsWith('mirando')) pose.yaw += (seguimiento - 0.5) * 0.3;
-  if (estado === 'reposo') {
+  // Mientras nadie escribe (campos vacíos o ya llenos, por ejemplo autocompletados), sigue su ciclo.
+  if (estado === 'reposo' || estado === 'atento') {
     const c = t % CICLO;
     for (const accion of ACCIONES) {
       const peso = ventana(c, accion.desde, accion.hasta);
@@ -536,7 +537,7 @@ function movimientoDirecto(estado, t) {
     aplastar: 0,
     ojo: 1,
   };
-  if (estado === 'reposo') {
+  if (estado === 'reposo' || estado === 'atento') {
     const c = t % CICLO;
     m.pitch = 0.13 * ventana(c, 5.7, 7.8, 0.3) * Math.sin(2 * Math.PI * 3 * t);
     // Saltito: se agacha, sube y cae aplastándose un poco.
@@ -672,8 +673,8 @@ function ParabaPosada({ estado = 'reposo', seguimiento = 0, className = '' }) {
         ave.cuello.position.y = ave.alturaCuello * ave.cuerpo.scale.y + d.cabezaY;
         ave.cuello.rotation.set(a.pitch + d.pitch, a.yaw, a.roll);
         // Al abrir, el ala sube hacia atrás y se separa del cuerpo.
-        ave.alaIzq.ala.rotation.set(0.9 * a.alaIzq, 0, -0.16 + 1.0 * a.alaIzq + aleteo);
-        ave.alaDer.ala.rotation.set(0.9 * a.alaDer, 0, -0.16 + 1.0 * a.alaDer + aleteo);
+        ave.alaIzq.ala.rotation.set(0.9 * a.alaIzq, 0, -0.04 + 1.0 * a.alaIzq + aleteo);
+        ave.alaDer.ala.rotation.set(0.9 * a.alaDer, 0, -0.04 + 1.0 * a.alaDer + aleteo);
         ave.alaIzq.primarias.forEach((p, i) => {
           p.scale.setScalar(Math.max(0.001, a.abanico));
           p.rotation.z = -i * 0.25 * a.abanico;

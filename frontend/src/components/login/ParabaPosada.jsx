@@ -1,16 +1,16 @@
 import { useEffect, useRef } from 'react';
 import {
   BufferGeometry, CanvasTexture, CapsuleGeometry, CatmullRomCurve3, Color, CylinderGeometry, DirectionalLight,
-  ExtrudeGeometry, Float32BufferAttribute, Group, HemisphereLight, IcosahedronGeometry, Mesh, MeshBasicMaterial,
+  DoubleSide, ExtrudeGeometry, Float32BufferAttribute, Group, HemisphereLight, IcosahedronGeometry, Mesh, MeshBasicMaterial,
   MeshLambertMaterial, NoToneMapping, PerspectiveCamera, PlaneGeometry, Scene, Shape, SphereGeometry, SRGBColorSpace,
   Vector3, WebGLRenderer,
 } from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-// Paraba 3D (Three.js) de estilo tierno, con sombreado suave y mate, en los colores del logo de la
-// UAB: cuerpo y cabeza rojos, mancha blanca en la cara con un ojo grande a cada lado, pico grande en
-// gancho (dorado arriba, negro abajo), alas con franja dorada y plumas largas azules, cola larga en
-// punta y patas grises agarradas a una rama natural con hojas. Reacciona al login:
+// Paraba barba azul (la del Beni) en 3D (Three.js), de estilo tierno, con sombreado suave y mate, en
+// el azul y el dorado del logo de la UAB: cabeza, espalda, alas y cola azules, pecho dorado, garganta
+// azul oscuro, mancha blanca con rayitas en la cara y un ojo grande a cada lado, pico negro en gancho,
+// cola larga en punta y patas grises agarradas a una rama natural con hojas. Reacciona al login:
 //   reposo              nada escrito ni enfocado: parpadea; mira a los lados, se acicala el ala, la
 //                       estira, se esponja, levanta una pata y da un saltito.
 //   mirando-usuario     escribiendo el usuario: se inclina un poco hacia el campo.
@@ -21,12 +21,14 @@ import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 // pose (sin saltos entre estados) más un movimiento continuo: respira, se balancea y la cola sigue con
 // retraso. Con prefers-reduced-motion toma la pose de cada estado sin animar.
 
-// Colores del logo de la UAB (rojo #f20b0d, azul #1718d0, dorado #c9b810), apenas suavizados.
-const ROJO = '#e8262b';
-const ROJO_CLARO = '#ff5a4f';
-const AZUL = '#2a3fd6';
-const DORADO = '#e2c62c';
+// Azul (#1718d0) y dorado (#c9b810) del logo de la UAB, en tres tonos de azul y un dorado algo más claro.
+const AZUL = '#2f4fd8';
+const AZUL_CLARO = '#4f7ae8';
+const AZUL_OSCURO = '#1a26a8';
+const DORADO = '#f0cd36';
+const DORADO_OSCURO = '#d9a91f';
 const NEGRO = '#1b1b1f';
+const PICO = '#26262c';
 const BLANCO = '#ffffff';
 const GRIS = '#4b5b5e';
 const CORTEZA = '#8a5a3a';
@@ -94,6 +96,20 @@ function tuboAfinado(puntos, radioBase, radioPunta, { ancho = 1, alto = 1, pinta
       indices.push(k, k + lados + 1, k + 1, k + lados + 1, k + lados + 2, k + 1);
     }
   }
+  // Tapas en la base y en la punta, para que el tubo no se vea hueco desde ningún lado.
+  for (const [u, anillo] of [[0, 0], [1, pasos]]) {
+    const centro = curva.getPointAt(u);
+    const indiceCentro = posiciones.length / 3;
+    posiciones.push(centro.x, centro.y, centro.z);
+    if (pintar) {
+      c.set(pintar(u));
+      colores.push(c.r, c.g, c.b);
+    }
+    for (let j = 0; j < lados; j += 1) {
+      const k = anillo * (lados + 1) + j;
+      indices.push(indiceCentro, k, k + 1);
+    }
+  }
   const g = new BufferGeometry();
   g.setAttribute('position', new Float32BufferAttribute(posiciones, 3));
   if (pintar) g.setAttribute('color', new Float32BufferAttribute(colores, 3));
@@ -107,28 +123,28 @@ function crearAla() {
   const plano = new Group();
   plano.rotation.set(-0.75, Math.PI / 2, 0); // pegada al costado, con la punta hacia atrás y abajo
   ala.add(plano);
-  // Tres capas como en la paraba: plumas largas azules, franja dorada y cobijas rojas arriba.
+  // Tres capas como en la paraba barba azul: plumas largas azul oscuro, azul medio y cobijas claras arriba.
   const azul = new Mesh(lamina((s) => {
     s.moveTo(-0.1, 0.06);
     s.bezierCurveTo(0.3, 0.16, 0.8, -0.1, 1.05, -0.6);
     s.bezierCurveTo(0.8, -0.5, 0.4, -0.5, 0.1, -0.42);
     s.bezierCurveTo(-0.08, -0.36, -0.16, -0.15, -0.1, 0.06);
-  }, 0.03, 0.03), material(AZUL));
-  const dorado = new Mesh(lamina((s) => {
+  }, 0.03, 0.03), material(AZUL_OSCURO));
+  const medio = new Mesh(lamina((s) => {
     s.moveTo(-0.11, 0.0);
     s.bezierCurveTo(0.2, 0.08, 0.5, -0.02, 0.66, -0.26);
     s.bezierCurveTo(0.5, -0.36, 0.2, -0.36, 0.0, -0.32);
     s.bezierCurveTo(-0.12, -0.24, -0.14, -0.1, -0.11, 0.0);
-  }, 0.03, 0.025), material(DORADO));
-  dorado.position.z = 0.035;
-  const rojo = new Mesh(lamina((s) => {
+  }, 0.03, 0.025), material(AZUL));
+  medio.position.z = 0.035;
+  const claro = new Mesh(lamina((s) => {
     s.moveTo(-0.1, 0.06);
     s.bezierCurveTo(0.15, 0.13, 0.36, 0.06, 0.44, -0.1);
     s.bezierCurveTo(0.3, -0.18, 0.1, -0.2, -0.04, -0.16);
     s.bezierCurveTo(-0.13, -0.1, -0.14, 0.0, -0.1, 0.06);
-  }, 0.03, 0.025), material(ROJO));
-  rojo.position.z = 0.065;
-  plano.add(azul, dorado, rojo);
+  }, 0.03, 0.025), material(AZUL_CLARO));
+  claro.position.z = 0.065;
+  plano.add(azul, medio, claro);
   // Plumas largas que asoman detrás al estirar el ala.
   const primarias = [];
   for (let i = 0; i < 3; i += 1) {
@@ -139,7 +155,7 @@ function crearAla() {
       s.lineTo(0, 0.06);
       s.quadraticCurveTo(0.5, 0.07, 0.6, 0);
       s.quadraticCurveTo(0.5, -0.07, 0, -0.06);
-    }, 0.02, 0.02), material(AZUL));
+    }, 0.02, 0.02), material(AZUL_OSCURO));
     pluma.rotation.z = -0.6;
     eje.add(pluma);
     eje.scale.setScalar(0.001);
@@ -163,19 +179,21 @@ function crearAve() {
   partes.cuerpo = cuerpo;
 
   // Cuerpo de pera, liso: ancho abajo y angosto en el cuello, que sigue dentro de la cabeza.
-  // Rojo, con la panza un poco más clara.
+  // Pecho y panza dorados al frente; espalda y hombros azules.
   const geoCuerpo = new IcosahedronGeometry(1, 5);
   const p = geoCuerpo.attributes.position;
   const colores = new Float32Array(p.count * 3);
-  const rojo = new Color(ROJO);
-  const claro = new Color(ROJO_CLARO);
+  const azul = new Color(AZUL);
+  const dorado = new Color(DORADO);
+  const doradoOscuro = new Color(DORADO_OSCURO);
   const c = new Color();
   for (let i = 0; i < p.count; i += 1) {
     const [x, y, z] = [p.getX(i), p.getY(i), p.getZ(i)];
     const radio = 0.56 - (0.17 * Math.max(0, y + 0.2)) / 1.2;
     p.setXYZ(i, x * radio, 0.95 + y * 0.64, z * radio * 1.08);
-    const panza = Math.min(1, Math.max(0, (z - 0.2) / 0.6)) * Math.min(1, Math.max(0, (0.4 - y) / 0.6));
-    c.copy(rojo).lerp(claro, panza * 0.55);
+    const frente = Math.min(1, Math.max(0, (z - 0.12) / 0.3)) * Math.min(1, Math.max(0, (0.82 - y) / 0.2));
+    c.copy(dorado).lerp(doradoOscuro, Math.max(0, -y) * 0.6);
+    c.lerp(azul, 1 - frente);
     colores.set([c.r, c.g, c.b], i * 3);
   }
   geoCuerpo.setAttribute('color', new Float32BufferAttribute(colores, 3));
@@ -185,7 +203,7 @@ function crearAve() {
   // Plumas sueltas que asoman al esponjarse.
   partes.plumon = [];
   for (const [x, y, z] of [[0.48, 0.7, 0.24], [-0.48, 0.7, 0.24], [0.52, 0.98, -0.12], [-0.52, 0.98, -0.12], [0, 0.5, 0.56], [0.28, 1.2, 0.36], [-0.28, 1.2, 0.36]]) {
-    const m = esfera([0.08, 0.055, 0.05], ROJO, 12);
+    const m = esfera([0.08, 0.055, 0.05], z > 0.3 ? DORADO : AZUL, 12);
     m.position.set(x, y, z);
     m.lookAt(x * 3, y, z * 3);
     const envoltura = new Group();
@@ -204,10 +222,10 @@ function crearAve() {
   partes.alaIzq = izquierda;
   partes.alaDer = derecha;
 
-  // Cola larga en punta, más larga que el cuerpo: roja con la punta azul.
+  // Cola larga en punta, más larga que el cuerpo: azul, más oscura hacia la punta.
   const cola = new Group();
   cola.position.set(0, 0.5, -0.4);
-  const colorCola = (u) => (u < 0.62 ? ROJO : AZUL);
+  const colorCola = (u) => new Color(AZUL).lerp(new Color(AZUL_OSCURO), u).getStyle();
   for (const [x, giro, largo] of [[-0.07, -0.14, 0.88], [0, 0, 1], [0.07, 0.14, 0.88]]) {
     const geo = tuboAfinado(
       [[0, 0, 0], [0, -0.38 * largo, -0.32], [0, -0.88 * largo, -0.56], [0, -1.4 * largo, -0.7]],
@@ -221,13 +239,13 @@ function crearAve() {
   cuerpo.add(cola);
   partes.cola = cola;
 
-  // Cabeza redonda y roja.
+  // Cabeza redonda y azul.
   const cuello = new Group();
   cuello.position.set(0, 1.42, 0.05);
   cuello.rotation.order = 'YXZ';
   orientacion.add(cuello);
   partes.cuello = cuello;
-  const cabeza = esfera([0.5, 0.48, 0.51], ROJO, 40);
+  const cabeza = esfera([0.5, 0.48, 0.51], AZUL, 40);
   cabeza.position.set(0, 0.26, 0);
   cuello.add(cabeza);
 
@@ -239,6 +257,13 @@ function crearAve() {
     cara.position.set(Math.sin(angulo) * 0.47 * lado, 0.24, Math.cos(angulo) * 0.47);
     cara.rotation.y = angulo * lado;
     const mancha = esfera([0.22, 0.2, 0.07], BLANCO);
+    // Rayitas de plumas oscuras en la mancha blanca, como la de la paraba.
+    for (let k = 0; k < 3; k += 1) {
+      const raya = esfera([0.07, 0.008, 0.01], AZUL_OSCURO, 10);
+      raya.position.set(-0.05 * lado, -0.09 - k * 0.035, 0.065);
+      raya.rotation.z = 0.25 * lado;
+      cara.add(raya);
+    }
     const ojo = new Group();
     ojo.position.set(0.02 * lado, 0.03, 0.06);
     const disco = new Mesh(new CylinderGeometry(0.095, 0.095, 0.04, 28), material(NEGRO));
@@ -251,22 +276,25 @@ function crearAve() {
     partes.ojos.push({ ojo });
   }
 
-  // Pico grande de paraba: superior dorado en gancho y mandíbula negra.
+  // Pico negro de paraba, en gancho, y la garganta azul oscuro (la "barba").
   const superior = new Mesh(
-    tuboAfinado([[0, 0.3, 0.38], [0, 0.36, 0.56], [0, 0.26, 0.72], [0, 0.08, 0.74], [0, -0.04, 0.64]], 0.2, 0.02, { alto: 0.85 }),
-    material(DORADO),
+    tuboAfinado([[0, 0.28, 0.4], [0, 0.32, 0.54], [0, 0.24, 0.66], [0, 0.1, 0.68], [0, 0.01, 0.6]], 0.15, 0.02, { alto: 0.8 }),
+    material(PICO, { side: DoubleSide }),
   );
   const inferior = new Mesh(
-    tuboAfinado([[0, 0.1, 0.4], [0, 0.03, 0.55], [0, 0, 0.6]], 0.15, 0.05, { alto: 0.9 }),
-    material(NEGRO),
+    tuboAfinado([[0, 0.12, 0.42], [0, 0.07, 0.52], [0, 0.05, 0.56]], 0.11, 0.04, { alto: 0.85 }),
+    material(NEGRO, { side: DoubleSide }),
   );
-  cuello.add(superior, inferior);
+  const barba = esfera([0.2, 0.12, 0.1], AZUL_OSCURO);
+  barba.position.set(0, 0.02, 0.36);
+  cuello.add(superior, inferior, barba);
 
-  // Patas grises agarradas a la rama: dos dedos adelante y dos atrás, como las parabas.
+  // Patas grises agarradas a la rama: dos dedos adelante y dos atrás, como las parabas. No giran con
+  // el ave: quedan siempre sobre la rama, una al lado de la otra.
   partes.patas = [];
-  for (const x of [0.17, -0.17]) {
+  for (const x of [0.15, -0.15]) {
     const pata = new Group();
-    pata.position.set(x, 0, 0.04);
+    pata.position.set(x, 0.03, 0);
     const pierna = new Mesh(new CylinderGeometry(0.05, 0.06, 0.3, 12), material(GRIS));
     pierna.position.y = 0.17;
     pata.add(pierna);
@@ -279,7 +307,7 @@ function crearAve() {
       brazo.add(dedo);
       pata.add(brazo);
     }
-    orientacion.add(pata);
+    inclinacion.add(pata);
     partes.patas.push(pata);
   }
   return partes;
@@ -436,7 +464,7 @@ function ParabaPosada({ estado = 'reposo', seguimiento = 0, className = '' }) {
 
     // Luz pareja y suave: volumen sin sombras duras.
     const escena = new Scene();
-    escena.add(new HemisphereLight('#ffffff', '#e6e1cf', 2.1));
+    escena.add(new HemisphereLight('#ffffff', '#cbd8f3', 2.1)); // abajo celeste, como el panel
     const clave = new DirectionalLight('#fffaf2', 1.3);
     clave.position.set(-2, 5, 3);
     escena.add(clave);
@@ -513,7 +541,7 @@ function ParabaPosada({ estado = 'reposo', seguimiento = 0, className = '' }) {
       });
       ave.alaDer.primarias.forEach((p) => p.scale.setScalar(Math.max(0.001, a.abanico * 0.4)));
       ave.cola.rotation.set(a.colaAlza, 0, a.colaGiro + d.cola);
-      ave.patas[1].position.y = 0.2 * a.pata;
+      ave.patas[1].position.y = 0.03 + 0.2 * a.pata;
       ave.patas[1].rotation.x = -0.5 * a.pata;
       // Ojo cerrado: el disco se aplasta hasta una rayita.
       const abierto = Math.max(0, Math.min(1, a.ojo * d.ojo));

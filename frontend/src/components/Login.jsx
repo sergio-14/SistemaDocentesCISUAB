@@ -146,7 +146,7 @@ function Login({ onLogin }) {
   const avisoContrasena = !errores.password && loginError;
 
   return (
-    <div className={`login-escena min-h-screen w-full flex items-center justify-center overflow-hidden bg-slate-100 sm:p-6 lg:p-10 font-sans text-slate-800 ${isExiting ? 'login-salida' : ''}`}>
+    <div className={`login-escena min-h-screen w-full flex items-center justify-center overflow-hidden bg-[#eaf0fb] sm:p-6 lg:p-10 font-sans text-slate-800 ${isExiting ? 'login-salida' : ''}`}>
       {/* --logo-alto: más alto que el modal pero dentro de la pantalla. El logo mide 722 × 629, así que
           su media anchura es 0,574 × alto: ese espacio se deja a la izquierda para que su mitad entre. */}
       <div
@@ -158,7 +158,7 @@ function Login({ onLogin }) {
           src="/images/LOGOUAB.png"
           alt=""
           aria-hidden="true"
-          className="pointer-events-none select-none absolute left-0 top-1/2 -translate-y-1/2 w-auto max-w-none opacity-[0.12] hidden xl:block"
+          className="pointer-events-none select-none absolute left-0 top-1/2 -translate-y-1/2 w-auto max-w-none opacity-[0.22] hidden xl:block"
           style={{ height: 'var(--logo-alto)' }}
         />
 
@@ -167,13 +167,13 @@ function Login({ onLogin }) {
             src="/images/LOGOUAB.png"
             alt=""
             aria-hidden="true"
-            className="pointer-events-none select-none absolute top-1/2 -translate-y-1/2 w-auto max-w-none opacity-[0.1] hidden xl:block"
+            className="pointer-events-none select-none absolute top-1/2 -translate-y-1/2 w-auto max-w-none opacity-[0.14] hidden xl:block"
             style={{ height: 'var(--logo-alto)', left: 'calc(var(--logo-alto) * -0.574)' }}
           />
 
           {/* Panel del guacamayo: a la derecha con borde ondulado; en celular, arriba. El ave va encima de
               la onda, así puede asomarse un poco sobre el borde. */}
-          <div className="relative h-60 sm:h-72 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[54%] flex-shrink-0 bg-[radial-gradient(circle_at_72%_42%,#ffffff_0%,#eaf0f9_42%,#d8e3f2_100%)]" aria-hidden="true">
+          <div className="relative h-60 sm:h-72 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[54%] flex-shrink-0 bg-[radial-gradient(circle_at_70%_40%,rgba(240,205,54,0.28)_0%,rgba(240,205,54,0)_32%),linear-gradient(160deg,#eef3ff_0%,#d9e5fb_100%)]" aria-hidden="true">
             <svg className="absolute bottom-0 left-0 w-full h-14 lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none">
               <path d="M0,34 C12,6 26,68 46,38 C64,12 80,64 100,26" fill="none" stroke="#94a3b8" strokeOpacity="0.8" strokeWidth="1.5" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
               <path d="M0,100 L0,58 C12,30 26,92 46,62 C64,36 80,88 100,50 L100,100 Z" fill="#ffffff" />
@@ -196,6 +196,7 @@ function Login({ onLogin }) {
               así que al aparecer no mueven nada. */}
           <div className="relative z-10 flex-1 lg:flex-none lg:w-[54%] flex flex-col sm:justify-center px-6 sm:px-12 lg:px-12 pt-8 pb-14 lg:py-10">
             <div className="w-full max-w-sm">
+              <span className="block h-1 w-10 rounded-full bg-[#f0cd36] mb-4" aria-hidden="true" />
               <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Iniciar sesión</h1>
               <p className="mt-2 text-base text-slate-600">Universidad Autónoma del Beni "José Ballivián"</p>
 

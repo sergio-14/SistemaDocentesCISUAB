@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { API_URL } from '../apis/apiConfig';
 import { MENSAJE_REVISA_CAMPOS, useErrorPulse } from '../utils/formErrors';
 import MensajeErrorCampo from './common/MensajeErrorCampo';
-import { AlertCircle, ArrowRight, Eye, EyeOff, Film, Sparkles, User } from 'lucide-react';
+import { AlertCircle, ArrowRight, Eye, EyeOff, User } from 'lucide-react';
 
 // El guacamayo en 3D (Three.js) se carga aparte: solo lo descarga quien abre el login.
 const ParabaPosada = lazy(() => import('./login/ParabaPosada'));
@@ -170,13 +170,8 @@ function Login({ onLogin }) {
 
   return (
     <div className={`login-escena min-h-screen w-full flex items-center justify-center overflow-hidden bg-azulado-100 sm:p-6 lg:p-10 font-sans text-slate-800 ${isExiting ? 'login-salida' : ''}`}>
-      <div className="relative w-full max-w-5xl lg:mt-12">
-        {/* Logo de la UAB en un medallón blanco montado sobre la esquina de arriba a la izquierda de la
-            tarjeta; en celular va en el encabezado del formulario. */}
-        <div className="login-tarjeta absolute z-20 left-[4.6rem] -top-12 hidden lg:flex h-32 w-32 items-center justify-center rounded-full bg-white ring-[6px] ring-azulado-100 shadow-[0_12px_30px_rgba(15,23,42,0.16)]">
-          <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-24 w-auto" />
-        </div>
-        <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[560px] flex flex-col lg:flex-row bg-white sm:rounded-3xl sm:ring-1 sm:ring-azulado-300 overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
+      <div className="relative w-full max-w-5xl">
+        <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[min(680px,calc(100vh-5rem))] flex flex-col lg:flex-row bg-white sm:rounded-3xl sm:ring-1 sm:ring-azulado-300 overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
           {/* Panel de las parabas: a la derecha, hasta la línea punteada; en celular, arriba. Muestra la
               animación 3D o los videos (el interruptor de arriba cambia entre los dos con un fundido). */}
           <div className="relative h-60 sm:h-72 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[56%] flex-shrink-0 bg-[linear-gradient(170deg,#EEF3FA_0%,#DFE8F5_48%,#B8C9E1_100%)]">
@@ -214,43 +209,41 @@ function Login({ onLogin }) {
               </Suspense>
             </div>
 
-            <div role="group" aria-label="Qué mostrar junto al formulario" className="absolute top-4 right-4 z-20 flex rounded-full bg-white/85 p-1 ring-1 ring-azulado-300 shadow-sm backdrop-blur">
-              {[
-                ['animacion', 'Animación', Sparkles],
-                ['video', 'Video', Film],
-              ].map(([valor, texto, Icono]) => (
-                <button
-                  key={valor}
-                  type="button"
-                  aria-pressed={escena === valor}
-                  onClick={() => cambiarEscena(valor)}
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40 ${escena === valor ? 'bg-blue-900 text-white' : 'text-blue-900 hover:bg-azulado-100'}`}
-                >
-                  <Icono className="h-3.5 w-3.5" aria-hidden="true" />
-                  {texto}
-                </button>
-              ))}
-            </div>
+            {/* Interruptor discreto: animación (apagado) o video (encendido). */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={escena === 'video'}
+              aria-label="Mostrar video de parabas"
+              title={escena === 'video' ? 'Ver animación' : 'Ver video'}
+              onClick={() => cambiarEscena(escena === 'video' ? 'animacion' : 'video')}
+              className="absolute top-4 right-4 z-20 h-5 w-9 rounded-full bg-white/55 ring-1 ring-white/70 shadow-sm backdrop-blur transition-colors hover:bg-white/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40"
+            >
+              <span className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-blue-900/70 shadow transition-transform duration-300 ${escena === 'video' ? 'translate-x-4' : ''}`} />
+            </button>
             <p className={`absolute bottom-2 right-4 z-20 hidden lg:block text-[11px] transition-colors ${escena === 'video' ? 'text-white/85' : 'text-slate-600/80'}`}>© {new Date().getFullYear()} UABJB</p>
           </div>
 
           {/* Formulario: los mensajes de error tienen su lugar reservado, así que al aparecer no mueven nada. */}
-          <div className="relative z-10 flex-1 lg:flex-none lg:w-[52%] flex flex-col sm:justify-center lg:justify-start px-6 sm:px-12 lg:px-12 pt-8 pb-10 lg:pt-6 lg:pb-8">
-            <div className="w-full max-w-sm mx-auto">
-              {/* Al lado del medallón (en escritorio) o del logo (en celular), el nombre de la universidad. */}
-              <div className="flex items-center gap-3 lg:min-h-[3.5rem] lg:pl-[8.75rem]">
-                <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-16 w-auto lg:hidden" />
+          <div className="relative z-10 flex-1 lg:flex-none lg:w-[52%] flex flex-col px-6 sm:px-12 lg:px-14 pt-8 pb-8 lg:py-12">
+            <div className="w-full max-w-sm mx-auto flex flex-1 flex-col">
+              {/* Membrete: el logo grande, una línea y el nombre de la universidad. */}
+              <div className="flex items-center gap-4">
+                <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-20 w-auto" />
+                <span className="h-14 w-px bg-azulado-300" aria-hidden="true" />
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Universidad Autónoma del Beni</p>
-                  <p className="text-sm font-semibold text-blue-900">"José Ballivián"</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Universidad Autónoma del Beni</p>
+                  <p className="mt-0.5 text-base font-bold text-blue-900">"José Ballivián"</p>
                 </div>
               </div>
-              <h1 className="mt-8 lg:mt-10 text-3xl font-extrabold tracking-tight text-blue-900">Iniciar sesión</h1>
-              <p className="mt-1.5 text-sm text-slate-500">Ingresa con tu usuario o correo institucional.</p>
 
-              <form onSubmit={handleSubmit} noValidate className="mt-6">
+              <div className="my-auto pt-10 lg:pt-6">
+              <h1 className="text-4xl font-extrabold tracking-tight text-blue-900">Iniciar sesión</h1>
+              <p className="mt-2 text-base text-slate-500">Ingresa con tu usuario o correo institucional.</p>
+
+              <form onSubmit={handleSubmit} noValidate className="mt-8">
                 {/* Usuario */}
-                <label htmlFor="login-usuario" className="block mb-1.5 text-sm font-semibold text-blue-900">Usuario o correo</label>
+                <label htmlFor="login-usuario" className="block mb-2 text-sm font-semibold text-blue-900">Usuario o correo</label>
                 <div className={`login-campo relative rounded-2xl bg-azulado-50 ring-inset transition-shadow focus-within:bg-white focus-within:shadow-[0_0_0_4px_#DFE8F5] ${anilloCampo(errorUsuario)} ${reboteUsuario ? 'login-rebote' : ''}`}>
                   <input
                     id="login-usuario"
@@ -261,7 +254,7 @@ function Login({ onLogin }) {
                     onBlur={salirDelCampo}
                     onChange={(e) => { setUsername(e.target.value); setErrores((prev) => ({ ...prev, username: undefined })); }}
                     aria-invalid={Boolean(errorUsuario) || undefined}
-                    className="login-input block w-full h-12 bg-transparent pl-4 pr-12 text-base font-medium text-slate-900 focus:outline-none"
+                    className="login-input block w-full h-14 bg-transparent pl-5 pr-12 text-base font-medium text-slate-900 focus:outline-none"
                     autoComplete="username"
                   />
                   <User className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" aria-hidden="true" />
@@ -271,7 +264,7 @@ function Login({ onLogin }) {
                 </div>
 
                 {/* Contraseña */}
-                <label htmlFor="login-contrasena" className="block mb-1.5 text-sm font-semibold text-blue-900">Contraseña</label>
+                <label htmlFor="login-contrasena" className="block mb-2 text-sm font-semibold text-blue-900">Contraseña</label>
                 <div className={`login-campo relative rounded-2xl bg-azulado-50 ring-inset transition-shadow focus-within:bg-white focus-within:shadow-[0_0_0_4px_#DFE8F5] ${anilloCampo(errorContrasena)} ${reboteContrasena ? 'login-rebote' : ''}`}>
                   <input
                     id="login-contrasena"
@@ -282,7 +275,7 @@ function Login({ onLogin }) {
                     onBlur={salirDelCampo}
                     onChange={(e) => { setPassword(e.target.value); setErrores((prev) => ({ ...prev, password: undefined })); }}
                     aria-invalid={Boolean(errorContrasena) || undefined}
-                    className={`login-input ${showPassword ? '' : 'login-password-masked'} block w-full h-12 bg-transparent pl-4 pr-14 text-base font-medium text-slate-900 focus:outline-none`}
+                    className={`login-input ${showPassword ? '' : 'login-password-masked'} block w-full h-14 bg-transparent pl-5 pr-14 text-base font-medium text-slate-900 focus:outline-none`}
                     autoComplete="current-password"
                   />
                   <button
@@ -327,6 +320,7 @@ function Login({ onLogin }) {
                   </button>
                 </div>
               </form>
+              </div>
               <p className="mt-8 text-center text-[11px] text-slate-500 lg:hidden">© {new Date().getFullYear()} UABJB</p>
             </div>
 

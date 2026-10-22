@@ -82,13 +82,13 @@ class ImagenesEnMediaTests(MediaTestCase):
         self.assertEqual(self.perfil.foto_perfil.name, f'usuarios/usuario_{self.user.pk}/foto_perfil.png')
         self.assertTrue(self.perfil.tiene_foto_propia)
 
-    def test_sin_foto_propia_usa_logo_de_la_carrera(self):
+    def test_sin_foto_propia_no_usa_el_logo_de_la_carrera(self):
         self.carrera.set_logo_carrera(_subida())
         self.carrera.save()
         self.perfil.carrera = self.carrera
         self.perfil.save()
         self.assertFalse(self.perfil.tiene_foto_propia)
-        self.assertEqual(self.perfil.get_foto_perfil_data_uri(), self.carrera.get_logo_carrera_data_uri())
+        self.assertIsNone(self.perfil.get_foto_perfil_data_uri())
 
     def test_imagen_vacia_se_rechaza(self):
         from django.core.exceptions import ValidationError

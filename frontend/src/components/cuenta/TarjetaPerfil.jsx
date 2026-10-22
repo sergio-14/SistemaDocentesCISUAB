@@ -130,7 +130,7 @@ function TarjetaPerfil({ user, rol, carreras, ultimoIngresoIso, onProfileUpdate,
         <ModalConfirmar
           titulo="¿Eliminar foto de perfil?"
           etiqueta="Mi cuenta"
-          mensaje="Se mostrará la imagen predeterminada (o el logo de su carrera)."
+          mensaje="Se mostrará la imagen predeterminada."
           tono="peligro"
           textoAccion="Eliminar foto"
           textoTrabajando="Eliminando..."

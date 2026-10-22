@@ -1,6 +1,6 @@
 import fotoPredeterminada from '../../assets/logoPre.jpg';
 
-// Foto de perfil del usuario (la propia o el logo de su carrera); sin foto, o si no carga,
+// Foto de perfil del usuario (la propia); sin foto, o si no carga,
 // la imagen predeterminada. Solo muestra (cambiarla o eliminarla es en Mi cuenta) y se dibuja
 // igual que ProfilePicture: un círculo blanco con sombra que recorta la imagen.
 function FotoPerfil({ user }) {

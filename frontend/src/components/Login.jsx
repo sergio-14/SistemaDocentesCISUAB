@@ -1,12 +1,28 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import toast from 'react-hot-toast';
 import { API_URL } from '../apis/apiConfig';
-import { MENSAJE_REVISA_CAMPOS } from '../utils/formErrors';
+import toast from 'react-hot-toast';
+import { MENSAJE_REVISA_CAMPOS, useErrorPulse } from '../utils/formErrors';
 import MensajeErrorCampo from './common/MensajeErrorCampo';
+import { AlertCircle, Eye, EyeOff, User } from 'lucide-react';
+import { FcGoogle } from 'react-icons/fc';
+import { FaFacebook, FaInstagram, FaMicrosoft, FaXTwitter } from 'react-icons/fa6';
 
-const TONO_ERROR = 'text-red-200 font-semibold';
+// Los videos de parabas se cargan aparte: solo los descarga quien abre el login.
+const VideosParabas = lazy(() => import('./login/VideosParabas'));
+
+// Botones de redes debajo del formulario: por ahora solo visuales (no conectan con nada).
+const REDES = [
+  { nombre: 'Google', Icono: FcGoogle, color: '' },
+  { nombre: 'Microsoft', Icono: FaMicrosoft, color: 'text-sky-600' },
+  { nombre: 'Facebook', Icono: FaFacebook, color: 'text-[#1877F2]' },
+  { nombre: 'Instagram', Icono: FaInstagram, color: 'text-[#E1306C]' },
+  { nombre: 'X', Icono: FaXTwitter, color: 'text-slate-900' },
+];
+
+const TONO_ERROR = 'text-red-700';
+const MENSAJE_CREDENCIALES = 'Usuario o contraseña incorrectos.';
 
 function Login({ onLogin }) {
   const LOGIN_EXIT_DURATION = 1400;
@@ -94,7 +110,7 @@ function Login({ onLogin }) {
   } catch (err) {
     console.error(err);
     if (err.response?.status === 401) {
-      setLoginError('Usuario o contraseña incorrectos.');
+      setLoginError(MENSAJE_CREDENCIALES);
     } else if (err.response?.status === 500) {
       setLoginError('Error del servidor. Intenta más tarde.');
     } else if (!err.response) {
@@ -109,337 +125,233 @@ function Login({ onLogin }) {
   }
 };
 
+  // Solo el 401 marca los dos campos: los otros errores (servidor, conexión) no son de lo escrito.
+  const credencialesMal = loginError === MENSAJE_CREDENCIALES;
+  const errorUsuario = errores.username || (credencialesMal ? loginError : '');
+  const errorContrasena = errores.password || (credencialesMal ? loginError : '');
+  // Rebote de los campos en cada error (el mismo disparo que la sacudida del sistema).
+  const { isPulsing: reboteUsuario } = useErrorPulse(errorUsuario, pulso);
+  const { isPulsing: reboteContrasena } = useErrorPulse(errorContrasena, pulso);
+  // Campos con solo una línea abajo: gris, celeste al escribir y roja con error.
+  const anilloCampo = (conError) => (conError ? 'border-red-400' : 'border-slate-300 focus-within:border-sky-600');
+  // Al entrar a cualquiera de los dos campos se quita el rojo de ambos.
+  const limpiarErrores = () => {
+    setLoginError('');
+    setErrores({});
+  };
+  // Mensaje bajo la contraseña: el del campo o, si no hay, el del servidor.
+  const avisoContrasena = !errores.password && loginError;
+
   return (
-    <div className={`min-h-screen w-full flex items-center justify-center relative overflow-hidden font-sans text-slate-100 ${isExiting ? 'login-scene-exit' : ''}`}>
-      
-      {/* Background with Gradient and Shapes */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#0b1735] via-[#12224a] to-[#2a1f52]">
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden">
-            <div className="absolute top-[-10%] left-[-10%] w-[55%] h-[55%] rounded-full bg-blue-500/30 blur-[120px] animate-blob"></div>
-            <div className="absolute top-[18%] right-[-8%] w-[45%] h-[45%] rounded-full bg-indigo-500/28 blur-[120px] animate-blob animation-delay-2000"></div>
-            <div className="absolute bottom-[-12%] left-[18%] w-[45%] h-[45%] rounded-full bg-violet-500/28 blur-[120px] animate-blob animation-delay-4000"></div>
-        </div>
-        {/* Pattern overlay */}
-        <div className="absolute inset-0 opacity-[0.3]" style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236366f1' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-        }}></div>
+    <div className={`login-escena relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-azulado-50 sm:p-6 lg:p-10 font-sans text-slate-800 ${isExiting ? 'login-salida' : ''}`}>
+      {/* Fuera de la tarjeta (como el modelo): la escena sigue en una mancha grande a la derecha, con los
+          mismos videos desenfocados y tenues, un "Bienvenido" enorme y muy suave detrás y el nombre de
+          la universidad debajo. Solo en pantallas grandes. */}
+      <svg width="0" height="0" className="absolute" aria-hidden="true" focusable="false">
+        <defs>
+          <clipPath id="login-mancha" clipPathUnits="objectBoundingBox">
+            <path d="M0.38,0 L1,0 L1,1 L0.3,1 C0.12,0.94 0.02,0.82 0.1,0.7 C0.2,0.56 0.42,0.6 0.4,0.44 C0.38,0.3 0.14,0.3 0.18,0.16 C0.21,0.07 0.3,0.02 0.38,0 Z" />
+          </clipPath>
+          <clipPath id="login-onda" clipPathUnits="objectBoundingBox">
+            <path d="M0.68,0 C0.48,0.03 0.21,0.07 0.25,0.19 C0.27,0.29 0.32,0.34 0.3,0.45 C0.28,0.57 0.17,0.6 0.14,0.72 C0.12,0.83 0.07,0.92 0.04,1 L1,1 L1,0 Z" />
+          </clipPath>
+        </defs>
+      </svg>
+      <div className="pointer-events-none absolute inset-y-0 right-0 hidden lg:block w-[58vw] [clip-path:url(#login-mancha)]" aria-hidden="true">
+        <Suspense fallback={null}>
+          <VideosParabas className="absolute inset-0 scale-110 blur-2xl opacity-40" />
+        </Suspense>
+        <div className="absolute inset-0 bg-gradient-to-l from-sky-200/40 to-azulado-100/60" />
       </div>
+      <p className="pointer-events-none absolute left-[3vw] top-[2vh] hidden lg:block text-[8.5vw] font-extrabold leading-none tracking-tight text-blue-900/[0.06]" aria-hidden="true">
+        Bienvenido
+      </p>
 
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.2),transparent_42%),radial-gradient(circle_at_bottom_right,rgba(139,92,246,0.24),transparent_40%)]"></div>
-
-      {/* Login Card */}
-      <div className={`login-fixed-theme relative w-full max-w-md p-8 mx-4 bg-white/12 backdrop-blur-2xl border border-white/20 rounded-3xl shadow-[0_32px_95px_rgba(8,15,40,0.62),0_10px_30px_rgba(59,130,246,0.2)] ${isExiting ? 'card-exit-portal' : 'card-stand-up'}`} style={{ perspective: '1200px' }}>
-        <div className="absolute inset-x-10 -top-px h-px bg-gradient-to-r from-transparent via-blue-300/90 to-transparent" />
-        <div className="absolute -bottom-8 inset-x-16 h-10 rounded-full bg-blue-500/20 blur-2xl pointer-events-none" />
-        
-        {/* Header */}
-        <div className="text-center mb-10">
-          <div className={`relative inline-flex items-center justify-center w-32 h-32 mb-6 rounded-[36px] overflow-hidden bubble-logo ${isExiting ? 'logo-exit-portal' : 'logo-intro'} transition-transform duration-300 hover:scale-105`}>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_28%_18%,rgba(255,255,255,0.65),transparent_42%),linear-gradient(145deg,#3b82f6_0%,#4338ca_48%,#7c3aed_100%)]" />
-            <img src="/images/LOGOUAB.png" alt="Logo UAB" className="relative z-10 w-28 h-28 object-contain drop-shadow-[0_10px_24px_rgba(15,23,42,0.55)]" />
-            <div className="absolute top-2 left-3 w-16 h-5 rounded-full bg-white/35 blur-sm" />
-            <div className={`pointer-events-none absolute inset-0 rounded-[36px] border border-blue-200/70 ${isExiting ? 'portal-ring-active' : 'portal-ring-idle'}`} />
+      <div className="relative w-full max-w-5xl">
+        <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[min(600px,calc(100vh-9rem))] flex flex-col lg:flex-row bg-white sm:rounded-3xl overflow-hidden shadow-[0_40px_90px_rgba(15,23,42,0.16)]">
+          {/* Videos de parabas a la derecha, recortados por una mancha (la parte blanca entra arriba y al
+              medio, como el modelo). En celular, franja de arriba con el borde ondulado. */}
+          <div className="relative order-first lg:order-last h-72 sm:h-80 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[56%] flex-shrink-0 bg-azulado-100 lg:[clip-path:url(#login-onda)]">
+            <Suspense fallback={null}>
+              <VideosParabas className="absolute inset-0 lg:scale-[1.18] lg:origin-[0%_30%]" />
+            </Suspense>
+            <svg className="absolute bottom-0 left-0 z-10 w-full h-14 lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M0,100 L0,40 C8,10 18,62 30,36 C40,14 50,70 64,44 C76,22 88,60 100,30 L100,100 Z" fill="#ffffff" />
+            </svg>
+            <p className="absolute bottom-3 right-5 z-20 hidden lg:block text-[11px] text-white/85">© {new Date().getFullYear()} UABJB</p>
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">Bienvenido</h1>
-          <p className="text-blue-100/80 text-sm font-medium">Sistema de Planificacion y Gestion Institucional - UAB JB</p>
+          {/* Línea punteada suelta en la parte blanca, separada del borde del video y con su propio vaivén. */}
+          <svg className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden lg:block h-full w-[56%] overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M21,0 C12,4 2,9 4,18 C6,26 19,30 20,40 C21,50 12,55 8,63 C4,71 5,80 2,88 C0,93 -2,97 -4,100" fill="none" stroke="#7d9cc0" strokeOpacity="0.85" strokeWidth="1.5" strokeDasharray="5 6" vectorEffect="non-scaling-stroke" />
+          </svg>
+
+          {/* Formulario: arriba la marca (logo y nombre); al medio, título y campos. Los mensajes de error
+              tienen su lugar reservado, así que al aparecer no mueven nada. */}
+          <div className="relative z-10 flex-1 lg:flex-none lg:w-1/2 flex flex-col px-6 sm:px-12 lg:px-14 pt-6 pb-5 lg:pt-8 lg:pb-6">
+            <div className="flex items-center gap-3">
+              <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-14 w-auto" />
+              <div className="leading-tight">
+                <p className="text-sm font-extrabold text-blue-900">UABJB</p>
+                <p className="text-xs text-slate-500">Universidad Autónoma del Beni</p>
+              </div>
+            </div>
+
+            <div className="w-full max-w-sm mx-auto pt-8 lg:pt-10">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Acceso institucional</p>
+              <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-slate-900">
+                Iniciar sesión<span className="text-sky-600">.</span>
+              </h1>
+              <p className="mt-2 text-sm text-slate-500">Ingresa con tu usuario o correo institucional.</p>
+
+              <form onSubmit={handleSubmit} noValidate className="mt-8">
+                {/* Usuario: la etiqueta va dentro del campo, arriba del texto. */}
+                <div className={`login-campo relative border-b-2 transition-colors ${anilloCampo(errorUsuario)} ${reboteUsuario ? 'login-rebote' : ''}`}>
+                  <label htmlFor="login-usuario" className="block text-xs font-semibold text-blue-900/80">Usuario o correo</label>
+                  <input
+                    id="login-usuario"
+                    type="text"
+                    value={username}
+                    onFocus={limpiarErrores}
+                    onClick={limpiarErrores}
+                    onChange={(e) => { setUsername(e.target.value); setErrores((prev) => ({ ...prev, username: undefined })); }}
+                    aria-invalid={Boolean(errorUsuario) || undefined}
+                    className="login-input block w-full bg-transparent pr-10 pt-1 pb-2 text-sm font-medium text-slate-900 focus:outline-none"
+                    autoComplete="username"
+                  />
+                  <User className="pointer-events-none absolute right-1 bottom-2.5 h-4 w-4 text-slate-400" aria-hidden="true" />
+                </div>
+                <div className="mb-3 min-h-[1.25rem]">
+                  <MensajeErrorCampo error={errores.username} pulse={pulso} tono={TONO_ERROR} />
+                </div>
+
+                {/* Contraseña */}
+                <div className={`login-campo relative border-b-2 transition-colors ${anilloCampo(errorContrasena)} ${reboteContrasena ? 'login-rebote' : ''}`}>
+                  <label htmlFor="login-contrasena" className="block text-xs font-semibold text-blue-900/80">Contraseña</label>
+                  <input
+                    id="login-contrasena"
+                    type="text"
+                    value={password}
+                    onFocus={limpiarErrores}
+                    onClick={limpiarErrores}
+                    onChange={(e) => { setPassword(e.target.value); setErrores((prev) => ({ ...prev, password: undefined })); }}
+                    aria-invalid={Boolean(errorContrasena) || undefined}
+                    className={`login-input ${showPassword ? '' : 'login-password-masked'} block w-full bg-transparent pr-10 pt-1 pb-2 text-sm font-medium text-slate-900 focus:outline-none`}
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute -right-1 bottom-0.5 flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:text-blue-900 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900 transition-colors"
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                  </button>
+                </div>
+                <div className="mb-3 min-h-[1.25rem]">
+                  <MensajeErrorCampo error={errores.password} pulse={pulso} tono={TONO_ERROR} />
+                  {avisoContrasena && (
+                    <p className="login-aviso mt-1 flex items-center gap-1.5 text-xs font-medium text-red-700" role="alert">
+                      <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+                      {loginError}
+                    </p>
+                  )}
+                </div>
+
+                {/* Botón en píldora con brillo, al centro. */}
+                <div className="mt-2 flex justify-center">
+                  <button
+                    type="submit"
+                    disabled={loading || isExiting}
+                    className="inline-flex h-11 w-52 items-center justify-center gap-2 rounded-full bg-blue-900 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(30,58,138,0.35)] transition-colors hover:bg-blue-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-900/25 disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    {loading && (
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    )}
+                    {loading ? 'Ingresando...' : 'Ingresar'}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Redes al pie de la tarjeta, centradas (solo visuales, no conectan con nada). */}
+            <div className="mt-auto flex justify-center gap-2 pt-8">
+              {REDES.map(({ nombre, Icono, color }) => (
+                <button
+                  key={nombre}
+                  type="button"
+                  aria-label={nombre}
+                  title={nombre}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-azulado-50 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_6px_14px_rgba(15,23,42,0.12)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40"
+                >
+                  <Icono className={`h-4 w-4 ${color}`} aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+            <p className="mt-4 text-center text-[11px] text-slate-500 lg:hidden">© {new Date().getFullYear()} UABJB</p>
+          </div>
         </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} noValidate className="space-y-6">
-          {loginError && (
-            <div className="login-inline-error rounded-xl border border-red-300/80 bg-red-600/28 text-red-100 px-4 py-3 text-sm font-semibold shadow-[0_10px_26px_rgba(127,29,29,0.42)]">
-              <div className="flex items-start gap-3">
-                <span className="login-warning-icon mt-0.5 text-red-100" aria-hidden="true">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-8.08 14A2 2 0 003.95 21h16.1a2 2 0 001.74-3.14l-8.08-14a2 2 0 00-3.42 0z" />
-                  </svg>
-                </span>
-                <span className="leading-5">{loginError}</span>
-              </div>
-            </div>
-          )}
-          
-          {/* Email */}
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-blue-100/85 ml-1 uppercase tracking-wider">Correo</label>
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-blue-200/70 group-focus-within:text-blue-300 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </div>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => { setUsername(e.target.value); setErrores((prev) => ({ ...prev, username: undefined })); }}
-                aria-invalid={Boolean(errores.username) || undefined}
-                className="login-fixed-input block w-full pl-11 pr-4 py-4 bg-blue-500/20 border border-blue-400/40 rounded-xl text-white placeholder-blue-100/70 focus:outline-none focus:ring-4 focus:ring-blue-300/40 focus:border-blue-300/80 transition-all duration-200 hover:border-blue-300/60 hover:bg-blue-500/25 shadow-[0_10px_24px_rgba(8,15,40,0.35),inset_0_2px_4px_rgba(59,130,246,0.2)]"
-                placeholder="Ingrese su correo"
-                autoComplete="username"
-              />
-            </div>
-            <MensajeErrorCampo error={errores.username} pulse={pulso} tono={TONO_ERROR} />
-          </div>
-
-          {/* Password */}
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-blue-100/85 ml-1 uppercase tracking-wider">Contraseña</label>
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-blue-200/70 group-focus-within:text-blue-300 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              </div>
-              <input
-                type="text"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setErrores((prev) => ({ ...prev, password: undefined })); }}
-                aria-invalid={Boolean(errores.password) || undefined}
-                className={`login-fixed-input ${showPassword ? '' : 'login-password-masked'} block w-full pl-11 pr-14 py-4 bg-blue-500/20 border border-blue-400/40 rounded-xl text-white placeholder-blue-100/70 focus:outline-none focus:ring-4 focus:ring-blue-300/40 focus:border-blue-300/80 transition-all duration-200 hover:border-blue-300/60 hover:bg-blue-500/25 shadow-[0_10px_24px_rgba(8,15,40,0.35),inset_0_2px_4px_rgba(59,130,246,0.2)]`}
-                placeholder="Ingrese su contraseña"
-                autoComplete="current-password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((prev) => !prev)}
-                className="absolute inset-y-0 right-3 flex items-center justify-center text-blue-100 hover:text-blue-50 transition-colors duration-200 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 bg-transparent border-none p-0"
-                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-              </button>
-            </div>
-            <MensajeErrorCampo error={errores.password} pulse={pulso} tono={TONO_ERROR} />
-            <p className="text-xs text-blue-100/65 ml-1">Usa el icono para mostrar u ocultar la contraseña.</p>
-          </div>
-
-          {/* Button */}
-          <button
-            type="submit"
-            disabled={loading || isExiting}
-            className="w-full py-4 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:via-indigo-500 hover:to-violet-500 text-white font-bold rounded-xl shadow-[0_16px_32px_rgba(79,70,229,0.45),0_8px_20px_rgba(8,15,40,0.35)] transform transition-all duration-200 hover:scale-[1.01] active:scale-[0.985] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-4"
-          >
-            {loading ? (
-              <>
-                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span>Iniciando...</span>
-              </>
-            ) : (
-              <span>Iniciar Sesión</span>
-            )}
-          </button>
-        </form>
-
-        {/* Footer */}
-        <div className="mt-10 text-center">
-          <p className="text-xs text-blue-100/65">
-            © {new Date().getFullYear()} Universidad Autónoma del Beni "José Ballivián"
-          </p>
-        </div>
+        <p className="mt-5 hidden lg:block pr-8 text-right text-sm font-medium text-white [text-shadow:0_1px_10px_rgba(15,23,42,0.45)]">Universidad Autónoma del Beni "José Ballivián" · Trinidad, Beni</p>
       </div>
 
       <style>{`
-        .login-scene-exit {
-          animation: sceneExitZoom 1400ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        .login-tarjeta {
+          animation: loginEntrada 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
         }
-        @keyframes sceneExitZoom {
-          0% { transform: scale(1); filter: saturate(1); }
-          100% { transform: scale(1.04); filter: saturate(1.12); }
-        }
-        .login-fixed-theme label {
-          color: #dbeafe !important;
-        }
-        .login-inline-error {
-          animation: loginInlineErrorIn 220ms ease-out both;
-        }
-        .login-warning-icon {
-          animation: loginWarningWiggle 900ms ease-in-out infinite;
-          transform-origin: center;
-          filter: drop-shadow(0 0 6px rgba(248, 113, 113, 0.6));
-        }
-        @keyframes loginInlineErrorIn {
-          from { opacity: 0; transform: translateY(-6px); }
+        @keyframes loginEntrada {
+          from { opacity: 0; transform: translateY(12px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        @keyframes loginWarningWiggle {
-          0%, 100% { transform: rotate(0deg) translateX(0); }
-          25% { transform: rotate(-8deg) translateX(-1px); }
-          50% { transform: rotate(7deg) translateX(1px); }
-          75% { transform: rotate(-5deg) translateX(-1px); }
+        .login-salida {
+          animation: loginSalida 1400ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
         }
-        .login-fixed-theme .login-fixed-input,
-        .login-fixed-theme .login-fixed-input:focus,
-        .login-fixed-theme .login-fixed-input:hover,
-        .login-fixed-theme .login-fixed-input:-webkit-autofill,
-        .login-fixed-theme .login-fixed-input:-webkit-autofill:hover,
-        .login-fixed-theme .login-fixed-input:-webkit-autofill:focus {
-          background-color: rgba(59, 130, 246, 0.2) !important;
-          border-color: rgba(96, 165, 250, 0.45) !important;
-          color: #ffffff !important;
-          -webkit-text-fill-color: #ffffff !important;
-          box-shadow: 0 10px 24px rgba(8, 15, 40, 0.35), inset 0 2px 4px rgba(59, 130, 246, 0.2) !important;
+        @keyframes loginSalida {
+          0% { opacity: 1; transform: scale(1); }
+          100% { opacity: 0; transform: scale(1.02); }
         }
-        .login-fixed-theme .login-fixed-input::placeholder {
-          color: rgba(219, 234, 254, 0.7) !important;
+        .login-aviso {
+          animation: loginAvisoEntra 220ms ease-out both;
         }
-        .login-fixed-theme .login-fixed-input:focus {
-          box-shadow: 0 0 0 4px rgba(147, 197, 253, 0.4), 0 10px 24px rgba(8, 15, 40, 0.35), inset 0 2px 4px rgba(59, 130, 246, 0.2) !important;
+        .login-rebote {
+          animation: loginRebote 460ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
         }
-        .login-fixed-theme .login-password-masked {
-          -webkit-text-security: disc;
+        @keyframes loginRebote {
+          0%, 100% { transform: translateX(0); }
+          15% { transform: translateX(-9px); }
+          32% { transform: translateX(8px); }
+          50% { transform: translateX(-5px); }
+          68% { transform: translateX(3px); }
+          84% { transform: translateX(-1px); }
         }
-        .login-fixed-theme .login-fixed-input:-webkit-autofill {
-          -webkit-box-shadow: 0 0 0 1000px rgba(59, 130, 246, 0.2) inset, 0 10px 24px rgba(8, 15, 40, 0.35) !important;
+        @keyframes loginAvisoEntra {
+          from { opacity: 0; transform: translateY(-4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .login-escena .login-input:-webkit-autofill,
+        .login-escena .login-input:-webkit-autofill:hover,
+        .login-escena .login-input:-webkit-autofill:focus {
+          color: #0f172a !important;
+          -webkit-text-fill-color: #0f172a !important;
+        }
+        .login-escena .login-input:-webkit-autofill {
+          -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
           transition: background-color 9999s ease-out 0s;
         }
-        @keyframes blob {
-          0% { transform: translate(0px, 0px) scale(1); }
-          33% { transform: translate(30px, -50px) scale(1.1); }
-          66% { transform: translate(-20px, 20px) scale(0.9); }
-          100% { transform: translate(0px, 0px) scale(1); }
+        .login-escena .login-campo:focus-within .login-input:-webkit-autofill {
+          -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
         }
-        .animate-blob {
-          animation: blob 11s infinite;
+        .login-escena .login-password-masked {
+          -webkit-text-security: disc;
         }
-        .animation-delay-2000 {
-          animation-delay: 3s;
+        @keyframes loginSalidaQuieta {
+          to { opacity: 0; }
         }
-        .animation-delay-4000 {
-          animation-delay: 6s;
-        }
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-fade-in-up {
-          animation: fadeInUp 0.6s ease-out forwards;
-        }
-        @keyframes cardStandUp {
-          0% {
-            opacity: 0;
-            transform: rotateX(85deg) translateZ(0) scale(0.9);
-            filter: blur(4px);
-          }
-          60% {
-            opacity: 1;
-            transform: rotateX(-8deg) translateZ(0) scale(1.02);
-          }
-          100% {
-            opacity: 1;
-            transform: rotateX(0deg) translateZ(0) scale(1);
-            filter: blur(0);
-          }
-        }
-        .card-stand-up {
-          animation: cardStandUp 3300ms cubic-bezier(0.22, 1, 0.36, 1) both;
-          transform-origin: center bottom;
-          will-change: transform, opacity, filter;
-        }
-        .card-exit-portal {
-          animation: cardExitPortal 1400ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-          transform-origin: center center;
-          will-change: transform, opacity, filter;
-          pointer-events: none;
-        }
-        @keyframes cardExitPortal {
-          0% {
-            opacity: 1;
-            transform: rotateX(0deg) scale(1) translateY(0);
-            filter: blur(0px) brightness(1);
-          }
-          62% {
-            opacity: 1;
-            transform: rotateX(0deg) scale(1.25) translateY(16px);
-            filter: blur(0px) brightness(1.08);
-          }
-          100% {
-            opacity: 0;
-            transform: rotateX(0deg) scale(2.5) translateY(56px);
-            filter: blur(6px) brightness(1.18);
-          }
-        }
-        .bubble-logo {
-          box-shadow: 0 24px 42px rgba(37, 99, 235, 0.5), 0 10px 22px rgba(8, 15, 40, 0.42), inset 0 1px 2px rgba(255, 255, 255, 0.45);
-        }
-        .logo-intro {
-          animation: logoCardIntro 2600ms cubic-bezier(0.22, 1, 0.36, 1) both, bubbleFloat 7s ease-in-out 2800ms infinite;
-          transform-origin: center center;
-          will-change: transform, opacity, filter;
-        }
-        .logo-exit-portal {
-          animation: logoPortalOpen 1400ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-          transform-origin: center center;
-          will-change: transform, filter;
-        }
-        @keyframes logoPortalOpen {
-          0% {
-            transform: scale(1);
-            filter: brightness(1);
-          }
-          55% {
-            transform: scale(1.08);
-            filter: brightness(1.18);
-          }
-          100% {
-            transform: scale(1.22);
-            filter: brightness(1.35);
-          }
-        }
-        .portal-ring-idle {
-          opacity: 0;
-        }
-        .portal-ring-active {
-          animation: portalRingExpand 1400ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-        }
-        @keyframes portalRingExpand {
-          0% {
-            opacity: 0;
-            transform: scale(1);
-            box-shadow: 0 0 0 rgba(96, 165, 250, 0);
-          }
-          40% {
-            opacity: 1;
-            transform: scale(1.06);
-            box-shadow: 0 0 35px rgba(96, 165, 250, 0.75), inset 0 0 18px rgba(191, 219, 254, 0.45);
-          }
-          100% {
-            opacity: 0;
-            transform: scale(1.35);
-            box-shadow: 0 0 65px rgba(129, 140, 248, 0.95), inset 0 0 28px rgba(191, 219, 254, 0.5);
-          }
-        }
-        @keyframes logoCardIntro {
-          0% {
-            transform: scale(3.4);
-            opacity: 0.2;
-            filter: blur(3px);
-          }
-          70% {
-            transform: scale(0.93);
-            opacity: 1;
-            filter: blur(0);
-          }
-          100% {
-            transform: scale(1);
-            opacity: 1;
-            filter: blur(0);
-          }
-        }
-        @keyframes bubbleFloat {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-4px); }
+        @media (prefers-reduced-motion: reduce) {
+          .login-tarjeta, .login-aviso, .login-rebote { animation: none; }
+          .login-salida { animation: loginSalidaQuieta 1400ms linear forwards; }
         }
       `}</style>
     </div>

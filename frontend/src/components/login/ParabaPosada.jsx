@@ -1,168 +1,233 @@
-// Paraba barba azul posada en una rama del paisaje del login, que reacciona al formulario
-// (idea de los avatares de login que miran el campo y se tapan los ojos con la contraseña):
-//   reposo         nada escrito ni enfocado: se acicala las plumas, se esponja y se sacude.
+import { useEffect, useRef } from 'react';
+
+// Guacamayo rojo posado en una rama, en el estilo plano del modelo, que reacciona al formulario
+// del login (como los avatares que miran el campo y se tapan los ojos con la contraseña):
+//   reposo         nada escrito ni enfocado: ojos cerrados; se acicala, estira el ala, se esponja
+//                  y se sacude, en un ciclo.
 //   mirando        en el usuario: gira la cabeza hacia el campo y las pupilas siguen el texto.
 //   ojos-cerrados  en la contraseña: cierra los ojos y voltea la cabeza hacia el otro lado.
-//   atento         campos llenos sin foco: quieta, parpadeando.
-// Solo SVG y CSS. Con prefers-reduced-motion cambia de pose sin animar.
+//   atento         campos llenos sin foco: quieto, parpadeando.
+// Cada parte se mueve con un resorte hacia su pose (60 cuadros por segundo, sin saltos entre
+// estados) más un movimiento continuo (respira, se balancea y la cola sigue con retraso).
+// Con prefers-reduced-motion toma la pose de cada estado sin animar.
+
+// Puntos de giro, en las coordenadas del dibujo (viewBox 500 × 760: a la derecha queda lugar para
+// que el ala se estire y la rama llegue al borde del panel).
+const PATAS = [190, 505];
+const CUELLO = [150, 178];
+const HOMBRO = [212, 176];
+const BASE_COLA = [240, 505];
+const OJO = [134, 72];
+
+const POSE_BASE = {
+  cuerpoGiro: 0, cuerpoX: 1, cuerpoY: 1,
+  cabezaGiro: 0, cabezaX: 0, cabezaY: 0, cabezaVuelta: 1,
+  alaGiro: 0, alaEscala: 1, colaGiro: 0, plumon: 0, ojo: 1, pupila: 0,
+};
+
+const POSES = {
+  atento: {},
+  mirando: { cabezaGiro: 7, cabezaX: -8, cabezaY: 6, cuerpoGiro: -2 },
+  'ojos-cerrados': { cabezaGiro: -13, cabezaX: 10, cabezaY: -6, cabezaVuelta: -1, cuerpoGiro: 2, ojo: 0 },
+  reposo: { ojo: 0 },
+};
+
+// Ciclo de reposo (segundos): cada acción entra y sale con una rampa suave.
+const CICLO = 14;
+const ACCIONES = [
+  { desde: 1.8, hasta: 5.0, pose: { cabezaVuelta: -1, cabezaGiro: 40, cabezaX: 16, cabezaY: 22, cuerpoGiro: 2 } },
+  { desde: 5.8, hasta: 7.9, pose: { alaGiro: -27, alaEscala: 1.05, cuerpoGiro: -3, cabezaGiro: -8, colaGiro: 4 } },
+  { desde: 8.6, hasta: 10.2, pose: { cuerpoX: 1.08, cuerpoY: 1.05, plumon: 1, cabezaY: -12 } },
+];
+const SACUDIDA = { desde: 10.5, hasta: 11.5 };
+
+const suave = (x) => x * x * (3 - 2 * x);
+function ventana(t, desde, hasta, rampa = 0.45) {
+  if (t <= desde || t >= hasta) return 0;
+  return suave(Math.min(1, (t - desde) / rampa, (hasta - t) / rampa));
+}
+
+function poseObjetivo(estado, t, seguimiento) {
+  const pose = { ...POSE_BASE, ...POSES[estado] };
+  if (estado === 'mirando') pose.pupila = -4 + 7 * seguimiento;
+  if (estado === 'reposo') {
+    const c = t % CICLO;
+    for (const accion of ACCIONES) {
+      const peso = ventana(c, accion.desde, accion.hasta);
+      if (!peso) continue;
+      for (const [clave, valor] of Object.entries(accion.pose)) {
+        pose[clave] += (valor - POSE_BASE[clave]) * peso;
+      }
+    }
+  }
+  return pose;
+}
+
+// Movimiento que no pasa por el resorte: respiración, balanceo, picoteo, sacudida y parpadeo.
+function movimientoDirecto(estado, t) {
+  const m = { cuerpoGiro: 1.1 * Math.sin((2 * Math.PI * t) / 5.6), cuerpoY: 0.012 * Math.sin((2 * Math.PI * t) / 3.4) };
+  m.colaGiro = 2.2 * Math.sin((2 * Math.PI * t) / 5.6 - 0.9);
+  m.cabezaY = 1.6 * Math.sin((2 * Math.PI * t) / 3.4 + 0.6);
+  m.cabezaGiro = 0;
+  m.ojo = 1;
+  if (estado === 'reposo') {
+    const c = t % CICLO;
+    const picoteo = ventana(c, 2.6, 4.7, 0.3);
+    m.cabezaGiro += 7 * picoteo * Math.sin(2 * Math.PI * 3.1 * c);
+    const sacudida = ventana(c, SACUDIDA.desde, SACUDIDA.hasta, 0.2);
+    m.cuerpoGiro += 6 * sacudida * Math.sin(2 * Math.PI * 6.5 * c);
+    m.cabezaGiro += 9 * sacudida * Math.sin(2 * Math.PI * 6.5 * c - 0.7);
+    m.colaGiro += 7 * sacudida * Math.sin(2 * Math.PI * 6.5 * c - 1.4);
+  } else {
+    // Parpadeo cada 3,8 s, de 160 ms.
+    const p = t % 3.8;
+    if (p < 0.16) m.ojo = 1 - Math.sin((Math.PI * p) / 0.16);
+  }
+  return m;
+}
+
+const alrededor = ([x, y], interior) => `translate(${x} ${y}) ${interior} translate(${-x} ${-y})`;
 
 function ParabaPosada({ estado = 'reposo', seguimiento = 0, className = '' }) {
-  // Pupilas: desde el inicio del campo (izquierda) hasta el final del texto (más cerca del ave).
-  const mirada = (-2.4 + 3.2 * Math.min(Math.max(seguimiento, 0), 1)).toFixed(2);
+  const refs = {
+    ave: useRef(null), cuerpo: useRef(null), cabeza: useRef(null), ala: useRef(null),
+    cola: useRef(null), plumon: useRef(null), ojoAbierto: useRef(null), ojoCerrado: useRef(null), pupila: useRef(null),
+  };
+  const entrada = useRef({ estado, seguimiento });
+  entrada.current = { estado, seguimiento: Math.min(Math.max(seguimiento, 0), 1) };
+
+  useEffect(() => {
+    const reducido = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    const actual = { ...POSE_BASE };
+    const velocidad = Object.fromEntries(Object.keys(POSE_BASE).map((k) => [k, 0]));
+    let anterior = performance.now();
+    let cuadro = 0;
+
+    const dibujar = (ahora) => {
+      const dt = Math.min((ahora - anterior) / 1000, 1 / 30);
+      anterior = ahora;
+      const t = ahora / 1000;
+      const quieto = reducido?.matches;
+      const { estado: e, seguimiento: s } = entrada.current;
+      const objetivo = poseObjetivo(e, t, s);
+      for (const k of Object.keys(actual)) {
+        if (quieto) {
+          actual[k] = objetivo[k];
+          velocidad[k] = 0;
+        } else {
+          // Resorte: rígido 95, amortiguado 15 (llega rápido y con un leve rebote).
+          velocidad[k] += ((objetivo[k] - actual[k]) * 95 - velocidad[k] * 15) * dt;
+          actual[k] += velocidad[k] * dt;
+        }
+      }
+      const d = quieto ? { cuerpoGiro: 0, cuerpoY: 0, colaGiro: 0, cabezaY: 0, cabezaGiro: 0, ojo: 1 } : movimientoDirecto(e, t);
+      const ojo = Math.max(0, Math.min(1, actual.ojo * d.ojo));
+
+      refs.ave.current?.setAttribute('transform', `rotate(${actual.cuerpoGiro + d.cuerpoGiro} ${PATAS[0]} ${PATAS[1]})`);
+      refs.cuerpo.current?.setAttribute('transform', alrededor(PATAS, `scale(${actual.cuerpoX} ${actual.cuerpoY + d.cuerpoY})`));
+      refs.cola.current?.setAttribute('transform', `rotate(${actual.colaGiro + d.colaGiro} ${BASE_COLA[0]} ${BASE_COLA[1]})`);
+      refs.ala.current?.setAttribute('transform', alrededor(HOMBRO, `rotate(${actual.alaGiro}) scale(${actual.alaEscala})`));
+      refs.cabeza.current?.setAttribute(
+        'transform',
+        `translate(${actual.cabezaX} ${actual.cabezaY + d.cabezaY}) ${alrededor(CUELLO, `rotate(${actual.cabezaGiro + d.cabezaGiro}) scale(${actual.cabezaVuelta} 1)`)}`,
+      );
+      refs.plumon.current?.setAttribute('opacity', Math.max(0, actual.plumon).toFixed(3));
+      refs.ojoAbierto.current?.setAttribute('transform', alrededor(OJO, `scale(1 ${Math.max(ojo, 0.04)})`));
+      refs.ojoAbierto.current?.setAttribute('opacity', ojo < 0.06 ? '0' : '1');
+      refs.ojoCerrado.current?.setAttribute('opacity', (1 - ojo).toFixed(3));
+      refs.pupila.current?.setAttribute('transform', `translate(${actual.pupila} 0)`);
+      cuadro = requestAnimationFrame(dibujar);
+    };
+    cuadro = requestAnimationFrame(dibujar);
+    return () => cancelAnimationFrame(cuadro);
+  // Las refs de los grupos no cambian: el efecto corre una sola vez.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <svg
-      className={`ave ave--${estado} ${className}`}
-      style={{ '--ave-mirada': `${mirada}px` }}
-      viewBox="0 0 200 300"
-      aria-hidden="true"
-      focusable="false"
-    >
+    <svg className={className} viewBox="0 0 500 760" aria-hidden="true" focusable="false">
       <defs>
-        <linearGradient id="av-cabeza" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#45c6d4" />
-          <stop offset="1" stopColor="#1e86b6" />
+        <radialGradient id="gr-rojo" cx="0.3" cy="0.25" r="0.9">
+          <stop offset="0" stopColor="#e03a46" />
+          <stop offset="0.55" stopColor="#bf1e2e" />
+          <stop offset="1" stopColor="#8e1421" />
+        </radialGradient>
+        <radialGradient id="gr-cabeza" cx="0.35" cy="0.25" r="0.85">
+          <stop offset="0" stopColor="#e5404b" />
+          <stop offset="1" stopColor="#a8192a" />
+        </radialGradient>
+        <linearGradient id="gr-naranja" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#fdb043" />
+          <stop offset="1" stopColor="#ee7a15" />
         </linearGradient>
-        <linearGradient id="av-pecho" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#f8cc4c" />
-          <stop offset="1" stopColor="#e8961f" />
+        <linearGradient id="gr-azul" x1="0" y1="0" x2="0.4" y2="1">
+          <stop offset="0" stopColor="#2b4f8f" />
+          <stop offset="1" stopColor="#172c5c" />
         </linearGradient>
-        <linearGradient id="av-ala" x1="0" y1="0" x2="0.3" y2="1">
-          <stop offset="0" stopColor="#2397c2" />
-          <stop offset="0.55" stopColor="#1d6fae" />
-          <stop offset="1" stopColor="#1a4d93" />
+        <linearGradient id="gr-cola" x1="0" y1="0" x2="0.6" y2="1">
+          <stop offset="0" stopColor="#b71c2c" />
+          <stop offset="1" stopColor="#8a1320" />
         </linearGradient>
-        <linearGradient id="av-cola" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#1f74b0" />
-          <stop offset="1" stopColor="#1a4a8c" />
+        <linearGradient id="gr-rama" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#4a3424" />
+          <stop offset="1" stopColor="#1f150e" />
         </linearGradient>
-        <linearGradient id="av-rama" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#7a5636" />
-          <stop offset="1" stopColor="#4a321f" />
-        </linearGradient>
+        <filter id="gr-sombra" x="-20%" y="-50%" width="140%" height="200%">
+          <feGaussianBlur stdDeviation="10" />
+        </filter>
       </defs>
 
-      <g className="ave-sacudida">
-        <path d="M104,200 C110,236 124,268 142,298 C150,292 148,262 138,232 C132,214 126,202 120,194 Z" fill="url(#av-cola)" />
-        <path d="M120,104 C146,116 156,160 150,206 C146,224 138,230 132,220 C122,196 114,148 120,104 Z" fill="#18528f" />
+      <ellipse cx="270" cy="560" rx="190" ry="16" fill="#1e293b" opacity="0.12" filter="url(#gr-sombra)" />
 
-        <g className="ave-cuerpo">
-          <path d="M66,86 C90,70 122,86 128,126 C134,170 126,206 110,218 C94,228 78,218 72,194 C64,162 56,116 66,86 Z" fill="url(#av-pecho)" />
-          <path d="M66,86 C84,74 112,80 122,104 C106,108 86,104 70,114 Z" fill="#2aa7c4" />
-          <g className="ave-plumon">
-            <ellipse cx="63" cy="128" rx="6" ry="4" fill="#f6c443" />
-            <ellipse cx="64" cy="152" rx="6.5" ry="4" fill="#f2b33a" />
-            <ellipse cx="69" cy="177" rx="6" ry="4" fill="#eca42e" />
-            <ellipse cx="146" cy="150" rx="5" ry="4" fill="#1d6fae" />
-            <ellipse cx="146" cy="178" rx="5" ry="4" fill="#1a5a9e" />
-          </g>
-          <path d="M106,96 C132,104 146,144 142,192 C140,214 130,226 118,220 C102,192 96,142 106,96 Z" fill="url(#av-ala)" />
-          <path d="M108,104 C126,110 138,128 140,148 C130,152 118,144 110,152 C104,134 102,116 108,104 Z" fill="#39bfcf" />
-          <path d="M106,96 C96,142 102,192 118,220" fill="none" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" opacity="0.9" />
+      <g ref={refs.ave}>
+        <g ref={refs.cola}>
+          <path d="M210,500 C238,560 286,624 322,688 C330,702 350,708 366,696 C372,690 368,676 360,662 C328,600 292,548 268,500 Z" fill="url(#gr-cola)" />
+          <path d="M240,520 C268,570 300,620 330,672" fill="none" stroke="#7a101c" strokeWidth="4" strokeLinecap="round" opacity="0.35" />
         </g>
 
-        <g className="ave-cabeza">
-          <path d="M48,42 C52,16 88,8 106,26 C120,40 118,70 104,86 C92,98 68,98 58,86 C48,74 44,58 48,42 Z" fill="url(#av-cabeza)" />
-          <path d="M70,18 C84,12 100,18 106,28" fill="none" stroke="#6fd6e0" strokeWidth="4" strokeLinecap="round" opacity="0.6" />
-          <ellipse cx="72" cy="52" rx="15" ry="17" fill="#f5efe2" />
-          <path d="M62,59 l8,1 M63,64 l8,1 M66,69 l7,0" stroke="#2b3a55" strokeWidth="1.3" strokeLinecap="round" opacity="0.55" />
-          <g className="ave-ojo-abierto">
-            <circle cx="74" cy="47" r="5.4" fill="#f2e39a" />
-            <g className="ave-pupila">
-              <circle cx="74" cy="47" r="2.7" fill="#111111" />
-              <circle cx="73" cy="45.8" r="0.9" fill="#ffffff" />
+        <g ref={refs.cuerpo}>
+          <path d="M70,240 C56,300 60,384 88,452 C98,472 118,476 124,458 C112,400 108,320 112,252 Z" fill="url(#gr-azul)" />
+          <path d="M62,150 C40,230 58,350 96,440 C116,488 168,512 222,512 C262,512 300,496 304,470 C300,380 262,250 220,170 C190,120 110,110 62,150 Z" fill="url(#gr-rojo)" />
+          <g ref={refs.plumon} opacity="0">
+            <path d="M52,262 q-16,6 -8,20 q8,-2 12,-4 Z" fill="#c42232" />
+            <path d="M60,330 q-16,8 -6,20 q8,-4 11,-6 Z" fill="#c42232" />
+            <path d="M80,402 q-15,10 -4,20 q7,-5 10,-8 Z" fill="#b51d2d" />
+            <path d="M118,470 q-10,14 4,20 q4,-7 6,-11 Z" fill="#a91a29" />
+          </g>
+          <g ref={refs.ala}>
+            <path d="M200,165 C238,170 280,200 294,240 L300,300 C270,290 236,282 214,290 C200,250 194,200 200,165 Z" fill="url(#gr-rojo)" />
+            <path d="M286,486 C292,520 300,548 306,566 C312,546 316,516 314,490 Z" fill="#14254d" />
+            <path d="M262,470 C264,500 270,530 278,550 C286,528 290,500 288,476 Z" fill="#172c5c" />
+            <path d="M214,280 C250,272 290,280 300,300 C316,360 330,430 322,480 C318,500 300,506 290,492 C262,440 232,360 214,280 Z" fill="url(#gr-azul)" />
+            <path d="M206,236 C240,232 282,238 300,260 L305,300 C297,314 286,300 276,313 C266,326 254,310 244,322 C232,333 222,317 211,324 C205,296 203,266 206,236 Z" fill="url(#gr-naranja)" />
+            <path d="M196,160 C188,210 196,260 214,300 C240,360 270,430 300,500" fill="none" stroke="#ffffff" strokeWidth="8" strokeLinecap="round" />
+          </g>
+        </g>
+
+        <g ref={refs.cabeza}>
+          <path d="M30,92 C30,32 90,2 150,12 C210,22 242,72 234,132 C228,176 192,202 150,202 C100,202 50,172 30,122 Z" fill="url(#gr-cabeza)" />
+          <path d="M80,30 C110,14 160,14 196,34" fill="none" stroke="#f0606a" strokeWidth="6" strokeLinecap="round" opacity="0.45" />
+          <path d="M100,60 C110,36 150,30 172,50 C186,64 182,100 168,126 C156,148 130,156 112,146 C96,136 90,90 100,60 Z" fill="#ffffff" />
+          <g ref={refs.ojoAbierto} opacity="0">
+            <circle cx={OJO[0]} cy={OJO[1]} r="9" fill="#f3d36c" />
+            <g ref={refs.pupila}>
+              <circle cx={OJO[0]} cy={OJO[1]} r="5" fill="#111111" />
+              <circle cx={OJO[0] - 1.8} cy={OJO[1] - 2} r="1.6" fill="#ffffff" />
             </g>
           </g>
-          <path className="ave-ojo-cerrado" d="M68,47 Q74,53 80,47" fill="none" stroke="#1b2a3a" strokeWidth="2.2" strokeLinecap="round" />
-          <path d="M54,54 C42,50 30,58 29,72 C28,86 36,96 44,100 C42,90 44,80 52,75 C57,72 61,68 60,61 Z" fill="#1f1f1f" />
-          <path d="M45,86 C49,96 60,100 66,93 C62,87 56,83 50,81 Z" fill="#0d0d0d" />
-          <path d="M58,84 C64,96 78,100 88,94 C82,104 66,107 57,98 Z" fill="#1d4f91" />
+          <path ref={refs.ojoCerrado} d="M118,70 Q133,82 150,68" fill="none" stroke="#1f1f1f" strokeWidth="4.5" strokeLinecap="round" />
+          <path d="M60,82 C30,82 14,110 18,140 C22,166 40,184 58,188 C52,170 54,150 66,140 C80,128 98,118 104,100 C98,86 80,80 60,82 Z" fill="url(#gr-naranja)" />
+          <path d="M40,100 C34,112 32,128 36,142" fill="none" stroke="#ffd08a" strokeWidth="4" strokeLinecap="round" opacity="0.6" />
+          <path d="M62,142 C66,160 82,176 104,176 C118,176 126,166 124,154 C112,142 90,132 70,132 Z" fill="#141414" />
         </g>
       </g>
 
-      <path d="M30,218 C70,210 140,210 200,220 L200,236 C140,228 72,226 34,226 C26,226 24,220 30,218 Z" fill="url(#av-rama)" />
-      <path d="M150,222 C160,212 168,206 180,204" fill="none" stroke="#5a3e28" strokeWidth="4" strokeLinecap="round" />
-      <ellipse cx="184" cy="202" rx="9" ry="4" transform="rotate(-20 184 202)" fill="#4f6b3a" />
-      <rect x="84" y="208" width="14" height="16" rx="6" fill="#3f3f46" />
-      <rect x="112" y="210" width="14" height="16" rx="6" fill="#3f3f46" />
-
-      <style>{`
-        .ave-cabeza {
-          transform-origin: 86px 90px;
-          transform: rotate(0deg) translate(0px, 0px) scaleX(1);
-          transition: transform 380ms cubic-bezier(0.3, 1.4, 0.5, 1);
-        }
-        .ave-cuerpo { transform-origin: 100px 214px; }
-        .ave-sacudida { transform-origin: 100px 216px; }
-        .ave-plumon { opacity: 0; }
-        .ave-ojo-abierto {
-          transform-origin: 74px 47px;
-          animation: av-parpadeo 4.6s ease-in-out infinite;
-          transition: opacity 140ms ease;
-        }
-        .ave-ojo-cerrado { opacity: 0; transition: opacity 140ms ease; }
-        .ave-pupila { transition: transform 160ms ease-out; }
-
-        .ave--atento .ave-cuerpo, .ave--mirando .ave-cuerpo { animation: av-respirar 3.2s ease-in-out infinite; }
-
-        .ave--mirando .ave-cabeza { transform: rotate(7deg) translate(-3px, 2px) scaleX(1); }
-        .ave--mirando .ave-pupila { transform: translate(var(--ave-mirada), 1px); }
-
-        .ave--ojos-cerrados .ave-cabeza { transform: rotate(-12deg) translate(4px, -2px) scaleX(-1); }
-        .ave--ojos-cerrados .ave-ojo-abierto { opacity: 0; animation: none; }
-        .ave--ojos-cerrados .ave-ojo-cerrado { opacity: 1; }
-
-        .ave--reposo .ave-cabeza { animation: av-acicalar 11s ease-in-out infinite; }
-        .ave--reposo .ave-cuerpo { animation: av-esponjar 11s ease-in-out infinite; }
-        .ave--reposo .ave-plumon { animation: av-plumon 11s ease-in-out infinite; }
-        .ave--reposo .ave-sacudida { animation: av-sacudir 11s linear infinite; }
-
-        @keyframes av-parpadeo {
-          0%, 92%, 100% { transform: scaleY(1); }
-          95% { transform: scaleY(0.1); }
-        }
-        @keyframes av-respirar {
-          0%, 100% { transform: scale(1, 1); }
-          50% { transform: scale(1.012, 1.02); }
-        }
-        /* Gira la cabeza hacia el ala, se pica las plumas tres veces y vuelve. */
-        @keyframes av-acicalar {
-          0%, 20% { transform: rotate(0deg) translate(0px, 0px) scaleX(1); }
-          25% { transform: rotate(-6deg) translate(0px, -2px) scaleX(-1); }
-          29% { transform: rotate(38deg) translate(10px, 6px) scaleX(-1); }
-          32% { transform: rotate(45deg) translate(12px, 8px) scaleX(-1); }
-          35% { transform: rotate(37deg) translate(10px, 6px) scaleX(-1); }
-          38% { transform: rotate(45deg) translate(12px, 8px) scaleX(-1); }
-          41% { transform: rotate(37deg) translate(10px, 6px) scaleX(-1); }
-          44% { transform: rotate(45deg) translate(12px, 8px) scaleX(-1); }
-          49% { transform: rotate(0deg) translate(0px, 0px) scaleX(1); }
-          54%, 62% { transform: rotate(-4deg) translate(0px, -6px) scaleX(1); }
-          66%, 100% { transform: rotate(0deg) translate(0px, 0px) scaleX(1); }
-        }
-        /* Se esponja: el cuerpo se infla y asoman las plumas sueltas. */
-        @keyframes av-esponjar {
-          0%, 50% { transform: scale(1, 1); }
-          54%, 62% { transform: scale(1.09, 1.05); }
-          66%, 100% { transform: scale(1, 1); }
-        }
-        @keyframes av-plumon {
-          0%, 50% { opacity: 0; }
-          54%, 62% { opacity: 1; }
-          66%, 100% { opacity: 0; }
-        }
-        /* Se sacude desde las patas. */
-        @keyframes av-sacudir {
-          0%, 67% { transform: rotate(0deg); }
-          68.5% { transform: rotate(-5deg); }
-          70% { transform: rotate(5deg); }
-          71.5% { transform: rotate(-4deg); }
-          73% { transform: rotate(4deg); }
-          74.5% { transform: rotate(-2deg); }
-          76%, 100% { transform: rotate(0deg); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .ave, .ave * { animation: none !important; transition: none !important; }
-        }
-      `}</style>
+      <path d="M70,486 C150,474 300,482 500,506 L500,538 C300,516 150,512 78,520 C58,522 54,490 70,486 Z" fill="url(#gr-rama)" />
+      <path d="M90,492 C160,484 300,490 490,512" fill="none" stroke="#6b4c34" strokeWidth="3" strokeLinecap="round" opacity="0.6" />
+      <path d="M410,512 C424,494 440,486 462,480" fill="none" stroke="#2f2117" strokeWidth="8" strokeLinecap="round" />
+      <ellipse cx="466" cy="476" rx="16" ry="7" transform="rotate(-24 466 476)" fill="#4f7a3a" />
+      <path d="M128,470 C124,490 126,515 140,530 C152,534 164,526 164,512 C164,494 160,476 152,466 Z" fill="url(#gr-naranja)" />
+      <path d="M210,478 C206,498 210,525 226,540 C238,544 252,536 252,520 C252,500 246,484 236,474 Z" fill="url(#gr-naranja)" />
     </svg>
   );
 }

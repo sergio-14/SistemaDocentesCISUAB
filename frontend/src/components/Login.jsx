@@ -6,7 +6,6 @@ import { API_URL } from '../apis/apiConfig';
 import { MENSAJE_REVISA_CAMPOS, useErrorPulse } from '../utils/formErrors';
 import MensajeErrorCampo from './common/MensajeErrorCampo';
 import { AlertCircle, ArrowRight, Eye, EyeOff, User } from 'lucide-react';
-import PaisajeBeni from './login/PaisajeBeni';
 import ParabaPosada from './login/ParabaPosada';
 
 const TONO_ERROR = 'text-red-700';
@@ -159,25 +158,20 @@ function Login({ onLogin }) {
           style={{ height: 'var(--logo-alto)' }}
         />
 
-        <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[560px] flex flex-col lg:flex-row bg-white sm:rounded-[28px] overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
+        <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[500px] flex flex-col lg:flex-row bg-white sm:rounded-[28px] overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
           <img
             src="/images/LOGOUAB.png"
             alt=""
             aria-hidden="true"
-            className="pointer-events-none select-none absolute top-1/2 -translate-y-1/2 w-auto max-w-none opacity-[0.05] hidden xl:block"
+            className="pointer-events-none select-none absolute top-1/2 -translate-y-1/2 w-auto max-w-none opacity-[0.1] hidden xl:block"
             style={{ height: 'var(--logo-alto)', left: 'calc(var(--logo-alto) * -0.574)' }}
           />
 
-          {/* Panel de la ilustración: a la derecha con borde ondulado; en celular, arriba y bajo. */}
-          <div className="relative h-40 sm:h-52 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[54%] flex-shrink-0" aria-hidden="true">
-            <PaisajeBeni className="absolute inset-0 w-full h-full" />
-            <ParabaPosada
-              estado={estadoAve}
-              seguimiento={Math.min(username.length, 28) / 28}
-              className="absolute right-0 bottom-8 h-[118px] sm:h-[150px] lg:bottom-[13%] lg:h-[46%] w-auto"
-            />
+          {/* Panel del guacamayo: a la derecha con borde ondulado; en celular, arriba. El ave va encima de
+              la onda, así puede asomarse un poco sobre el borde. */}
+          <div className="relative h-52 sm:h-64 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[54%] flex-shrink-0 bg-[radial-gradient(circle_at_72%_42%,#ffffff_0%,#eaf0f9_42%,#d8e3f2_100%)]" aria-hidden="true">
             <svg className="absolute bottom-0 left-0 w-full h-14 lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <path d="M0,34 C12,6 26,68 46,38 C64,12 80,64 100,26" fill="none" stroke="#ffffff" strokeOpacity="0.75" strokeWidth="1.5" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
+              <path d="M0,34 C12,6 26,68 46,38 C64,12 80,64 100,26" fill="none" stroke="#94a3b8" strokeOpacity="0.8" strokeWidth="1.5" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
               <path d="M0,100 L0,58 C12,30 26,92 46,62 C64,36 80,88 100,50 L100,100 Z" fill="#ffffff" />
             </svg>
             {/* Onda como la del modelo: arriba el blanco entra mucho a la derecha y baja en dos curvas. */}
@@ -185,16 +179,21 @@ function Login({ onLogin }) {
               <path d="M0,0 L76,0 C62,4 42,9 40,21 C38,33 54,37 52,48 C50,59 31,61 29,73 C27,85 22,93 13,100 L0,100 Z" fill="#ffffff" />
               <path d="M61,0 C48,4 28,9 26,21 C24,33 40,37 38,48 C36,59 17,61 15,73 C13,85 9,93 3,100" fill="none" stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
             </svg>
+            <ParabaPosada
+              estado={estadoAve}
+              seguimiento={Math.min(username.length, 28) / 28}
+              className="absolute right-0 bottom-3 h-[188px] sm:h-[236px] lg:bottom-[4%] lg:h-[90%] w-auto"
+            />
           </div>
 
           {/* Formulario: centrado en el alto del modal; los mensajes de error tienen su lugar reservado,
               así que al aparecer no mueven nada. */}
           <div className="relative z-10 flex-1 lg:flex-none lg:w-[54%] flex flex-col sm:justify-center px-6 sm:px-12 lg:px-12 pt-8 pb-14 lg:py-10">
             <div className="w-full max-w-sm">
-              <h1 className="text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900">Iniciar sesión</h1>
+              <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Iniciar sesión</h1>
               <p className="mt-2 text-base text-slate-600">Universidad Autónoma del Beni "José Ballivián"</p>
 
-              <form onSubmit={handleSubmit} noValidate className="mt-8">
+              <form onSubmit={handleSubmit} noValidate className="mt-7">
                 {/* Usuario */}
                 <label htmlFor="login-usuario" className="block mb-1.5 text-sm font-semibold text-slate-700">Usuario o correo</label>
                 <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-900 ${anilloCampo(errorUsuario)} ${reboteUsuario ? 'login-rebote' : ''}`}>

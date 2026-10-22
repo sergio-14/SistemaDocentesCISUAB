@@ -14,7 +14,7 @@ from rest_framework.views import APIView
 from django.http import FileResponse, HttpResponse
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Count, DecimalField, Max, Prefetch, Q, Sum
+from django.db.models import Case, Count, DecimalField, IntegerField, Max, Prefetch, Q, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.exceptions import PermissionDenied
@@ -3435,18 +3435,35 @@ class ItemCatalogoReadOnlyViewSet(viewsets.ReadOnlyModelViewSet):
         if partida_codigo:
             qs = qs.filter(partida=str(partida_codigo).strip())
 
-        search = (self.request.query_params.get('q') or self.request.query_params.get('search') or '').strip()
-        if search:
-            qs = qs.filter(
-                Q(detalle__icontains=search)
-                | Q(unidad_medida__icontains=search)
-                | Q(partida__icontains=search)
+        search = ' '.join((self.request.query_params.get('q') or self.request.query_params.get('search') or '').split())
+        if not search:
+            return qs.order_by('id')
+
+        tokens = list(dict.fromkeys(token.casefold() for token in search.split() if len(token) > 1))
+        if not tokens:
+            return qs.none()
+
+        coincidencias = Q()
+        similitud = Case(
+            When(detalle__icontains=search, then=Value(1000)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+        for token in tokens:
+            coincidencia_detalle = Q(detalle__icontains=token)
+            coincidencia_auxiliar = Q(unidad_medida__icontains=token) | Q(partida__icontains=token)
+            coincidencias |= coincidencia_detalle | coincidencia_auxiliar
+            similitud += Case(
+                When(coincidencia_detalle, then=Value(10)),
+                When(coincidencia_auxiliar, then=Value(2)),
+                default=Value(0),
+                output_field=IntegerField(),
             )
 
-        return qs.order_by('id')
+        return qs.filter(coincidencias).annotate(_similitud=similitud).order_by('-_similitud', 'id')
 
     def list(self, request, *args, **kwargs):
-        search = (request.query_params.get('q') or request.query_params.get('search') or '').strip()
+        search = ' '.join((request.query_params.get('q') or request.query_params.get('search') or '').split())
         queryset = self.filter_queryset(self.get_queryset())
 
         # En búsquedas devolver una muestra mayor sin paginación para UX más fluida.

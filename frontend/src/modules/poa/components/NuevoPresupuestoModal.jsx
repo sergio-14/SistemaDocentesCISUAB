@@ -10,6 +10,12 @@ import { buildClientErrorMessages, formatApiErrors, mapApiErrorsToFieldErrors, M
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const capitalizarMes = (mes) => mes ? mes[0].toUpperCase() + mes.slice(1) : '';
 const unidadSinRegistrar = (unidad) => ['', 'sin unidad', 'sin_unidad'].includes(String(unidad || '').trim().toLowerCase());
+const normalizarTextoBusqueda = (valor) => String(valor || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLocaleLowerCase('es')
+  .replace(/\s+/g, ' ')
+  .trim();
 const parsearRangoMeses = (valor, inicioPorDefecto, finPorDefecto) => {
   const partes = String(valor || '').toLowerCase().split(/\s*(?:-|hasta|\ba\b)\s*/).filter((mes) => MESES.includes(mes));
   return { inicio: partes[0] || inicioPorDefecto, fin: partes[1] || partes[0] || finPorDefecto };
@@ -102,7 +108,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
   };
 
   const handleBuscarCatalogoItem = async () => {
-    const query = String(form.item || '').trim();
+    const query = String(form.item || '').replace(/\s+/g, ' ').trim();
     if (query.length < 2) {
       setCatalogItems([]);
       setCatalogError('Escribe al menos 2 caracteres para buscar.');
@@ -131,15 +137,29 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
     }
   };
 
-  const filteredItems = (catalogItems || []).filter((it) => {
-    const codigoPartida = String(it.partida?.codigo ?? it.partida ?? it.codigo_partida ?? '').trim();
-    if (grupoPartida?.codigo && codigoPartida !== String(grupoPartida.codigo).trim()) return false;
-    if (!itemQuery) return true;
-    const q = String(itemQuery).toLowerCase();
-    const descripcion = String(it.detalle || it.descripcion || it.nombre || it.nombre_item || it.codigo || '').toLowerCase();
-    const partidaCodigo = String(it.partida?.codigo ?? it.partida ?? '').toLowerCase();
-    return descripcion.includes(q) || partidaCodigo.includes(q);
-  }).slice(0, 20);
+  const queryNormalizada = normalizarTextoBusqueda(itemQuery);
+  const palabrasBusqueda = queryNormalizada.split(' ').filter((palabra) => palabra.length > 1);
+  const filteredItems = (catalogItems || [])
+    .map((it, indice) => {
+      const codigoPartida = String(it.partida?.codigo ?? it.partida ?? it.codigo_partida ?? '').trim();
+      if (grupoPartida?.codigo && codigoPartida !== String(grupoPartida.codigo).trim()) return null;
+      const descripcion = normalizarTextoBusqueda(it.detalle || it.descripcion || it.nombre || it.nombre_item || it.codigo);
+      const partidaCodigo = normalizarTextoBusqueda(codigoPartida);
+      const unidadMedida = normalizarTextoBusqueda(it.unidad_medida || it.unidad);
+      const textos = [descripcion, partidaCodigo, unidadMedida];
+      const coincidencias = palabrasBusqueda.filter((palabra) => textos.some((texto) => texto.includes(palabra)));
+      if (palabrasBusqueda.length && coincidencias.length === 0) return null;
+
+      const coincidenciasDescripcion = palabrasBusqueda.filter((palabra) => descripcion.includes(palabra)).length;
+      const similitud = (coincidenciasDescripcion * 10)
+        + ((coincidencias.length - coincidenciasDescripcion) * 2)
+        + (queryNormalizada && descripcion.includes(queryNormalizada) ? 100 : 0);
+      return { item: it, indice, similitud };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.similitud - a.similitud || a.indice - b.indice)
+    .slice(0, 20)
+    .map(({ item }) => item);
 
   const handleSelectCatalogItem = (itemData) => {
     const descripcion = itemData.detalle ?? itemData.descripcion ?? itemData.nombre ?? itemData.nombre_item ?? itemData.codigo ?? '';

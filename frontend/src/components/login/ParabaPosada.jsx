@@ -41,7 +41,7 @@ const GRIS = '#4b5b5e';
 const CORTEZA = '#8a5a3a';
 const HOJA = '#5fb04a';
 
-const ALTO_VISIBLE = 4.0; // la escena ocupa la pantalla: las aves, a unos dos tercios del alto // unidades del modelo que entran a lo alto del cuadro (la mamá, grande)
+const ALTO_VISIBLE = 3.6; // unidades del modelo que entran a lo alto del cuadro (la mamá, grande)
 const GIRO_BASE = -1.0; // casi de perfil, mirando hacia el formulario (a la izquierda)
 
 // ---------- modelo ----------
@@ -353,50 +353,35 @@ function crearAve({ giro = GIRO_BASE, cria = false } = {}) {
   return partes;
 }
 
-// Rama natural que cruza la escena de lado a lado: curva, se afina, con nudos, ramitas y hojas.
+// Rama natural: curva, se afina hacia la punta, con nudos, una ramita y hojas.
 function crearRama() {
   const rama = new Group();
   const corteza = material(CORTEZA);
   const tronco = new Mesh(
-    tuboAfinado(
-      [[-9, -0.32, 0.05], [-5, -0.08, 0], [-2.2, -0.18, 0.04], [0.2, -0.1, 0], [1.2, -0.17, -0.05], [2.6, -0.06, 0], [5, -0.18, 0.05], [9, -0.02, 0]],
-      0.19, 0.09, { pasos: 140, lados: 18 },
-    ),
+    tuboAfinado([[-0.9, -0.15, 0.05], [0.2, -0.1, 0], [1.2, -0.17, -0.05], [2.3, -0.07, 0], [3.6, -0.13, 0.05]], 0.15, 0.1, { pasos: 60, lados: 18 }),
     corteza,
   );
-  rama.add(tronco);
-  for (const [x, y, z, r] of [[-3.4, -0.12, 0.13, 0.07], [0.65, -0.12, 0.11, 0.06], [1.75, -0.1, -0.1, 0.05], [3.8, -0.1, 0.1, 0.06]]) {
+  const tapa = esfera([0.15, 0.15, 0.15], CORTEZA, 20);
+  tapa.position.set(-0.9, -0.15, 0.05);
+  rama.add(tronco, tapa);
+  for (const [x, y, z, r] of [[0.65, -0.12, 0.11, 0.06], [1.75, -0.1, -0.1, 0.05]]) {
     const nudo = esfera([r, r * 0.8, r], '#6e4529', 14);
     nudo.position.set(x, y, z);
     rama.add(nudo);
   }
+  const ramita = new Mesh(tuboAfinado([[1.3, -0.1, 0], [1.6, 0.22, 0.05], [1.95, 0.42, 0]], 0.05, 0.015, { pasos: 20, lados: 10 }), corteza);
+  rama.add(ramita);
   const forma = (s) => {
     s.moveTo(0, 0);
     s.quadraticCurveTo(0.12, 0.1, 0.32, 0);
     s.quadraticCurveTo(0.12, -0.1, 0, 0);
   };
-  const hojas = (lista) => {
-    for (const [x, y, z, giroZ, giroY] of lista) {
-      const hoja = new Mesh(lamina(forma, 0.01, 0.01), material(HOJA));
-      hoja.position.set(x, y, z);
-      hoja.rotation.set(1.2, giroY, giroZ);
-      rama.add(hoja);
-    }
-  };
-  // Ramitas con hojas: una a la derecha de las aves y dos hacia la izquierda, detrás del formulario.
-  for (const puntos of [
-    [[1.3, -0.1, 0], [1.6, 0.22, 0.05], [1.95, 0.42, 0]],
-    [[3.2, -0.08, 0], [3.5, 0.3, -0.05], [3.75, 0.62, 0]],
-    [[-2.6, -0.16, 0], [-2.9, 0.2, 0.05], [-3.3, 0.42, 0]],
-  ]) {
-    rama.add(new Mesh(tuboAfinado(puntos, 0.05, 0.015, { pasos: 20, lados: 10 }), corteza));
+  for (const [x, y, z, giroZ, giroY] of [[1.95, 0.42, 0, 0.4, 0.2], [1.75, 0.33, 0.04, 1.4, -0.4], [1.55, 0.18, -0.02, -0.5, 0.6]]) {
+    const hoja = new Mesh(lamina(forma, 0.01, 0.01), material(HOJA));
+    hoja.position.set(x, y, z);
+    hoja.rotation.set(1.2, giroY, giroZ);
+    rama.add(hoja);
   }
-  hojas([
-    [1.95, 0.42, 0, 0.4, 0.2], [1.75, 0.33, 0.04, 1.4, -0.4], [1.55, 0.18, -0.02, -0.5, 0.6],
-    [3.75, 0.62, 0, 0.6, 0.1], [3.55, 0.45, 0.04, 1.6, -0.3], [3.4, 0.25, -0.03, -0.4, 0.5],
-    [-3.3, 0.42, 0, 2.6, 0.2], [-3.05, 0.3, 0.04, 1.7, -0.5], [-2.85, 0.12, -0.02, 3.4, 0.4],
-    [4.6, -0.12, 0.08, -0.9, 0.3], [-4.2, -0.06, 0.08, 3.9, -0.2],
-  ]);
   return rama;
 }
 
@@ -523,7 +508,7 @@ function movimientoCria(estado, t) {
 // Cría inquieta: se queda, se da vuelta y se aleja a saltitos por la rama, mira alrededor, vuelve
 // hacia la mamá y se queda otra vez.
 const CICLO_PASEO = 14;
-const LARGO_PASEO = 0.72;
+const LARGO_PASEO = 0.5;
 function paseoInquieto(t) {
   const c = t % CICLO_PASEO;
   const brincos = (p) => Math.abs(Math.sin(Math.PI * p * 6)) * 0.1;
@@ -618,9 +603,8 @@ function ParabaPosada({ estado = 'reposo', seguimiento = 0, className = '' }) {
       camara.position.set(0, 2.1, distancia);
       camara.lookAt(0, 0.9, 0);
       camara.updateProjectionMatrix();
-      // En pantalla grande las aves van a la derecha (el formulario flota a la izquierda); en celular,
-      // al centro de la franja de arriba.
-      mundo.position.x = ALTO_VISIBLE * camara.aspect * (w >= 1000 ? 0.2 : 0.03);
+      // El ave a la derecha del centro; la rama sigue hasta el borde.
+      mundo.position.x = -ALTO_VISIBLE * camara.aspect * 0.04;
     };
     ajustar();
     const observador = new ResizeObserver(ajustar);

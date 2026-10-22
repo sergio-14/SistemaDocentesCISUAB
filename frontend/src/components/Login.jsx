@@ -146,35 +146,48 @@ function Login({ onLogin }) {
   const avisoContrasena = !errores.password && loginError;
 
   return (
-    <div className={`login-escena relative min-h-screen w-full overflow-hidden font-sans text-slate-800 bg-[radial-gradient(circle_at_70%_34%,rgba(240,205,54,0.24)_0%,rgba(240,205,54,0)_26%),linear-gradient(165deg,#EEF3FA_0%,#DFE8F5_45%,#B8C9E1_100%)] ${isExiting ? 'login-salida' : ''}`}>
-      {/* Escena de borde a borde (azulado de Fondo de Tiempo): las parabas en una rama que cruza la
-          pantalla. En celular ocupa la franja de arriba. */}
-      <div className="relative h-72 sm:h-80 lg:absolute lg:inset-0 lg:h-auto" aria-hidden="true">
-        <Suspense fallback={null}>
-          <ParabaPosada
-            estado={estadoAve}
-            seguimiento={Math.min(textoMirado.length, 28) / 28}
-            className="absolute inset-0"
-          />
-        </Suspense>
-      </div>
+    <div className={`login-escena min-h-screen w-full flex items-center justify-center overflow-hidden bg-azulado-100 sm:p-6 lg:p-10 font-sans text-slate-800 ${isExiting ? 'login-salida' : ''}`}>
+      <div className="relative w-full max-w-5xl">
+        <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[560px] flex flex-col lg:flex-row bg-white sm:rounded-[28px] overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
+          {/* Panel de las parabas (azulado de Fondo de Tiempo): a la derecha con borde ondulado; en celular,
+              arriba. Detrás de las aves, un sol dorado suave y colinas al pie; las aves van encima de la
+              onda, así pueden asomarse un poco sobre el borde. */}
+          <div className="relative h-60 sm:h-72 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[56%] flex-shrink-0 bg-[linear-gradient(170deg,#EEF3FA_0%,#DFE8F5_48%,#B8C9E1_100%)]" aria-hidden="true">
+            <div className="absolute right-[10%] top-[8%] h-[62%] aspect-square rounded-full bg-[radial-gradient(circle,rgba(240,205,54,0.42)_0%,rgba(240,205,54,0.12)_45%,rgba(240,205,54,0)_70%)]" />
+            <svg className="absolute bottom-0 left-0 w-full h-[34%]" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <path d="M0,62 C22,30 44,48 62,40 C78,33 90,22 100,30 L100,100 L0,100 Z" fill="#B8C9E1" opacity="0.55" />
+              <path d="M0,82 C18,62 40,70 58,64 C76,58 88,66 100,58 L100,100 L0,100 Z" fill="#A9BDDB" opacity="0.6" />
+            </svg>
+            <svg className="absolute bottom-0 left-0 w-full h-14 lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <path d="M0,34 C12,6 26,68 46,38 C64,12 80,64 100,26" fill="none" stroke="#94a3b8" strokeOpacity="0.8" strokeWidth="1.5" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
+              <path d="M0,100 L0,58 C12,30 26,92 46,62 C64,36 80,88 100,50 L100,100 Z" fill="#ffffff" />
+            </svg>
+            {/* Onda como la del modelo: arriba el blanco entra mucho a la derecha y baja en dos curvas. */}
+            <svg className="absolute inset-0 hidden lg:block w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <path d="M0,0 L76,0 C62,4 42,9 40,21 C38,33 54,37 52,48 C50,59 31,61 29,73 C27,85 22,93 13,100 L0,100 Z" fill="#ffffff" />
+              <path d="M61,0 C48,4 28,9 26,21 C24,33 40,37 38,48 C36,59 17,61 15,73 C13,85 9,93 3,100" fill="none" stroke="#0284c7" strokeOpacity="0.35" strokeWidth="1.5" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
+            </svg>
+            <Suspense fallback={null}>
+              <ParabaPosada
+                estado={estadoAve}
+                seguimiento={Math.min(textoMirado.length, 28) / 28}
+                className="absolute inset-0"
+              />
+            </Suspense>
+          </div>
 
-      {/* Formulario: tarjeta blanca que flota sobre la escena, a la izquierda (en celular, debajo de las
-          aves). Los mensajes de error tienen su lugar reservado, así que al aparecer no mueven nada. */}
-      <div className="relative z-10 flex items-start lg:items-center lg:min-h-screen px-4 sm:px-8 lg:pl-[7vw] pb-8 lg:py-10">
-        <div className="login-tarjeta relative -mt-10 lg:mt-0 w-full max-w-md mx-auto lg:mx-0 rounded-[28px] bg-white px-7 sm:px-10 pt-9 pb-14 shadow-[0_30px_80px_rgba(15,23,42,0.16)]">
+          {/* Formulario: centrado en el alto del modal; los mensajes de error tienen su lugar reservado,
+              así que al aparecer no mueven nada. */}
+          <div className="relative z-10 flex-1 lg:flex-none lg:w-[48%] flex flex-col sm:justify-center px-6 sm:px-12 lg:px-12 pt-8 pb-14 lg:pt-10 lg:pb-16">
             <div className="w-full max-w-sm">
-              <div className="flex items-center gap-3">
-                <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-12 w-auto" />
-                <p className="text-sm font-semibold leading-tight text-slate-700">
-                  Universidad Autónoma del Beni<br /><span className="font-normal text-slate-500">"José Ballivián"</span>
-                </p>
+              <div className="flex flex-col items-center text-center">
+                <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-16 w-auto" />
+                <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Universidad Autónoma del Beni "José Ballivián"</p>
+                <h1 className="mt-5 text-3xl font-extrabold tracking-tight text-slate-900">Iniciar sesión</h1>
+                <span className="mt-3 block h-1 w-10 rounded-full bg-sky-600" aria-hidden="true" />
               </div>
-              <span className="mt-8 mb-3 block h-1 w-10 rounded-full bg-sky-600" aria-hidden="true" />
-              <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Iniciar sesión</h1>
-              <p className="mt-2 text-base text-slate-600">Ingresa con tu usuario o correo institucional.</p>
 
-              <form onSubmit={handleSubmit} noValidate className="mt-7">
+              <form onSubmit={handleSubmit} noValidate className="mt-8">
                 {/* Usuario */}
                 <label htmlFor="login-usuario" className="block mb-1.5 text-sm font-semibold text-slate-700">Usuario o correo</label>
                 <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-sky-600/40 ${anilloCampo(errorUsuario)} ${reboteUsuario ? 'login-rebote' : ''}`}>
@@ -258,7 +271,8 @@ function Login({ onLogin }) {
               </form>
             </div>
 
-            <p className="absolute left-7 sm:left-10 bottom-5 text-xs text-slate-500">© {new Date().getFullYear()} UABJB</p>
+            <p className="absolute left-6 sm:left-12 bottom-5 text-xs text-slate-500">© {new Date().getFullYear()} UABJB</p>
+          </div>
         </div>
       </div>
 

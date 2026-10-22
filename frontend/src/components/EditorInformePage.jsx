@@ -342,8 +342,9 @@ export default function EditorInformePage() {
   return (
     <InformeDocumentoContext.Provider value={contexto}>
       <div className="min-h-screen flex flex-col bg-gradient-to-b from-blue-900 to-blue-950">
-        {/* Cabecera (azul del sidebar) y barra de formato, fijas juntas arriba */}
-        <div className="sticky top-0 z-30">
+        {/* Cabecera (azul del sidebar) y barra de formato, fijas juntas arriba. El fondo azul
+            queda detrás de las esquinas redondeadas del panel para que no se vean cuadradas al bajar. */}
+        <div className="sticky top-0 z-30 bg-gradient-to-r from-blue-900 to-blue-950">
           <header ref={cabeceraRef} className="bg-gradient-to-r from-blue-900 to-blue-950 text-white">
             {/* Arriba el dueño del informe (nombre completo, sin cortar); abajo, o a la
                 derecha en pantallas anchas, el aviso de estado y los dos grupos de botones. */}
@@ -451,13 +452,15 @@ export default function EditorInformePage() {
               </div>
             </div>
           )}
+          {/* Sin barra arriba, el borde redondeado del panel también queda fijo */}
+          {(barraLateral || soloLectura) && <div className="h-5 bg-azulado-100 rounded-t-[2rem]" />}
         </div>
 
-        <main className={`flex-1 bg-azulado-100 px-4 md:px-6 pb-16 ${barraLateral || soloLectura ? 'rounded-t-[2rem] pt-5' : ''}`}>
+        <main className="flex-1 bg-azulado-100 px-4 md:px-6 pb-16">
           <div className={barraLateral ? `flex items-start justify-center gap-6 ${posicionBarra === 'derecha' ? 'flex-row-reverse' : ''}` : ''}>
           {/* Barra de formato a un costado de la hoja, fija al bajar */}
           {barraLateral && (
-            <aside className="sticky w-52 shrink-0" style={{ top: alturaCabecera + 16 }}>
+            <aside className="sticky w-52 shrink-0" style={{ top: alturaCabecera + 20 + 16 }}>
               <InformeFormatToolbar posicion={posicionBarra} onCambiarPosicion={cambiarPosicionBarra} />
             </aside>
           )}

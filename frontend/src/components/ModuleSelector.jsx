@@ -5,7 +5,7 @@ import { ArrowRight } from 'lucide-react';
 import ModalMiCuenta from './cuenta/ModalMiCuenta';
 import { useActiveRole } from '../contexts/activeRole';
 import { useErrorPulse } from '../utils/formErrors';
-import loroSilueta from '../assets/loro-silueta.png';
+import loroSilueta from '../assets/loro-silueta.webp';
 
 // La silueta del loro se pinta con el color de fondo a través de esta máscara.
 const MASCARA_LORO = {

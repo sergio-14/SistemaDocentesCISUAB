@@ -2193,14 +2193,9 @@ class PerfilUsuario(models.Model):
             _imagen_a_data_uri(self.foto_perfil, self.foto_perfil_mime)
             or _descifrar_imagen_legado(self.foto_perfil_cifrada, self.foto_perfil_mime)
         )
-        if propia:
-            return propia
-
-        # Si no tiene foto propia, usa el logo de su carrera asignada.
-        if self.carrera:
-            return self.carrera.get_logo_carrera_data_uri()
-
-        return None
+        # Sin foto propia no se usa el logo de la carrera: el frontend muestra la imagen
+        # predeterminada (el logo de la carrera queda solo para la carrera y sus documentos).
+        return propia or None
 
 
 @receiver(post_save, sender=User)

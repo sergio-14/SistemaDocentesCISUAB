@@ -7,20 +7,8 @@ import { MENSAJE_REVISA_CAMPOS, useErrorPulse } from '../utils/formErrors';
 import MensajeErrorCampo from './common/MensajeErrorCampo';
 import { AlertCircle, ArrowRight, Eye, EyeOff, User } from 'lucide-react';
 
-// El guacamayo en 3D (Three.js) se carga aparte: solo lo descarga quien abre el login.
-const ParabaPosada = lazy(() => import('./login/ParabaPosada'));
-// Los videos de parabas, igual: solo se descargan si alguien elige "Video".
+// Los videos de parabas se cargan aparte: solo los descarga quien abre el login.
 const VideosParabas = lazy(() => import('./login/VideosParabas'));
-
-// Lo último que eligió esta persona en el interruptor (animación o video).
-const CLAVE_ESCENA = 'login-escena';
-function escenaGuardada() {
-  try {
-    return localStorage.getItem(CLAVE_ESCENA) === 'video' ? 'video' : 'animacion';
-  } catch {
-    return 'animacion';
-  }
-}
 
 const TONO_ERROR = 'text-red-700';
 const MENSAJE_CREDENCIALES = 'Usuario o contraseña incorrectos.';
@@ -35,9 +23,6 @@ function Login({ onLogin }) {
   const [errores, setErrores] = useState({});
   const [pulso, setPulso] = useState(0);
   const [loginError, setLoginError] = useState('');
-  const [campoActivo, setCampoActivo] = useState(null);
-  const [escena, setEscena] = useState(escenaGuardada);
-  const [videoMontado, setVideoMontado] = useState(() => escenaGuardada() === 'video');
   const loginErrorTimeoutRef = useRef(null);
   const navigate = useNavigate();
 
@@ -142,104 +127,53 @@ function Login({ onLogin }) {
     setLoginError('');
     setErrores({});
   };
-  const entrarA = (campo) => () => {
-    limpiarErrores();
-    setCampoActivo(campo);
-  };
-  const salirDelCampo = () => setCampoActivo(null);
-  const cambiarEscena = (valor) => {
-    if (valor === 'video') setVideoMontado(true);
-    setEscena(valor);
-    try {
-      localStorage.setItem(CLAVE_ESCENA, valor);
-    } catch {
-      // Sin almacenamiento: se elige de nuevo la próxima vez.
-    }
-  };
-
-  // La paraba: mira el campo en que se escribe; cierra los ojos solo si la contraseña está a la vista
-  // (con el ojo de "Ocultar contraseña"); sin nada escrito, se acicala.
-  let estadoAve = 'atento';
-  if (showPassword && (campoActivo === 'contrasena' || password)) estadoAve = 'ojos-cerrados';
-  else if (campoActivo) estadoAve = campoActivo === 'contrasena' ? 'mirando-contrasena' : 'mirando-usuario';
-  else if (!username && !password) estadoAve = 'reposo';
-  const textoMirado = campoActivo === 'contrasena' ? password : username;
-
   // Mensaje bajo la contraseña: el del campo o, si no hay, el del servidor.
   const avisoContrasena = !errores.password && loginError;
 
   return (
     <div className={`login-escena min-h-screen w-full flex items-center justify-center overflow-hidden bg-azulado-100 sm:p-6 lg:p-10 font-sans text-slate-800 ${isExiting ? 'login-salida' : ''}`}>
-      <div className="relative w-full max-w-5xl">
-        <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[min(680px,calc(100vh-5rem))] flex flex-col lg:flex-row bg-white sm:rounded-3xl sm:ring-1 sm:ring-azulado-300 overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
-          {/* Panel de las parabas: a la derecha, hasta la línea punteada; en celular, arriba. Muestra la
-              animación 3D o los videos (el interruptor de arriba cambia entre los dos con un fundido). */}
+      <div className="relative w-full max-w-5xl lg:mt-12">
+        {/* Logo de la UAB en la esquina de arriba a la izquierda: mitad dentro y mitad fuera de la
+            tarjeta, en un círculo blanco con un borde azulado fino (en celular va en el formulario). */}
+        <div className="login-tarjeta absolute z-20 -left-6 -top-14 hidden lg:flex h-28 w-28 items-center justify-center rounded-full bg-white ring-2 ring-azulado-300 shadow-[0_10px_26px_rgba(15,23,42,0.14)]">
+          <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-20 w-auto" />
+        </div>
+        <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[min(660px,calc(100vh-8rem))] flex flex-col lg:flex-row bg-white sm:rounded-3xl sm:ring-1 sm:ring-azulado-300 overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
+          {/* Panel de los videos de parabas: a la derecha, hasta la línea punteada; en celular, arriba. */}
           <div className="relative h-60 sm:h-72 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[56%] flex-shrink-0 bg-[linear-gradient(170deg,#EEF3FA_0%,#DFE8F5_48%,#B8C9E1_100%)]">
-            <div className="absolute right-[10%] top-[8%] h-[62%] aspect-square rounded-full bg-[radial-gradient(circle,rgba(240,205,54,0.42)_0%,rgba(240,205,54,0.12)_45%,rgba(240,205,54,0)_70%)]" aria-hidden="true" />
-            <svg className="absolute bottom-0 left-0 w-full h-[34%]" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-              <path d="M0,62 C22,30 44,48 62,40 C78,33 90,22 100,30 L100,100 L0,100 Z" fill="#B8C9E1" opacity="0.55" />
-              <path d="M0,82 C18,62 40,70 58,64 C76,58 88,66 100,58 L100,100 L0,100 Z" fill="#A9BDDB" opacity="0.6" />
-            </svg>
-            {videoMontado && (
-              <Suspense fallback={null}>
-                <VideosParabas
-                  activo={escena === 'video'}
-                  className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${escena === 'video' ? 'opacity-100' : 'opacity-0'}`}
-                />
-              </Suspense>
-            )}
+            <Suspense fallback={null}>
+              <VideosParabas className="absolute inset-0" />
+            </Suspense>
             <svg className="absolute bottom-0 left-0 z-10 w-full h-14 lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
               <path d="M0,34 C12,6 26,68 46,38 C64,12 80,64 100,26" fill="none" stroke="#0284c7" strokeOpacity="0.85" strokeWidth="2" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
               <path d="M0,100 L0,34 C12,6 26,68 46,38 C64,12 80,64 100,26 L100,100 Z" fill="#ffffff" />
             </svg>
-            {/* Onda: el blanco del formulario llega justo hasta la línea punteada, que es el borde del
-                video (y del fondo de la animación). */}
+            {/* Onda: el blanco del formulario llega justo hasta la línea punteada, que es el borde del video. */}
             <svg className="absolute inset-0 z-10 hidden lg:block w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
               <path d="M0,0 L61,0 C48,4 28,9 26,21 C24,33 40,37 38,48 C36,59 17,61 15,73 C13,85 9,93 3,100 L0,100 Z" fill="#ffffff" />
               <path d="M61,0 C48,4 28,9 26,21 C24,33 40,37 38,48 C36,59 17,61 15,73 C13,85 9,93 3,100" fill="none" stroke="#0284c7" strokeOpacity="0.85" strokeWidth="2" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
             </svg>
-            <div className={`absolute inset-0 z-10 transition-opacity duration-700 ease-in-out ${escena === 'animacion' ? 'opacity-100' : 'opacity-0'}`} aria-hidden="true">
-              <Suspense fallback={null}>
-                <ParabaPosada
-                  estado={estadoAve}
-                  seguimiento={Math.min(textoMirado.length, 28) / 28}
-                  pausada={escena !== 'animacion'}
-                  className="absolute inset-0"
-                />
-              </Suspense>
-            </div>
-
-            {/* Interruptor discreto: animación (apagado) o video (encendido). */}
-            <button
-              type="button"
-              role="switch"
-              aria-checked={escena === 'video'}
-              aria-label="Mostrar video de parabas"
-              title={escena === 'video' ? 'Ver animación' : 'Ver video'}
-              onClick={() => cambiarEscena(escena === 'video' ? 'animacion' : 'video')}
-              className="absolute top-4 right-4 z-20 h-5 w-9 rounded-full bg-white/55 ring-1 ring-white/70 shadow-sm backdrop-blur transition-colors hover:bg-white/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40"
-            >
-              <span className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-blue-900/70 shadow transition-transform duration-300 ${escena === 'video' ? 'translate-x-4' : ''}`} />
-            </button>
-            <p className={`absolute bottom-2 right-4 z-20 hidden lg:block text-[11px] transition-colors ${escena === 'video' ? 'text-white/85' : 'text-slate-600/80'}`}>© {new Date().getFullYear()} UABJB</p>
+            <p className="absolute bottom-2 right-4 z-20 hidden lg:block text-[11px] text-white/85">© {new Date().getFullYear()} UABJB</p>
           </div>
 
           {/* Formulario: los mensajes de error tienen su lugar reservado, así que al aparecer no mueven nada. */}
-          <div className="relative z-10 flex-1 lg:flex-none lg:w-[52%] flex flex-col px-6 sm:px-12 lg:px-14 pt-8 pb-8 lg:py-12">
+          <div className="relative z-10 flex-1 lg:flex-none lg:w-[52%] flex flex-col px-6 sm:px-12 lg:px-14 pt-8 pb-8 lg:pt-6 lg:pb-12">
             <div className="w-full max-w-sm mx-auto flex flex-1 flex-col">
-              {/* Membrete: el logo grande, una línea y el nombre de la universidad. */}
-              <div className="flex items-center gap-4">
-                <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-20 w-auto" />
-                <span className="h-14 w-px bg-azulado-300" aria-hidden="true" />
+              {/* Nombre de la universidad arriba, a la derecha del logo de la esquina (en celular, con el
+                  logo al lado). */}
+              <div className="flex items-center gap-3 lg:pl-12">
+                <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-14 w-auto lg:hidden" />
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Universidad Autónoma del Beni</p>
-                  <p className="mt-0.5 text-base font-bold text-blue-900">"José Ballivián"</p>
+                  <p className="mt-0.5 text-sm font-bold text-blue-900">"José Ballivián"</p>
                 </div>
               </div>
 
-              <div className="my-auto pt-10 lg:pt-6">
-              <h1 className="text-4xl font-extrabold tracking-tight text-blue-900">Iniciar sesión</h1>
-              <p className="mt-2 text-base text-slate-500">Ingresa con tu usuario o correo institucional.</p>
+              <div className="my-auto pt-10 lg:pt-4">
+              <div className="text-center">
+                <h1 className="text-4xl font-extrabold tracking-tight text-blue-900">Iniciar sesión</h1>
+                <p className="mt-2 text-base text-slate-500">Ingresa con tu usuario o correo institucional.</p>
+              </div>
 
               <form onSubmit={handleSubmit} noValidate className="mt-8">
                 {/* Usuario */}
@@ -249,9 +183,8 @@ function Login({ onLogin }) {
                     id="login-usuario"
                     type="text"
                     value={username}
-                    onFocus={entrarA('usuario')}
+                    onFocus={limpiarErrores}
                     onClick={limpiarErrores}
-                    onBlur={salirDelCampo}
                     onChange={(e) => { setUsername(e.target.value); setErrores((prev) => ({ ...prev, username: undefined })); }}
                     aria-invalid={Boolean(errorUsuario) || undefined}
                     className="login-input block w-full h-14 bg-transparent pl-5 pr-12 text-base font-medium text-slate-900 focus:outline-none"
@@ -270,9 +203,8 @@ function Login({ onLogin }) {
                     id="login-contrasena"
                     type="text"
                     value={password}
-                    onFocus={entrarA('contrasena')}
+                    onFocus={limpiarErrores}
                     onClick={limpiarErrores}
-                    onBlur={salirDelCampo}
                     onChange={(e) => { setPassword(e.target.value); setErrores((prev) => ({ ...prev, password: undefined })); }}
                     aria-invalid={Boolean(errorContrasena) || undefined}
                     className={`login-input ${showPassword ? '' : 'login-password-masked'} block w-full h-14 bg-transparent pl-5 pr-14 text-base font-medium text-slate-900 focus:outline-none`}
@@ -306,15 +238,15 @@ function Login({ onLogin }) {
                     disabled={loading || isExiting}
                     className="group inline-flex items-center gap-3 rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-900/25 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
-                    <span className="w-28 whitespace-nowrap text-right text-base font-bold text-blue-900">{loading ? 'Ingresando...' : 'Ingresar'}</span>
-                    <span className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-900 text-white shadow-[0_8px_18px_rgba(30,58,138,0.3)] transition-colors group-hover:bg-blue-800">
+                    <span className="w-24 whitespace-nowrap text-right text-sm font-bold text-blue-900">{loading ? 'Ingresando...' : 'Ingresar'}</span>
+                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-900 text-white shadow-[0_6px_14px_rgba(30,58,138,0.28)] transition-colors group-hover:bg-blue-800">
                       {loading ? (
-                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
                       ) : (
-                        <ArrowRight className="h-6 w-6 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5" aria-hidden="true" />
+                        <ArrowRight className="h-5 w-5 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5" aria-hidden="true" />
                       )}
                     </span>
                   </button>

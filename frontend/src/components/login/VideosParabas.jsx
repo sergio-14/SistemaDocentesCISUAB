@@ -7,12 +7,12 @@ import video5 from '../../assets/videos/video5.mp4';
 
 // Videos de parabas del panel del login, uno tras otro en bucle. Dos reproductores se turnan: el
 // siguiente arranca antes de que termine el actual y se funden durante FUNDIDO segundos, así el
-// cambio de video no tiene corte. Sin sonido. Solo se monta cuando alguien elige "Video".
+// cambio de video no tiene corte. Sin sonido.
 
 const VIDEOS = [video2, video3, video4, video5, video1];
 const FUNDIDO = 1.4; // segundos
 
-function VideosParabas({ activo, className = '' }) {
+function VideosParabas({ className = '' }) {
   const jugadorA = useRef(null);
   const jugadorB = useRef(null);
   const estado = useRef({ actual: 0, indice: [0, 1], cambiando: false });
@@ -65,12 +65,10 @@ function VideosParabas({ activo, className = '' }) {
     };
   }, []);
 
-  // Reproduce solo mientras se ve el video; con la animación, queda en pausa.
+  // Arranca el primero en cuanto el componente aparece.
   useEffect(() => {
-    const v = [jugadorA.current, jugadorB.current][estado.current.actual];
-    if (activo) v.play().catch(() => {});
-    else v.pause();
-  }, [activo, visible]);
+    jugadorA.current.play().catch(() => {});
+  }, []);
 
   const clase = 'absolute inset-0 h-full w-full object-cover object-[center_45%] transition-opacity ease-in-out';
   return (

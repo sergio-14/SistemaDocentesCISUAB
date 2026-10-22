@@ -134,34 +134,41 @@ function Login({ onLogin }) {
     <div className={`login-escena min-h-screen w-full flex items-center justify-center overflow-hidden bg-azulado-100 sm:p-6 lg:p-10 font-sans text-slate-800 ${isExiting ? 'login-salida' : ''}`}>
       <div className="relative w-full max-w-5xl lg:mt-12">
         {/* Logo de la UAB en la esquina de arriba a la izquierda: mitad dentro y mitad fuera de la
-            tarjeta, en un círculo blanco con un borde azulado fino (en celular va en el formulario). */}
-        <div className="login-tarjeta absolute z-20 -left-6 -top-14 hidden lg:flex h-28 w-28 items-center justify-center rounded-full bg-white ring-2 ring-azulado-300 shadow-[0_10px_26px_rgba(15,23,42,0.14)]">
-          <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-20 w-auto" />
+            tarjeta, en un círculo blanco ceñido al escudo (en celular va en el formulario). */}
+        <div className="login-tarjeta absolute z-20 -left-5 -top-12 hidden lg:flex h-24 w-24 items-center justify-center rounded-full bg-white ring-1 ring-azulado-300 shadow-[0_8px_20px_rgba(15,23,42,0.12)]">
+          <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-[76px] w-auto" />
         </div>
         <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[min(660px,calc(100vh-8rem))] flex flex-col lg:flex-row bg-white sm:rounded-3xl sm:ring-1 sm:ring-azulado-300 overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
-          {/* Panel de los videos de parabas: a la derecha, hasta la línea punteada; en celular, arriba. */}
-          <div className="relative h-60 sm:h-72 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[56%] flex-shrink-0 bg-[linear-gradient(170deg,#EEF3FA_0%,#DFE8F5_48%,#B8C9E1_100%)]">
+          {/* Columna de los videos de parabas, a la derecha: casi tan vertical como los videos, así se ven
+              enteros. Su borde izquierdo es una onda que recorta el video (sin tapar nada con blanco) y
+              la línea punteada la sigue. En celular va arriba, como una franja. */}
+          <svg width="0" height="0" className="absolute" aria-hidden="true" focusable="false">
+            <defs>
+              <clipPath id="login-onda" clipPathUnits="objectBoundingBox">
+                <path d="M0.17,0 C0.04,0.14 0.03,0.27 0.11,0.4 C0.19,0.53 0.15,0.66 0.05,0.78 C-0.01,0.86 0.02,0.94 0.09,1 L1,1 L1,0 Z" />
+              </clipPath>
+            </defs>
+          </svg>
+          <div className="relative order-first lg:order-last h-72 sm:h-80 lg:h-auto lg:w-[42%] flex-shrink-0 bg-azulado-100 lg:[clip-path:url(#login-onda)]">
             <Suspense fallback={null}>
               <VideosParabas className="absolute inset-0" />
             </Suspense>
             <svg className="absolute bottom-0 left-0 z-10 w-full h-14 lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-              <path d="M0,34 C12,6 26,68 46,38 C64,12 80,64 100,26" fill="none" stroke="#0284c7" strokeOpacity="0.85" strokeWidth="2" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
               <path d="M0,100 L0,34 C12,6 26,68 46,38 C64,12 80,64 100,26 L100,100 Z" fill="#ffffff" />
-            </svg>
-            {/* Onda: el blanco del formulario llega justo hasta la línea punteada, que es el borde del video. */}
-            <svg className="absolute inset-0 z-10 hidden lg:block w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-              <path d="M0,0 L61,0 C48,4 28,9 26,21 C24,33 40,37 38,48 C36,59 17,61 15,73 C13,85 9,93 3,100 L0,100 Z" fill="#ffffff" />
-              <path d="M61,0 C48,4 28,9 26,21 C24,33 40,37 38,48 C36,59 17,61 15,73 C13,85 9,93 3,100" fill="none" stroke="#0284c7" strokeOpacity="0.85" strokeWidth="2" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
+              <path d="M0,34 C12,6 26,68 46,38 C64,12 80,64 100,26" fill="none" stroke="#0284c7" strokeOpacity="0.85" strokeWidth="2" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
             </svg>
             <p className="absolute bottom-2 right-4 z-20 hidden lg:block text-[11px] text-white/85">© {new Date().getFullYear()} UABJB</p>
           </div>
+          <svg className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden lg:block h-full w-[42%]" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M17,0 C4,14 3,27 11,40 C19,53 15,66 5,78 C-1,86 2,94 9,100" fill="none" stroke="#0284c7" strokeOpacity="0.85" strokeWidth="2" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
+          </svg>
 
           {/* Formulario: los mensajes de error tienen su lugar reservado, así que al aparecer no mueven nada. */}
-          <div className="relative z-10 flex-1 lg:flex-none lg:w-[52%] flex flex-col px-6 sm:px-12 lg:px-14 pt-8 pb-8 lg:pt-6 lg:pb-12">
+          <div className="relative z-10 flex-1 lg:flex-none lg:w-[58%] flex flex-col px-6 sm:px-12 lg:px-16 pt-8 pb-8 lg:pt-6 lg:pb-12">
             <div className="w-full max-w-sm mx-auto flex flex-1 flex-col">
               {/* Nombre de la universidad arriba, a la derecha del logo de la esquina (en celular, con el
                   logo al lado). */}
-              <div className="flex items-center gap-3 lg:pl-12">
+              <div className="flex items-center gap-3">
                 <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-14 w-auto lg:hidden" />
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Universidad Autónoma del Beni</p>

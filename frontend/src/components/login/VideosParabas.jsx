@@ -9,7 +9,15 @@ import video5 from '../../assets/videos/video5.mp4';
 // siguiente arranca antes de que termine el actual y se funden durante FUNDIDO segundos, así el
 // cambio de video no tiene corte. Sin sonido.
 
-const VIDEOS = [video2, video3, video4, video5, video1];
+// `foco`: object-position de cada video, en el punto donde están las cabezas (mirado cuadro a cuadro),
+// para que en la franja baja del celular se vean los loros y no las ramas.
+const VIDEOS = [
+  { src: video2, foco: '50% 42%' },
+  { src: video3, foco: '50% 30%' },
+  { src: video4, foco: '50% 22%' },
+  { src: video5, foco: '40% 35%' },
+  { src: video1, foco: '55% 40%' },
+];
 const FUNDIDO = 1.4; // segundos
 
 function VideosParabas({ className = '' }) {
@@ -22,10 +30,14 @@ function VideosParabas({ className = '' }) {
     const jugadores = [jugadorA.current, jugadorB.current];
     const e = estado.current;
     let espera = 0;
+    const cargar = (v, i) => {
+      v.src = VIDEOS[i].src;
+      v.style.objectPosition = VIDEOS[i].foco;
+      v.load();
+    };
     jugadores.forEach((v, n) => {
       v.muted = true;
-      v.src = VIDEOS[e.indice[n]];
-      v.load();
+      cargar(v, e.indice[n]);
     });
 
     const cambiar = (n) => {
@@ -42,8 +54,7 @@ function VideosParabas({ className = '' }) {
         const v = jugadores[n];
         v.pause();
         e.indice[n] = (e.indice[otro] + 1) % VIDEOS.length;
-        v.src = VIDEOS[e.indice[n]];
-        v.load();
+        cargar(v, e.indice[n]);
         e.cambiando = false;
       }, FUNDIDO * 1000 + 150);
     };
@@ -70,7 +81,7 @@ function VideosParabas({ className = '' }) {
     jugadorA.current.play().catch(() => {});
   }, []);
 
-  const clase = 'absolute inset-0 h-full w-full object-cover object-[center_45%] transition-opacity ease-in-out';
+  const clase = 'absolute inset-0 h-full w-full object-cover transition-opacity ease-in-out';
   return (
     <div className={className} aria-hidden="true">
       {[jugadorA, jugadorB].map((ref, n) => (

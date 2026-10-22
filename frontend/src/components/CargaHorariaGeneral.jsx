@@ -177,15 +177,18 @@ const CargaHorariaGeneral = () => {
                 </h2>
               </div>
             </div>
-            {/* Materia de esta carrera para un docente de otra carrera (doble carrera). */}
-            <button data-escritura
-              type="button"
-              onClick={() => setAsignando(true)}
-              className={`${BOTON} px-5 py-2.5 w-full sm:w-auto sm:self-end mt-auto bg-blue-900 hover:bg-blue-950 text-white shadow-sm`}
-            >
-              <Plus className="w-5 h-5" strokeWidth={2} />
-              <span>Asignar materia</span>
-            </button>
+            {/* Materia de esta carrera para un docente de otra carrera (doble carrera). La
+                asigna Jefatura; el superusuario ve la carga horaria en solo lectura. */}
+            {!esSuperusuario && (
+              <button data-escritura
+                type="button"
+                onClick={() => setAsignando(true)}
+                className={`${BOTON} px-5 py-2.5 w-full sm:w-auto sm:self-end mt-auto bg-blue-900 hover:bg-blue-950 text-white shadow-sm`}
+              >
+                <Plus className="w-5 h-5" strokeWidth={2} />
+                <span>Asignar materia</span>
+              </button>
+            )}
           </div>
 
           <div className="rounded-3xl bg-gradient-to-br from-blue-900 to-blue-950 text-white p-5 sm:p-6 flex flex-col justify-between gap-4 shadow-[0_4px_14px_rgba(30,58,138,0.25)]">
@@ -249,6 +252,7 @@ const CargaHorariaGeneral = () => {
 
         {/* Materias asignadas a docentes de otra carrera (vista) y la ventana para asignar. */}
         <AsignarMateriaOtraCarrera
+          soloLectura={esSuperusuario}
           mostrarLista={verMaterias}
           filtro={searchTerm}
           modalAbierto={asignando}

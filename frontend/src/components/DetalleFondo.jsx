@@ -131,13 +131,15 @@ function DetalleFondo() {
   const esJefeEstudios = rolOperativo === 'jefe_estudios';
   const esRevisorDelFondo = esRevisor(fondo, { rol: rolOperativo, esSuperusuario: esSuperAdmin });
   const requiereDocumentoDecanatura = Boolean(fondo?.es_fondo_de_director);
-  const puedeGestionarCarga = esSuperAdmin || esJefeEstudios;
+  // El fondo lo trabaja solo Jefatura de Estudios; el superusuario y el Director lo ven en
+  // solo lectura (el superusuario solo revisa el fondo de un Director).
+  const puedeGestionarCarga = esJefeEstudios;
   const soloLecturaPorRol = !puedeGestionarCarga;
-  const puedePresentarADirector = fondo?.estado === 'borrador' && (esJefeEstudios || esSuperAdmin);
-  const puedeReenviarADirector = fondo?.estado === 'observado' && (esJefeEstudios || esSuperAdmin);
-  const fondoPresentadoADirector = fondo?.estado === 'presentado_director' && (esJefeEstudios || esSuperAdmin);
-  // Un fondo rechazado vuelve a borrador para corregirlo (Jefe de su carrera o superusuario).
-  const puedeVolverABorrador = fondo?.estado === 'rechazado' && (esJefeEstudios || esSuperAdmin);
+  const puedePresentarADirector = fondo?.estado === 'borrador' && esJefeEstudios;
+  const puedeReenviarADirector = fondo?.estado === 'observado' && esJefeEstudios;
+  const fondoPresentadoADirector = fondo?.estado === 'presentado_director' && esJefeEstudios;
+  // Un fondo rechazado vuelve a borrador para corregirlo (Jefe de su carrera).
+  const puedeVolverABorrador = fondo?.estado === 'rechazado' && esJefeEstudios;
 
   useEffect(() => {
     estadoFondoRef.current = null;
@@ -565,11 +567,11 @@ function DetalleFondo() {
     ? `Unidades: ${totalUnidades} de ${horasEfectivasAnuales} h/año (deben sumar exactamente las horas efectivas)`
     : documentosFaltantes.join('. ');
   // Las cargas (y sus PDF) se modifican solo con el fondo en borrador u observado, por el
-  // superusuario o el Jefe de Estudios de la carrera de la carga (las materias de otra
-  // carrera, desde la pantalla de esa Jefatura). El backend aplica las mismas reglas.
+  // Jefe de Estudios de la carrera de la carga (las materias de otra carrera, desde la
+  // pantalla de esa Jefatura). El backend aplica las mismas reglas.
   const fondoEditable = ['borrador', 'observado'].includes(fondo.estado) && !fondo.archivado;
   const puedeModificarCarga = (detalle) => (
-    fondoEditable && (esSuperAdmin || (esJefeEstudios && !detalle.es_de_otra_carrera))
+    fondoEditable && esJefeEstudios && !detalle.es_de_otra_carrera
   );
   // Antes de abrir la confirmación se revisa que la carga se pueda quitar (el fondo
   // puede haber cambiado de estado mientras la pantalla estaba abierta).
@@ -1363,12 +1365,16 @@ function DetalleFondo() {
           Restringido a pedido: el chat flotante queda reservado exclusivamente para
           que Director y Jefe de Estudios se comuniquen entre si sobre este fondo.
           Superadmin, IISYP y el docente no lo ven. */}
-      {!ocultarDetallePorBorradorDirector && (esDirector || esJefeEstudios) && ReactDOM.createPortal(
+      {/* El chat lo ven Dirección y Jefatura de la carrera, y quien escribe en él (el docente
+          dueño y el superusuario cuando revisa el fondo de un Director). */}
+      {!ocultarDetallePorBorradorDirector && (esDirector || esJefeEstudios || fondo.puede_escribir_observaciones) && ReactDOM.createPortal(
         <div className="fixed bottom-[6.5rem] right-16 z-[9999]">
           <BotonFlotanteObservaciones
             ref={observacionesRef}
             fondoId={fondo.id}
             estadoFondo={fondo.estado}
+            puedeEscribir={fondo.puede_escribir_observaciones}
+            puedeResolver={fondo.puede_resolver_observaciones}
             onObservacionCambiada={async () => {
               await cargarDetalle({ silencioso: true });
             }}

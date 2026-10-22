@@ -10,6 +10,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import UNIDADES_FONDO, DocumentoActividad, actualizar_con_historial, clase_documento_actividad, nombre_calendario_en_fondo, fondo_de_la_carga, mensaje_sin_fondo, roles_del_docente_en_carrera
 from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, PerfilUsuario, AsignacionCarrera, InformeFondo, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, DatosLaborales, ProgramaAnalitico
 from .role_context import get_active_assignment, get_active_careers_for_user, get_effective_profile, serialize_assignment
+from .permisos_fondo import es_jefatura_del_fondo, puede_escribir_observaciones, puede_resolver_observaciones
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from .utils.informe_html import CAMPOS_HTML_RICO_INFORME, sanitizar_html_informe
 from .utils.informe_imagenes import firmar_imagenes_html
@@ -4355,6 +4356,10 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     tipos_ejercicio_cargo = serializers.SerializerMethodField()
     # El botón Iniciar del detalle sigue exactamente a iniciar_ejecucion.
     puede_iniciar_ejecucion = serializers.SerializerMethodField()
+    # Chat de observaciones: escriben el dueño, su revisor y Jefatura; resuelven el dueño
+    # y Jefatura (mismas reglas que agregar-mensaje y marcar-resuelta).
+    puede_escribir_observaciones = serializers.SerializerMethodField()
+    puede_resolver_observaciones = serializers.SerializerMethodField()
     # Revisión: nadie revisa su propio fondo; el del Director lo revisa el superusuario.
     es_fondo_propio = serializers.SerializerMethodField()
     es_fondo_de_director = serializers.SerializerMethodField()
@@ -4387,6 +4392,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             'informe_actual',
             # Permisos
             'puede_editar', 'puede_editar_informe', 'tipos_ejercicio_cargo', 'puede_iniciar_ejecucion',
+            'puede_escribir_observaciones', 'puede_resolver_observaciones',
             'es_fondo_propio', 'es_fondo_de_director', 'documento_decanatura', 'documento_decanatura_informe',
             'finalizado_el', 'evaluado_el',
         ]
@@ -4430,24 +4436,17 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
         ).data
 
     def get_puede_editar(self, obj):
-        """Mismas condiciones que FondoTiempoViewSet._puede_editar_fondo (rol activo):
-        superusuario, o Director / Jefe de Estudios de la carrera con el fondo en
-        borrador u observado. El docente no edita su fondo."""
+        """Mismas condiciones que FondoTiempoViewSet._puede_editar_fondo (rol activo): el
+        Jefe de Estudios de la carrera con el fondo en borrador u observado. El
+        superusuario, el Director y el docente lo ven en solo lectura."""
         request = self.context.get('request')
         if not request or not getattr(request, 'user', None):
             return False
-        if request.user.is_superuser:
-            return True
-        if obj.estado not in ['borrador', 'observado']:
-            return False
-        perfil = get_effective_profile(request.user, request)
-        if not (perfil and perfil.rol in ['director', 'jefe_estudios']):
-            return False
-        return get_active_careers_for_user(request.user, request).filter(pk=obj.carrera_id).exists()
+        return obj.estado in ['borrador', 'observado'] and es_jefatura_del_fondo(request, obj)
 
     def get_puede_editar_informe(self, obj):
-        """Mismas condiciones que guardar-informe-borrador: el docente dueño (o el
-        superusuario), con el fondo en ejecución y el informe sin enviar."""
+        """Mismas condiciones que guardar-informe-borrador: solo el docente dueño, con el
+        fondo en ejecución y el informe sin enviar."""
         request = self.context.get('request')
         if not request or obj.estado != 'en_ejecucion':
             return False
@@ -4474,6 +4473,16 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             not user.is_superuser and perfil and perfil.rol == 'director'
             and get_active_careers_for_user(user, request).filter(pk=obj.carrera_id).exists()
         )
+
+    # Con el fondo finalizado el chat queda de solo lectura para todos: eso lo controlan
+    # agregar-mensaje y marcar-resuelta (y el chat del frontend), no estos indicadores.
+    def get_puede_escribir_observaciones(self, obj):
+        request = self.context.get('request')
+        return bool(request and getattr(request, 'user', None)) and puede_escribir_observaciones(request, obj)
+
+    def get_puede_resolver_observaciones(self, obj):
+        request = self.context.get('request')
+        return bool(request and getattr(request, 'user', None)) and puede_resolver_observaciones(request, obj)
 
     def get_es_fondo_propio(self, obj):
         request = self.context.get('request')

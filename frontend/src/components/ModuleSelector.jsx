@@ -45,8 +45,9 @@ const TONOS_MODULO = {
 };
 
 // --- COMPONENTE PRINCIPAL ---
-// Mismo lenguaje que el login, directo sobre la página (sin tarjeta ni videos): mancha azulada con
-// la línea punteada a la derecha y la paleta de Fondo de Tiempo (azulado, blue-900 y sky-600).
+// Toda la pantalla en dos zonas: a la izquierda la marca, el título y los módulos; a la derecha una
+// división azulada (con la línea punteada del login) con las herramientas y el rol de ingreso.
+// Paleta de Fondo de Tiempo: azulado, blue-900 y sky-600.
 const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
     const navigate = useNavigate();
     const [roleSelectionError, setRoleSelectionError] = useState('');
@@ -145,7 +146,7 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
     const conColumnaLateral = mostrarHerramientasGestion || hasMultipleAssignments;
 
     return (
-        <div className="panel-modulos relative isolate min-h-screen w-full overflow-x-hidden bg-azulado-50 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-100">
+        <div className="panel-modulos relative isolate min-h-screen w-full overflow-x-hidden bg-azulado-50 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-100 lg:grid lg:grid-cols-[minmax(0,1fr)_40vw]">
             <style>{`
                 .panel-entrada { animation: panelEntrada 600ms cubic-bezier(0.22, 1, 0.36, 1) both; }
                 @keyframes panelEntrada {
@@ -157,107 +158,110 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
                 }
             `}</style>
 
-            {/* Decoración como la del login, sin videos: una mancha azulada a la derecha con la línea
-                punteada siguiendo su borde y "Módulos" enorme y muy tenue detrás. */}
-            <svg className="pointer-events-none fixed inset-y-0 right-0 -z-10 hidden lg:block h-full w-[46vw]" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                <defs>
-                    <linearGradient id="panel-mancha-color" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0" stopColor="#DFE8F5" />
-                        <stop offset="1" stopColor="#B8C9E1" />
-                    </linearGradient>
-                </defs>
-                <path className="dark:opacity-10" d="M46,0 C30,4 18,11 22,22 C26,33 40,37 37,48 C34,60 16,63 13,75 C10,86 8,94 6,100 L100,100 L100,0 Z" fill="url(#panel-mancha-color)" />
-                <path d="M32,0 C18,5 8,11 11,21 C14,31 27,35 25,46 C23,57 7,61 4,72 C1,82 0,92 -2,100" fill="none" stroke="#7d9cc0" strokeOpacity="0.8" strokeWidth="1.5" strokeDasharray="5 6" vectorEffect="non-scaling-stroke" />
-            </svg>
-            <p className="pointer-events-none fixed left-[3vw] bottom-[2vh] -z-10 hidden lg:block text-[9vw] font-extrabold leading-none tracking-tight text-blue-900/[0.05] dark:text-white/[0.04]" aria-hidden="true">
-                Módulos
-            </p>
-
-            <div className="panel-entrada mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 sm:px-10 lg:px-14 py-6 lg:py-8">
-                {/* Encabezado: marca, la persona (abre Mi cuenta) y cerrar sesión. */}
-                <header className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                        <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-12 w-auto" />
-                        <div className="leading-tight">
-                            <p className="text-sm font-extrabold text-blue-900 dark:text-sky-200">UABJB</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">Universidad Autónoma del Beni</p>
-                        </div>
+            {/* Zona izquierda: la marca en la esquina, el título y los módulos. */}
+            <section className="relative flex min-h-[70vh] lg:min-h-screen flex-col px-5 sm:px-10 lg:pl-[4vw] lg:pr-10 pt-6 pb-10 lg:py-8">
+                <div className="flex items-center gap-3">
+                    <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-12 w-auto" />
+                    <div className="leading-tight">
+                        <p className="text-sm font-extrabold text-blue-900 dark:text-sky-200">UABJB</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Universidad Autónoma del Beni</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            type="button"
-                            title="Mi cuenta"
-                            onClick={() => setCuentaAbierta(true)}
-                            className="flex max-w-[16rem] items-center gap-2 rounded-full bg-white dark:bg-slate-800 py-1.5 pl-1.5 pr-3 text-left text-xs ring-1 ring-inset ring-azulado-300 dark:ring-slate-700 transition-colors hover:bg-azulado-100 dark:hover:bg-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40"
-                        >
-                            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-900 to-blue-950 text-[11px] font-bold text-white">
-                                {displayName.charAt(0).toUpperCase()}
-                            </span>
-                            <span className="truncate">
-                                <span className="text-slate-500 dark:text-slate-400">Hola, </span>
-                                <span className="font-semibold text-blue-900 dark:text-sky-200">{displayName}</span>
-                            </span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleLogoutClick}
-                            title="Cerrar sesión"
-                            className="flex items-center gap-1.5 rounded-full py-2 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 transition-colors hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40 dark:hover:text-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
-                        >
-                            <LogoutIcon />
-                            <span className="hidden sm:inline">Cerrar sesión</span>
-                        </button>
-                    </div>
-                </header>
-                {cuentaAbierta && <ModalMiCuenta onClose={() => setCuentaAbierta(false)} onProfileUpdate={onProfileUpdate} />}
+                </div>
 
-                <main className="my-auto w-full py-10 lg:max-w-[60%]">
+                <main className="panel-entrada my-auto w-full max-w-3xl pt-10 lg:pt-0">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Panel de módulos</p>
-                    <h1 className="mt-2 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                    <h1 className="mt-2 text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white">
                         ¿A dónde vamos hoy<span className="text-sky-600">?</span>
                     </h1>
-                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Seleccione el sistema al que desea ingresar.</p>
+                    <p className="mt-3 text-base text-slate-500 dark:text-slate-400">Seleccione el sistema al que desea ingresar.</p>
 
-                    <div className={`mt-8 grid gap-6 ${conColumnaLateral ? 'xl:grid-cols-[1fr_17rem]' : ''}`}>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            {modules.filter((m) => m.enabled).map((module) => (
-                                <ModuleCard
-                                    key={module.name}
-                                    {...module}
-                                    onNavigateClick={(event) => handleModuleNavigation(event, module)}
-                                />
-                            ))}
-                        </div>
-
-                        {conColumnaLateral && (
-                            <aside className="space-y-5">
-                                {mostrarHerramientasGestion && (
-                                    <div>
-                                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{tituloHerramientasGestion}</p>
-                                        <div className="space-y-2">
-                                            {herramientasVisibles.map((tool) => (
-                                                <ToolLink key={tool.name} {...tool} />
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                                {hasMultipleAssignments && (
-                                    <RoleInlineSelector
-                                        assignments={assignments}
-                                        activeAssignment={activeAssignment}
-                                        onSelect={handleSelectAssignment}
-                                        getRoleLabel={getRoleLabel}
-                                        error={roleSelectionError}
-                                        pulse={roleErrorPulse}
-                                    />
-                                )}
-                            </aside>
-                        )}
+                    <div className="mt-10 grid gap-5 sm:grid-cols-2">
+                        {modules.filter((m) => m.enabled).map((module) => (
+                            <ModuleCard
+                                key={module.name}
+                                {...module}
+                                onNavigateClick={(event) => handleModuleNavigation(event, module)}
+                            />
+                        ))}
                     </div>
                 </main>
+            </section>
 
-                <p className="text-xs text-slate-500 dark:text-slate-400">Universidad Autónoma del Beni "José Ballivián" · Trinidad, Beni</p>
-            </div>
+            {/* Zona derecha, la división azulada (con la línea punteada en su borde): adentro, a la
+                izquierda, las herramientas y el rol de ingreso; "Módulos" de fondo y el nombre de la
+                universidad en la esquina de abajo. */}
+            <section className="relative flex min-h-[40vh] lg:min-h-screen flex-col px-5 sm:px-10 lg:pl-[9vw] lg:pr-10 pt-8 pb-6 lg:py-8 bg-azulado-100 dark:bg-slate-900 lg:bg-transparent lg:dark:bg-transparent">
+                <svg className="pointer-events-none absolute inset-0 -z-10 hidden lg:block h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                    <defs>
+                        <linearGradient id="panel-division" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0" stopColor="#DFE8F5" />
+                            <stop offset="1" stopColor="#B8C9E1" />
+                        </linearGradient>
+                    </defs>
+                    <path className="dark:opacity-10" d="M30,0 C16,5 9,12 13,24 C17,35 27,39 23,51 C19,63 8,66 10,79 C11,89 15,95 18,100 L100,100 L100,0 Z" fill="url(#panel-division)" />
+                    <path d="M19,0 C7,6 2,13 5,24 C8,35 18,39 14,51 C10,63 1,67 2,79 C3,89 6,95 8,100" fill="none" stroke="#7d9cc0" strokeOpacity="0.85" strokeWidth="1.5" strokeDasharray="5 6" vectorEffect="non-scaling-stroke" />
+                </svg>
+                <p className="pointer-events-none absolute right-8 bottom-[9%] -z-10 hidden lg:block text-[7vw] font-extrabold leading-none tracking-tight text-blue-900/[0.13] dark:text-white/[0.07]" aria-hidden="true">
+                    Módulos
+                </p>
+
+                {/* La persona (abre Mi cuenta) y cerrar sesión, en la esquina de arriba. */}
+                <div className="flex items-center justify-end gap-2">
+                    <button
+                        type="button"
+                        title="Mi cuenta"
+                        onClick={() => setCuentaAbierta(true)}
+                        className="flex max-w-[16rem] items-center gap-2 rounded-full bg-white/90 dark:bg-slate-800 py-1.5 pl-1.5 pr-3 text-left text-xs shadow-sm ring-1 ring-inset ring-white dark:ring-slate-700 transition-colors hover:bg-white dark:hover:bg-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40"
+                    >
+                        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-900 to-blue-950 text-[11px] font-bold text-white">
+                            {displayName.charAt(0).toUpperCase()}
+                        </span>
+                        <span className="truncate">
+                            <span className="text-slate-500 dark:text-slate-400">Hola, </span>
+                            <span className="font-semibold text-blue-900 dark:text-sky-200">{displayName}</span>
+                        </span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleLogoutClick}
+                        title="Cerrar sesión"
+                        className="flex items-center gap-1.5 rounded-full bg-white/60 dark:bg-slate-800/60 py-2 px-3 text-xs font-semibold text-slate-600 dark:text-slate-300 transition-colors hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40 dark:hover:text-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
+                    >
+                        <LogoutIcon />
+                        <span className="hidden sm:inline">Cerrar sesión</span>
+                    </button>
+                </div>
+                {cuentaAbierta && <ModalMiCuenta onClose={() => setCuentaAbierta(false)} onProfileUpdate={onProfileUpdate} />}
+
+                {conColumnaLateral && (
+                    <aside className="panel-entrada my-auto w-full max-w-xs space-y-6 pt-8 lg:pt-0">
+                        {mostrarHerramientasGestion && (
+                            <div>
+                                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-900/60 dark:text-slate-400">{tituloHerramientasGestion}</p>
+                                <div className="space-y-2.5">
+                                    {herramientasVisibles.map((tool) => (
+                                        <ToolLink key={tool.name} {...tool} />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {hasMultipleAssignments && (
+                            <RoleInlineSelector
+                                assignments={assignments}
+                                activeAssignment={activeAssignment}
+                                onSelect={handleSelectAssignment}
+                                getRoleLabel={getRoleLabel}
+                                error={roleSelectionError}
+                                pulse={roleErrorPulse}
+                            />
+                        )}
+                    </aside>
+                )}
+
+                <p className={`${conColumnaLateral ? '' : 'mt-auto'} pt-8 text-right text-xs font-medium text-blue-900/70 dark:text-slate-400`}>
+                    Universidad Autónoma del Beni "José Ballivián" · Trinidad, Beni
+                </p>
+            </section>
         </div>
     );
 };
@@ -304,31 +308,36 @@ const RoleInlineSelector = ({ assignments, activeAssignment, onSelect, getRoleLa
 const ToolLink = ({ name, description, path, icon: Icon }) => (
     <Link
         to={path}
-        className="group flex items-center gap-3 rounded-2xl bg-white px-3 py-2.5 ring-1 ring-inset ring-azulado-300 transition hover:-translate-y-0.5 hover:shadow-[0_8px_18px_rgba(15,23,42,0.08)] dark:bg-slate-800 dark:ring-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40"
+        className="group flex items-center gap-3 rounded-2xl bg-white/85 px-3 py-3 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_22px_rgba(30,58,138,0.12)] dark:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40"
     >
-        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-azulado-100 text-blue-900 dark:bg-slate-700 dark:text-sky-200">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-900 to-blue-950 text-white">
             <Icon className="h-5 w-5" />
         </span>
-        <span className="min-w-0">
+        <span className="min-w-0 flex-1">
             <span className="block text-sm font-semibold text-blue-900 dark:text-slate-100">{name}</span>
             <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{description}</span>
         </span>
+        <ArrowRight className="h-4 w-4 flex-shrink-0 text-blue-900/40 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5" aria-hidden="true" />
     </Link>
 );
 
-// Tarjeta de módulo con el estilo de Fondo de Tiempo: ícono en un recuadro azul en degradado.
+// Tarjeta de módulo: bloque grande en azul en degradado (como "Tiempo en etapa" de Fondo de Tiempo),
+// texto blanco, el ícono grande y tenue de fondo y un botón blanco "Ingresar".
 const ModuleCard = ({ name, description, path, icon: Icon, color, onNavigateClick }) => (
     <Link
         to={path}
         onClick={onNavigateClick}
-        className="group flex flex-col rounded-3xl bg-azulado-50 p-5 ring-1 ring-inset ring-azulado-300 transition hover:-translate-y-1 hover:bg-white hover:shadow-[0_18px_40px_rgba(30,58,138,0.14)] dark:bg-slate-800 dark:ring-slate-700 dark:hover:bg-slate-800/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40"
+        className={`group relative flex min-h-[15rem] flex-col justify-between overflow-hidden rounded-[28px] bg-gradient-to-br ${TONOS_MODULO[color] || TONOS_MODULO.blue} p-6 text-white shadow-[0_18px_40px_rgba(30,58,138,0.25)] transition hover:-translate-y-1 hover:shadow-[0_26px_50px_rgba(30,58,138,0.32)] focus:outline-none focus-visible:ring-4 focus-visible:ring-sky-300/60`}
     >
-        <span className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${TONOS_MODULO[color] || TONOS_MODULO.blue} text-white shadow-[0_4px_14px_rgba(30,58,138,0.25)]`}>
-            <Icon className="h-7 w-7" />
+        <Icon className="pointer-events-none absolute -right-8 -bottom-8 h-44 w-44 text-white/10 motion-safe:transition-transform motion-safe:duration-500 motion-safe:group-hover:rotate-12" aria-hidden="true" />
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-inset ring-white/20">
+            <Icon className="h-6 w-6" />
         </span>
-        <span className="mt-4 text-xl font-bold text-blue-900 dark:text-white">{name}</span>
-        <span className="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</span>
-        <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-sky-600 dark:text-sky-400">
+        <span className="relative mt-8 block">
+            <span className="block text-2xl font-bold">{name}</span>
+            <span className="mt-1 block text-sm text-white/75">{description}</span>
+        </span>
+        <span className="relative mt-6 inline-flex items-center gap-2 self-start rounded-full bg-white px-4 py-2 text-sm font-semibold text-blue-900 shadow-sm">
             Ingresar
             <ArrowRight className="h-4 w-4 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5" aria-hidden="true" />
         </span>

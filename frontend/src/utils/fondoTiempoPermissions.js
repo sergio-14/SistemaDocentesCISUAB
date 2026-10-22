@@ -1,8 +1,9 @@
 const ROLES_CREACION_FONDO_TIEMPO = ['jefe_estudios'];
 
+// Crear y editar fondos es tarea de Jefatura de Estudios: el superusuario no tiene rol de
+// carrera y los ve en solo lectura (como lo exige el backend).
 export const puedeCrearFondoTiempo = (user) => {
-  if (!user) return false;
-  if (user.is_superuser === true) return true;
+  if (!user || user.is_superuser === true) return false;
 
   const rol = user?.perfil?.rol;
   return ROLES_CREACION_FONDO_TIEMPO.includes(rol);

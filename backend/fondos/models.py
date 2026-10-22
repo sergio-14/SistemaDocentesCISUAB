@@ -1038,10 +1038,9 @@ class FondoTiempo(models.Model):
         return bool(self.docente_id and user and user.id in usuarios_del_docente(self.docente))
 
     def puede_redactar_informe(self, user, perfil):
-        """True si el usuario guarda y presenta el informe de este fondo: el superusuario
-        o el docente dueño trabajando con su rol de docente (``perfil`` es el efectivo)."""
-        if user.is_superuser:
-            return True
+        """True si el usuario guarda y presenta el informe de este fondo: solo el docente
+        dueño trabajando con su rol de docente (``perfil`` es el efectivo). El superusuario,
+        el Director y Jefatura lo ven en solo lectura."""
         return bool(
             perfil and perfil.rol == 'docente'
             and self.docente_id and perfil.docente_id == self.docente_id

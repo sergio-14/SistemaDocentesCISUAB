@@ -92,7 +92,7 @@ class DocenteUnVinculoTests(UsuariosBaseTestCase):
     def test_editar_parcialmente_un_fondo_no_da_error_500(self):
         # Antes: KeyError en el validador de unicidad de DRF.
         fondo = self._fondo(self.carrera)
-        self.client.force_authenticate(self.superuser)
+        self.client.force_authenticate(self.crear_usuario('jefe_patch', 'jefe_estudios', carrera=self.carrera))
 
         response = self.client.patch(f'/api/fondos-tiempo/{fondo.pk}/', {'observaciones': 'Nota'}, format='json')
 

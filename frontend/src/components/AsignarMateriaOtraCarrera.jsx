@@ -16,6 +16,7 @@ import { Avatar } from './fondos/ElementosFondo';
 // La carga va al Fondo de Tiempo del docente en su carrera, que este Jefe no ve. Carga
 // Horaria muestra la lista en su vista "Materias asignadas" (mostrarLista, filtrada con su
 // buscador) y abre la ventana de asignación con su botón "Asignar materia" (modalAbierto).
+// soloLectura (superusuario): ve la lista sin el botón Quitar.
 
 const PARALELOS = ['A', 'B', 'C', 'D', 'E', 'F'];
 const DIAS = [
@@ -35,7 +36,7 @@ const labelCls = 'mb-1.5 pl-1 block text-xs font-semibold text-slate-700';
 // Sin mayúsculas ni tildes: "jose" encuentra "José".
 const normalizar = (texto) => String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-const AsignarMateriaOtraCarrera = ({ mostrarLista = false, filtro = '', modalAbierto = false, onCerrarModal }) => {
+const AsignarMateriaOtraCarrera = ({ mostrarLista = false, filtro = '', modalAbierto = false, onCerrarModal, soloLectura = false }) => {
   const [calendarios, setCalendarios] = useState([]);
   const [cargas, setCargas] = useState([]);
   const [cargaPorQuitar, setCargaPorQuitar] = useState(null);
@@ -254,15 +255,17 @@ const AsignarMateriaOtraCarrera = ({ mostrarLista = false, filtro = '', modalAbi
                 </div>
                 <div className="lg:text-right">
                   {/* Solo con el fondo en borrador u observado (como el backend). */}
-                  <button
-                    type="button"
-                    onClick={() => setCargaPorQuitar(carga)}
-                    disabled={!EDITABLE.includes(carga.fondo_estado)}
-                    title={EDITABLE.includes(carga.fondo_estado) ? undefined : 'El fondo ya fue presentado: la materia no se puede quitar.'}
-                    className={`${BOTON_CHICO} bg-red-400 hover:bg-red-500 text-white disabled:bg-slate-200 disabled:text-slate-500 disabled:cursor-not-allowed`}
-                  >
-                    Quitar
-                  </button>
+                  {!soloLectura && (
+                    <button
+                      type="button"
+                      onClick={() => setCargaPorQuitar(carga)}
+                      disabled={!EDITABLE.includes(carga.fondo_estado)}
+                      title={EDITABLE.includes(carga.fondo_estado) ? undefined : 'El fondo ya fue presentado: la materia no se puede quitar.'}
+                      className={`${BOTON_CHICO} bg-red-400 hover:bg-red-500 text-white disabled:bg-slate-200 disabled:text-slate-500 disabled:cursor-not-allowed`}
+                    >
+                      Quitar
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

@@ -62,7 +62,12 @@ const formatBadgeCount = (count) => (count > 99 ? '99+' : String(count));
 // Colores de las citas al responder: los azules base del sistema.
 const quoteAccentColors = ['#1e3a8a', '#0284c7', '#1d4ed8', '#0369a1'];
 
-const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObservacionCambiada }, ref) => {
+// puedeEscribir / puedeResolver vienen del fondo (puede_escribir_observaciones y
+// puede_resolver_observaciones): escriben el docente dueño, su revisor y Jefatura; resuelven
+// el dueño y Jefatura. Los demás (superusuario que no revisa, Instituto) solo leen.
+const BotonFlotanteObservaciones = forwardRef(({
+  fondoId, estadoFondo, puedeEscribir = false, puedeResolver = false, onObservacionCambiada,
+}, ref) => {
   const { activeRole } = useActiveRole();
   const [observaciones, setObservaciones] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -394,7 +399,7 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
 
   // Rol activo (contexto de rol). Resolver: docente del fondo o Jefatura, como el backend.
   const esAutoridad = ['director', 'jefe_estudios'].includes(activeRole);
-  const puedeMarcarObservacionResuelta = usuarioActual?.is_superuser || ['docente', 'jefe_estudios'].includes(activeRole);
+  const puedeMarcarObservacionResuelta = puedeResolver;
 
   const observacionesOrdenadas = useMemo(() => {
     return [...observaciones].sort(
@@ -466,7 +471,8 @@ const BotonFlotanteObservaciones = forwardRef(({ fondoId, estadoFondo, onObserva
   const hayConversacionActiva = observaciones.length > 0;
   // Con el fondo finalizado el chat queda de solo lectura: se lee, no se escribe ni se resuelve.
   const chatFinalizado = estadoFondo === 'finalizado';
-  const puedeResponder = !chatFinalizado && (esAutoridad || estadoFondo === 'observado' || hayConversacionActiva);
+  const puedeResponder = !chatFinalizado && puedeEscribir
+    && (esAutoridad || estadoFondo === 'observado' || hayConversacionActiva);
 
   const esMiMensaje = (mensaje) => {
     const usuarioActualId = Number(usuarioActual?.id);

@@ -60,6 +60,9 @@ from .serializers import (
     MENSAJE_FICHA_EN_CARRERA_DEL_USUARIO,
 )
 from .role_context import get_effective_profile, get_active_careers_for_user
+from .permisos_fondo import (
+    es_jefatura_del_fondo, puede_escribir_observaciones, puede_resolver_observaciones, tiene_rol_en_carrera,
+)
 from .solo_lectura import CarreraInactivaSoloLecturaMixin as CarreraInactivaSoloLecturaBase
 from .models import (
     CAMPOS_SECCIONES_INFORME, DocumentoActividad, actualizar_con_historial, clase_documento_actividad,
@@ -1034,9 +1037,9 @@ class MateriaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
 
 class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     """
-    ViewSet para la asignación de horas por parte de Jefes de Estudio y Admins.
-    - Jefes/Admins: CRUD completo.
-    - Directores: Lectura de su carrera.
+    ViewSet para la asignación de horas por parte de Jefes de Estudio.
+    - Jefes de Estudio: CRUD completo en su carrera.
+    - Superusuario y Directores: lectura.
     - Docentes: Lectura de sus propias asignaciones.
     """
     queryset = CargaHoraria.objects.select_related('docente', 'fondo', 'materia', 'calendario', 'creado_por').all()
@@ -1051,11 +1054,11 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
 
     def get_permissions(self):
         """
-        Super Admin y Jefes de Estudio pueden crear, editar o borrar.
+        Solo los Jefes de Estudio crean, editan o borran (el superusuario, solo lectura).
         """
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             user = self.request.user
-            if not user.is_superuser and _rol_activo(self.request) != 'jefe_estudios':
+            if user.is_superuser or _rol_activo(self.request) != 'jefe_estudios':
                 raise PermissionDenied("Solo Jefes de Estudio pueden modificar cargas horarias.")
         
         return super().get_permissions()
@@ -1071,7 +1074,7 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
         otra_carrera = self.request.query_params.get('otra_carrera') == '1'
         if otra_carrera:
             queryset = queryset.filter(calendario__isnull=False).exclude(calendario__carrera=F('fondo__carrera'))
-        # El superusuario ve, edita y elimina todas (su perfil no tiene rol de carrera).
+        # El superusuario ve todas (su perfil no tiene rol de carrera); no las modifica.
         if user.is_superuser:
             return queryset
         try:
@@ -1175,8 +1178,8 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
 
 class ProgramaAnaliticoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.GenericViewSet):
     """POST /api/programas-analiticos/: sube o reemplaza el PDF del programa analítico de
-    una materia en un calendario del fondo. Lo hacen el superusuario y el Jefe de
-    Estudios de la carrera de la materia, con el fondo en borrador u observado."""
+    una materia en un calendario del fondo. Lo hace el Jefe de Estudios de la carrera de
+    la materia, con el fondo en borrador u observado."""
     queryset = ProgramaAnalitico.objects.all()
     serializer_class = ProgramaAnaliticoSerializer
     permission_classes = [IsAuthenticated]
@@ -1188,13 +1191,10 @@ class ProgramaAnaliticoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Generic
         datos = serializer.validated_data
         fondo, materia, calendario = datos['fondo'], datos['materia'], datos['calendario']
 
-        if not request.user.is_superuser:
-            perfil = _obtener_perfil_efectivo(request.user, request)
-            if not (perfil and perfil.rol == 'jefe_estudios'
-                    and _usuario_tiene_acceso_a_carrera(request.user, calendario.carrera, request)):
-                raise PermissionDenied(
-                    f'Solo el Jefe de Estudios de {calendario.carrera.nombre} sube el programa analítico de esta materia.'
-                )
+        if not tiene_rol_en_carrera(request, 'jefe_estudios', calendario.carrera_id):
+            raise PermissionDenied(
+                f'Solo el Jefe de Estudios de {calendario.carrera.nombre} sube el programa analítico de esta materia.'
+            )
         if fondo.archivado or fondo.estado not in ['borrador', 'observado']:
             raise PermissionDenied('El programa analítico solo se sube con el fondo en borrador u observado.')
 
@@ -1219,8 +1219,8 @@ class ProgramaAnaliticoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Generic
 
 class DocumentoActividadViewSet(CarreraInactivaSoloLecturaMixin, viewsets.GenericViewSet):
     """POST /api/documentos-actividad/: sube o reemplaza el PDF del proyecto o curso de un
-    ítem del fondo. Como el programa analítico: el superusuario o el Jefe de Estudios de la
-    carrera del fondo, con el fondo en borrador u observado."""
+    ítem del fondo. Como el programa analítico: el Jefe de Estudios de la carrera del
+    fondo, con el fondo en borrador u observado."""
     queryset = DocumentoActividad.objects.all()
     serializer_class = DocumentoActividadSerializer
     permission_classes = [IsAuthenticated]
@@ -1232,13 +1232,10 @@ class DocumentoActividadViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Generi
         carga = serializer.validated_data['carga']
         fondo = carga.fondo
 
-        if not request.user.is_superuser:
-            perfil = _obtener_perfil_efectivo(request.user, request)
-            if not (perfil and perfil.rol == 'jefe_estudios'
-                    and _usuario_tiene_acceso_a_carrera(request.user, fondo.carrera, request)):
-                raise PermissionDenied(
-                    f'Solo el Jefe de Estudios de {fondo.carrera.nombre} sube el documento de esta actividad.'
-                )
+        if not es_jefatura_del_fondo(request, fondo):
+            raise PermissionDenied(
+                f'Solo el Jefe de Estudios de {fondo.carrera.nombre} sube el documento de esta actividad.'
+            )
         if fondo.archivado or fondo.estado not in ['borrador', 'observado']:
             raise PermissionDenied('El documento solo se sube con el fondo en borrador u observado.')
 
@@ -1606,21 +1603,9 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             )
 
     def _puede_editar_fondo(self, fondo):
-        user = self.request.user
-        if user.is_superuser:
-            return True
-
-        if fondo.estado not in ['borrador', 'observado']:
-            return False
-
-        perfil = _obtener_perfil_efectivo(user, self.request)
-        if not perfil:
-            return False
-
-        if perfil.rol in ['director', 'jefe_estudios']:
-            return _usuario_tiene_acceso_a_carrera(user, fondo.carrera, self.request)
-
-        return False
+        """El fondo lo edita el Jefe de Estudios de su carrera, en borrador u observado; el
+        superusuario y el Director lo ven en solo lectura (ver permisos_fondo)."""
+        return fondo.estado in ['borrador', 'observado'] and es_jefatura_del_fondo(self.request, fondo)
 
     def create(self, request, *args, **kwargs):
         """
@@ -1633,9 +1618,9 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         except Exception:
             perfil = None
 
-        # 1. Permitir solo Super Admin
+        # 1. El superusuario no crea fondos: es tarea de Jefatura de Estudios.
         if user.is_superuser:
-            pass
+            raise PermissionDenied("La creación de Fondos de Tiempo corresponde a Jefatura de Estudios.")
         # 2. Permitir solo Jefatura de Estudios entre usuarios operativos
         elif perfil and perfil.rol == 'jefe_estudios':
             pass
@@ -1694,7 +1679,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         user = request.user
         perfil = _obtener_perfil_efectivo(user, request)
 
-        if not user.is_superuser and (not perfil or perfil.rol != 'jefe_estudios'):
+        if user.is_superuser or not perfil or perfil.rol != 'jefe_estudios':
             raise PermissionDenied("No tienes permisos para generar Fondos de Tiempo masivamente.")
 
         carreras_activas = _obtener_carreras_activas_usuario(user, request)
@@ -1761,7 +1746,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         
         if not self._puede_editar_fondo(instance):
             raise PermissionDenied(
-                "Acción no permitida. Solo se pueden editar fondos en estado borrador u observado."
+                "Acción no permitida. Solo el Jefe de Estudios de la carrera edita el fondo, "
+                "en estado borrador u observado."
             )
         
         partial = kwargs.pop('partial', False)
@@ -1785,7 +1771,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         
         if not self._puede_editar_fondo(instance):
             raise PermissionDenied(
-                "Acción no permitida. Solo se pueden editar fondos en estado borrador u observado."
+                "Acción no permitida. Solo el Jefe de Estudios de la carrera edita el fondo, "
+                "en estado borrador u observado."
             )
         
         kwargs['partial'] = True
@@ -2081,8 +2068,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         Director con presentar-a-director."""
         fondo = self.get_object()
         
-        # Solo el docente dueño (con su rol de docente) o el superusuario: Jefatura
-        # y Dirección no redactan ni presentan el informe de otro docente.
+        # Solo el docente dueño (con su rol de docente): ni el superusuario, ni Jefatura,
+        # ni Dirección redactan o presentan el informe de otro docente.
         perfil = _obtener_perfil_efectivo(request.user, request)
         if not fondo.puede_redactar_informe(request.user, perfil):
             raise PermissionDenied("Solo el docente dueño del fondo puede presentar su informe.")
@@ -2148,10 +2135,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         fondo = self.get_object()
         user = request.user
 
-        if not user.is_superuser:
-            perfil = _obtener_perfil_efectivo(user, request)
-            if not (perfil and perfil.rol == 'jefe_estudios' and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, request)):
-                raise PermissionDenied("Solo Jefatura de Estudios puede presentar fondos al Director.")
+        if not es_jefatura_del_fondo(request, fondo):
+            raise PermissionDenied("Solo Jefatura de Estudios de la carrera puede presentar fondos al Director.")
 
         if fondo.estado not in ['borrador', 'observado']:
             return Response(
@@ -2209,13 +2194,11 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
     @action(detail=True, methods=['post'], url_path='volver-a-borrador')
     @transaction.atomic
     def volver_a_borrador(self, request, pk=None):
-        """Un fondo rechazado vuelve a borrador para corregirlo: Jefe de su carrera o superusuario."""
+        """Un fondo rechazado vuelve a borrador para corregirlo: el Jefe de Estudios de su carrera."""
         fondo = self.get_object()
         user = request.user
-        if not user.is_superuser:
-            perfil = _obtener_perfil_efectivo(user, request)
-            if not (perfil and perfil.rol == 'jefe_estudios' and _usuario_tiene_acceso_a_carrera(user, fondo.carrera, request)):
-                raise PermissionDenied("Solo el Jefe de Estudios de la carrera puede devolver a borrador un fondo rechazado.")
+        if not es_jefatura_del_fondo(request, fondo):
+            raise PermissionDenied("Solo el Jefe de Estudios de la carrera puede devolver a borrador un fondo rechazado.")
 
         if fondo.estado != 'rechazado':
             return Response(
@@ -2900,8 +2883,11 @@ class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ReadOnly
     @action(detail=True, methods=['post'], url_path='agregar-mensaje')
     def agregar_mensaje(self, request, pk=None):
         """Agregar un mensaje al hilo. get_object ya limita el hilo al alcance del
-        usuario (el docente, a su fondo) y el Instituto es solo lectura (mixin)."""
+        usuario (el docente, a su fondo) y el Instituto es solo lectura (mixin). Escriben el
+        docente dueño, su revisor y Jefatura (ver permisos_fondo); los demás solo leen."""
         observacion = self.get_object()
+        if not puede_escribir_observaciones(request, observacion.fondo_tiempo):
+            raise PermissionDenied('Solo el docente del fondo, su revisor y Jefatura de Estudios escriben en las observaciones.')
         if observacion.fondo_tiempo.estado == 'finalizado':
             return Response({'error': CHAT_FINALIZADO}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -2952,8 +2938,7 @@ class ObservacionFondoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ReadOnly
         """Marcar hilo como resuelto."""
         # get_object limita el hilo: el docente, a su fondo; Jefatura, a su carrera.
         observacion = self.get_object()
-        perfil = _obtener_perfil_efectivo(request.user, request)
-        if not (request.user.is_superuser or (perfil and perfil.rol in ('docente', 'jefe_estudios'))):
+        if not puede_resolver_observaciones(request, observacion.fondo_tiempo):
             raise PermissionDenied('Solo el docente del fondo o Jefatura de Estudios marcan la observación como resuelta.')
 
         if observacion.fondo_tiempo.estado == 'finalizado':

@@ -4535,16 +4535,14 @@ table tbody tr[data-selected="true"] td {
 }
 
 .poa-app .poa-presupuesto-detail-table :is(th, td) {
-  padding: 0.28rem 0.32rem !important;
-  font-size: 0.68rem !important;
-  line-height: 1.2 !important;
+  padding: 0.55rem 0.6rem !important;
+  line-height: 1.25 !important;
   overflow-wrap: anywhere;
 }
 
 .poa-app .poa-presupuesto-detail-table .poa-table-head-formal th {
-  padding: 0.3rem 0.22rem !important;
-  font-size: 0.62rem !important;
-  line-height: 1.12 !important;
+  padding: 0.45rem 0.5rem !important;
+  line-height: 1.2 !important;
 }
 
 .poa-currency-cell {
@@ -4570,12 +4568,7 @@ table tbody tr[data-selected="true"] td {
   }
 
   .poa-app .poa-presupuesto-detail-table tbody tr.poa-presupuesto-item-row td:not(.poa-presupuesto-mobile-hidden) {
-    padding: 0.34rem 0.48rem !important;
-    font-size: 0.68rem !important;
-    line-height: 1.15 !important;
-  }
-
-  .poa-app .poa-presupuesto-detail-table td::before {
-    font-size: 0.57rem !important;
+    padding: 0.55rem 0.6rem !important;
+    line-height: 1.2 !important;
   }
 }

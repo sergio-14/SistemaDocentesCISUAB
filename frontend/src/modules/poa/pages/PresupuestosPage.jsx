@@ -579,7 +579,7 @@ const PresupuestosPage = () => {
 
      
 
-          <table className="poa-mobile-card-table poa-presupuesto-detail-table w-full min-w-0 table-fixed border-collapse poa-table poa-border-black poa-border-cyan poa-borders-ultra font-sans text-xs leading-tight text-blue-900 dark:text-white">
+          <table className="poa-mobile-card-table poa-presupuesto-detail-table w-full min-w-0 table-fixed border-collapse poa-table poa-border-black poa-border-cyan poa-borders-ultra font-sans text-sm leading-snug text-blue-900 dark:text-white">
             <colgroup>
               <col style={{ width: '24%' }} />
               <col style={{ width: '8%' }} />
@@ -591,7 +591,7 @@ const PresupuestosPage = () => {
               <col style={{ width: '15%' }} />
             </colgroup>
             <thead>
-              <tr className="poa-thead poa-table-head-formal text-center font-sans text-xs leading-tight font-bold">
+              <tr className="poa-thead poa-table-head-formal text-center font-sans text-sm leading-snug font-bold">
                 <th className="poa-cell font-medium" rowSpan={2}>Detalle</th>
                 <th className="poa-cell font-medium" rowSpan={2}>Unidad de<br />medida</th>
                 <th className="poa-cell font-medium" rowSpan={2}>Características</th>
@@ -600,12 +600,12 @@ const PresupuestosPage = () => {
                 <th className="poa-cell font-medium" colSpan={2}>Costo Bs.</th>
                 <th className="poa-cell font-medium" rowSpan={2}>Mes<br />Requerimiento</th>
               </tr>
-              <tr className="poa-thead poa-table-head-formal text-center font-sans text-xs leading-tight font-bold">
+              <tr className="poa-thead poa-table-head-formal text-center font-sans text-sm leading-snug font-bold">
                 <th className="poa-cell font-medium">Unitario</th>
                 <th className="poa-cell font-medium">Total</th>
               </tr>
             </thead>
-            <tbody className="font-sans text-xs leading-tight">
+            <tbody className="font-sans text-sm leading-snug">
               {loading ? (
                 <tr><td colSpan={8} className="px-2 py-4 text-sm text-gray-500">Cargando...</td></tr>
               ) : grouped.length === 0 ? (

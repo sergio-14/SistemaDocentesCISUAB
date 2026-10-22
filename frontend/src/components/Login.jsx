@@ -146,34 +146,13 @@ function Login({ onLogin }) {
   const avisoContrasena = !errores.password && loginError;
 
   return (
-    <div className={`login-escena min-h-screen w-full flex items-center justify-center overflow-hidden bg-[#eaf0fb] sm:p-6 lg:p-10 font-sans text-slate-800 ${isExiting ? 'login-salida' : ''}`}>
-      {/* --logo-alto: más alto que el modal pero dentro de la pantalla. El logo mide 722 × 629, así que
-          su media anchura es 0,574 × alto: ese espacio se deja a la izquierda para que su mitad entre. */}
-      <div
-        className="relative w-full max-w-5xl xl:max-w-[calc(64rem+var(--logo-alto)*0.574)] xl:pl-[calc(var(--logo-alto)*0.574)]"
-        style={{ '--logo-alto': 'min(88vh, 700px)' }}
-      >
-        {/* Logo de la UAB: la mitad de afuera tenue y la de adentro se transparenta apenas en el modal. */}
-        <img
-          src="/images/LOGOUAB.png"
-          alt=""
-          aria-hidden="true"
-          className="pointer-events-none select-none absolute left-0 top-1/2 -translate-y-1/2 w-auto max-w-none opacity-[0.22] hidden xl:block"
-          style={{ height: 'var(--logo-alto)' }}
-        />
-
-        <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[500px] flex flex-col lg:flex-row bg-white sm:rounded-[28px] overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
-          <img
-            src="/images/LOGOUAB.png"
-            alt=""
-            aria-hidden="true"
-            className="pointer-events-none select-none absolute top-1/2 -translate-y-1/2 w-auto max-w-none opacity-[0.14] hidden xl:block"
-            style={{ height: 'var(--logo-alto)', left: 'calc(var(--logo-alto) * -0.574)' }}
-          />
-
-          {/* Panel del guacamayo: a la derecha con borde ondulado; en celular, arriba. El ave va encima de
-              la onda, así puede asomarse un poco sobre el borde. */}
-          <div className="relative h-60 sm:h-72 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[54%] flex-shrink-0 bg-[radial-gradient(circle_at_70%_40%,rgba(240,205,54,0.28)_0%,rgba(240,205,54,0)_32%),linear-gradient(160deg,#eef3ff_0%,#d9e5fb_100%)]" aria-hidden="true">
+    <div className={`login-escena min-h-screen w-full flex items-center justify-center overflow-hidden bg-azulado-100 sm:p-6 lg:p-10 font-sans text-slate-800 ${isExiting ? 'login-salida' : ''}`}>
+      <div className="relative w-full max-w-5xl">
+        <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[560px] flex flex-col lg:flex-row bg-white sm:rounded-[28px] overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
+          {/* Panel de las parabas (azulado de Fondo de Tiempo): a la derecha con borde ondulado; en celular,
+              arriba. Detrás de las aves, el logo de la UAB tenue como un sol; las aves van encima de la
+              onda, así pueden asomarse un poco sobre el borde. */}
+          <div className="relative h-60 sm:h-72 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[54%] flex-shrink-0 bg-[radial-gradient(circle_at_68%_38%,rgba(240,205,54,0.22)_0%,rgba(240,205,54,0)_30%),linear-gradient(160deg,#DFE8F5_0%,#B8C9E1_100%)]" aria-hidden="true">
             <svg className="absolute bottom-0 left-0 w-full h-14 lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none">
               <path d="M0,34 C12,6 26,68 46,38 C64,12 80,64 100,26" fill="none" stroke="#94a3b8" strokeOpacity="0.8" strokeWidth="1.5" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
               <path d="M0,100 L0,58 C12,30 26,92 46,62 C64,36 80,88 100,50 L100,100 Z" fill="#ffffff" />
@@ -181,8 +160,14 @@ function Login({ onLogin }) {
             {/* Onda como la del modelo: arriba el blanco entra mucho a la derecha y baja en dos curvas. */}
             <svg className="absolute inset-0 hidden lg:block w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
               <path d="M0,0 L76,0 C62,4 42,9 40,21 C38,33 54,37 52,48 C50,59 31,61 29,73 C27,85 22,93 13,100 L0,100 Z" fill="#ffffff" />
-              <path d="M61,0 C48,4 28,9 26,21 C24,33 40,37 38,48 C36,59 17,61 15,73 C13,85 9,93 3,100" fill="none" stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
+              <path d="M61,0 C48,4 28,9 26,21 C24,33 40,37 38,48 C36,59 17,61 15,73 C13,85 9,93 3,100" fill="none" stroke="#0284c7" strokeOpacity="0.35" strokeWidth="1.5" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
             </svg>
+            <img
+              src="/images/LOGOUAB.png"
+              alt=""
+              aria-hidden="true"
+              className="pointer-events-none select-none absolute right-[4%] top-[6%] h-[70%] w-auto max-w-none opacity-[0.09] hidden lg:block"
+            />
             <Suspense fallback={null}>
               <ParabaPosada
                 estado={estadoAve}
@@ -194,16 +179,22 @@ function Login({ onLogin }) {
 
           {/* Formulario: centrado en el alto del modal; los mensajes de error tienen su lugar reservado,
               así que al aparecer no mueven nada. */}
-          <div className="relative z-10 flex-1 lg:flex-none lg:w-[54%] flex flex-col sm:justify-center px-6 sm:px-12 lg:px-12 pt-8 pb-14 lg:py-10">
+          <div className="relative z-10 flex-1 lg:flex-none lg:w-[54%] flex flex-col sm:justify-center px-6 sm:px-12 lg:px-12 pt-8 pb-14 lg:pt-10 lg:pb-16">
             <div className="w-full max-w-sm">
-              <span className="block h-1 w-10 rounded-full bg-[#f0cd36] mb-4" aria-hidden="true" />
+              <div className="flex items-center gap-3">
+                <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-12 w-auto" />
+                <p className="text-sm font-semibold leading-tight text-slate-700">
+                  Universidad Autónoma del Beni<br /><span className="font-normal text-slate-500">"José Ballivián"</span>
+                </p>
+              </div>
+              <span className="mt-8 mb-3 block h-1 w-10 rounded-full bg-sky-600" aria-hidden="true" />
               <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Iniciar sesión</h1>
-              <p className="mt-2 text-base text-slate-600">Universidad Autónoma del Beni "José Ballivián"</p>
+              <p className="mt-2 text-base text-slate-600">Ingresa con tu usuario o correo institucional.</p>
 
               <form onSubmit={handleSubmit} noValidate className="mt-7">
                 {/* Usuario */}
                 <label htmlFor="login-usuario" className="block mb-1.5 text-sm font-semibold text-slate-700">Usuario o correo</label>
-                <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-[#6f95ef]/45 ${anilloCampo(errorUsuario)} ${reboteUsuario ? 'login-rebote' : ''}`}>
+                <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-sky-600/40 ${anilloCampo(errorUsuario)} ${reboteUsuario ? 'login-rebote' : ''}`}>
                   <input
                     id="login-usuario"
                     type="text"
@@ -224,7 +215,7 @@ function Login({ onLogin }) {
 
                 {/* Contraseña */}
                 <label htmlFor="login-contrasena" className="block mb-1.5 text-sm font-semibold text-slate-700">Contraseña</label>
-                <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-[#6f95ef]/45 ${anilloCampo(errorContrasena)} ${reboteContrasena ? 'login-rebote' : ''}`}>
+                <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-sky-600/40 ${anilloCampo(errorContrasena)} ${reboteContrasena ? 'login-rebote' : ''}`}>
                   <input
                     id="login-contrasena"
                     type="text"

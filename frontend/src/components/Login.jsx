@@ -203,7 +203,7 @@ function Login({ onLogin }) {
               <form onSubmit={handleSubmit} noValidate className="mt-7">
                 {/* Usuario */}
                 <label htmlFor="login-usuario" className="block mb-1.5 text-sm font-semibold text-slate-700">Usuario o correo</label>
-                <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-900 ${anilloCampo(errorUsuario)} ${reboteUsuario ? 'login-rebote' : ''}`}>
+                <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-[#6f95ef]/45 ${anilloCampo(errorUsuario)} ${reboteUsuario ? 'login-rebote' : ''}`}>
                   <input
                     id="login-usuario"
                     type="text"
@@ -224,7 +224,7 @@ function Login({ onLogin }) {
 
                 {/* Contraseña */}
                 <label htmlFor="login-contrasena" className="block mb-1.5 text-sm font-semibold text-slate-700">Contraseña</label>
-                <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-900 ${anilloCampo(errorContrasena)} ${reboteContrasena ? 'login-rebote' : ''}`}>
+                <div className={`login-campo relative rounded-xl bg-azulado-50 ring-inset transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-[#6f95ef]/45 ${anilloCampo(errorContrasena)} ${reboteContrasena ? 'login-rebote' : ''}`}>
                   <input
                     id="login-contrasena"
                     type="text"

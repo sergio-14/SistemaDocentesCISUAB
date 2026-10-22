@@ -7,16 +7,19 @@ import {
 } from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-// Paraba barba azul (la del Beni) en 3D (Three.js), de estilo tierno, con sombreado suave y mate, en
-// el azul y el dorado del logo de la UAB: cabeza, espalda, alas y cola azules, pecho dorado, garganta
-// azul oscuro, mancha blanca con rayitas en la cara y un ojo grande a cada lado, pico negro en gancho,
-// cola larga en punta y patas grises agarradas a una rama natural con hojas. Reacciona al login:
+// Mamá paraba barba azul (la del Beni) con sus dos crías, en 3D (Three.js), de estilo tierno, con
+// sombreado suave y mate, en el azul y el dorado del logo de la UAB: cabeza, espalda, alas y cola
+// azules, pecho dorado, garganta azul oscuro, mancha blanca con rayitas en la cara, ojos grandes (la
+// mamá con pestañas), pico negro en gancho, cola larga en punta y patas grises, en una rama con hojas.
+// Las crías, una a cada lado, son más claras, cabezonas y de cola corta. Reaccionan al login:
 //   reposo              nada escrito ni enfocado: parpadea; mira a los lados, se acicala el ala, la
 //                       estira, se esponja, levanta una pata y da un saltito.
 //   mirando-usuario     escribiendo el usuario: se inclina un poco hacia el campo.
 //   mirando-contrasena  igual, un poco más abajo (el campo de la contraseña está debajo).
 //   ojos-cerrados       la contraseña está a la vista: cierra los ojos y aparta la cabeza.
 //   atento              campos llenos sin foco: quieta, parpadeando.
+// Las crías tienen su propio ciclo (miran a los lados, aletean, ladean la cabeza y saltan); al escribir
+// miran el campo con la mamá y, con la contraseña a la vista, también cierran los ojos.
 // Modelo propio armado con formas de Three.js (sin archivos). Cada parte va con un resorte hacia su
 // pose (sin saltos entre estados) más un movimiento continuo: respira, se balancea y la cola sigue con
 // retraso. Con prefers-reduced-motion toma la pose de cada estado sin animar.
@@ -28,13 +31,16 @@ const AZUL_OSCURO = '#1a26a8';
 const DORADO = '#f0cd36';
 const DORADO_OSCURO = '#d9a91f';
 const NEGRO = '#1b1b1f';
+// Crías: los mismos colores, más claros.
+const AZUL_CRIA = '#6f95ef';
+const DORADO_CRIA = '#f8de72';
 const PICO = '#26262c';
 const BLANCO = '#ffffff';
 const GRIS = '#4b5b5e';
 const CORTEZA = '#8a5a3a';
 const HOJA = '#5fb04a';
 
-const ALTO_VISIBLE = 3.4; // unidades del modelo que entran a lo alto del cuadro
+const ALTO_VISIBLE = 3.2; // unidades del modelo que entran a lo alto del cuadro (la mamá, grande)
 const GIRO_BASE = -1.0; // casi de perfil, mirando hacia el formulario (a la izquierda)
 
 // ---------- modelo ----------
@@ -165,12 +171,17 @@ function crearAla() {
   return { ala, primarias };
 }
 
-function crearAve() {
-  const partes = {};
+function crearAve({ giro = GIRO_BASE, cria = false } = {}) {
+  const partes = { giro };
+  const azulCuerpo = cria ? AZUL_CRIA : AZUL;
+  const doradoCuerpo = cria ? DORADO_CRIA : DORADO;
+  const base = new Group(); // ubicación y tamaño en la rama
   const inclinacion = new Group(); // gira en el plano de la pantalla, desde las patas; también salta
   const orientacion = new Group(); // gira el ave sobre su eje vertical
-  orientacion.rotation.y = GIRO_BASE;
+  orientacion.rotation.y = giro;
+  base.add(inclinacion);
   inclinacion.add(orientacion);
+  partes.base = base;
   partes.inclinacion = inclinacion;
   partes.orientacion = orientacion;
 
@@ -183,9 +194,9 @@ function crearAve() {
   const geoCuerpo = new IcosahedronGeometry(1, 5);
   const p = geoCuerpo.attributes.position;
   const colores = new Float32Array(p.count * 3);
-  const azul = new Color(AZUL);
-  const dorado = new Color(DORADO);
-  const doradoOscuro = new Color(DORADO_OSCURO);
+  const azul = new Color(azulCuerpo);
+  const dorado = new Color(doradoCuerpo);
+  const doradoOscuro = new Color(cria ? DORADO : DORADO_OSCURO);
   const c = new Color();
   for (let i = 0; i < p.count; i += 1) {
     const [x, y, z] = [p.getX(i), p.getY(i), p.getZ(i)];
@@ -203,7 +214,7 @@ function crearAve() {
   // Plumas sueltas que asoman al esponjarse.
   partes.plumon = [];
   for (const [x, y, z] of [[0.48, 0.7, 0.24], [-0.48, 0.7, 0.24], [0.52, 0.98, -0.12], [-0.52, 0.98, -0.12], [0, 0.5, 0.56], [0.28, 1.2, 0.36], [-0.28, 1.2, 0.36]]) {
-    const m = esfera([0.08, 0.055, 0.05], z > 0.3 ? DORADO : AZUL, 12);
+    const m = esfera([0.08, 0.055, 0.05], z > 0.3 ? doradoCuerpo : azulCuerpo, 12);
     m.position.set(x, y, z);
     m.lookAt(x * 3, y, z * 3);
     const envoltura = new Group();
@@ -225,7 +236,7 @@ function crearAve() {
   // Cola larga en punta, más larga que el cuerpo: azul, más oscura hacia la punta.
   const cola = new Group();
   cola.position.set(0, 0.5, -0.4);
-  const colorCola = (u) => new Color(AZUL).lerp(new Color(AZUL_OSCURO), u).getStyle();
+  const colorCola = (u) => new Color(azulCuerpo).lerp(new Color(AZUL_OSCURO), u).getStyle();
   for (const [x, giro, largo] of [[-0.07, -0.14, 0.88], [0, 0, 1], [0.07, 0.14, 0.88]]) {
     const geo = tuboAfinado(
       [[0, 0, 0], [0, -0.38 * largo, -0.32], [0, -0.88 * largo, -0.56], [0, -1.4 * largo, -0.7]],
@@ -236,6 +247,7 @@ function crearAve() {
     m.rotation.z = giro;
     cola.add(m);
   }
+  if (cria) cola.scale.set(1, 0.4, 0.45); // cola corta de pichón
   cuerpo.add(cola);
   partes.cola = cola;
 
@@ -245,9 +257,19 @@ function crearAve() {
   cuello.rotation.order = 'YXZ';
   orientacion.add(cuello);
   partes.cuello = cuello;
-  const cabeza = esfera([0.5, 0.48, 0.51], AZUL, 40);
+  const cabeza = esfera([0.5, 0.48, 0.51], azulCuerpo, 40);
   cabeza.position.set(0, 0.26, 0);
   cuello.add(cabeza);
+  if (cria) {
+    cuello.scale.setScalar(1.3); // cabezón, como los pichones
+    // Copete de pelusa.
+    for (const [x, z, giroZ] of [[-0.06, -0.05, 0.4], [0.05, 0, -0.3], [0, -0.12, 0]]) {
+      const pelusa = esfera([0.08, 0.13, 0.08], azulCuerpo, 16);
+      pelusa.position.set(x, 0.74, z);
+      pelusa.rotation.z = giroZ;
+      cuello.add(pelusa);
+    }
+  }
 
   // Mancha blanca de la cara (como la de la paraba), apoyada en la cabeza, con el ojo encima.
   partes.ojos = [];
@@ -271,6 +293,15 @@ function crearAve() {
     const brillo = esfera([0.025, 0.025, 0.01], BLANCO, 10);
     brillo.position.set(-0.03, 0.035, 0.025);
     ojo.add(disco, brillo);
+    if (!cria) {
+      // Pestañas de la mamá: se cierran con el ojo.
+      for (const angulo of [1.15, 1.6, 2.05]) {
+        const pestana = new Mesh(new CapsuleGeometry(0.009, 0.045, 3, 6), material(NEGRO));
+        pestana.position.set(Math.cos(angulo) * 0.115, Math.sin(angulo) * 0.115, 0.015);
+        pestana.rotation.z = angulo - Math.PI / 2;
+        ojo.add(pestana);
+      }
+    }
     cara.add(mancha, ojo);
     cuello.add(cara);
     partes.ojos.push({ ojo });
@@ -416,6 +447,55 @@ function poseObjetivo(estado, t, seguimiento) {
   return pose;
 }
 
+// Crías: ciclo propio, corto, desfasado entre las dos.
+const CICLO_CRIA = 8;
+const ACCIONES_CRIA = [
+  { desde: 0.6, hasta: 1.9, pose: { yaw: -0.7, roll: 0.2 } },
+  { desde: 2.2, hasta: 3.5, pose: { yaw: 0.7, roll: -0.2 } },
+  { desde: 4.0, hasta: 5.0, pose: { alaIzq: 0.55, alaDer: 0.55 } },
+  { desde: 5.6, hasta: 6.8, pose: { roll: 0.4, pitch: 0.15 } },
+];
+
+function poseCria(estado, t, seguimiento) {
+  const pose = { ...POSE_BASE };
+  if (estado.startsWith('mirando')) {
+    Object.assign(pose, { inclinar: 0.08, yaw: -0.45 + (seguimiento - 0.5) * 0.3, pitch: estado.endsWith('contrasena') ? 0.3 : 0.12 });
+  } else if (estado === 'ojos-cerrados') {
+    Object.assign(pose, { yaw: 1.0, pitch: -0.2, ojo: 0 });
+  } else {
+    const c = t % CICLO_CRIA;
+    for (const accion of ACCIONES_CRIA) {
+      const peso = ventana(c, accion.desde, accion.hasta, 0.35);
+      if (!peso) continue;
+      for (const [clave, valor] of Object.entries(accion.pose)) pose[clave] += (valor - POSE_BASE[clave]) * peso;
+    }
+  }
+  return pose;
+}
+
+function movimientoCria(estado, t) {
+  const m = {
+    respira: 0.03 * Math.sin((2 * Math.PI * t) / 1.6),
+    balanceo: 0.04 * Math.sin((2 * Math.PI * t) / 3.1),
+    cola: 0.12 * Math.sin((2 * Math.PI * t) / 1.4),
+    cabezaY: 0.02 * Math.sin((2 * Math.PI * t) / 1.6 + 0.6),
+    pitch: 0,
+    salto: 0,
+    aplastar: 0,
+    ojo: 1,
+    aleteo: 0,
+  };
+  if (estado === 'reposo' || estado === 'atento') {
+    const c = t % CICLO_CRIA;
+    m.aleteo = 0.35 * ventana(c, 4.0, 5.0, 0.2) * Math.sin(2 * Math.PI * 7 * t); // aletea rápido
+    const u = (c - 7.1) / 0.4; // saltito
+    if (u >= 0 && u <= 1) m.salto = Math.sin(Math.PI * u) * 0.35;
+  }
+  const p = t % 2.9; // parpadeo
+  if (p < 0.16) m.ojo = 1 - Math.sin((Math.PI * p) / 0.16);
+  return m;
+}
+
 // Movimiento que no pasa por el resorte: respiración, balanceo, picoteo, saltito y parpadeo.
 function movimientoDirecto(estado, t) {
   const m = {
@@ -469,9 +549,19 @@ function ParabaPosada({ estado = 'reposo', seguimiento = 0, className = '' }) {
     clave.position.set(-2, 5, 3);
     escena.add(clave);
 
-    const ave = crearAve();
+    // La mamá al medio y una cría a cada lado, sobre la rama.
+    const mama = crearAve();
+    const crias = [
+      { x: -0.82, giro: -0.6, desfase: 0 },
+      { x: 0.86, giro: -1.15, desfase: 3.7 },
+    ].map(({ x, giro, desfase }) => {
+      const cria = crearAve({ giro, cria: true });
+      cria.base.position.set(x, -0.01, 0.05);
+      cria.base.scale.setScalar(0.42);
+      return { ave: cria, desfase };
+    });
     const mundo = new Group();
-    mundo.add(ave.inclinacion, crearRama(), crearSombra());
+    mundo.add(mama.base, ...crias.map((c) => c.ave.base), crearRama(), crearSombra());
     escena.add(mundo);
 
     const camara = new PerspectiveCamera(30, 1, 0.1, 50);
@@ -482,19 +572,26 @@ function ParabaPosada({ estado = 'reposo', seguimiento = 0, className = '' }) {
       camara.aspect = w / h;
       const distancia = ALTO_VISIBLE / (2 * Math.tan((camara.fov * Math.PI) / 360));
       // Un poco desde arriba.
-      camara.position.set(0, 1.9, distancia);
-      camara.lookAt(0, 0.75, 0);
+      camara.position.set(0, 2.1, distancia);
+      camara.lookAt(0, 0.95, 0);
       camara.updateProjectionMatrix();
       // El ave a la derecha del centro; la rama sigue hasta el borde.
-      mundo.position.x = ALTO_VISIBLE * camara.aspect * 0.1;
+      mundo.position.x = ALTO_VISIBLE * camara.aspect * 0.05;
     };
     ajustar();
     const observador = new ResizeObserver(ajustar);
     observador.observe(caja);
 
     const reducido = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-    const actual = { ...POSE_BASE };
-    const velocidad = Object.fromEntries(Object.keys(POSE_BASE).map((k) => [k, 0]));
+    // Cada ave con su pose y sus resortes.
+    const animadores = [
+      { ave: mama, pose: poseObjetivo, directo: movimientoDirecto, desfase: 0 },
+      ...crias.map(({ ave, desfase }) => ({ ave, pose: poseCria, directo: movimientoCria, desfase })),
+    ].map((animador) => ({
+      ...animador,
+      actual: { ...POSE_BASE },
+      velocidad: Object.fromEntries(Object.keys(POSE_BASE).map((k) => [k, 0])),
+    }));
     let anterior = performance.now();
     let cuadro = 0;
 
@@ -504,48 +601,51 @@ function ParabaPosada({ estado = 'reposo', seguimiento = 0, className = '' }) {
       const t = ahora / 1000;
       const quieto = reducido?.matches;
       const { estado: e, seguimiento: s } = entrada.current;
-      const objetivo = poseObjetivo(e, t, s);
-      for (const k of Object.keys(actual)) {
-        if (quieto) {
-          actual[k] = objetivo[k];
-          velocidad[k] = 0;
-        } else {
-          // Resorte: rígido 60, amortiguado 12 (llega suave y con un leve rebote).
-          velocidad[k] += ((objetivo[k] - actual[k]) * 60 - velocidad[k] * 12) * dt;
-          actual[k] += velocidad[k] * dt;
+      for (const { ave, pose, directo, desfase, actual, velocidad } of animadores) {
+        const objetivo = pose(e, t + desfase, s);
+        for (const k of Object.keys(actual)) {
+          if (quieto) {
+            actual[k] = objetivo[k];
+            velocidad[k] = 0;
+          } else {
+            // Resorte: rígido 60, amortiguado 12 (llega suave y con un leve rebote).
+            velocidad[k] += ((objetivo[k] - actual[k]) * 60 - velocidad[k] * 12) * dt;
+            actual[k] += velocidad[k] * dt;
+          }
         }
-      }
-      const d = quieto
-        ? { respira: 0, balanceo: 0, cola: 0, cabezaY: 0, pitch: 0, salto: 0, aplastar: 0, ojo: 1 }
-        : movimientoDirecto(e, t);
-      const a = actual;
+        const d = quieto
+          ? { respira: 0, balanceo: 0, cola: 0, cabezaY: 0, pitch: 0, salto: 0, aplastar: 0, ojo: 1, aleteo: 0 }
+          : directo(e, t + desfase);
+        const a = actual;
+        const aleteo = d.aleteo || 0;
 
-      ave.inclinacion.rotation.z = a.inclinar + d.balanceo;
-      ave.inclinacion.position.y = d.salto;
-      ave.orientacion.rotation.y = GIRO_BASE + a.girar;
-      const esponja = Math.max(0, a.plumon);
-      ave.cuerpo.scale.set(
-        1 + 0.08 * esponja + d.aplastar * 0.6,
-        1 + 0.05 * esponja + d.respira - d.aplastar,
-        1 + 0.08 * esponja + d.aplastar * 0.6,
-      );
-      ave.plumon.forEach((m) => m.scale.setScalar(Math.max(0.001, esponja)));
-      ave.cuello.position.y = 1.42 * ave.cuerpo.scale.y + d.cabezaY;
-      ave.cuello.rotation.set(a.pitch + d.pitch, a.yaw, a.roll);
-      // Al abrir, el ala sube hacia atrás y se separa del cuerpo.
-      ave.alaIzq.ala.rotation.set(0.9 * a.alaIzq, 0, -0.16 + 1.0 * a.alaIzq);
-      ave.alaDer.ala.rotation.set(0.9 * a.alaDer, 0, -0.16 + 1.0 * a.alaDer);
-      ave.alaIzq.primarias.forEach((p, i) => {
-        p.scale.setScalar(Math.max(0.001, a.abanico));
-        p.rotation.z = -i * 0.25 * a.abanico;
-      });
-      ave.alaDer.primarias.forEach((p) => p.scale.setScalar(Math.max(0.001, a.abanico * 0.4)));
-      ave.cola.rotation.set(a.colaAlza, 0, a.colaGiro + d.cola);
-      ave.patas[1].position.y = 0.03 + 0.2 * a.pata;
-      ave.patas[1].rotation.x = -0.5 * a.pata;
-      // Ojo cerrado: el disco se aplasta hasta una rayita.
-      const abierto = Math.max(0, Math.min(1, a.ojo * d.ojo));
-      ave.ojos.forEach(({ ojo }) => { ojo.scale.y = Math.max(0.12, abierto); });
+        ave.inclinacion.rotation.z = a.inclinar + d.balanceo;
+        ave.inclinacion.position.y = d.salto;
+        ave.orientacion.rotation.y = ave.giro + a.girar;
+        const esponja = Math.max(0, a.plumon);
+        ave.cuerpo.scale.set(
+          1 + 0.08 * esponja + d.aplastar * 0.6,
+          1 + 0.05 * esponja + d.respira - d.aplastar,
+          1 + 0.08 * esponja + d.aplastar * 0.6,
+        );
+        ave.plumon.forEach((m) => m.scale.setScalar(Math.max(0.001, esponja)));
+        ave.cuello.position.y = 1.42 * ave.cuerpo.scale.y + d.cabezaY;
+        ave.cuello.rotation.set(a.pitch + d.pitch, a.yaw, a.roll);
+        // Al abrir, el ala sube hacia atrás y se separa del cuerpo.
+        ave.alaIzq.ala.rotation.set(0.9 * a.alaIzq, 0, -0.16 + 1.0 * a.alaIzq + aleteo);
+        ave.alaDer.ala.rotation.set(0.9 * a.alaDer, 0, -0.16 + 1.0 * a.alaDer + aleteo);
+        ave.alaIzq.primarias.forEach((p, i) => {
+          p.scale.setScalar(Math.max(0.001, a.abanico));
+          p.rotation.z = -i * 0.25 * a.abanico;
+        });
+        ave.alaDer.primarias.forEach((p) => p.scale.setScalar(Math.max(0.001, a.abanico * 0.4)));
+        ave.cola.rotation.set(a.colaAlza, 0, a.colaGiro + d.cola);
+        ave.patas[1].position.y = 0.03 + 0.2 * a.pata;
+        ave.patas[1].rotation.x = -0.5 * a.pata;
+        // Ojo cerrado: el disco se aplasta hasta una rayita.
+        const abierto = Math.max(0, Math.min(1, a.ojo * d.ojo));
+        ave.ojos.forEach(({ ojo }) => { ojo.scale.y = Math.max(0.12, abierto); });
+      }
       renderer.render(escena, camara);
       cuadro = requestAnimationFrame(dibujar);
     };

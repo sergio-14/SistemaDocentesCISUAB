@@ -365,9 +365,9 @@ const ObjetivosEspecificosPage = () => {
         {/* Header controls moved to global header; page-level controls removed */}
         {documentHeader && (
           <div className="w-full mb-3 mt-0">
-            <div className="poa-mobile-page-card relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-700 border border-blue-400/60 shadow-xl">
-              <div className="absolute -top-10 -right-8 w-40 h-40 bg-cyan-300/30 rounded-full blur-3xl" />
-              <div className="absolute -bottom-10 -left-8 w-40 h-40 bg-blue-300/25 rounded-full blur-3xl" />
+            <div className="poa-mobile-page-card relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-700 dark:from-slate-900 dark:via-blue-900 dark:to-cyan-900 border border-blue-400/60 dark:border-cyan-700/70 shadow-xl dark:shadow-cyan-950/40">
+              <div className="absolute -top-10 -right-8 w-40 h-40 bg-cyan-300/30 dark:bg-cyan-400/20 rounded-full blur-3xl" />
+              <div className="absolute -bottom-10 -left-8 w-40 h-40 bg-blue-300/25 dark:bg-blue-400/20 rounded-full blur-3xl" />
               <div className="relative p-3 md:p-4 space-y-3">
                 <div className="flex items-center justify-end gap-2">
                   <span className="inline-flex items-center px-3 py-1 rounded-md text-xs md:text-sm font-bold bg-white/20 border border-white/30 text-white shadow whitespace-nowrap backdrop-blur-sm">
@@ -376,7 +376,7 @@ const ObjetivosEspecificosPage = () => {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  <div className="rounded-lg border border-white/30 bg-white/15 p-2.5 backdrop-blur-sm lg:grid lg:h-full lg:min-h-[4.25rem] lg:grid-cols-[2.75rem_minmax(0,1fr)] lg:items-center lg:gap-3 lg:p-3">
+                  <div className="rounded-lg border border-white/30 bg-white/15 dark:bg-slate-900/35 p-2.5 backdrop-blur-sm lg:grid lg:h-full lg:min-h-[4.25rem] lg:grid-cols-[2.75rem_minmax(0,1fr)] lg:items-center lg:gap-3 lg:p-3">
                     <div className="hidden lg:flex h-11 w-11 items-center justify-center rounded-lg bg-white/20 text-white shadow-inner">
                       <FaUniversity className="text-xl" />
                     </div>
@@ -386,7 +386,7 @@ const ObjetivosEspecificosPage = () => {
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-white/30 bg-white/15 p-2.5 backdrop-blur-sm lg:grid lg:h-full lg:min-h-[4.25rem] lg:grid-cols-[2.75rem_minmax(0,1fr)] lg:items-center lg:gap-3 lg:p-3">
+                  <div className="rounded-lg border border-white/30 bg-white/15 dark:bg-slate-900/35 p-2.5 backdrop-blur-sm lg:grid lg:h-full lg:min-h-[4.25rem] lg:grid-cols-[2.75rem_minmax(0,1fr)] lg:items-center lg:gap-3 lg:p-3">
                     <div className="hidden lg:flex h-11 w-11 items-center justify-center rounded-lg bg-white/20 text-white shadow-inner">
                       <FaBullseye className="text-xl" />
                     </div>
@@ -470,24 +470,24 @@ const ObjetivosEspecificosPage = () => {
                   tabIndex={0}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleVerActividades(obj.id); } }}
                   onClick={() => handleVerActividades(obj.id)}
-                  className="rounded-xl border border-blue-300 bg-gradient-to-br from-blue-50 via-white to-cyan-50 shadow-lg p-3 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
+                  className="rounded-xl border border-blue-300 dark:border-blue-700 bg-gradient-to-br from-blue-50 via-white to-cyan-50 dark:from-slate-900 dark:via-slate-900 dark:to-blue-950/60 shadow-lg p-3 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
                 >
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold bg-blue-600 text-white rounded-md shadow">
                       <FaBullseye className="text-[10px]" /> {obj.codigo || '—'}
                     </span>
-                    <span className={`inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-semibold ${actCount > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}`}>
+                    <span className={`inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-semibold ${actCount > 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'}`}>
                       <FaTasks className="mr-1 text-[10px]" /> {actCount}
                     </span>
                   </div>
 
-                  <div className="rounded-lg border border-blue-200 bg-white/70 p-2 min-h-[5rem] lg:grid lg:grid-cols-[2.5rem_minmax(0,1fr)] lg:items-center lg:gap-3">
-                    <div className="hidden lg:flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600/10 text-blue-700">
+                  <div className="rounded-lg border border-blue-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/40 p-2 min-h-[5rem] lg:grid lg:grid-cols-[2.5rem_minmax(0,1fr)] lg:items-center lg:gap-3">
+                    <div className="hidden lg:flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600/10 text-blue-700 dark:bg-cyan-400/10 dark:text-cyan-200">
                       <FaBullseye className="text-lg" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[10px] uppercase tracking-wider font-bold text-blue-700 mb-1">Objetivo específico</p>
-                      <p className="text-sm text-slate-800 leading-snug line-clamp-3">
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-blue-700 dark:text-cyan-200 mb-1">Objetivo específico</p>
+                      <p className="text-sm text-slate-800 dark:text-slate-200 leading-snug line-clamp-3">
                         {obj.nombre || obj.descripcion || 'Sin descripción'}
                       </p>
                     </div>
@@ -514,7 +514,7 @@ const ObjetivosEspecificosPage = () => {
                     </div>
                   </div>
 
-                  <div className="mt-2 pt-2 border-t border-blue-300 flex items-center justify-end gap-2">
+                  <div className="mt-2 pt-2 border-t border-blue-300 dark:border-slate-700 flex items-center justify-end gap-2">
                     {canEdit && (
                       <div className="flex items-center gap-1.5">
                         <IconButton
@@ -528,7 +528,7 @@ const ObjetivosEspecificosPage = () => {
                         <IconButton
                           icon={<FaTrash />}
                           onClick={(e) => { e.stopPropagation(); handleDeleted(obj.id); }}
-                          className="bg-slate-100 hover:bg-red-100 hover:text-red-500 text-slate-700 font-bold py-1 px-2.5 text-xs rounded-lg transition"
+                          className="bg-slate-100 dark:bg-slate-700 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-500 dark:hover:text-red-400 text-slate-700 dark:text-slate-200 font-bold py-1 px-2.5 text-xs rounded-lg transition"
                           title="Eliminar"
                         >
                           Eliminar
@@ -541,7 +541,7 @@ const ObjetivosEspecificosPage = () => {
             );
           })
         ) : !loading && !error ? (
-          <div className="col-span-full px-2 py-4 text-center text-gray-500">No hay objetivos específicos para mostrar.</div>
+          <div className="col-span-full px-2 py-4 text-center text-gray-500 dark:text-slate-400">No hay objetivos específicos para mostrar.</div>
         ) : null}
       </div>
     </section>

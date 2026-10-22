@@ -45,7 +45,7 @@ const YearWheelItem = ({ year, distance, itemHeight, onCenterClick }) => {
           {year}
         </button>
       ) : (
-        <span className="tracking-wide font-semibold text-slate-700 text-sm" style={{ opacity: 1 }}>
+        <span className="tracking-wide font-semibold text-slate-700 dark:text-slate-300 text-sm" style={{ opacity: 1 }}>
           {year}
         </span>
       )}
@@ -247,7 +247,7 @@ const YearWheelPicker = ({ value, onChange, disabled = false, compact = false })
   return (
     <div
       ref={wheelRef}
-      className={`year-wheel-picker relative w-56 rounded-xl border border-[#3D6DE0]/35 bg-white/70 overflow-hidden transition-all duration-200 ease-out ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-ns-resize'}`}
+      className={`year-wheel-picker relative w-56 rounded-xl border border-[#3D6DE0]/35 dark:border-[#4B67C0]/45 bg-white/70 dark:bg-slate-800/60 overflow-hidden transition-all duration-200 ease-out ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-ns-resize'}`}
       style={{
         height: `${wheelHeight}px`,
         perspective: '1000px',
@@ -261,7 +261,7 @@ const YearWheelPicker = ({ value, onChange, disabled = false, compact = false })
       onTouchCancel={handleTouchEnd}
     >
       <div
-        className="pointer-events-none absolute inset-x-0 z-10 border-y-2 border-[#3D6DE0]/60 bg-gradient-to-r from-[#3D6DE0]/15 to-[#3D6DE0]/15 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.35),inset_0_-1px_0_0_rgba(255,255,255,0.25)]"
+        className="pointer-events-none absolute inset-x-0 z-10 border-y-2 border-[#3D6DE0]/60 dark:border-[#6B86DE]/70 bg-gradient-to-r from-[#3D6DE0]/15 to-[#3D6DE0]/15 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.35),inset_0_-1px_0_0_rgba(255,255,255,0.25)]"
         style={{
           top: `${centerOffset * itemHeight}px`,
           height: `${itemHeight}px`,
@@ -271,7 +271,7 @@ const YearWheelPicker = ({ value, onChange, disabled = false, compact = false })
           <div className="relative h-full w-full flex items-center justify-center">
             {years[lowerFloatIndex] !== undefined && (
               <span
-                className="absolute tracking-wide font-extrabold text-[#1F3274] text-lg drop-shadow-[0_1px_2px_rgba(255,255,255,0.35)]"
+                className="absolute tracking-wide font-extrabold text-[#1F3274] dark:text-white text-lg drop-shadow-[0_1px_2px_rgba(255,255,255,0.35)] dark:drop-shadow-lg"
                 style={getOverlayStyle(-centerProgress * itemHeight)}
               >
                 {years[lowerFloatIndex]}
@@ -280,7 +280,7 @@ const YearWheelPicker = ({ value, onChange, disabled = false, compact = false })
 
             {upperFloatIndex !== lowerFloatIndex && years[upperFloatIndex] !== undefined && (
               <span
-                className="absolute tracking-wide font-extrabold text-[#1F3274] text-lg drop-shadow-[0_1px_2px_rgba(255,255,255,0.35)]"
+                className="absolute tracking-wide font-extrabold text-[#1F3274] dark:text-white text-lg drop-shadow-[0_1px_2px_rgba(255,255,255,0.35)] dark:drop-shadow-lg"
                 style={getOverlayStyle((1 - centerProgress) * itemHeight)}
               >
                 {years[upperFloatIndex]}
@@ -313,8 +313,8 @@ const YearWheelPicker = ({ value, onChange, disabled = false, compact = false })
         </>
       )}
 
-      <div className={`pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-white/70 via-white/30 to-transparent z-10 transition-all duration-200 ${isExpanded ? 'h-14 opacity-100' : 'h-0 opacity-0'}`} />
-      <div className={`pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-white/70 via-white/30 to-transparent z-10 transition-all duration-200 ${isExpanded ? 'h-14 opacity-100' : 'h-0 opacity-0'}`} />
+      <div className={`pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-white/70 via-white/30 to-transparent dark:from-slate-900/70 dark:via-slate-900/25 z-10 transition-all duration-200 ${isExpanded ? 'h-14 opacity-100' : 'h-0 opacity-0'}`} />
+      <div className={`pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-white/70 via-white/30 to-transparent dark:from-slate-900/70 dark:via-slate-900/25 z-10 transition-all duration-200 ${isExpanded ? 'h-14 opacity-100' : 'h-0 opacity-0'}`} />
 
       <div
         ref={viewportRef}
@@ -466,10 +466,10 @@ const GestionSelectorModal = ({ onClose, onCancel, onSuccess, currentUser = null
         </div>
 
         <div className="p-5 modal-body gestion-selector-body">
-            {loading && <div className="mb-3 text-sm text-gray-600">Cargando...</div>}
+            {loading && <div className="mb-3 text-sm text-gray-600 dark:text-slate-400">Cargando...</div>}
           <ModalErrorAlert title="No se pudo procesar la gestión:" messages={errorMessages} />
 
-            <label className="block text-sm font-medium text-gray-700 mb-3">Año</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">Año</label>
 
             <div className="flex items-center justify-center">
               <YearWheelPicker
@@ -487,18 +487,18 @@ const GestionSelectorModal = ({ onClose, onCancel, onSuccess, currentUser = null
             )}
 
             {noDocsForYear && (
-              <div className="no-docs-card mt-4 p-3 rounded-md bg-red-50 border border-red-200">
-                <p className="text-sm text-red-600">No se encontraron documentos para la gestión <strong>{noDocsForYear}</strong>.</p>
+              <div className="no-docs-card mt-4 p-3 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                <p className="text-sm text-red-600 dark:text-red-400">No se encontraron documentos para la gestión <strong>{noDocsForYear}</strong>.</p>
 
                 {canCreatePOADocument ? (
-                  <p className="text-sm text-gray-700 mt-2">¿Desea crear un nuevo documento para esta gestión?</p>
+                  <p className="text-sm text-gray-700 dark:text-slate-300 mt-2">¿Desea crear un nuevo documento para esta gestión?</p>
                 ) : (
-                  <p className="text-sm text-gray-700 mt-2">No tiene permisos para crear un nuevo documento en esta gestión.</p>
+                  <p className="text-sm text-gray-700 dark:text-slate-300 mt-2">No tiene permisos para crear un nuevo documento en esta gestión.</p>
                 )}
 
                 <div className="mt-3 flex gap-2 justify-end modal-actions gestion-selector-actions">
                   <IconButton onClick={handleCancel} className="btn-cancel px-3 py-2 rounded-md" title="Cancelar">Cancelar</IconButton>
-                  <IconButton onClick={handleOtraGestion} className="btn-secondary px-3 py-2 rounded-md border border-sky-400 shadow-sm" title="Otra gestión">Otra gestión</IconButton>
+                  <IconButton onClick={handleOtraGestion} className="btn-secondary px-3 py-2 rounded-md border border-sky-400 dark:border-sky-500 shadow-sm" title="Otra gestión">Otra gestión</IconButton>
                   {canCreatePOADocument && (
                     <IconButton onClick={handleAgregar} className="btn-success px-3 py-2 rounded-md" title="Nuevo">Nuevo</IconButton>
                   )}

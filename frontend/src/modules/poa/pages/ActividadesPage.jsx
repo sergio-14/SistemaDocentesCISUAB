@@ -275,16 +275,16 @@ const ActividadesPage = () => {
         ) : objetivoError ? (
           <div className="text-red-600">{String(objetivoError)}</div>
         ) : objetivo ? (
-          <div className="poa-mobile-page-card relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-100 to-blue-200 border border-blue-300 shadow-2xl">
+          <div className="poa-mobile-page-card relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-800 border border-blue-300 dark:border-blue-700 shadow-2xl dark:shadow-blue-900/50">
             {/* Decorative background elements */}
-            <div className="absolute top-0 right-0 w-40 h-40 bg-blue-200 rounded-full blur-3xl opacity-50"></div>
-            <div className="absolute bottom-0 left-0 w-40 h-40 bg-blue-300 rounded-full blur-3xl opacity-50"></div>
+            <div className="absolute top-0 right-0 w-40 h-40 bg-blue-200 dark:bg-blue-700/50 rounded-full blur-3xl opacity-50"></div>
+            <div className="absolute bottom-0 left-0 w-40 h-40 bg-blue-300 dark:bg-blue-700/50 rounded-full blur-3xl opacity-50"></div>
             
             {/* Content */}
             <div className="relative p-[1.2rem] space-y-[0.8rem]">
               <div className="flex items-start justify-between gap-[0.6rem]">
                 <div>
-                  <h3 className="text-[1.2rem] font-bold tracking-tight text-blue-900 drop-shadow-sm">{objetivo.descripcion}</h3>
+                  <h3 className="text-[1.2rem] font-bold tracking-tight text-blue-900 dark:text-white drop-shadow-sm">{objetivo.descripcion}</h3>
                 </div>
                 <div className="inline-flex items-center px-[1.2rem] py-[0.6rem] rounded-lg text-[0.7rem] font-semibold bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg hover:shadow-xl transition-shadow whitespace-nowrap">
                   <span className="font-mono text-[1.2rem] font-bold">{objetivo.codigo}</span>
@@ -292,15 +292,15 @@ const ActividadesPage = () => {
               </div>
               
               <div className="poa-mobile-kpi-strip poa-mobile-kpi-strip-3 grid grid-cols-1 sm:grid-cols-3 gap-[0.8rem] pt-[0.4rem]">
-                <div className="poa-mobile-kpi-card flex flex-col bg-gradient-to-r from-blue-500 to-blue-600 backdrop-blur-sm rounded-lg p-[0.8rem] shadow-xl hover:shadow-2xl transition-shadow transform hover:scale-105">
+                <div className="poa-mobile-kpi-card flex flex-col bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 backdrop-blur-sm rounded-lg p-[0.8rem] shadow-xl dark:shadow-2xl dark:shadow-blue-900/50 hover:shadow-2xl transition-shadow transform hover:scale-105">
                   <span className="poa-kpi-label text-xs font-bold uppercase tracking-widest text-blue-100 mb-1">Total Actividades</span>
                   <span className="poa-kpi-value text-[2.4rem] font-bold text-white">{totalActividades}</span>
                 </div>
-                <div className="poa-mobile-kpi-card flex flex-col bg-gradient-to-r from-emerald-500 to-emerald-600 backdrop-blur-sm rounded-lg p-[0.8rem] shadow-xl hover:shadow-2xl transition-shadow transform hover:scale-105">
+                <div className="poa-mobile-kpi-card flex flex-col bg-gradient-to-r from-emerald-500 to-emerald-600 dark:from-emerald-600 dark:to-emerald-700 backdrop-blur-sm rounded-lg p-[0.8rem] shadow-xl dark:shadow-2xl dark:shadow-blue-900/50 hover:shadow-2xl transition-shadow transform hover:scale-105">
                   <span className="poa-kpi-label text-xs font-bold uppercase tracking-widest text-emerald-100 mb-1">Actividades Completadas</span>
                   <span className="poa-kpi-value text-[2.4rem] font-bold text-white">{actividadesCompletadas}</span>
                 </div>
-                <div className="poa-mobile-kpi-card flex flex-col bg-gradient-to-r from-amber-500 to-orange-500 backdrop-blur-sm rounded-lg p-[0.8rem] shadow-xl hover:shadow-2xl transition-shadow transform hover:scale-105">
+                <div className="poa-mobile-kpi-card flex flex-col bg-gradient-to-r from-amber-500 to-orange-500 dark:from-amber-600 dark:to-orange-600 backdrop-blur-sm rounded-lg p-[0.8rem] shadow-xl dark:shadow-2xl dark:shadow-blue-900/50 hover:shadow-2xl transition-shadow transform hover:scale-105">
                   <span className="poa-kpi-label text-xs font-bold uppercase tracking-widest text-amber-100 mb-1">Actividades Programadas</span>
                   <span className="poa-kpi-value text-[2.4rem] font-bold text-white">{actividadesProgramadas}</span>
                 </div>
@@ -356,7 +356,7 @@ const ActividadesPage = () => {
       {error && <div className="text-red-600">{String(error)}</div>}
 
       <div className="poa-table-wrapper w-full overflow-auto border rounded shadow-lg">
-        <table className="poa-mobile-card-table w-full font-sans text-base leading-snug table-fixed border-collapse text-blue-900">
+        <table className="poa-mobile-card-table w-full font-sans text-base leading-snug table-fixed border-collapse text-blue-900 dark:text-white">
           <thead>
             <tr className="poa-thead poa-table-head-formal text-center font-sans text-base leading-snug font-bold">
               <th className="px-2 py-2 font-medium">Actividad o Programa</th>
@@ -389,8 +389,8 @@ const ActividadesPage = () => {
                   onClick={() => setSelectedActividad(prev => (prev && prev.id === act.id ? null : act))}
                   aria-selected={selectedActividad && selectedActividad.id === act.id ? 'true' : 'false'}
                   data-selected={selectedActividad && selectedActividad.id === act.id ? 'true' : 'false'}
-                  className={`align-top transition transform duration-150 cursor-pointer hover:shadow-sm hover:-translate-y-0.5 ${selectedActividad && selectedActividad.id === act.id ? 'is-selected font-semibold shadow-md bg-blue-100' : 'odd:bg-white even:bg-blue-50'} text-blue-900`}>
-                  <td data-label="Actividad" className="px-2 py-2 border border-blue-300 align-top font-sans">
+                  className={`align-top transition transform duration-150 cursor-pointer hover:shadow-sm hover:-translate-y-0.5 ${selectedActividad && selectedActividad.id === act.id ? 'is-selected font-semibold shadow-md bg-blue-100 dark:bg-blue-900' : 'odd:bg-white even:bg-blue-50 dark:odd:bg-gray-800 dark:even:bg-gray-700'} text-blue-900 dark:text-white`}>
+                  <td data-label="Actividad" className="px-2 py-2 border border-blue-300 dark:border-gray-600 align-top font-sans">
                     <div className={`${selectedActividad && selectedActividad.id === act.id ? 'table-cell-expand' : 'table-cell-clamp'}`}>
                       <span className="inline-block px-2 py-0.5 text-xs font-bold bg-blue-500 text-white rounded mr-2">{act.codigo}</span>
                       <span className="font-medium">{act.nombre}</span>
@@ -400,42 +400,42 @@ const ActividadesPage = () => {
                     </div>
                     {(tieneRango || isRealizada) && (
                       <div className="mt-2 flex items-center gap-2">
-                        <span className="text-xs text-gray-600">Estado:</span>
-                        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <span className="text-xs text-gray-600 dark:text-gray-400">Estado:</span>
+                        <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all duration-300 ${isRealizada ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gradient-to-r from-amber-400 to-orange-500'}`}
                             style={{ width: isRealizada ? '100%' : '20%' }}
                           ></div>
                         </div>
-                        <span className="text-xs font-semibold text-gray-700">{isRealizada ? '100%' : 'Programada'}</span>
+                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{isRealizada ? '100%' : 'Programada'}</span>
                       </div>
                     )}
                   </td>
-                  <td data-label="Responsable" className="px-2 py-2 border border-blue-300 align-top font-sans">
+                  <td data-label="Responsable" className="px-2 py-2 border border-blue-300 dark:border-gray-600 align-top font-sans">
                     <div className={`${selectedActividad && selectedActividad.id === act.id ? 'table-cell-expand' : 'table-cell-clamp'}`}>
                       {act.responsable || '—'}
                     </div>
                   </td>
-                  <td data-label="Productos" className="px-2 py-2 border border-blue-300 align-top font-sans"><div className={`${selectedActividad && selectedActividad.id === act.id ? 'table-cell-expand' : 'table-cell-clamp'}`}>{act.productos_esperados ? (typeof act.productos_esperados === 'object' ? JSON.stringify(act.productos_esperados) : act.productos_esperados) : '—'}</div></td>
-                  <td data-label="Mes inicio" className="px-2 py-2 border border-blue-300 align-top font-sans text-center">
+                  <td data-label="Productos" className="px-2 py-2 border border-blue-300 dark:border-gray-600 align-top font-sans"><div className={`${selectedActividad && selectedActividad.id === act.id ? 'table-cell-expand' : 'table-cell-clamp'}`}>{act.productos_esperados ? (typeof act.productos_esperados === 'object' ? JSON.stringify(act.productos_esperados) : act.productos_esperados) : '—'}</div></td>
+                  <td data-label="Mes inicio" className="px-2 py-2 border border-blue-300 dark:border-gray-600 align-top font-sans text-center">
                     <div className={`${selectedActividad && selectedActividad.id === act.id ? 'table-cell-expand' : 'table-cell-clamp'}`}>
                       {mesInicio && mesInicio !== '—' ? (
-                        <span className="inline-block px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded">
+                        <span className="inline-block px-2 py-1 text-xs font-semibold bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded">
                           {mesInicio}
                         </span>
                       ) : '—'}
                     </div>
                   </td>
-                  <td data-label="Mes fin" className="px-2 py-2 border border-blue-300 align-top font-sans text-center">
+                  <td data-label="Mes fin" className="px-2 py-2 border border-blue-300 dark:border-gray-600 align-top font-sans text-center">
                     <div className={`${selectedActividad && selectedActividad.id === act.id ? 'table-cell-expand' : 'table-cell-clamp'}`}>
                       {mesFin && mesFin !== '—' ? (
-                        <span className="inline-block px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded">
+                        <span className="inline-block px-2 py-1 text-xs font-semibold bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded">
                           {mesFin}
                         </span>
                       ) : '—'}
                     </div>
                   </td>
-                  <td data-label="Indicador" className="px-2 py-1 border border-blue-300 align-top">{
+                  <td data-label="Indicador" className="px-2 py-1 border border-blue-300 dark:border-gray-600 align-top">{
                     // intentar varias claves posibles para la descripción
                     <div className={`${selectedActividad && selectedActividad.id === act.id ? 'table-cell-expand' : 'table-cell-clamp'}`}>{getIndicadorField(act, [
                       'indicador.descripcion',
@@ -446,7 +446,7 @@ const ActividadesPage = () => {
                       'indicador_descripcion_text'
                     ])}</div>
                   }</td>
-                  <td data-label="Unidad" className="px-2 py-1 border border-blue-300 align-top">{
+                  <td data-label="Unidad" className="px-2 py-1 border border-blue-300 dark:border-gray-600 align-top">{
                     <div className={`${selectedActividad && selectedActividad.id === act.id ? 'table-cell-expand' : 'table-cell-clamp'}`}>{getIndicadorField(act, [
                       'indicador.unidad',
                       'indicador.indicador_unidad',
@@ -455,7 +455,7 @@ const ActividadesPage = () => {
                       'unidad_medida'
                     ])}</div>
                   }</td>
-                  <td data-label="Linea base" className="px-2 py-2 border border-blue-300 align-top text-center">
+                  <td data-label="Linea base" className="px-2 py-2 border border-blue-300 dark:border-gray-600 align-top text-center">
                     <div className={`${selectedActividad && selectedActividad.id === act.id ? 'table-cell-expand' : 'table-cell-clamp'}`}>
                       {getIndicadorField(act, [
                         'indicador.linea_base',
@@ -466,7 +466,7 @@ const ActividadesPage = () => {
                       ])}
                     </div>
                   </td>
-                  <td data-label="Meta" className="px-2 py-2 border border-blue-300 align-top text-center">
+                  <td data-label="Meta" className="px-2 py-2 border border-blue-300 dark:border-gray-600 align-top text-center">
                     <div className={`${selectedActividad && selectedActividad.id === act.id ? 'table-cell-expand' : 'table-cell-clamp'}`}>
                       {getIndicadorField(act, [
                         'indicador.meta',
@@ -476,10 +476,10 @@ const ActividadesPage = () => {
                       ])}
                     </div>
                   </td>
-                  <td data-label="Funcion Bs." className="poa-currency-cell px-2 py-2 border border-blue-300 align-top text-right">
+                  <td data-label="Funcion Bs." className="poa-currency-cell px-2 py-2 border border-blue-300 dark:border-gray-600 align-top text-right">
                     {formatMoney(act.monto_funcion || act.monto_funcion_valor || act.monto_funcion_bs)}
                   </td>
-                  <td data-label="Inversion Bs." className="poa-currency-cell px-2 py-2 border border-blue-300 align-top text-right">
+                  <td data-label="Inversion Bs." className="poa-currency-cell px-2 py-2 border border-blue-300 dark:border-gray-600 align-top text-right">
                     {formatMoney(act.monto_inversion || act.monto_inversion_valor || act.monto_inversion_bs)}
                   </td>
                 </tr>

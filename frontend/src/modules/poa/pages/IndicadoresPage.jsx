@@ -182,27 +182,27 @@ const IndicadoresPage = () => {
         onConfirm={confirmDelete}
       />
       <div className="w-full max-w-[1200px] mx-auto space-y-4">
-        <div className="poa-mobile-page-card rounded-2xl border border-blue-200/80 bg-white/75 backdrop-blur-sm p-4 md:p-5 shadow-sm">
+        <div className="poa-mobile-page-card rounded-2xl border border-blue-200/80 bg-white/75 backdrop-blur-sm p-4 md:p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/55">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
-              <p className="text-xs uppercase tracking-[0.18em] font-bold text-blue-700">Catálogo POA</p>
-              <h2 className="text-2xl md:text-4xl font-extrabold text-blue-900 leading-tight">Catálogo de indicadores</h2>
-              <p className="text-sm md:text-base text-slate-600 max-w-3xl leading-relaxed">
+              <p className="text-xs uppercase tracking-[0.18em] font-bold text-blue-700 dark:text-sky-300">Catálogo POA</p>
+              <h2 className="text-2xl md:text-4xl font-extrabold text-blue-900 dark:text-slate-100 leading-tight">Catálogo de indicadores</h2>
+              <p className="text-sm md:text-base text-slate-600 dark:text-slate-300 max-w-3xl leading-relaxed">
                 Este catálogo almacena una sola lista de indicadores. Las actividades los usan como sugerencias al momento de crear o editar.
               </p>
             </div>
 
-            <div className="poa-mobile-kpi-card rounded-2xl border border-blue-200 bg-white/85 px-4 py-3 shadow-sm min-w-[190px]">
-              <p className="poa-kpi-label text-[10px] uppercase tracking-[0.18em] text-blue-700 font-bold">Indicadores cargados</p>
-              <p className="poa-kpi-value text-3xl font-black mt-1 text-slate-900">{totalIndicadores}</p>
+            <div className="poa-mobile-kpi-card rounded-2xl border border-blue-200 bg-white/85 px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/60 min-w-[190px]">
+              <p className="poa-kpi-label text-[10px] uppercase tracking-[0.18em] text-blue-700 dark:text-sky-300 font-bold">Indicadores cargados</p>
+              <p className="poa-kpi-value text-3xl font-black mt-1 text-slate-900 dark:text-white">{totalIndicadores}</p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white/85 p-4 md:p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white/85 p-4 md:p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/55">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex-1 min-w-0">
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
                 {editingId ? 'Editar indicador' : 'Nuevo indicador'}
               </label>
               <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-3">
@@ -212,7 +212,7 @@ const IndicadoresPage = () => {
                   value={indicador}
                   onChange={(e) => setIndicador(e.target.value)}
                   placeholder="Escribe un indicador..."
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-100"
                   autoComplete="off"
                 />
                 <div className="flex gap-2">
@@ -228,7 +228,7 @@ const IndicadoresPage = () => {
                     <button
                       type="button"
                       onClick={resetForm}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
                       Cancelar
                     </button>
@@ -238,7 +238,7 @@ const IndicadoresPage = () => {
             </div>
 
             <div className="w-full lg:w-80">
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Buscar indicador</label>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Buscar indicador</label>
               <div className="relative">
                 <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
                 <input
@@ -246,18 +246,18 @@ const IndicadoresPage = () => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Filtra la lista..."
-                  className="w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 py-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+                  className="w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 py-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-100"
                 />
               </div>
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white/75 p-4 shadow-sm">
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white/75 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-950/30">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-sm font-semibold text-slate-800">Importar desde Excel</p>
-              <p className="text-xs text-slate-500">Sube un archivo Excel con una lista de indicadores en la primera columna. Se guardaran sin duplicados.</p>
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Importar desde Excel</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Sube un archivo Excel con una lista de indicadores en la primera columna. Se guardaran sin duplicados.</p>
             </div>
             <div className="flex items-center gap-2">
               <input
@@ -279,26 +279,26 @@ const IndicadoresPage = () => {
           </div>
         </div>
 
-        {loading && <div className="text-blue-800">Cargando indicadores...</div>}
-        {error && <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-700">{String(error)}</div>}
+        {loading && <div className="text-blue-800 dark:text-slate-200">Cargando indicadores...</div>}
+        {error && <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300">{String(error)}</div>}
 
         {!loading && !error && (
           hasResults ? (
-            <div className="poa-table-wrapper overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="poa-table-wrapper overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/55">
               <table className="poa-mobile-card-table w-full border-collapse text-sm">
-                <thead className="bg-slate-50">
+                <thead className="bg-slate-50 dark:bg-slate-900/70">
                   <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-slate-600">Indicador</th>
-                    <th className="px-4 py-3 text-right font-semibold text-slate-600">Acciones</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300">Indicador</th>
+                    <th className="px-4 py-3 text-right font-semibold text-slate-600 dark:text-slate-300">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {indicadores.map((item, index) => (
                     <tr
                       key={item.id || `${item.indicador}-${index}`}
-                      className="border-t border-slate-200 bg-white odd:bg-slate-50/70"
+                      className="border-t border-slate-200 dark:border-slate-800 bg-white odd:bg-slate-50/70 dark:bg-slate-900/30 dark:odd:bg-slate-950/35"
                     >
-                      <td data-label="Indicador" className="px-4 py-3 text-slate-900 font-medium">{item.indicador}</td>
+                      <td data-label="Indicador" className="px-4 py-3 text-slate-900 dark:text-slate-100 font-medium">{item.indicador}</td>
                       <td data-label="Acciones" className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
                           <button
@@ -324,7 +324,7 @@ const IndicadoresPage = () => {
               </table>
             </div>
           ) : (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-white/75 px-5 py-8 text-center text-slate-500">
+            <div className="rounded-xl border border-dashed border-slate-300 bg-white/75 px-5 py-8 text-center text-slate-500 dark:border-slate-700 dark:bg-slate-950/30 dark:text-slate-400">
               No hay indicadores que coincidan con la búsqueda.
             </div>
           )

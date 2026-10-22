@@ -1,31 +1,49 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FaArrowLeft, FaPlus, FaEdit, FaTrash, FaFilePdf, FaMoneyBillAlt, FaImage, FaEllipsisV } from 'react-icons/fa';
+import ThemeToggle from './ThemeToggle';
 import IconButton from './IconButton';
 import { buildPoaNavigationState, getPoaNavigationContext } from '../utils/navigationContext';
 
-const headerStyles = {
-  headerBg: 'bg-gradient-to-r from-blue-900 via-blue-700 to-blue-900',
-  headerHomeBg: 'bg-gradient-to-r from-blue-900 via-blue-700 to-blue-900',
-  headerShadow: 'shadow-[0_4px_20px_rgba(30,58,138,0.3)]',
-  headerBorder: 'border-b border-blue-600/30',
-  headerText: 'text-white',
-  headerHomeText: 'text-white',
-  primaryButton: 'bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600',
-  buttonShadow: 'shadow-[0_8px_20px_rgba(37,99,235,0.3)]',
-  buttonHover: 'hover:from-blue-600 hover:via-blue-700 hover:to-indigo-700',
-  buttonText: 'text-white',
+const themeStyles = {
+  dark: {
+    headerBg: 'bg-gradient-to-r from-blue-950 via-blue-800 to-blue-950',
+    headerHomeBg: 'bg-gradient-to-r from-blue-950 via-blue-800 to-blue-950',
+    headerShadow: 'shadow-[0_4px_20px_rgba(0,0,0,0.4)]',
+    headerBorder: 'border-b border-blue-700/50',
+    headerText: 'text-white',
+    headerHomeText: 'text-white',
+    primaryButton: 'bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600',
+    buttonShadow: 'shadow-[0_8px_20px_rgba(37,99,235,0.4)]',
+    buttonHover: 'hover:from-blue-600 hover:via-blue-700 hover:to-indigo-700',
+    buttonText: 'text-white',
+  },
+  light: {
+    headerBg: 'bg-gradient-to-r from-blue-900 via-blue-700 to-blue-900',
+    headerHomeBg: 'bg-gradient-to-r from-blue-900 via-blue-700 to-blue-900',
+    headerShadow: 'shadow-[0_4px_20px_rgba(30,58,138,0.3)]',
+    headerBorder: 'border-b border-blue-600/30',
+    headerText: 'text-white',
+    headerHomeText: 'text-white',
+    primaryButton: 'bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600',
+    buttonShadow: 'shadow-[0_8px_20px_rgba(37,99,235,0.3)]',
+    buttonHover: 'hover:from-blue-600 hover:via-blue-700 hover:to-indigo-700',
+    buttonText: 'text-white',
+  },
 };
 
 const Header = ({ 
+  theme, 
   isHome, 
   showHeader, 
   headerSelectedActividad, 
+  setTheme,
   sidebarExpanded = true,
   poaPermissions = {}
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const themeConfig = themeStyles[theme];
   const canEdit = !!poaPermissions?.canEdit;
   const canManageAccess = !!poaPermissions?.canManageAccess;
   const [mobileActionsOpen, setMobileActionsOpen] = React.useState(false);
@@ -162,7 +180,7 @@ const Header = ({
       sm: 'py-0.5 px-3 text-xs rounded-full',
     };
     const sizeClasses = sizeMap[size] || sizeMap.md;
-    return `${headerStyles.primaryButton} ${headerStyles.buttonText} font-bold ${sizeClasses} ${headerStyles.buttonShadow} ${headerStyles.buttonHover} transition duration-300`;
+    return `${themeConfig.primaryButton} ${themeConfig.buttonText} font-bold ${sizeClasses} ${themeConfig.buttonShadow} ${themeConfig.buttonHover} transition duration-300`;
   };
 
   const getPageTitle = () => {
@@ -417,10 +435,12 @@ const Header = ({
 
   if (isHome) {
     return (
-      <header className={`poa-home-header w-full ${headerStyles.headerHomeBg} ${headerStyles.headerHomeText} grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-3 py-3 md:px-8 md:py-6 ${headerStyles.headerShadow} ${headerStyles.headerBorder}`}>
+      <header className={`poa-home-header w-full ${themeConfig.headerHomeBg} ${themeConfig.headerHomeText} grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-3 py-3 md:px-8 md:py-6 ${themeConfig.headerShadow} ${themeConfig.headerBorder}`}>
         <div className="poa-home-spacer" aria-hidden="true" />
         <div className="poa-home-title min-w-0 text-lg md:text-2xl font-bold tracking-wide leading-tight truncate">Ingeniería de Sistemas</div>
-        <div className="poa-home-spacer" aria-hidden="true" />
+        <div className="poa-home-theme justify-self-end">
+          <ThemeToggle theme={theme} setTheme={setTheme} variant="header" />
+        </div>
       </header>
     );
   }
@@ -429,7 +449,7 @@ const Header = ({
   const headerWidthClass = sidebarExpanded ? 'md:w-[calc(100%-18rem)]' : 'md:w-[calc(100%-5rem)]';
 
   return (
-    <header className={`poa-page-header ${headerStyles.headerBg} ${headerStyles.headerText} flex flex-wrap items-center gap-y-3 pl-20 pr-3 py-2 md:px-6 md:py-4 fixed top-0 right-0 left-0 z-30 w-full ${headerWidthClass} transform transition-all duration-300 ease-in-out ${sidebarOffset} ${showHeader ? `translate-y-0 opacity-100 ${headerStyles.headerShadow} ${headerStyles.headerBorder}` : '-translate-y-full opacity-0 pointer-events-none'}`}>
+    <header className={`poa-page-header ${themeConfig.headerBg} ${themeConfig.headerText} flex flex-wrap items-center gap-y-3 pl-20 pr-3 py-2 md:px-6 md:py-4 fixed top-0 right-0 left-0 z-30 w-full ${headerWidthClass} transform transition-all duration-300 ease-in-out ${sidebarOffset} ${showHeader ? `translate-y-0 opacity-100 ${themeConfig.headerShadow} ${themeConfig.headerBorder}` : '-translate-y-full opacity-0 pointer-events-none'}`}>
       {/* Left: page controls */}
       <div className="poa-header-left flex shrink-0 items-center gap-2 md:mr-4">
         {(() => {

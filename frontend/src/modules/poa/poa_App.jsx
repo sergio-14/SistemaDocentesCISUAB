@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './index.css';
+import { useTheme } from '../../useTheme';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import PoaBreadcrumb from './components/PoaBreadcrumb';
@@ -13,6 +14,7 @@ import { replacePoaNavigationContext } from './utils/navigationContext';
 function POAApp({ user }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { effectiveTheme: theme, setTheme } = useTheme();
   const [showGestionModal, setShowGestionModal] = useState(false);
   const [headerSelectedActividad, setHeaderSelectedActividad] = useState(null);
   const [showHeader, setShowHeader] = useState(true);
@@ -143,6 +145,7 @@ function POAApp({ user }) {
 
       {/* Sidebar */}
       <Sidebar
+        theme={theme}
         onOpenGestionSelector={openGestionSelector}
         onOpenRevisionBoard={openRevisionBoard}
         setSidebarExpanded={setSidebarExpanded}
@@ -175,9 +178,11 @@ function POAApp({ user }) {
       <main className={`flex-1 flex flex-col transition-all duration-300 ml-0 ${sidebarExpanded ? 'md:ml-72' : 'md:ml-20'}`}>
         {/* Header */}
         <Header 
+          theme={theme}
           isHome={isHome}
           showHeader={showHeader}
           headerSelectedActividad={headerSelectedActividad}
+          setTheme={setTheme}
           sidebarExpanded={sidebarExpanded}
           poaPermissions={poaPermissions}
         />

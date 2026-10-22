@@ -109,25 +109,24 @@ body:not(:has(.poa-app)) button:active {
   }
 }
 
-/* Mejora global de contraste. El sistema es solo claro: html:root mantiene la especificidad
-   que tenían estas reglas cuando existía el modo oscuro. */
-html:root input[type='text'],
-html:root input[type='email'],
-html:root input[type='password'],
-html:root input[type='number'],
-html:root input[type='date'],
-html:root select,
-html:root textarea {
+/* Mejora global de contraste en modo claro */
+html:not(.dark) input[type='text'],
+html:not(.dark) input[type='email'],
+html:not(.dark) input[type='password'],
+html:not(.dark) input[type='number'],
+html:not(.dark) input[type='date'],
+html:not(.dark) select,
+html:not(.dark) textarea {
   border-color: #94a3b8;
   background-color: #f1f5f9;
 }
 
-html:root input[type='checkbox'],
-html:root input[type='radio'] {
+html:not(.dark) input[type='checkbox'],
+html:not(.dark) input[type='radio'] {
   accent-color: #2c4aae;
 }
 
-html:root .border-t {
+html:not(.dark) .border-t {
   border-top-color: #cbd5e1;
 }
 
@@ -135,17 +134,17 @@ html:root .border-t {
    SIN !important: devuelve a Tailwind el control total de los estilos dinámicos
    (errores, feedback, hover) para que clases como !border-red-600 funcionen
    de forma nativa y uniforme en todo el formulario. */
-html:root .border,
-html:root .border-2,
-html:root .rounded-xl,
-html:root .rounded-lg,
-html:root .rounded-md,
-html:root input,
-html:root select,
-html:root textarea,
-html:root .card,
-html:root .dropdown,
-html:root .shadow-sm {
+html:not(.dark) .border,
+html:not(.dark) .border-2,
+html:not(.dark) .rounded-xl,
+html:not(.dark) .rounded-lg,
+html:not(.dark) .rounded-md,
+html:not(.dark) input,
+html:not(.dark) select,
+html:not(.dark) textarea,
+html:not(.dark) .card,
+html:not(.dark) .dropdown,
+html:not(.dark) .shadow-sm {
   border-color: #94a3b8;
 }
 
@@ -241,9 +240,14 @@ html:root .shadow-sm {
 
 /* Bordes rojos de error en modo claro (alta prioridad). Rojo suavizado (red-400) y
    anillo tenue para que se note sin cansar la vista. */
-html:root [class*="border-red-600"] {
+html:not(.dark) [class*="border-red-600"] {
   border-color: #f87171 !important;
   --tw-ring-color: rgb(248 113 113 / 0.3) !important;
+}
+
+/* Garantizar bordes rojos de error visibles en modo oscuro */
+html.dark [class*="border-red-500"] {
+  border-color: #ef4444 !important;
 }
 
 /* Animación de sacudida (shake) para campos con error de validación */
@@ -363,6 +367,12 @@ html:root [class*="border-red-600"] {
   pointer-events: none;
 }
 
+.dark .ft-chat-unread-badge {
+  border-color: #0e1621;
+  background: #ff375f;
+  box-shadow: 0 7px 18px rgba(255, 55, 95, 0.3);
+}
+
 .ft-chat-panel {
   font-family: "Segoe UI", Helvetica, Arial, sans-serif;
   border: 1px solid #B8C9E1;
@@ -378,10 +388,22 @@ html:root [class*="border-red-600"] {
   user-select: text;
 }
 
+.dark .ft-chat-panel {
+  border-color: rgba(42, 171, 238, 0.24);
+  background: #1f2a3a;
+  color: #f5f5f5;
+  box-shadow: 0 30px 84px rgba(2, 6, 23, 0.72);
+}
+
 .ft-chat-header {
   border-bottom: 1px solid #B8C9E1;
   background: #F7F9FD;
   color: #1e3a8a;
+}
+
+.dark .ft-chat-header {
+  border-bottom-color: rgba(31, 41, 55, 0.9);
+  background: #1f2a3a;
 }
 
 .ft-chat-header-action {
@@ -414,6 +436,17 @@ html:root [class*="border-red-600"] {
 .ft-chat-active-pill {
   background: #eef2ff;
   color: #1d4ed8;
+}
+
+.dark .ft-chat-header-icon,
+.dark .ft-chat-header-title,
+.dark .ft-chat-header-action {
+  color: #ffffff;
+}
+
+.dark .ft-chat-active-pill {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
 }
 
 .ft-chat-resize-handle {
@@ -500,6 +533,13 @@ html:root [class*="border-red-600"] {
   display: none;
 }
 
+.dark .ft-chat-body {
+  background-color: #0e1621;
+  background-image:
+    radial-gradient(circle at 2px 2px, rgba(42, 171, 238, 0.09) 1px, transparent 1px),
+    radial-gradient(circle at 12px 12px, rgba(82, 136, 173, 0.08) 1px, transparent 1px);
+}
+
 .ft-chat-scroll-bottom {
   position: absolute;
   right: 1.05rem;
@@ -520,6 +560,17 @@ html:root [class*="border-red-600"] {
 
 .ft-chat-scroll-bottom:hover {
   background: #f8fafc;
+}
+
+.dark .ft-chat-scroll-bottom {
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(31, 42, 58, 0.96);
+  color: #cbd5e1;
+  box-shadow: none;
+}
+
+.dark .ft-chat-scroll-bottom:hover {
+  background: #243246;
 }
 
 .ft-chat-date-separator {
@@ -549,6 +600,20 @@ html:root [class*="border-red-600"] {
   text-transform: capitalize;
 }
 
+.dark .ft-chat-date-separator {
+  color: #cbd5e1;
+}
+
+.dark .ft-chat-date-separator::before,
+.dark .ft-chat-date-separator::after {
+  background: rgba(148, 163, 184, 0.38);
+}
+
+.dark .ft-chat-date-separator span {
+  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(31, 42, 58, 0.94);
+}
+
 .ft-chat-empty {
   display: inline-block;
   max-width: 100%;
@@ -560,6 +625,13 @@ html:root [class*="border-red-600"] {
   font-size: 0.75rem;
   line-height: 1.2;
   box-shadow: 0 8px 20px rgba(34, 158, 217, 0.1);
+}
+
+.dark .ft-chat-empty {
+  border-color: rgba(42, 171, 238, 0.14);
+  background: rgba(23, 33, 43, 0.88);
+  color: #9fb7ca;
+  box-shadow: none;
 }
 
 .ft-chat-message-row {
@@ -979,6 +1051,84 @@ html:root [class*="border-red-600"] {
   color: rgba(255, 255, 255, 0.82);
 }
 
+.dark .ft-chat-bubble {
+  box-shadow: 0 8px 18px rgba(2, 6, 23, 0.24);
+}
+
+.dark .ft-chat-bubble.is-peer {
+  border-color: rgba(148, 163, 184, 0.12);
+  background: #262626;
+  color: #f5f5f5;
+}
+
+.dark .ft-chat-bubble.is-peer::before {
+  border-right-color: #262626;
+}
+
+.dark .ft-chat-bubble.is-mine {
+  border-color: transparent;
+  background: #2563ff;
+  color: #ffffff;
+}
+
+.dark .ft-chat-bubble.is-mine::before {
+  border-left-color: #2563ff;
+}
+
+.dark .ft-chat-time {
+  color: #8fa6ba;
+}
+
+.dark .ft-chat-bubble.is-mine .ft-chat-time {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.dark .ft-chat-status.is-read {
+  color: #8bd9ff;
+}
+
+.dark .ft-chat-message-menu-trigger {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  box-shadow: none;
+}
+
+.dark .ft-chat-message-menu-trigger:hover {
+  background: transparent;
+}
+
+.dark .ft-chat-message-menu {
+  border-color: rgba(148, 163, 184, 0.2);
+  background: #1f2a3a;
+  color: #f8fafc;
+  box-shadow: 0 20px 42px rgba(0, 0, 0, 0.36);
+}
+
+.dark .ft-chat-pinned-bar {
+  border-bottom-color: rgba(148, 163, 184, 0.16);
+  background: rgba(31, 42, 58, 0.96);
+  color: #cbd5e1;
+}
+
+.dark .ft-chat-pinned-bar:hover {
+  background: rgba(36, 50, 70, 0.98);
+}
+
+.dark .ft-chat-pinned-bar > svg,
+.dark .ft-chat-pinned-clear {
+  color: #94a3b8;
+}
+
+.dark .ft-chat-message-menu button:hover {
+  background: #2C4AAE;
+  color: #ffffff;
+}
+
+.dark .ft-chat-reply-quote {
+  border-left-color: var(--ft-chat-accent, #00e5ff);
+  background: rgba(37, 99, 255, 0.22);
+}
+
 .ft-chat-bubble.is-peer .ft-chat-reply-quote {
   border-left-color: var(--ft-chat-accent, #1e3a8a);
   background: #EEF3FA;
@@ -990,6 +1140,18 @@ html:root [class*="border-red-600"] {
 
 .ft-chat-bubble.is-peer .ft-chat-reply-quote p {
   color: #475569;
+}
+
+.dark .ft-chat-bubble.is-peer .ft-chat-reply-quote {
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.dark .ft-chat-bubble.is-peer .ft-chat-reply-quote span {
+  color: var(--ft-chat-accent, #00e5ff);
+}
+
+.dark .ft-chat-bubble.is-peer .ft-chat-reply-quote p {
+  color: rgba(255, 255, 255, 0.62);
 }
 
 .ft-chat-composer {
@@ -1209,6 +1371,45 @@ html:root [class*="border-red-600"] {
   }
 }
 
+.dark .ft-chat-composer {
+  border-top-color: rgba(31, 41, 55, 0.9);
+  background: #1f2a3a;
+}
+
+.dark .ft-chat-reply-preview,
+.dark .ft-chat-pinned-message,
+.dark .ft-chat-resolve-confirm,
+.dark .ft-chat-resolve-sticky {
+  border-color: rgba(148, 163, 184, 0.18);
+  background: #243246;
+  color: #f8fafc;
+}
+
+.dark .ft-chat-reply-preview p,
+.dark .ft-chat-pinned-message p,
+.dark .ft-chat-resolve-confirm p,
+.dark .ft-chat-resolve-sticky p {
+  color: #cbd5e1;
+}
+
+.dark .ft-chat-reply-preview button,
+.dark .ft-chat-pinned-message button {
+  color: #cbd5e1;
+}
+
+.dark .ft-chat-resolve-confirm-action {
+  color: #77c8ff;
+}
+
+.dark .ft-chat-resolve-confirm-cancel {
+  color: #cbd5e1;
+}
+
+.dark .ft-chat-resolve-confirm,
+.dark .ft-chat-resolve-sticky {
+  background: transparent;
+}
+
 .ft-chat-pin-modal-layer {
   position: absolute;
   inset: 0;
@@ -1351,6 +1552,16 @@ html:root [class*="border-red-600"] {
   opacity: 0.58;
 }
 
+.dark .ft-chat-input {
+  border-color: transparent;
+  background: #243246;
+  color: #f5f5f5;
+}
+
+.dark .ft-chat-input::placeholder {
+  color: #a3a3a3;
+}
+
 .ft-chat-send {
   width: 2.5rem;
   height: 2.5rem;
@@ -1374,6 +1585,15 @@ html:root [class*="border-red-600"] {
 .ft-chat-send:disabled {
   opacity: 0.5;
   transform: none;
+}
+
+.dark .ft-chat-send {
+  background: #2563ff;
+  box-shadow: 0 8px 20px rgba(37, 99, 255, 0.22);
+}
+
+.dark .ft-chat-send:hover {
+  background: #3b73ff;
 }
 
 @media (max-width: 767px) {

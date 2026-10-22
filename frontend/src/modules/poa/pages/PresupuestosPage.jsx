@@ -467,16 +467,16 @@ const PresupuestosPage = () => {
       ) : (
         <>
           <div className="w-full mb-[0.8rem] mt-0">
-            <div className="poa-mobile-page-card relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-100 to-blue-200 border border-blue-300 shadow-2xl">
+            <div className="poa-mobile-page-card relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-800 border border-blue-300 dark:border-blue-700 shadow-2xl dark:shadow-blue-900/50">
               {/* Decorative background elements */}
-              <div className="absolute top-0 right-0 w-40 h-40 bg-blue-200 rounded-full blur-3xl opacity-50"></div>
-              <div className="absolute bottom-0 left-0 w-40 h-40 bg-blue-300 rounded-full blur-3xl opacity-50"></div>
+              <div className="absolute top-0 right-0 w-40 h-40 bg-blue-200 dark:bg-blue-700/50 rounded-full blur-3xl opacity-50"></div>
+              <div className="absolute bottom-0 left-0 w-40 h-40 bg-blue-300 dark:bg-blue-700/50 rounded-full blur-3xl opacity-50"></div>
               
               {/* Content */}
               <div className="relative p-[0.8rem] space-y-[0.6rem]">
                 <div className="flex items-start justify-between gap-[0.6rem]">
                   <div>
-                    <h3 className="text-[0.8rem] sm:text-[0.9rem] font-bold tracking-tight text-blue-900 drop-shadow-sm">{actividad.nombre}</h3>
+                    <h3 className="text-[0.8rem] sm:text-[0.9rem] font-bold tracking-tight text-blue-900 dark:text-white drop-shadow-sm">{actividad.nombre}</h3>
                   </div>
                   <div className="inline-flex items-center px-[0.8rem] py-[0.4rem] rounded-lg text-[0.6rem] sm:text-[0.7rem] font-semibold bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg hover:shadow-xl transition-shadow whitespace-nowrap">
                     <span className="font-mono text-[0.7rem] sm:text-[0.8rem] font-bold">{actividad.codigo}</span>
@@ -484,8 +484,8 @@ const PresupuestosPage = () => {
                 </div>
                 
                 <div className="poa-mobile-kpi-strip poa-mobile-kpi-strip-2 grid grid-cols-2 gap-[0.6rem] pt-[0.2rem]">
-                  <div className={`poa-mobile-kpi-card flex flex-col rounded-lg p-[0.6rem] shadow-xl ${faltaUnidadDestino ? 'border border-red-500 bg-red-50 ring-1 ring-red-300' : 'bg-white'}`}>
-                    <label htmlFor="unidad-destino-presupuesto" className={`text-xs font-bold uppercase tracking-widest mb-1 ${faltaUnidadDestino ? 'text-red-700' : 'text-blue-700'}`}>
+                  <div className={`poa-mobile-kpi-card flex flex-col rounded-lg p-[0.6rem] shadow-xl ${faltaUnidadDestino ? 'border border-red-500 bg-red-50 ring-1 ring-red-300 dark:border-red-500 dark:bg-red-950/40 dark:ring-red-900' : 'bg-white dark:bg-slate-900'}`}>
+                    <label htmlFor="unidad-destino-presupuesto" className={`text-xs font-bold uppercase tracking-widest mb-1 ${faltaUnidadDestino ? 'text-red-700 dark:text-red-300' : 'text-blue-700 dark:text-blue-300'}`}>
                       Unidad a la que se solicitará el presupuesto
                     </label>
                     <select
@@ -499,7 +499,7 @@ const PresupuestosPage = () => {
                         }
                         guardarUnidadDestino(e.target.value);
                       }}
-                      className={`w-full rounded-md border px-[0.6rem] py-[0.4rem] text-[0.6rem] font-semibold shadow-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-100 ${faltaUnidadDestino ? 'border-red-500 bg-red-50 text-red-900 focus:border-red-600 focus:ring-red-200' : 'border-slate-300 bg-white text-slate-800 focus:border-blue-500 focus:ring-blue-200'}`}
+                      className={`w-full rounded-md border px-[0.6rem] py-[0.4rem] text-[0.6rem] font-semibold shadow-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-100 ${faltaUnidadDestino ? 'border-red-500 bg-red-50 text-red-900 focus:border-red-600 focus:ring-red-200 dark:border-red-500 dark:bg-slate-800 dark:text-white dark:focus:ring-red-900' : 'border-slate-300 bg-white text-slate-800 focus:border-blue-500 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-800 dark:text-white'}`}
                     >
                       <option value="">{cargandoUnidades ? 'Cargando unidades...' : 'Seleccione una unidad'}</option>
                       {unidadesDestino.map((unidad) => (
@@ -508,7 +508,7 @@ const PresupuestosPage = () => {
                       {canEditDirectly && <option value="__agregar__">+ Agregar nueva unidad...</option>}
                     </select>
                     {faltaUnidadDestino && (
-                      <p role="alert" className="mt-2 rounded-md border border-red-300 bg-red-100 px-2 py-1.5 text-xs font-semibold text-red-800">
+                      <p role="alert" className="mt-2 rounded-md border border-red-300 bg-red-100 px-2 py-1.5 text-xs font-semibold text-red-800 dark:border-red-800 dark:bg-red-950/70 dark:text-red-200">
                         Pendiente: seleccione la unidad a la que se solicitará el presupuesto.
                       </p>
                     )}
@@ -522,17 +522,17 @@ const PresupuestosPage = () => {
                           onChange={(e) => setNuevaUnidad(e.target.value)}
                           onKeyDown={(e) => { if (e.key === 'Enter') agregarUnidadDestino(); }}
                           placeholder="Nombre de la unidad"
-                          className="poa-input min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-[0.6rem] py-[0.4rem] text-[0.6rem] text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none"
+                          className="poa-input min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-[0.6rem] py-[0.4rem] text-[0.6rem] text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400"
                         />
                         <button type="button" onClick={agregarUnidadDestino} disabled={!nuevaUnidad.trim() || guardandoUnidad} className="rounded-md bg-blue-700 px-[0.6rem] py-[0.4rem] text-[0.6rem] font-semibold text-white disabled:opacity-50">Guardar</button>
-                        <button type="button" onClick={() => { setAgregandoUnidad(false); setNuevaUnidad(''); }} className="rounded-md border border-slate-300 px-[0.6rem] py-[0.4rem] text-[0.6rem] font-semibold text-slate-700">Cancelar</button>
+                        <button type="button" onClick={() => { setAgregandoUnidad(false); setNuevaUnidad(''); }} className="rounded-md border border-slate-300 px-[0.6rem] py-[0.4rem] text-[0.6rem] font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-200">Cancelar</button>
                       </div>
                     )}
-                    <span className="mt-1 text-[0.6rem] text-slate-500">
+                    <span className="mt-1 text-[0.6rem] text-slate-500 dark:text-slate-400">
                       {canEditDirectly ? 'Este dato aparecerá en el encabezado del Formulario Nro. 3.' : 'La unidad no se puede cambiar mientras el documento está bloqueado para edición.'}
                     </span>
                   </div>
-                  <div className="poa-mobile-kpi-card flex flex-col bg-gradient-to-r from-blue-500 to-blue-600 backdrop-blur-sm rounded-lg p-[0.6rem] shadow-xl hover:shadow-2xl transition-shadow transform hover:scale-105">
+                  <div className="poa-mobile-kpi-card flex flex-col bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 backdrop-blur-sm rounded-lg p-[0.6rem] shadow-xl dark:shadow-2xl dark:shadow-blue-900/50 hover:shadow-2xl transition-shadow transform hover:scale-105">
                     <span className="text-[0.6rem] font-bold uppercase tracking-widest text-blue-100 mb-1">Total Ítems</span>
                     <span className="text-[1.2rem] sm:text-[1.5rem] font-bold text-white">{Array.isArray(detalle) ? detalle.length : 0}</span>
                   </div>
@@ -559,10 +559,10 @@ const PresupuestosPage = () => {
             </div>
           </div>
 
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <div>
-              <h4 className="text-sm font-semibold text-slate-900">Partidas presupuestarias</h4>
-              <p className="text-xs text-slate-500">Crea cada partida y agrega sus ítems dentro del grupo correspondiente.</p>
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Partidas presupuestarias</h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Crea cada partida y agrega sus ítems dentro del grupo correspondiente.</p>
             </div>
             {canEditDirectly && (
               <button
@@ -575,11 +575,11 @@ const PresupuestosPage = () => {
             )}
           </div>
 
-          <div className="w-full overflow-x-hidden rounded-xl border border-slate-200 bg-white shadow-sm poa-table-wrapper">
+          <div className="w-full overflow-x-hidden rounded-xl border border-slate-200 bg-white shadow-sm poa-table-wrapper dark:border-slate-700 dark:bg-slate-900">
 
      
 
-          <table className="poa-mobile-card-table poa-presupuesto-detail-table w-full min-w-0 table-fixed border-collapse poa-table poa-border-black poa-border-cyan poa-borders-ultra font-sans text-sm leading-snug text-blue-900">
+          <table className="poa-mobile-card-table poa-presupuesto-detail-table w-full min-w-0 table-fixed border-collapse poa-table poa-border-black poa-border-cyan poa-borders-ultra font-sans text-sm leading-snug text-blue-900 dark:text-white">
             <colgroup>
               <col style={{ width: '24%' }} />
               <col style={{ width: '8%' }} />
@@ -613,10 +613,10 @@ const PresupuestosPage = () => {
               ) : (
                 grouped.map((g) => (
                   <React.Fragment key={g.id}>
-                    <tr className="poa-presupuesto-group-row bg-slate-100 font-semibold text-slate-900">
+                    <tr className="poa-presupuesto-group-row bg-slate-100 font-semibold text-slate-900 dark:bg-slate-800 dark:text-white">
                       <td colSpan={8} className="poa-cell p-0">
-                        <div className="flex flex-wrap items-center gap-2 border-l-4 border-blue-700 bg-slate-100 px-3 py-2 shadow-sm">
-                          <span className="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700">{g.codigo || '—'}</span>
+                        <div className="flex flex-wrap items-center gap-2 border-l-4 border-blue-700 bg-slate-100 px-3 py-2 shadow-sm dark:border-blue-400 dark:bg-slate-800">
+                          <span className="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">{g.codigo || '—'}</span>
                           <span>{g.nombre} <span className="ml-1 text-xs font-normal text-slate-500">({g.items.length} ítems)</span></span>
                           <div className="ml-auto flex flex-wrap justify-end gap-1.5">
                             {(canEditDirectly || canRequestChange) && (
@@ -624,7 +624,7 @@ const PresupuestosPage = () => {
                                 type="button"
                                 onClick={() => { setSelectedPartidaId(String(g.id)); setDetalleEdit(null); setSelectedDetalle(null); setShowNuevo(true); }}
                                 disabled={!g.codigo}
-                                className="rounded border border-blue-300 bg-white px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                                className="rounded border border-blue-300 bg-white px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:bg-slate-900 dark:text-blue-300"
                                 title={!g.codigo ? 'Asigna un código a la partida antes de agregar ítems.' : undefined}
                               >
                                 {g.codigo ? '+ Agregar ítem' : 'Código requerido'}
@@ -632,8 +632,8 @@ const PresupuestosPage = () => {
                             )}
                             {canEditDirectly && (
                               <>
-                                <button type="button" onClick={() => { setPartidaEdit(g); setShowPartidaModal(true); }} className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">Editar</button>
-                                <button type="button" onClick={() => setDeleteDialogPartida(g)} className="rounded border border-red-300 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">Eliminar</button>
+                                <button type="button" onClick={() => { setPartidaEdit(g); setShowPartidaModal(true); }} className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200">Editar</button>
+                                <button type="button" onClick={() => setDeleteDialogPartida(g)} className="rounded border border-red-300 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300">Eliminar</button>
                               </>
                             )}
                           </div>
@@ -649,7 +649,7 @@ const PresupuestosPage = () => {
                         }}
                         aria-selected={selectedDetalle && selectedDetalle.id === it.id ? 'true' : 'false'}
                         data-selected={selectedDetalle && selectedDetalle.id === it.id ? 'true' : 'false'}
-                        className={`poa-presupuesto-item-row align-top cursor-pointer transition ${selectedDetalle && selectedDetalle.id === it.id ? 'is-selected font-semibold' : 'odd:bg-white even:bg-slate-50'} text-blue-900`}
+                        className={`poa-presupuesto-item-row align-top cursor-pointer transition ${selectedDetalle && selectedDetalle.id === it.id ? 'is-selected font-semibold' : 'odd:bg-white even:bg-slate-50'} text-blue-900 dark:text-white`}
                       >
                         <td data-label="Nombre" className="poa-cell align-top whitespace-normal break-words">{it.item}</td>
                         <td data-label="Unidad" className="poa-cell poa-presupuesto-mobile-hidden align-top text-center">{it.unidad_medida || '—'}</td>

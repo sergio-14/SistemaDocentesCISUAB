@@ -93,7 +93,7 @@ export const ModalErrorAlert = ({ title = 'No se pudo guardar:', messages = [] }
   if (!messages || messages.length === 0) return null;
 
   return (
-    <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+    <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
       <div className="mb-2 font-semibold">{title}</div>
       <ul className="list-disc space-y-1 pl-5">
         {messages.map((message, index) => (

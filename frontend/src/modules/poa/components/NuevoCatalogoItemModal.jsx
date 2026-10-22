@@ -143,7 +143,7 @@ const NuevoCatalogoItemModal = ({ partida, item, onClose, onCreated, onUpdated, 
               onChange={handleChange}
               error={fieldErrors.partida}
             />
-            {fieldErrors.partida && <div className="text-sm text-red-600 mt-1">{fieldErrors.partida}</div>}
+            {fieldErrors.partida && <div className="text-sm text-red-600 dark:text-red-400 mt-1">{fieldErrors.partida}</div>}
           </div>
 
           <div>
@@ -154,7 +154,7 @@ const NuevoCatalogoItemModal = ({ partida, item, onClose, onCreated, onUpdated, 
               onChange={handleChange}
               error={fieldErrors.detalle}
             />
-            {fieldErrors.detalle && <div className="text-sm text-red-600 mt-1">{fieldErrors.detalle}</div>}
+            {fieldErrors.detalle && <div className="text-sm text-red-600 dark:text-red-400 mt-1">{fieldErrors.detalle}</div>}
           </div>
 
           <div>

@@ -153,11 +153,11 @@ const AsignarAccesoPOAModal = ({ onClose, accesoToEdit, onCreated, onUpdated }) 
         <div className="px-6 py-5 modal-body space-y-5">
           <ModalErrorAlert title="No se pudo guardar el acceso:" messages={errorMessages} />
           <div>
-            <label className="block text-sm font-semibold mb-1.5 text-gray-700">
+            <label className="block text-sm font-semibold mb-1.5 text-gray-700 dark:text-slate-300">
               Usuario del sistema <span className="text-red-500">*</span>
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500">
                 <FaSearch size={13} />
               </span>
               <input
@@ -166,29 +166,29 @@ const AsignarAccesoPOAModal = ({ onClose, accesoToEdit, onCreated, onUpdated }) 
                 onChange={e => handleSearch(e.target.value)}
                 disabled={isEditor}
                 placeholder="Buscar por nombre, usuario o correo..."
-                className={`poa-input block w-full rounded-lg pl-9 pr-4 py-2.5 text-sm ${fieldErrors.user ? 'border-red-500 focus:ring-red-500' : ''}`}
+                className={`poa-input block w-full rounded-lg pl-9 pr-4 py-2.5 text-sm ${fieldErrors.user ? 'border-red-500 dark:border-red-500 focus:ring-red-500 dark:focus:ring-red-500' : ''}`}
                 autocomplete="off"
               />
               {searching && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-blue-500">Buscando…</span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-blue-500 dark:text-sky-400">Buscando…</span>
               )}
             </div>
-            {fieldErrors.user && <div className="mt-1 text-xs text-red-600">{fieldErrors.user}</div>}
+            {fieldErrors.user && <div className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.user}</div>}
             {searchResults.length > 0 && !selectedUser && (
-              <ul className="mt-1 border border-gray-200 rounded-lg shadow-lg overflow-hidden max-h-52 overflow-y-auto bg-white z-10">
+              <ul className="mt-1 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg overflow-hidden max-h-52 overflow-y-auto bg-white dark:bg-slate-800 z-10">
                 {searchResults.map(u => (
                   <li key={u.id}>
                     <button
                       type="button"
                       onClick={() => selectUser(u)}
-                      className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-sm flex items-center gap-3"
+                      className="w-full text-left px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-700 text-sm flex items-center gap-3"
                     >
                       <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
                         {(u.nombre_completo || u.username)?.[0]?.toUpperCase() || '?'}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-800 truncate">{u.nombre_completo || u.username}</p>
-                        <p className="text-gray-500 text-xs truncate">
+                        <p className="font-semibold text-gray-800 dark:text-slate-200 truncate">{u.nombre_completo || u.username}</p>
+                        <p className="text-gray-500 dark:text-slate-400 text-xs truncate">
                           @{u.username}
                           {u.email ? ` · ${u.email}` : ''}
                           {u.perfil?.rol ? ` · ${u.perfil.rol}` : ''}
@@ -200,15 +200,15 @@ const AsignarAccesoPOAModal = ({ onClose, accesoToEdit, onCreated, onUpdated }) 
               </ul>
             )}
             {selectedUser && (
-              <div className="mt-2 flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5">
+              <div className="mt-2 flex items-center gap-3 bg-blue-50 dark:bg-slate-700 border border-blue-200 dark:border-slate-600 rounded-lg px-4 py-2.5">
                 <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
                   {(selectedUser.nombre_completo || selectedUser.username)?.[0]?.toUpperCase() || '?'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-blue-900 text-sm truncate">
+                  <p className="font-semibold text-blue-900 dark:text-slate-200 text-sm truncate">
                     {selectedUser.nombre_completo || selectedUser.username}
                   </p>
-                  <p className="text-xs text-blue-600 truncate">
+                  <p className="text-xs text-blue-600 dark:text-slate-400 truncate">
                     @{selectedUser.username}{selectedUser.email ? ` · ${selectedUser.email}` : ''}
                   </p>
                 </div>
@@ -223,7 +223,7 @@ const AsignarAccesoPOAModal = ({ onClose, accesoToEdit, onCreated, onUpdated }) 
           </div>
 
           <div>
-            <label className="block text-sm font-semibold mb-2 text-gray-700">
+            <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-slate-300">
               Rol / Permiso <span className="text-red-500">*</span>
             </label>
             <div className="grid grid-cols-1 gap-2">
@@ -239,14 +239,14 @@ const AsignarAccesoPOAModal = ({ onClose, accesoToEdit, onCreated, onUpdated }) 
                 </button>
               ))}
             </div>
-            {fieldErrors.rol && <div className="mt-1 text-xs text-red-600">{fieldErrors.rol}</div>}
+            {fieldErrors.rol && <div className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.rol}</div>}
           </div>
 
         </div>
 
         <div className="px-6 py-4 modal-actions flex justify-end gap-3">
           <button type="button" onClick={onClose}
-            className="border border-gray-300 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 transition font-medium text-gray-700">
+            className="border border-gray-300 dark:border-slate-600 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition font-medium text-gray-700 dark:text-slate-300">
             Cancelar
           </button>
           <button

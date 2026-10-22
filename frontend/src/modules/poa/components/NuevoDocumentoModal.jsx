@@ -465,13 +465,13 @@ const NuevoDocumentoModal = ({ onClose, onCreated, initialGestion, document: doc
         <div className="px-8 py-6 modal-body">
 
           <ModalErrorAlert title="No se pudo guardar el documento:" messages={errorMessages} />
-          {fieldErrors.gestion && <div role="alert" className="mb-3 text-xs text-red-600">Gestión: {fieldErrors.gestion}</div>}
+          {fieldErrors.gestion && <div role="alert" className="mb-3 text-xs text-red-600 dark:text-red-400">Gestión: {fieldErrors.gestion}</div>}
 
           <form onSubmit={handleCreate} className="space-y-5">
 
             {/* Fila 1: Fecha */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de elaboración</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Fecha de elaboración</label>
               <div className="flex items-center gap-2">
                 <input
                   ref={dateInputRef}
@@ -484,7 +484,7 @@ const NuevoDocumentoModal = ({ onClose, onCreated, initialGestion, document: doc
                     setFechaElab(e.target.value);
                     if (fieldErrors.fecha_elaboracion) setFieldErrors(prev => ({ ...prev, fecha_elaboracion: '' }));
                   }}
-                  className={`poa-input w-36 text-sm ${fieldErrors.fecha_elaboracion ? 'border-red-500 focus:ring-red-500' : ''}`}
+                  className={`poa-input w-36 text-sm ${fieldErrors.fecha_elaboracion ? 'border-red-500 dark:border-red-500 focus:ring-red-500 dark:focus:ring-red-500' : ''}`}
                 />
                 <IconButton
                   icon={<FaCalendarAlt />}
@@ -501,24 +501,24 @@ const NuevoDocumentoModal = ({ onClose, onCreated, initialGestion, document: doc
                   ariaLabel="Seleccionar fecha"
                 />
               </div>
-              {fieldErrors.fecha_elaboracion && <div role="alert" className="mt-1 text-xs text-red-600">{fieldErrors.fecha_elaboracion}</div>}
+              {fieldErrors.fecha_elaboracion && <div role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.fecha_elaboracion}</div>}
             </div>
 
             {/* Fila 2: Unidad solicitante + Programa */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Unidad solicitante</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Unidad solicitante</label>
                 <input
                   name="unidad_solicitante"
                   value={unidadSolicitanteLabel}
                   readOnly
-                  className={`poa-input block w-full cursor-default bg-slate-50 text-slate-700 ${fieldErrors.unidad_solicitante ? 'border-red-500 focus:ring-red-500' : ''}`}
+                  className={`poa-input block w-full cursor-default bg-slate-50 text-slate-700 dark:bg-slate-900/80 dark:text-slate-200 ${fieldErrors.unidad_solicitante ? 'border-red-500 dark:border-red-500 focus:ring-red-500 dark:focus:ring-red-500' : ''}`}
                 />
-                <p className="mt-1 text-xs text-gray-500">Se toma automaticamente de la carrera del usuario logueado.</p>
-                {fieldErrors.unidad_solicitante && <div className="mt-1 text-xs text-red-600">{fieldErrors.unidad_solicitante}</div>}
+                <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Se toma automaticamente de la carrera del usuario logueado.</p>
+                {fieldErrors.unidad_solicitante && <div className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.unidad_solicitante}</div>}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Programa</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Programa</label>
                 <div className="flex gap-2">
                   <select
                     name="programa_id"
@@ -535,7 +535,7 @@ const NuevoDocumentoModal = ({ onClose, onCreated, initialGestion, document: doc
                     }}
                     required
                     aria-invalid={fieldErrors.programa_id ? 'true' : undefined}
-                    className={`poa-input block min-w-0 flex-1 ${fieldErrors.programa_id ? 'border-red-500 focus:ring-red-500' : ''}`}
+                    className={`poa-input block min-w-0 flex-1 ${fieldErrors.programa_id ? 'border-red-500 dark:border-red-500 focus:ring-red-500 dark:focus:ring-red-500' : ''}`}
                   >
                     <option value="">{programasLoading ? 'Cargando programas...' : 'Seleccione un programa'}</option>
                     {!form.programa_id && form.programa && (
@@ -556,13 +556,13 @@ const NuevoDocumentoModal = ({ onClose, onCreated, initialGestion, document: doc
                     />
                   )}
                 </div>
-                {fieldErrors.programa_id && <div role="alert" className="mt-1 text-xs text-red-600">{fieldErrors.programa_id}</div>}
+                {fieldErrors.programa_id && <div role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.programa_id}</div>}
               </div>
             </div>
 
             {/* Fila 3: Objetivo de gestión */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Objetivo de gestión institucional</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Objetivo de gestión institucional</label>
               <Textarea
                 name="objetivo_gestion_institucional"
                 value={form.objetivo_gestion_institucional}
@@ -577,12 +577,12 @@ const NuevoDocumentoModal = ({ onClose, onCreated, initialGestion, document: doc
             {/* Fila 5: Elaborado por + Jefe de unidad */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Elaborado por</label>
-                <p className="text-xs text-gray-500 mb-1">Solo usuarios POA activos con rol Elaborador del POA.</p>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Elaborado por</label>
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">Solo usuarios POA activos con rol Elaborador del POA.</p>
                 {personasLoading ? (
-                  <div className="mt-1 text-sm text-gray-600">Cargando usuarios POA...</div>
+                  <div className="mt-1 text-sm text-gray-600 dark:text-slate-400">Cargando usuarios POA...</div>
                 ) : personasError ? (
-                  <div className="mt-1 text-sm text-red-600">{String(personasError)}</div>
+                  <div className="mt-1 text-sm text-red-600 dark:text-red-400">{String(personasError)}</div>
                 ) : (
                   <div className="relative min-w-0">
                     <input
@@ -602,34 +602,34 @@ const NuevoDocumentoModal = ({ onClose, onCreated, initialGestion, document: doc
                         if (e.key === 'Escape') { setShowElabDropdown(false); }
                       }}
                       placeholder="Buscar persona..."
-                      className={`poa-input mt-1 block w-full bg-white ${fieldErrors.elaborado_por_id ? 'border-red-500 focus:ring-red-500' : ''}`}
+                      className={`poa-input mt-1 block w-full bg-white dark:bg-slate-900 ${fieldErrors.elaborado_por_id ? 'border-red-500 dark:border-red-500 focus:ring-red-500 dark:focus:ring-red-500' : ''}`}
                       aria-invalid={fieldErrors.elaborado_por_id ? 'true' : undefined}
                     />
                     {!lockElaborador && showElabDropdown && elabFilteredPersonas.length > 0 && (
-                      <ul className="absolute z-50 mt-1 w-full max-w-full bg-white border border-gray-200 rounded shadow-lg max-h-56 overflow-auto">
+                      <ul className="absolute z-50 mt-1 w-full max-w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded shadow-lg max-h-56 overflow-auto">
                         {elabFilteredPersonas.map((p, i) => (
-                          <li key={p.id} onMouseEnter={() => setElabHighlight(i)} onMouseDown={ev => ev.preventDefault()} onClick={() => { setForm(f => ({ ...f, elaborado_por: p.id })); setElabQuery(p.nombre || p.username || ''); setShowElabDropdown(false); }} className={`px-3 py-2 cursor-pointer ${elabHighlight === i ? 'bg-blue-100' : 'hover:bg-gray-100'}`}>
+                          <li key={p.id} onMouseEnter={() => setElabHighlight(i)} onMouseDown={ev => ev.preventDefault()} onClick={() => { setForm(f => ({ ...f, elaborado_por: p.id })); setElabQuery(p.nombre || p.username || ''); setShowElabDropdown(false); }} className={`px-3 py-2 cursor-pointer ${elabHighlight === i ? 'bg-blue-100 dark:bg-slate-700' : 'hover:bg-gray-100 dark:hover:bg-slate-700'}`}>
                             {p.nombre || p.username}
                           </li>
                         ))}
                       </ul>
                     )}
                     {!lockElaborador && showElabDropdown && elabFilteredPersonas.length === 0 && (
-                      <div className="absolute z-50 mt-1 w-full max-w-full bg-white border border-gray-200 rounded shadow-lg px-3 py-2 text-sm text-gray-500">
+                      <div className="absolute z-50 mt-1 w-full max-w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded shadow-lg px-3 py-2 text-sm text-gray-500 dark:text-slate-400">
                         No hay usuarios POA activos con rol Elaborador del POA.
                       </div>
                     )}
                   </div>
                 )}
-                {fieldErrors.elaborado_por_id && <div role="alert" className="mt-1 text-xs text-red-600">{fieldErrors.elaborado_por_id}</div>}
+                {fieldErrors.elaborado_por_id && <div role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.elaborado_por_id}</div>}
               </div>
               <div className="min-w-0">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Jefe de unidad</label>
-                <p className="text-xs text-gray-500 mb-1">Solo usuarios POA activos con rol Director de Carrera.</p>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Jefe de unidad</label>
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">Solo usuarios POA activos con rol Director de Carrera.</p>
                 {personasLoading ? (
-                  <div className="mt-1 text-sm text-gray-600">Cargando usuarios POA...</div>
+                  <div className="mt-1 text-sm text-gray-600 dark:text-slate-400">Cargando usuarios POA...</div>
                 ) : personasError ? (
-                  <div className="mt-1 text-sm text-red-600">{String(personasError)}</div>
+                  <div className="mt-1 text-sm text-red-600 dark:text-red-400">{String(personasError)}</div>
                 ) : (
                   <div className="relative min-w-0">
                     <input
@@ -650,33 +650,33 @@ const NuevoDocumentoModal = ({ onClose, onCreated, initialGestion, document: doc
                         if (e.key === 'Escape') { setShowJefeDropdown(false); }
                       }}
                       placeholder="Buscar jefe de unidad..."
-                      className={`poa-input mt-1 block w-full bg-white ${fieldErrors.jefe_unidad_id ? 'border-red-500 focus:ring-red-500' : ''}`}
+                      className={`poa-input mt-1 block w-full bg-white dark:bg-slate-900 ${fieldErrors.jefe_unidad_id ? 'border-red-500 dark:border-red-500 focus:ring-red-500 dark:focus:ring-red-500' : ''}`}
                       aria-invalid={fieldErrors.jefe_unidad_id ? 'true' : undefined}
                     />
                     {!lockJefeUnidad && showJefeDropdown && jefeFilteredPersonas.length > 0 && (
-                      <ul className="absolute z-50 mt-1 w-full max-w-full bg-white border border-gray-200 rounded shadow-lg max-h-56 overflow-auto">
+                      <ul className="absolute z-50 mt-1 w-full max-w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded shadow-lg max-h-56 overflow-auto">
                         {jefeFilteredPersonas.map((p, i) => (
-                          <li key={p.id} onMouseEnter={() => setJefeHighlight(i)} onMouseDown={ev => ev.preventDefault()} onClick={() => { setForm(f => ({ ...f, jefe_unidad: p.id })); setJefeQuery(p.nombre || p.username || ''); setShowJefeDropdown(false); }} className={`px-3 py-2 cursor-pointer ${jefeHighlight === i ? 'bg-blue-100' : 'hover:bg-gray-100'}`}>
+                          <li key={p.id} onMouseEnter={() => setJefeHighlight(i)} onMouseDown={ev => ev.preventDefault()} onClick={() => { setForm(f => ({ ...f, jefe_unidad: p.id })); setJefeQuery(p.nombre || p.username || ''); setShowJefeDropdown(false); }} className={`px-3 py-2 cursor-pointer ${jefeHighlight === i ? 'bg-blue-100 dark:bg-slate-700' : 'hover:bg-gray-100 dark:hover:bg-slate-700'}`}>
                             {p.nombre || p.username}
                           </li>
                         ))}
                       </ul>
                     )}
                     {!lockJefeUnidad && showJefeDropdown && jefeFilteredPersonas.length === 0 && (
-                      <div className="absolute z-50 mt-1 w-full max-w-full bg-white border border-gray-200 rounded shadow-lg px-3 py-2 text-sm text-gray-500">
+                      <div className="absolute z-50 mt-1 w-full max-w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded shadow-lg px-3 py-2 text-sm text-gray-500 dark:text-slate-400">
                         No hay usuarios POA activos con rol Director de Carrera.
                       </div>
                     )}
                   </div>
                 )}
-                {fieldErrors.jefe_unidad_id && <div role="alert" className="mt-1 text-xs text-red-600">{fieldErrors.jefe_unidad_id}</div>}
+                {fieldErrors.jefe_unidad_id && <div role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.jefe_unidad_id}</div>}
               </div>
             </div>
 
             {docToEdit?.id && requiereJustificacionEdicion && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Justificación de modificación</label>
-                <p className="text-xs text-gray-500 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Justificación de modificación</label>
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">
                   El documento esta bloqueado. Los cambios se guardaran como solicitud pendiente y solo se aplicaran si el Director de Carrera los aprueba.
                 </p>
                 <Textarea

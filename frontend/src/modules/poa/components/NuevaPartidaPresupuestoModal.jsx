@@ -74,14 +74,14 @@ const NuevaPartidaPresupuestoModal = ({ actividadId, partida, onClose, onSaved }
       <div className="modal-panel w-full max-w-lg rounded-xl">
         <div className="modal-header flex items-center justify-between px-6 py-4">
           <div>
-            <h3 className="font-semibold text-slate-900">{editando ? 'Editar partida' : 'Nueva partida presupuestaria'}</h3>
-            <p className="mt-1 text-xs text-slate-500">La partida agrupa los ítems que se agregarán debajo.</p>
+            <h3 className="font-semibold text-slate-900 dark:text-white">{editando ? 'Editar partida' : 'Nueva partida presupuestaria'}</h3>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">La partida agrupa los ítems que se agregarán debajo.</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-full px-3 py-1 text-slate-500 hover:bg-slate-100" aria-label="Cerrar">×</button>
+          <button type="button" onClick={onClose} className="rounded-full px-3 py-1 text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700" aria-label="Cerrar">×</button>
         </div>
         <form onSubmit={guardar} className="modal-body space-y-4 p-5">
           <div>
-            <label htmlFor="codigo-partida-presupuesto" className="mb-1 block text-sm font-medium text-slate-700">Código de partida</label>
+            <label htmlFor="codigo-partida-presupuesto" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Código de partida</label>
             <input
               id="codigo-partida-presupuesto"
               list="codigos-partida-presupuesto"
@@ -96,10 +96,10 @@ const NuevaPartidaPresupuestoModal = ({ actividadId, partida, onClose, onSaved }
             <datalist id="codigos-partida-presupuesto">
               {[...new Set([...codigosDisponibles, form.codigo].filter(Boolean))].map((codigo) => <option key={codigo} value={codigo} />)}
             </datalist>
-            <p className="mt-1 text-xs text-slate-500">Puedes seleccionar un código usado en el catálogo o escribir uno nuevo.</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Puedes seleccionar un código usado en el catálogo o escribir uno nuevo.</p>
           </div>
           <div>
-            <label htmlFor="nombre-partida-presupuesto" className="mb-1 block text-sm font-medium text-slate-700">Nombre de la partida</label>
+            <label htmlFor="nombre-partida-presupuesto" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Nombre de la partida</label>
             <input
               id="nombre-partida-presupuesto"
               value={form.nombre}
@@ -110,9 +110,9 @@ const NuevaPartidaPresupuestoModal = ({ actividadId, partida, onClose, onSaved }
               className="poa-input w-full px-3 py-2"
             />
           </div>
-          {error && <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
-          <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
-            <button type="button" onClick={onClose} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Cancelar</button>
+          {error && <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300">{error}</div>}
+          <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-700">
+            <button type="button" onClick={onClose} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-200">Cancelar</button>
             <button type="submit" disabled={guardando} className="rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{guardando ? 'Guardando...' : (editando ? 'Guardar cambios' : 'Crear partida')}</button>
           </div>
         </form>

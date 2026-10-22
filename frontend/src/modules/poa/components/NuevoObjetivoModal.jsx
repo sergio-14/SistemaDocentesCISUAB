@@ -155,7 +155,7 @@ const NuevoObjetivoModal = ({ onClose, onCreated, documentoId, objetivo, existin
 
           <form onSubmit={handleCreate} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Código</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Código</label>
               <div className="mt-1 flex items-center gap-2">
                 <Input
                   ref={codigoRef}
@@ -172,7 +172,7 @@ const NuevoObjetivoModal = ({ onClose, onCreated, documentoId, objetivo, existin
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Descripción</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Descripción</label>
               <Textarea
                 name="descripcion"
                 value={descripcion}

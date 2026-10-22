@@ -60,6 +60,16 @@ const AnimatedRoute = ({ children }) => {
   );
 };
 
+// Solo el módulo POA tiene modo oscuro (su propio botón de tema): fuera de /poa se quita la
+// clase "dark" que haya dejado puesta, así el resto del sistema queda siempre en claro.
+const ModoClaroFueraDelPoa = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    if (!pathname.startsWith('/poa')) document.documentElement.classList.remove('dark');
+  }, [pathname]);
+  return null;
+};
+
 // Constante de inactividad: 2 horas en milisegundos
 const INACTIVITY_TIMEOUT = 2 * 60 * 60 * 1000;
 
@@ -245,6 +255,7 @@ function App() {
   return (
     <ActiveRoleProvider user={user} setUser={setUser}>
     <Router>
+      <ModoClaroFueraDelPoa />
       <ToasterSistema />
       {/* Conexión de tiempo real y avisos del Fondo de Tiempo para el rol activo */}
       {user && <ConexionTiempoReal />}

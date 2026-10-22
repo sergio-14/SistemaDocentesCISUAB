@@ -2,7 +2,8 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API_URL } from '../apis/apiConfig';
-import { useErrorPulse } from '../utils/formErrors';
+import toast from 'react-hot-toast';
+import { MENSAJE_REVISA_CAMPOS, useErrorPulse } from '../utils/formErrors';
 import MensajeErrorCampo from './common/MensajeErrorCampo';
 import { AlertCircle, Eye, EyeOff, User } from 'lucide-react';
 import { FcGoogle } from 'react-icons/fc';
@@ -61,6 +62,7 @@ function Login({ onLogin }) {
   if (Object.keys(nuevosErrores).length > 0) {
     setErrores(nuevosErrores);
     setPulso((valor) => valor + 1);
+    toast.error(MENSAJE_REVISA_CAMPOS);
     return;
   }
   setLoading(true);
@@ -151,7 +153,7 @@ function Login({ onLogin }) {
             <path d="M0.38,0 L1,0 L1,1 L0.3,1 C0.12,0.94 0.02,0.82 0.1,0.7 C0.2,0.56 0.42,0.6 0.4,0.44 C0.38,0.3 0.14,0.3 0.18,0.16 C0.21,0.07 0.3,0.02 0.38,0 Z" />
           </clipPath>
           <clipPath id="login-onda" clipPathUnits="objectBoundingBox">
-            <path d="M0.72,0 C0.5,0.03 0.2,0.07 0.24,0.19 C0.28,0.29 0.47,0.33 0.45,0.45 C0.43,0.57 0.17,0.6 0.13,0.72 C0.1,0.83 0.04,0.92 0,1 L1,1 L1,0 Z" />
+            <path d="M0.68,0 C0.48,0.03 0.21,0.07 0.25,0.19 C0.27,0.29 0.32,0.34 0.3,0.45 C0.28,0.57 0.17,0.6 0.14,0.72 C0.12,0.83 0.07,0.92 0.04,1 L1,1 L1,0 Z" />
           </clipPath>
         </defs>
       </svg>
@@ -169,9 +171,9 @@ function Login({ onLogin }) {
         <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[min(600px,calc(100vh-9rem))] flex flex-col lg:flex-row bg-white sm:rounded-3xl overflow-hidden shadow-[0_40px_90px_rgba(15,23,42,0.16)]">
           {/* Videos de parabas a la derecha, recortados por una mancha (la parte blanca entra arriba y al
               medio, como el modelo). En celular, franja de arriba con el borde ondulado. */}
-          <div className="relative order-first lg:order-last h-72 sm:h-80 lg:h-auto lg:w-1/2 flex-shrink-0 bg-azulado-100 lg:[clip-path:url(#login-onda)]">
+          <div className="relative order-first lg:order-last h-72 sm:h-80 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[56%] flex-shrink-0 bg-azulado-100 lg:[clip-path:url(#login-onda)]">
             <Suspense fallback={null}>
-              <VideosParabas className="absolute inset-0" />
+              <VideosParabas className="absolute inset-0 lg:scale-[1.18] lg:origin-[0%_30%]" />
             </Suspense>
             <svg className="absolute bottom-0 left-0 z-10 w-full h-14 lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
               <path d="M0,100 L0,40 C8,10 18,62 30,36 C40,14 50,70 64,44 C76,22 88,60 100,30 L100,100 Z" fill="#ffffff" />
@@ -179,8 +181,8 @@ function Login({ onLogin }) {
             <p className="absolute bottom-3 right-5 z-20 hidden lg:block text-[11px] text-white/85">© {new Date().getFullYear()} UABJB</p>
           </div>
           {/* Línea punteada suelta en la parte blanca, separada del borde del video y con su propio vaivén. */}
-          <svg className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden lg:block h-full w-1/2 overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M20,0 C10,4 -1,9 1,18 C3,27 23,30 26,40 C29,50 12,55 6,63 C0,71 2,80 -2,88 C-4,93 -6,97 -8,100" fill="none" stroke="#7d9cc0" strokeOpacity="0.85" strokeWidth="1.5" strokeDasharray="5 6" vectorEffect="non-scaling-stroke" />
+          <svg className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden lg:block h-full w-[56%] overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M21,0 C12,4 2,9 4,18 C6,26 19,30 20,40 C21,50 12,55 8,63 C4,71 5,80 2,88 C0,93 -2,97 -4,100" fill="none" stroke="#7d9cc0" strokeOpacity="0.85" strokeWidth="1.5" strokeDasharray="5 6" vectorEffect="non-scaling-stroke" />
           </svg>
 
           {/* Formulario: arriba la marca (logo y nombre); al medio, título y campos. Los mensajes de error

@@ -5,10 +5,22 @@ import toast from 'react-hot-toast';
 import { API_URL } from '../apis/apiConfig';
 import { MENSAJE_REVISA_CAMPOS, useErrorPulse } from '../utils/formErrors';
 import MensajeErrorCampo from './common/MensajeErrorCampo';
-import { AlertCircle, ArrowRight, Eye, EyeOff, User } from 'lucide-react';
+import { AlertCircle, ArrowRight, Eye, EyeOff, Film, Sparkles, User } from 'lucide-react';
 
 // El guacamayo en 3D (Three.js) se carga aparte: solo lo descarga quien abre el login.
 const ParabaPosada = lazy(() => import('./login/ParabaPosada'));
+// Los videos de parabas, igual: solo se descargan si alguien elige "Video".
+const VideosParabas = lazy(() => import('./login/VideosParabas'));
+
+// Lo último que eligió esta persona en el interruptor (animación o video).
+const CLAVE_ESCENA = 'login-escena';
+function escenaGuardada() {
+  try {
+    return localStorage.getItem(CLAVE_ESCENA) === 'video' ? 'video' : 'animacion';
+  } catch {
+    return 'animacion';
+  }
+}
 
 const TONO_ERROR = 'text-red-700';
 const MENSAJE_CREDENCIALES = 'Usuario o contraseña incorrectos.';
@@ -24,6 +36,8 @@ function Login({ onLogin }) {
   const [pulso, setPulso] = useState(0);
   const [loginError, setLoginError] = useState('');
   const [campoActivo, setCampoActivo] = useState(null);
+  const [escena, setEscena] = useState(escenaGuardada);
+  const [videoMontado, setVideoMontado] = useState(() => escenaGuardada() === 'video');
   const loginErrorTimeoutRef = useRef(null);
   const navigate = useNavigate();
 
@@ -133,6 +147,15 @@ function Login({ onLogin }) {
     setCampoActivo(campo);
   };
   const salirDelCampo = () => setCampoActivo(null);
+  const cambiarEscena = (valor) => {
+    if (valor === 'video') setVideoMontado(true);
+    setEscena(valor);
+    try {
+      localStorage.setItem(CLAVE_ESCENA, valor);
+    } catch {
+      // Sin almacenamiento: se elige de nuevo la próxima vez.
+    }
+  };
 
   // La paraba: mira el campo en que se escribe; cierra los ojos solo si la contraseña está a la vista
   // (con el ojo de "Ocultar contraseña"); sin nada escrito, se acicala.
@@ -147,52 +170,85 @@ function Login({ onLogin }) {
 
   return (
     <div className={`login-escena min-h-screen w-full flex items-center justify-center overflow-hidden bg-azulado-100 sm:p-6 lg:p-10 font-sans text-slate-800 ${isExiting ? 'login-salida' : ''}`}>
-      <div className="relative w-full max-w-5xl">
+      <div className="relative w-full max-w-5xl lg:mt-12">
+        {/* Logo de la UAB en un medallón blanco montado sobre la esquina de arriba a la izquierda de la
+            tarjeta; en celular va en el encabezado del formulario. */}
+        <div className="login-tarjeta absolute z-20 left-[4.6rem] -top-12 hidden lg:flex h-32 w-32 items-center justify-center rounded-full bg-white ring-[6px] ring-azulado-100 shadow-[0_12px_30px_rgba(15,23,42,0.16)]">
+          <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-24 w-auto" />
+        </div>
         <div className="login-tarjeta relative z-10 w-full min-h-screen sm:min-h-0 lg:h-[560px] flex flex-col lg:flex-row bg-white sm:rounded-3xl sm:ring-1 sm:ring-azulado-300 overflow-hidden shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
-          {/* Panel de las parabas (azulado de Fondo de Tiempo): a la derecha con borde ondulado; en celular,
-              arriba. Detrás de las aves, un sol dorado suave y colinas al pie; las aves van encima de la
-              onda, así pueden asomarse un poco sobre el borde. */}
-          <div className="relative h-60 sm:h-72 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[56%] flex-shrink-0 bg-[linear-gradient(170deg,#EEF3FA_0%,#DFE8F5_48%,#B8C9E1_100%)]" aria-hidden="true">
-            <div className="absolute right-[10%] top-[8%] h-[62%] aspect-square rounded-full bg-[radial-gradient(circle,rgba(240,205,54,0.42)_0%,rgba(240,205,54,0.12)_45%,rgba(240,205,54,0)_70%)]" />
-            <svg className="absolute bottom-0 left-0 w-full h-[34%]" viewBox="0 0 100 100" preserveAspectRatio="none">
+          {/* Panel de las parabas: a la derecha, hasta la línea punteada; en celular, arriba. Muestra la
+              animación 3D o los videos (el interruptor de arriba cambia entre los dos con un fundido). */}
+          <div className="relative h-60 sm:h-72 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[56%] flex-shrink-0 bg-[linear-gradient(170deg,#EEF3FA_0%,#DFE8F5_48%,#B8C9E1_100%)]">
+            <div className="absolute right-[10%] top-[8%] h-[62%] aspect-square rounded-full bg-[radial-gradient(circle,rgba(240,205,54,0.42)_0%,rgba(240,205,54,0.12)_45%,rgba(240,205,54,0)_70%)]" aria-hidden="true" />
+            <svg className="absolute bottom-0 left-0 w-full h-[34%]" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
               <path d="M0,62 C22,30 44,48 62,40 C78,33 90,22 100,30 L100,100 L0,100 Z" fill="#B8C9E1" opacity="0.55" />
               <path d="M0,82 C18,62 40,70 58,64 C76,58 88,66 100,58 L100,100 L0,100 Z" fill="#A9BDDB" opacity="0.6" />
             </svg>
-            <svg className="absolute bottom-0 left-0 w-full h-14 lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none">
+            {videoMontado && (
+              <Suspense fallback={null}>
+                <VideosParabas
+                  activo={escena === 'video'}
+                  className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${escena === 'video' ? 'opacity-100' : 'opacity-0'}`}
+                />
+              </Suspense>
+            )}
+            <svg className="absolute bottom-0 left-0 z-10 w-full h-14 lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
               <path d="M0,34 C12,6 26,68 46,38 C64,12 80,64 100,26" fill="none" stroke="#0284c7" strokeOpacity="0.85" strokeWidth="2" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
-              <path d="M0,100 L0,58 C12,30 26,92 46,62 C64,36 80,88 100,50 L100,100 Z" fill="#ffffff" />
+              <path d="M0,100 L0,34 C12,6 26,68 46,38 C64,12 80,64 100,26 L100,100 Z" fill="#ffffff" />
             </svg>
-            {/* Onda como la del modelo: arriba el blanco entra mucho a la derecha y baja en dos curvas. */}
-            <svg className="absolute inset-0 hidden lg:block w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <path d="M0,0 L76,0 C62,4 42,9 40,21 C38,33 54,37 52,48 C50,59 31,61 29,73 C27,85 22,93 13,100 L0,100 Z" fill="#ffffff" />
+            {/* Onda: el blanco del formulario llega justo hasta la línea punteada, que es el borde del
+                video (y del fondo de la animación). */}
+            <svg className="absolute inset-0 z-10 hidden lg:block w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M0,0 L61,0 C48,4 28,9 26,21 C24,33 40,37 38,48 C36,59 17,61 15,73 C13,85 9,93 3,100 L0,100 Z" fill="#ffffff" />
               <path d="M61,0 C48,4 28,9 26,21 C24,33 40,37 38,48 C36,59 17,61 15,73 C13,85 9,93 3,100" fill="none" stroke="#0284c7" strokeOpacity="0.85" strokeWidth="2" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
             </svg>
-            <Suspense fallback={null}>
-              <ParabaPosada
-                estado={estadoAve}
-                seguimiento={Math.min(textoMirado.length, 28) / 28}
-                className="absolute inset-0"
-              />
-            </Suspense>
-            <p className="absolute bottom-2 right-4 hidden lg:block text-[11px] text-slate-600/80">© {new Date().getFullYear()} UABJB</p>
+            <div className={`absolute inset-0 z-10 transition-opacity duration-700 ease-in-out ${escena === 'animacion' ? 'opacity-100' : 'opacity-0'}`} aria-hidden="true">
+              <Suspense fallback={null}>
+                <ParabaPosada
+                  estado={estadoAve}
+                  seguimiento={Math.min(textoMirado.length, 28) / 28}
+                  pausada={escena !== 'animacion'}
+                  className="absolute inset-0"
+                />
+              </Suspense>
+            </div>
+
+            <div role="group" aria-label="Qué mostrar junto al formulario" className="absolute top-4 right-4 z-20 flex rounded-full bg-white/85 p-1 ring-1 ring-azulado-300 shadow-sm backdrop-blur">
+              {[
+                ['animacion', 'Animación', Sparkles],
+                ['video', 'Video', Film],
+              ].map(([valor, texto, Icono]) => (
+                <button
+                  key={valor}
+                  type="button"
+                  aria-pressed={escena === valor}
+                  onClick={() => cambiarEscena(valor)}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-900/40 ${escena === valor ? 'bg-blue-900 text-white' : 'text-blue-900 hover:bg-azulado-100'}`}
+                >
+                  <Icono className="h-3.5 w-3.5" aria-hidden="true" />
+                  {texto}
+                </button>
+              ))}
+            </div>
+            <p className={`absolute bottom-2 right-4 z-20 hidden lg:block text-[11px] transition-colors ${escena === 'video' ? 'text-white/85' : 'text-slate-600/80'}`}>© {new Date().getFullYear()} UABJB</p>
           </div>
 
-          {/* Formulario: centrado en el alto del modal; los mensajes de error tienen su lugar reservado,
-              así que al aparecer no mueven nada. */}
-          <div className="relative z-10 flex-1 lg:flex-none lg:w-[52%] flex flex-col sm:justify-center px-6 sm:px-12 lg:px-12 pt-8 pb-10 lg:py-10">
+          {/* Formulario: los mensajes de error tienen su lugar reservado, así que al aparecer no mueven nada. */}
+          <div className="relative z-10 flex-1 lg:flex-none lg:w-[52%] flex flex-col sm:justify-center lg:justify-start px-6 sm:px-12 lg:px-12 pt-8 pb-10 lg:pt-6 lg:pb-8">
             <div className="w-full max-w-sm mx-auto">
-              <div className="flex items-center gap-4 rounded-3xl bg-gradient-to-br from-blue-900 to-blue-950 p-4 text-white shadow-[0_4px_14px_rgba(30,58,138,0.25)]">
-                <span className="flex h-24 w-24 flex-shrink-0 items-center justify-center rounded-2xl bg-white">
-                  <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-20 w-auto" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-200">Universidad Autónoma del Beni</p>
-                  <h1 className="mt-1 text-2xl font-bold leading-tight">Iniciar sesión</h1>
-                  <p className="mt-0.5 text-sm text-blue-100">"José Ballivián"</p>
+              {/* Al lado del medallón (en escritorio) o del logo (en celular), el nombre de la universidad. */}
+              <div className="flex items-center gap-3 lg:min-h-[3.5rem] lg:pl-[8.75rem]">
+                <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-16 w-auto lg:hidden" />
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Universidad Autónoma del Beni</p>
+                  <p className="text-sm font-semibold text-blue-900">"José Ballivián"</p>
                 </div>
               </div>
+              <h1 className="mt-8 lg:mt-10 text-3xl font-extrabold tracking-tight text-blue-900">Iniciar sesión</h1>
+              <p className="mt-1.5 text-sm text-slate-500">Ingresa con tu usuario o correo institucional.</p>
 
-              <form onSubmit={handleSubmit} noValidate className="mt-7">
+              <form onSubmit={handleSubmit} noValidate className="mt-6">
                 {/* Usuario */}
                 <label htmlFor="login-usuario" className="block mb-1.5 text-sm font-semibold text-blue-900">Usuario o correo</label>
                 <div className={`login-campo relative rounded-2xl bg-azulado-50 ring-inset transition-shadow focus-within:bg-white focus-within:shadow-[0_0_0_4px_#DFE8F5] ${anilloCampo(errorUsuario)} ${reboteUsuario ? 'login-rebote' : ''}`}>
@@ -249,29 +305,25 @@ function Login({ onLogin }) {
                   )}
                 </div>
 
-                {/* Botón centrado y de ancho fijo: "Ingresando..." no mueve nada. */}
-                <div className="mt-4 flex justify-center">
+                {/* Botón: la palabra y un círculo azul con la flecha, a la derecha (ancho fijo del texto:
+                    "Ingresando..." no mueve nada). */}
+                <div className="mt-2 flex justify-end">
                   <button
                     type="submit"
                     disabled={loading || isExiting}
-                    className="group inline-flex w-44 items-center justify-between h-11 pl-5 pr-1.5 rounded-2xl bg-blue-900 hover:bg-blue-800 text-white text-sm font-bold shadow-[0_6px_14px_rgba(30,58,138,0.25)] transition-colors focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-900/30 disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="group inline-flex items-center gap-3 rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-900/25 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
-                    {loading ? (
-                      <>
-                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                    <span className="w-28 whitespace-nowrap text-right text-base font-bold text-blue-900">{loading ? 'Ingresando...' : 'Ingresar'}</span>
+                    <span className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-900 text-white shadow-[0_8px_18px_rgba(30,58,138,0.3)] transition-colors group-hover:bg-blue-800">
+                      {loading ? (
+                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <span>Ingresando...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Ingresar</span>
-                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/15">
-                          <ArrowRight className="h-4 w-4 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5" aria-hidden="true" />
-                        </span>
-                      </>
-                    )}
+                      ) : (
+                        <ArrowRight className="h-6 w-6 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5" aria-hidden="true" />
+                      )}
+                    </span>
                   </button>
                 </div>
               </form>

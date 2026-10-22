@@ -551,10 +551,10 @@ function movimientoDirecto(estado, t) {
   return m;
 }
 
-function ParabaPosada({ estado = 'reposo', seguimiento = 0, className = '' }) {
+function ParabaPosada({ estado = 'reposo', seguimiento = 0, pausada = false, className = '' }) {
   const contenedor = useRef(null);
   const entrada = useRef({ estado, seguimiento });
-  entrada.current = { estado, seguimiento: Math.min(Math.max(seguimiento, 0), 1) };
+  entrada.current = { estado, seguimiento: Math.min(Math.max(seguimiento, 0), 1), pausada };
 
   useEffect(() => {
     const caja = contenedor.current;
@@ -629,6 +629,11 @@ function ParabaPosada({ estado = 'reposo', seguimiento = 0, className = '' }) {
     const dibujar = (ahora) => {
       const dt = Math.min((ahora - anterior) / 1000, 1 / 30);
       anterior = ahora;
+      // Oculta detrás del video: no dibuja (sigue esperando el próximo cuadro).
+      if (entrada.current.pausada) {
+        cuadro = requestAnimationFrame(dibujar);
+        return;
+      }
       const t = ahora / 1000;
       const quieto = reducido?.matches;
       const { estado: e, seguimiento: s } = entrada.current;

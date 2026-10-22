@@ -132,11 +132,13 @@ function Login({ onLogin }) {
   };
   const salirDelCampo = () => setCampoActivo(null);
 
-  // La paraba: mira el usuario, se tapa con la contraseña y, sin nada escrito, se acicala.
+  // La paraba: mira el campo en que se escribe; cierra los ojos solo si la contraseña está a la vista
+  // (con el ojo de "Ocultar contraseña"); sin nada escrito, se acicala.
   let estadoAve = 'atento';
-  if (campoActivo === 'contrasena') estadoAve = 'ojos-cerrados';
-  else if (campoActivo === 'usuario') estadoAve = 'mirando';
+  if (showPassword && (campoActivo === 'contrasena' || password)) estadoAve = 'ojos-cerrados';
+  else if (campoActivo) estadoAve = 'mirando';
   else if (!username && !password) estadoAve = 'reposo';
+  const textoMirado = campoActivo === 'contrasena' ? password : username;
 
   // Mensaje bajo la contraseña: el del campo o, si no hay, el del servidor.
   const avisoContrasena = !errores.password && loginError;
@@ -169,7 +171,7 @@ function Login({ onLogin }) {
 
           {/* Panel del guacamayo: a la derecha con borde ondulado; en celular, arriba. El ave va encima de
               la onda, así puede asomarse un poco sobre el borde. */}
-          <div className="relative h-52 sm:h-64 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[54%] flex-shrink-0 bg-[radial-gradient(circle_at_72%_42%,#ffffff_0%,#eaf0f9_42%,#d8e3f2_100%)]" aria-hidden="true">
+          <div className="relative h-60 sm:h-72 lg:h-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[54%] flex-shrink-0 bg-[radial-gradient(circle_at_72%_42%,#ffffff_0%,#eaf0f9_42%,#d8e3f2_100%)]" aria-hidden="true">
             <svg className="absolute bottom-0 left-0 w-full h-14 lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none">
               <path d="M0,34 C12,6 26,68 46,38 C64,12 80,64 100,26" fill="none" stroke="#94a3b8" strokeOpacity="0.8" strokeWidth="1.5" strokeDasharray="6 7" vectorEffect="non-scaling-stroke" />
               <path d="M0,100 L0,58 C12,30 26,92 46,62 C64,36 80,88 100,50 L100,100 Z" fill="#ffffff" />
@@ -181,8 +183,8 @@ function Login({ onLogin }) {
             </svg>
             <ParabaPosada
               estado={estadoAve}
-              seguimiento={Math.min(username.length, 28) / 28}
-              className="absolute right-0 bottom-3 h-[188px] sm:h-[236px] lg:bottom-[4%] lg:h-[90%] w-auto"
+              seguimiento={Math.min(textoMirado.length, 28) / 28}
+              className="absolute right-0 top-0 h-full w-auto"
             />
           </div>
 

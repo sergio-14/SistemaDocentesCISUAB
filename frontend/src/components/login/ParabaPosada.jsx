@@ -509,7 +509,7 @@ function movimientoCria(estado, t) {
 // Cría inquieta: se queda, se da vuelta y se aleja a saltitos por la rama, mira alrededor, vuelve
 // hacia la mamá y se queda otra vez.
 const CICLO_PASEO = 14;
-const LARGO_PASEO = 0.5;
+const LARGO_PASEO = 0.3;
 function paseoInquieto(t) {
   const c = t % CICLO_PASEO;
   const brincos = (p) => Math.abs(Math.sin(Math.PI * p * 6)) * 0.1;
@@ -581,8 +581,8 @@ function ParabaPosada({ estado = 'reposo', seguimiento = 0, className = '' }) {
     // La mamá al medio y una cría a cada lado, sobre la rama.
     const mama = crearAve();
     const crias = [
-      { x: -0.6, giro: -0.6, desfase: 0, inquieta: false },
-      { x: 0.64, giro: -1.15, desfase: 3.7, inquieta: true },
+      { x: -0.9, giro: -0.6, desfase: 0, inquieta: false },
+      { x: 1.22, giro: -1.15, desfase: 3.7, inquieta: true },
     ].map(({ x, giro, desfase, inquieta }) => {
       const cria = crearAve({ giro, cria: true });
       cria.base.position.set(x, -0.01, 0.05);
@@ -605,7 +605,7 @@ function ParabaPosada({ estado = 'reposo', seguimiento = 0, className = '' }) {
       camara.lookAt(0, 0.9, 0);
       camara.updateProjectionMatrix();
       // El ave a la derecha del centro; la rama sigue hasta el borde.
-      mundo.position.x = -ALTO_VISIBLE * camara.aspect * 0.04;
+      mundo.position.x = -ALTO_VISIBLE * camara.aspect * 0.1;
     };
     ajustar();
     const observador = new ResizeObserver(ajustar);
@@ -672,9 +672,9 @@ function ParabaPosada({ estado = 'reposo', seguimiento = 0, className = '' }) {
         ave.plumon.forEach((m) => m.scale.setScalar(Math.max(0.001, esponja)));
         ave.cuello.position.y = ave.alturaCuello * ave.cuerpo.scale.y + d.cabezaY;
         ave.cuello.rotation.set(a.pitch + d.pitch, a.yaw, a.roll);
-        // Al abrir, el ala sube hacia atrás y se separa del cuerpo.
-        ave.alaIzq.ala.rotation.set(0.9 * a.alaIzq, 0, -0.04 + 1.0 * a.alaIzq + aleteo);
-        ave.alaDer.ala.rotation.set(0.9 * a.alaDer, 0, -0.04 + 1.0 * a.alaDer + aleteo);
+        // Al abrir, el ala sube sobre todo hacia atrás (sin pasar por encima de las crías).
+        ave.alaIzq.ala.rotation.set(1.25 * a.alaIzq, 0, -0.04 + 0.55 * a.alaIzq + aleteo);
+        ave.alaDer.ala.rotation.set(1.25 * a.alaDer, 0, -0.04 + 0.55 * a.alaDer + aleteo);
         ave.alaIzq.primarias.forEach((p, i) => {
           p.scale.setScalar(Math.max(0.001, a.abanico));
           p.rotation.z = -i * 0.25 * a.abanico;

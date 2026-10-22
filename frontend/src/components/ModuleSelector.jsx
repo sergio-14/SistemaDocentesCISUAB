@@ -321,18 +321,18 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
                     Módulos
                 </p>
 
-                {/* Silueta del loro a media altura, en el medio entre el contenido de la izquierda y los
-                    botones, mirando hacia los módulos, en el azulado de la división pero más intenso. */}
-                <div
-                    className="pointer-events-none absolute left-[3.5rem] top-1/2 h-[24vh] max-h-[230px] aspect-[1/1.75] -translate-x-1/2 -translate-y-1/2 -scale-x-100 bg-[#8fa8cd] dark:bg-slate-700"
-                    style={MASCARA_LORO}
-                    aria-hidden="true"
-                />
                 <div className="flex justify-end">{cuenta}</div>
 
-                {/* Administración y rol de ingreso, arriba del centro de la división. */}
-                <div className={`relative w-full ${conColumnaLateral ? 'my-auto -translate-y-[14vh]' : 'mt-[22vh]'}`}>
+                {/* Administración y rol de ingreso arriba del centro de la división, y el loro debajo. */}
+                <div className={`relative w-full ${conColumnaLateral ? 'mt-[9vh]' : 'mt-[22vh]'}`}>
                     {conColumnaLateral && <aside className="panel-entrada mx-auto max-w-xs">{columnaLateral}</aside>}
+                    {/* Silueta del loro debajo de los botones, centrada bajo ellos (entre los botones y
+                        "Módulos"), mirando hacia los módulos, en el azulado de la división más intenso. */}
+                    <div
+                        className="pointer-events-none mx-auto mt-[6vh] h-[22vh] max-h-[210px] aspect-[1/1.75] -scale-x-100 bg-[#8fa8cd] dark:bg-slate-700"
+                        style={MASCARA_LORO}
+                        aria-hidden="true"
+                    />
                 </div>
 
                 <p className="mt-auto pt-8 text-right text-xs font-medium text-blue-900/70 dark:text-slate-400">

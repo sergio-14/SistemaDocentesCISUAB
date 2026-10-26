@@ -1,7 +1,7 @@
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_RIGHT
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, TableStyle
 
@@ -32,6 +32,10 @@ def crear_estilos_documento():
         'cell_bold': ParagraphStyle(
             'poa-cell-bold', parent=base['Normal'], fontName='Helvetica-Bold',
             fontSize=7, leading=9,
+        ),
+        'cell_bold_center': ParagraphStyle(
+            'poa-cell-bold-center', parent=base['Normal'], fontName='Helvetica-Bold',
+            fontSize=7, leading=9, alignment=TA_CENTER,
         ),
         'cell_money': ParagraphStyle(
             'poa-cell-money', parent=base['Normal'], fontName='Helvetica',

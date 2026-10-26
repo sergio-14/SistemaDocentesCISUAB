@@ -1,5 +1,6 @@
 from decimal import Decimal
 from io import BytesIO
+import re
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import landscape, letter
@@ -21,6 +22,13 @@ class DocumentoPOAPDFGenerator:
     """Generador PDF POA: Formulario 1, 2 y 3 en ese orden."""
 
     DEFAULT_ENTIDAD = 'UABJB'
+
+    @staticmethod
+    def _clave_codigo(codigo, id_fallback=0):
+        texto = str(codigo or '').strip()
+        partes = re.split(r'(\d+)', texto)
+        clave = tuple((0, int(parte)) if parte.isdigit() else (1, parte.casefold()) for parte in partes if parte)
+        return clave, int(id_fallback or 0)
 
     @staticmethod
     def _texto(valor, default=''):
@@ -136,29 +144,29 @@ class DocumentoPOAPDFGenerator:
         ]
 
         header = [
-            Paragraph('<b>Actividad o Programa</b>', styles['cell_bold']),
-            Paragraph('<b>Responsable</b>', styles['cell_bold']),
-            Paragraph('<b>Productos Esperados<br/>Bien, Servicio o Norma</b>', styles['cell_bold']),
-            Paragraph('<b>Mes de Inicio</b>', styles['cell_bold']),
-            Paragraph('<b>Mes Fin</b>', styles['cell_bold']),
-            Paragraph('<b>Indicador</b>', styles['cell_bold']),
+            Paragraph('<b>Actividad o Programa</b>', styles['cell_bold_center']),
+            Paragraph('<b>Responsable</b>', styles['cell_bold_center']),
+            Paragraph('<b>Productos Esperados<br/>Bien, Servicio o Norma</b>', styles['cell_bold_center']),
+            Paragraph('<b>Mes de Inicio</b>', styles['cell_bold_center']),
+            Paragraph('<b>Mes Fin</b>', styles['cell_bold_center']),
+            Paragraph('<b>Indicador</b>', styles['cell_bold_center']),
             '',
             '',
             '',
-            Paragraph('<b>Monto Bs.</b>', styles['cell_bold']),
+            Paragraph('<b>Monto Bs.</b>', styles['cell_bold_center']),
             '',
         ]
         subheader = ['', '', '', '', '',
-            Paragraph('<b>Descripcion del Indicador</b>', styles['cell_bold']),
-            Paragraph('<b>Unidad de Medida</b>', styles['cell_bold']),
-            Paragraph('<b>Linea Base</b>', styles['cell_bold']),
-            Paragraph('<b>Meta</b>', styles['cell_bold']),
-            Paragraph('<b>Funcion</b>', styles['cell_bold']),
-            Paragraph('<b>Inversion</b>', styles['cell_bold']),
+            Paragraph('<b>Descripcion del Indicador</b>', styles['cell_bold_center']),
+            Paragraph('<b>Unidad de Medida</b>', styles['cell_bold_center']),
+            Paragraph('<b>Linea Base</b>', styles['cell_bold_center']),
+            Paragraph('<b>Meta</b>', styles['cell_bold_center']),
+            Paragraph('<b>Funcion</b>', styles['cell_bold_center']),
+            Paragraph('<b>Inversion</b>', styles['cell_bold_center']),
         ]
         data = [header, subheader]
 
-        objetivos = list(documento.objetivos.prefetch_related('actividades').all())
+        objetivos = sorted(documento.objetivos.prefetch_related('actividades').all(), key=lambda obj: DocumentoPOAPDFGenerator._clave_codigo(obj.codigo, obj.pk))
         if not objetivos:
             data.append([Paragraph('Sin objetivos/actividades registrados.', styles['cell'])] + [''] * 10)
         else:
@@ -170,7 +178,7 @@ class DocumentoPOAPDFGenerator:
                     Paragraph(f"<b>{DocumentoPOAPDFGenerator._money(total_funcion)}</b>", styles['cell_bold_money']),
                     Paragraph(f"<b>{DocumentoPOAPDFGenerator._money(total_inversion)}</b>", styles['cell_bold_money']),
                 ])
-                actividades = list(obj.actividades.all())
+                actividades = sorted(obj.actividades.all(), key=lambda act: DocumentoPOAPDFGenerator._clave_codigo(act.codigo, act.pk))
                 if not actividades:
                     data.append([Paragraph('Sin actividades registradas para este objetivo.', styles['cell'])] + [''] * 10)
                     continue
@@ -203,6 +211,8 @@ class DocumentoPOAPDFGenerator:
             ('SPAN', (5, 0), (8, 0)),
             ('SPAN', (9, 0), (10, 0)),
             ('BACKGROUND', (0, 0), (-1, 1), colors.HexColor('#e6e6e6')),
+            ('ALIGN', (0, 0), (-1, 1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, 1), 'MIDDLE'),
             ('ALIGN', (3, 2), (10, -1), 'CENTER'),
             ('ALIGN', (9, 2), (10, -1), 'RIGHT'),
         ]

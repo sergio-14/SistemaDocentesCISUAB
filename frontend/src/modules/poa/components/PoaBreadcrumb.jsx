@@ -29,7 +29,7 @@ const PoaBreadcrumb = () => {
       : path.startsWith('/poa/presupuestos') ? `POA | Presupuesto — ${actividadLabel}`
         : path.startsWith('/poa/actividades') ? `POA | Actividades — ${objetivoLabel}`
           : path.startsWith('/poa/objetivos-especificos') ? `POA | Objetivos — ${documentoLabel}`
-            : path.startsWith('/poa/consolidado-requerimientos') ? 'POA | Bandeja de compras'
+            : path.startsWith('/poa/consolidado-requerimientos') ? 'POA | Abastecimiento de materiales'
               : path.startsWith('/poa/reportes') ? 'POA | Reportes' : 'POA | Documentos';
     document.title = title;
   }, [actividadLabel, documentoLabel, objetivoLabel, path]);

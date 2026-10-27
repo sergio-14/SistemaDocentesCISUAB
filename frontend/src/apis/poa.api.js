@@ -170,6 +170,8 @@ export const getVersionesDocumentoPOA = (id, gestion) => api.get(`/api/poa/docum
 export const getConsolidadoRequerimientosPOA = (params) => api.get('/api/poa/consolidado-requerimientos/', { params });
 export const descargarConsolidadoRequerimientosExcelPOA = (params) =>
 	api.get('/api/poa/consolidado-requerimientos/', { params: { ...params, formato: 'excel' }, responseType: 'blob' });
+export const descargarInformeMaterialesExcelPOA = (params) =>
+	api.get('/api/poa/reportes/materiales/', { params: { ...params, formato: 'excel' }, responseType: 'blob' });
 export const getOrdenesCompraPOA = (params = {}) => api.get('/api/poa/ordenes-compra/', { params });
 export const crearOrdenCompraPOA = (payload) => api.post('/api/poa/ordenes-compra/', payload);
 export const registrarRecepcionMaterialPOA = (payload) => api.post('/api/poa/recepciones-material/', payload);

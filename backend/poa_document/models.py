@@ -473,7 +473,7 @@ class OrdenCompraPOA(models.Model):
 
     class Meta:
         ordering = ['-fecha', '-id']
-        constraints = [models.UniqueConstraint(fields=['carrera', 'gestion', 'numero'], name='poa_orden_numero_carrera_gestion')]
+        constraints = [models.UniqueConstraint(fields=['carrera', 'gestion', 'proveedor', 'numero'], name='poa_orden_numero_proveedor_carrera_gestion')]
 
 
 class DetalleOrdenCompraPOA(models.Model):
@@ -487,6 +487,7 @@ class DetalleOrdenCompraPOA(models.Model):
     cantidad_comprada = models.PositiveIntegerField()
     costo_unitario_real = models.DecimalField(max_digits=12, decimal_places=2)
     origen_detalles = models.JSONField(default=list)  # IDs de presupuesto incluidos, como trazabilidad de origen.
+    origenes_compra = models.JSONField(default=list, blank=True)  # Cantidad comprada por cada detalle POA de origen.
 
     @property
     def costo_total_real(self):

@@ -597,13 +597,26 @@ class DetalleOrdenCompraPOASerializer(serializers.ModelSerializer):
     def get_actividades_origen(self, obj):
         detalles = DetallePresupuesto.objects.filter(id__in=obj.origen_detalles).select_related('actividad')
         resultado = {}
-        for detalle in detalles:
+        cantidades_por_origen = {}
+        for asignacion in obj.origenes_compra or []:
+            try:
+                cantidades_por_origen[int(asignacion['detalle_id'])] = int(asignacion['cantidad'])
+            except (KeyError, TypeError, ValueError):
+                continue
+        restante = int(obj.cantidad_comprada or 0)
+        for detalle in detalles.order_by('id'):
+            cantidad_origen = cantidades_por_origen.get(detalle.id)
+            if cantidad_origen is None:
+                cantidad_origen = min(restante, max(0, detalle.cantidad))
+            restante = max(0, restante - cantidad_origen)
+            if cantidad_origen <= 0:
+                continue
             actividad = detalle.actividad
             actual = resultado.setdefault(actividad.id, {
                 'id': actividad.id, 'codigo': actividad.codigo, 'nombre': actividad.nombre,
                 'cantidad_requerida': 0, 'cantidad_entregada': 0,
             })
-            actual['cantidad_requerida'] += detalle.cantidad
+            actual['cantidad_requerida'] += cantidad_origen
         entregas = EntregaMaterialActividad.objects.filter(
             anulada=False, detalle_recepcion__detalle_orden=obj,
         ).values('actividad').annotate(total=Sum('cantidad_entregada'))
@@ -614,7 +627,7 @@ class DetalleOrdenCompraPOASerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DetalleOrdenCompraPOA
-        fields = ['id', 'partida', 'item', 'unidad_medida', 'caracteristicas', 'tipo', 'cantidad_planificada', 'cantidad_comprada', 'costo_unitario_real', 'costo_total_real', 'origen_detalles', 'cantidad_recibida', 'cantidad_entregada', 'saldo_recepcion', 'saldo_entrega', 'actividades_origen']
+        fields = ['id', 'partida', 'item', 'unidad_medida', 'caracteristicas', 'tipo', 'cantidad_planificada', 'cantidad_comprada', 'costo_unitario_real', 'costo_total_real', 'origen_detalles', 'origenes_compra', 'cantidad_recibida', 'cantidad_entregada', 'saldo_recepcion', 'saldo_entrega', 'actividades_origen']
         read_only_fields = fields
 
 

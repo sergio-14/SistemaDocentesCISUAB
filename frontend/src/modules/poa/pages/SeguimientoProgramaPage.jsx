@@ -8,6 +8,24 @@ import Modal from '../components/base/Modal';
 const estado = (value) => ({ completado: 'Completada', en_ejecucion: 'En ejecución', programado: 'Programada', cancelado: 'Cancelada' }[value] || value);
 const formatoMonto = (value) => Number(value || 0).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const presupuesto = (actividad) => Number(actividad.presupuesto_total || 0);
+const compararCodigo = (primero, segundo) => {
+  const partesPrimero = String(primero?.codigo || '').split('-');
+  const partesSegundo = String(segundo?.codigo || '').split('-');
+  const largo = Math.max(partesPrimero.length, partesSegundo.length);
+
+  for (let indice = 0; indice < largo; indice += 1) {
+    const partePrimero = partesPrimero[indice] ?? '';
+    const parteSegundo = partesSegundo[indice] ?? '';
+    const numeroPrimero = Number(partePrimero);
+    const numeroSegundo = Number(parteSegundo);
+    const ambosNumericos = Number.isFinite(numeroPrimero) && Number.isFinite(numeroSegundo);
+
+    if (ambosNumericos && numeroPrimero !== numeroSegundo) return numeroPrimero - numeroSegundo;
+    if (!ambosNumericos && partePrimero !== parteSegundo) return partePrimero.localeCompare(parteSegundo, 'es');
+  }
+
+  return Number(primero?.id || 0) - Number(segundo?.id || 0);
+};
 
 const ResumenPresupuesto = ({ actividad, completo = false }) => {
   if (!actividad.tiene_presupuesto) return <span>Sin presupuesto planificado</span>;
@@ -76,7 +94,7 @@ export default function SeguimientoProgramaPage() {
       </header>
 
       <div className="mt-4 space-y-4">
-        {data.objetivos.map((objetivo, index) => (
+        {[...data.objetivos].sort(compararCodigo).map((objetivo, index) => (
           <section key={objetivo.id} className="overflow-hidden rounded-2xl border bg-white dark:border-slate-700 dark:bg-slate-900">
             <div className="border-b bg-slate-50 px-5 py-3 dark:border-slate-700 dark:bg-slate-800">
               <h3 className="font-bold text-slate-900 dark:text-white"><span className="mr-2 text-sm text-[#365d7d]">{objetivo.codigo || `OE-${index + 1}`}</span>{objetivo.descripcion}</h3>
@@ -84,7 +102,7 @@ export default function SeguimientoProgramaPage() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-sm">
                 <thead><tr><th className="text-left">Actividad</th><th className="text-left">Periodo</th><th className="text-left">Producto esperado</th><th className="text-left">Presupuesto planificado</th><th aria-label="Acciones" /></tr></thead>
-                <tbody>{objetivo.actividades.map((actividad) => (
+                <tbody>{[...objetivo.actividades].sort(compararCodigo).map((actividad) => (
                   <tr key={actividad.id}>
                     <td><b>{actividad.codigo} · {actividad.nombre}</b><small className="block text-slate-500">{estado(actividad.estado)} · {actividad.avance}%</small></td>
                     <td>{actividad.mes_inicio || '—'} a {actividad.mes_fin || '—'}</td>

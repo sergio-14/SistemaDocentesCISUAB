@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FaArrowLeft, FaPlus, FaEdit, FaTrash, FaFilePdf, FaMoneyBillAlt, FaImage, FaEllipsisV } from 'react-icons/fa';
-import ThemeToggle from './ThemeToggle';
 import IconButton from './IconButton';
 import { buildPoaNavigationState, getPoaNavigationContext } from '../utils/navigationContext';
 
@@ -37,7 +36,6 @@ const Header = ({
   isHome, 
   showHeader, 
   headerSelectedActividad, 
-  setTheme,
   sidebarExpanded = true,
   poaPermissions = {}
 }) => {
@@ -196,7 +194,7 @@ const Header = ({
     if (p.startsWith('/poa/actividades')) return 'Actividades';
     if (p.startsWith('/poa/catalogos')) return 'Catálogos';
     if (p === '/poa/presupuestos') return 'Detalle Presupuesto';
-    if (p === '/poa/consolidado-requerimientos') return 'Bandeja de compras';
+    if (p === '/poa/consolidado-requerimientos') return 'Abastecimiento de materiales';
     if (p === '/poa/reportes') return 'Reportes';
     if (p === '/poa/personas') return 'Personas';
     return 'Módulo POA';
@@ -438,9 +436,7 @@ const Header = ({
       <header className={`poa-home-header w-full ${themeConfig.headerHomeBg} ${themeConfig.headerHomeText} grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-3 py-3 md:px-8 md:py-6 ${themeConfig.headerShadow} ${themeConfig.headerBorder}`}>
         <div className="poa-home-spacer" aria-hidden="true" />
         <div className="poa-home-title min-w-0 text-lg md:text-2xl font-bold tracking-wide leading-tight truncate">Ingeniería de Sistemas</div>
-        <div className="poa-home-theme justify-self-end">
-          <ThemeToggle theme={theme} setTheme={setTheme} variant="header" />
-        </div>
+        <div className="poa-home-theme justify-self-end" aria-hidden="true" />
       </header>
     );
   }

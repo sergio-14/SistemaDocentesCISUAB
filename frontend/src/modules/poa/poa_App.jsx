@@ -14,7 +14,8 @@ import { replacePoaNavigationContext } from './utils/navigationContext';
 function POAApp({ user }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { effectiveTheme: theme, setTheme } = useTheme();
+  const { setTheme } = useTheme();
+  const theme = 'light';
   const [showGestionModal, setShowGestionModal] = useState(false);
   const [headerSelectedActividad, setHeaderSelectedActividad] = useState(null);
   const [showHeader, setShowHeader] = useState(true);
@@ -23,6 +24,10 @@ function POAApp({ user }) {
   const [poaRoles, setPoaRoles] = useState([]);
   const lastScrollY = useRef(0);
   const scrollTimeout = useRef(null);
+
+  useEffect(() => {
+    setTheme('light');
+  }, []);
 
   const isHome = location?.pathname === '/poa' || location?.pathname === '/poa/';
   const isActividadesPage = location?.pathname?.includes('/poa/actividades/');
@@ -182,7 +187,6 @@ function POAApp({ user }) {
           isHome={isHome}
           showHeader={showHeader}
           headerSelectedActividad={headerSelectedActividad}
-          setTheme={setTheme}
           sidebarExpanded={sidebarExpanded}
           poaPermissions={poaPermissions}
         />

@@ -1,5 +1,5 @@
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import json
 import unicodedata
 
@@ -71,11 +71,13 @@ from django.shortcuts import get_object_or_404
 from poa_document.reportes.excel import (
     generar_catalogo_items_excel,
     generar_consolidado_requerimientos_excel,
+    generar_informe_materiales_excel,
     generar_seguimiento_institucional_excel,
 )
 from poa_document.reportes.pdf import (
     DocumentoPOAPDFGenerator,
     generar_consolidado_requerimientos_pdf,
+    generar_informe_materiales_pdf,
     generar_seguimiento_institucional_pdf,
 )
 
@@ -90,6 +92,60 @@ def _respuesta_pdf(request, buffer, nombre_archivo):
         filename=nombre_archivo,
         content_type='application/pdf',
     )
+
+
+def _cantidades_compradas_por_origen(detalle_ids, gestion, cantidades_planificadas):
+    """Devuelve compras activas atribuidas a cada línea presupuestaria de origen."""
+    detalle_ids = {int(detalle_id) for detalle_id in detalle_ids}
+    if not detalle_ids:
+        return {}
+
+    lineas = list(DetalleOrdenCompraPOA.objects.filter(
+        orden__gestion=gestion,
+        orden__estado__in=['emitida', 'recibiendo', 'recibida'],
+    ).only('origen_detalles', 'origenes_compra', 'cantidad_comprada').order_by('id'))
+    todos_los_origenes = set(detalle_ids)
+    for linea in lineas:
+        if linea.origenes_compra:
+            todos_los_origenes.update(
+                int(asignacion['detalle_id']) for asignacion in linea.origenes_compra
+                if isinstance(asignacion, dict) and str(asignacion.get('detalle_id', '')).isdigit()
+            )
+        else:
+            todos_los_origenes.update(
+                int(origen_id) for origen_id in (linea.origen_detalles or [])
+                if str(origen_id).isdigit()
+            )
+    capacidades = dict(DetallePresupuesto.objects.filter(id__in=todos_los_origenes).values_list('id', 'cantidad'))
+    capacidades.update(cantidades_planificadas)
+    compradas = {detalle_id: 0 for detalle_id in todos_los_origenes}
+    for linea in lineas:
+        asignaciones = linea.origenes_compra or []
+        if asignaciones:
+            for asignacion in asignaciones:
+                try:
+                    origen_id = int(asignacion.get('detalle_id'))
+                    cantidad = int(asignacion.get('cantidad') or 0)
+                except (AttributeError, TypeError, ValueError):
+                    continue
+                if origen_id in compradas and cantidad > 0:
+                    compradas[origen_id] += cantidad
+            continue
+
+        # Compatibilidad con órdenes antiguas, que solo guardaban IDs de origen.
+        restante = int(linea.cantidad_comprada or 0)
+        for origen_id in linea.origen_detalles or []:
+            try:
+                origen_id = int(origen_id)
+            except (TypeError, ValueError):
+                continue
+            if origen_id not in compradas or restante <= 0:
+                continue
+            capacidad = max(0, int(capacidades.get(origen_id, 0)) - compradas[origen_id])
+            asignado = min(restante, capacidad)
+            compradas[origen_id] += asignado
+            restante -= asignado
+    return {detalle_id: compradas.get(detalle_id, 0) for detalle_id in detalle_ids}
 
 
 def _consolidar_requerimientos(request):
@@ -117,8 +173,13 @@ def _consolidar_requerimientos(request):
         if value:
             detalles = detalles.filter(**{f'{field}__icontains': value})
 
+    detalles = list(detalles.order_by('partida', 'item', 'unidad_medida', 'caracteristicas', 'id'))
+    cantidades_planificadas = {detalle.id: detalle.cantidad for detalle in detalles}
+    cantidades_compradas = _cantidades_compradas_por_origen(
+        cantidades_planificadas, gestion, cantidades_planificadas,
+    )
     agrupados = {}
-    for detalle in detalles.order_by('partida', 'item', 'unidad_medida', 'caracteristicas', 'id'):
+    for detalle in detalles:
         # No se fusionan partidas, unidades, tipos o características distintos.
         clave = (detalle.tipo, detalle.partida.strip(), detalle.item.strip(), detalle.unidad_medida.strip(), detalle.caracteristicas.strip())
         if clave not in agrupados:
@@ -134,12 +195,20 @@ def _consolidar_requerimientos(request):
         documento = actividad.objetivo.documento
         fila['origenes'].append({
             'detalle_id': detalle.id, 'cantidad': detalle.cantidad, 'costo_total': str(detalle.costo_total),
+            'cantidad_comprada': cantidades_compradas.get(detalle.id, 0),
+            'cantidad_pendiente': max(0, detalle.cantidad - cantidades_compradas.get(detalle.id, 0)),
             'mes_requerimiento': detalle.mes_requerimiento, 'actividad_codigo': actividad.codigo,
             'actividad_nombre': actividad.nombre, 'programa': documento.programa, 'documento_id': documento.id,
         })
     items = list(agrupados.values())
     for fila in items:
         fila['monto_estimado_total'] = str(fila['monto_estimado_total'])
+        fila['cantidad_comprada'] = sum(origen['cantidad_comprada'] for origen in fila['origenes'])
+        fila['cantidad_pendiente_compra'] = sum(origen['cantidad_pendiente'] for origen in fila['origenes'])
+        fila['monto_estimado_pendiente'] = str(sum(
+            Decimal(origen['costo_total']) * Decimal(origen['cantidad_pendiente']) / Decimal(origen['cantidad'])
+            for origen in fila['origenes'] if origen['cantidad']
+        ))
         fila['actividades_solicitantes'] = len({origen['actividad_codigo'] + str(origen['documento_id']) for origen in fila['origenes']})
     return gestion, items
 
@@ -926,6 +995,147 @@ class ConsolidadoRequerimientosView(APIView):
         return Response({'gestion': gestion, 'total_items': len(items), 'cantidad_total': sum(item['cantidad_total'] for item in items), 'monto_estimado_total': str(total), 'items': items})
 
 
+class ReporteMaterialesPOAView(APIView):
+    """Informe de seguimiento de compras, recepción, stock y entregas POA."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            gestion = int(request.query_params.get('gestion') or timezone.now().year)
+        except (TypeError, ValueError):
+            return Response({'gestion': ['La gestión debe ser un año válido.']}, status=status.HTTP_400_BAD_REQUEST)
+        documentos = _filtrar_documentos_por_usuario(
+            DocumentoPOA.objects.filter(gestion=gestion, estado__in=['aprobado', 'ejecucion']),
+            request.user,
+        )
+        programa = (request.query_params.get('programa') or '').strip()
+        if programa:
+            documentos = documentos.filter(programa=programa)
+        detalles_plan = list(DetallePresupuesto.objects.filter(
+            actividad__objetivo__documento__in=documentos,
+        ).select_related('actividad__objetivo__documento'))
+        detalles_por_id = {detalle.id: detalle for detalle in detalles_plan}
+        origenes_permitidos = set(detalles_por_id)
+        _, requerimientos = _consolidar_requerimientos(request)
+
+        carreras = documentos.values_list('unidad_solicitante_id', flat=True).distinct()
+        ordenes = OrdenCompraPOA.objects.filter(gestion=gestion, carrera_id__in=carreras).select_related('carrera').prefetch_related(
+            'detalles__recepciones_detalle__recepcion',
+            'recepciones__detalles__entregas__actividad',
+        )
+        compras, recepciones, stock, entregas = [], [], [], []
+        gasto_comprometido = Decimal('0')
+        costo_recibido_total = Decimal('0')
+        costo_entregado_total = Decimal('0')
+        valor_stock = Decimal('0')
+        cantidad_comprada_total = cantidad_recibida_total = cantidad_entregada_total = cantidad_stock_total = 0
+
+        def url_archivo(campo):
+            if not campo:
+                return ''
+            try:
+                return request.build_absolute_uri(campo.url)
+            except (ValueError, AttributeError, OSError, NotImplementedError):
+                return ''
+
+        for orden in ordenes:
+            for linea in orden.detalles.all():
+                ids_origen = {int(origen) for origen in (linea.origen_detalles or []) if str(origen).isdigit()}
+                if not ids_origen.intersection(origenes_permitidos):
+                    continue
+                fuentes = [detalles_por_id[origen] for origen in ids_origen if origen in detalles_por_id]
+                nombre_actividad = ', '.join(sorted({
+                    f'{fuente.actividad.codigo} · {fuente.actividad.nombre}' for fuente in fuentes
+                }))
+                planificada = sum(fuente.cantidad for fuente in fuentes)
+                recibos_linea = list(linea.recepciones_detalle.select_related('recepcion').prefetch_related('entregas__actividad'))
+                recibidos_activos = [recibo for recibo in recibos_linea if not recibo.recepcion.anulada and orden.estado != 'cancelada']
+                cantidad_recibida = sum(recibo.cantidad_recibida for recibo in recibidos_activos)
+                compra_activa = orden.estado != 'cancelada'
+                costo_compra = Decimal(str(linea.costo_total_real)) if compra_activa else Decimal('0')
+                gasto_comprometido += costo_compra
+                cantidad_comprada_total += linea.cantidad_comprada if compra_activa else 0
+                compras.append([
+                    orden.proveedor, orden.numero, orden.fecha.isoformat(), orden.estado,
+                    linea.partida, linea.item, linea.unidad_medida, planificada,
+                    linea.cantidad_comprada, cantidad_recibida,
+                    max(0, linea.cantidad_comprada - cantidad_recibida) if compra_activa else 0,
+                    float(linea.costo_unitario_real), float(costo_compra), url_archivo(orden.respaldo), nombre_actividad,
+                ])
+
+                for recibo in recibos_linea:
+                    recepcion_activa = not recibo.recepcion.anulada and orden.estado != 'cancelada'
+                    monto_recibido = Decimal(recibo.cantidad_recibida) * recibo.costo_unitario_real if recepcion_activa else Decimal('0')
+                    costo_recibido_total += monto_recibido
+                    cantidad_recibida_total += recibo.cantidad_recibida if recepcion_activa else 0
+                    recepciones.append([
+                        orden.proveedor, orden.numero, recibo.recepcion.numero_respaldo,
+                        recibo.recepcion.fecha.isoformat(), 'Vigente' if recepcion_activa else 'Anulada',
+                        linea.partida, linea.item, linea.unidad_medida, recibo.cantidad_recibida,
+                        float(recibo.costo_unitario_real), float(monto_recibido), recibo.recepcion.recibido_por,
+                        url_archivo(recibo.recepcion.respaldo),
+                    ])
+                    entregas_recibo = list(recibo.entregas.all())
+                    entregado_recibo = sum(
+                        movimiento.cantidad_entregada for movimiento in entregas_recibo
+                        if recepcion_activa and not movimiento.anulada
+                    )
+                    saldo_recibo = max(0, recibo.cantidad_recibida - entregado_recibo) if recepcion_activa else 0
+                    cantidad_stock_total += saldo_recibo
+                    valor_recibo = Decimal(saldo_recibo) * recibo.costo_unitario_real
+                    valor_stock += valor_recibo
+                    stock.append([
+                        linea.partida, linea.item, linea.unidad_medida, orden.proveedor,
+                        orden.numero, recibo.recepcion.fecha.isoformat(), recibo.cantidad_recibida,
+                        entregado_recibo, saldo_recibo, float(recibo.costo_unitario_real), float(valor_recibo),
+                        'Vigente' if recepcion_activa else 'Anulado',
+                    ])
+                    for movimiento in entregas_recibo:
+                        movimiento_activo = recepcion_activa and not movimiento.anulada
+                        if movimiento_activo:
+                            cantidad_entregada_total += movimiento.cantidad_entregada
+                            costo_entregado_total += Decimal(movimiento.cantidad_entregada) * recibo.costo_unitario_real
+                        entregas.append([
+                            movimiento.fecha.isoformat(), orden.proveedor, orden.numero, linea.partida,
+                            linea.item, f'{movimiento.actividad.codigo} · {movimiento.actividad.nombre}',
+                            linea.unidad_medida, movimiento.cantidad_entregada, movimiento.nombre_receptor,
+                            movimiento.ci_receptor, movimiento.cargo_receptor,
+                            'Vigente' if movimiento_activo else 'Anulada', movimiento.motivo_anulacion,
+                            url_archivo(movimiento.acta_archivo),
+                        ])
+
+        estimado_planificado = sum((Decimal(item['monto_estimado_total']) for item in requerimientos), Decimal('0'))
+        cantidad_planificada = sum(item['cantidad_total'] for item in requerimientos)
+        pendiente_compra = sum(item['cantidad_pendiente_compra'] for item in requerimientos)
+        datos = {
+            'resumen': [
+                ('Unidades planificadas', cantidad_planificada),
+                ('Unidades pendientes de compra', pendiente_compra),
+                ('Unidades compradas', cantidad_comprada_total),
+                ('Unidades recibidas', cantidad_recibida_total),
+                ('Unidades entregadas', cantidad_entregada_total),
+                ('Unidades disponibles en stock', cantidad_stock_total),
+                ('Presupuesto estimado', float(estimado_planificado)),
+                ('Costo comprometido en compras vigentes', float(gasto_comprometido)),
+                ('Costo recibido', float(costo_recibido_total)),
+                ('Costo entregado', float(costo_entregado_total)),
+                ('Valor actual del stock', float(valor_stock)),
+            ],
+            'compras': compras,
+            'recepciones': recepciones,
+            'stock': stock,
+            'entregas': entregas,
+        }
+        formato = (request.query_params.get('formato') or '').lower()
+        if formato == 'excel':
+            buffer = generar_informe_materiales_excel(datos, gestion)
+            return FileResponse(buffer, as_attachment=True, filename=f'seguimiento_materiales_poa_{gestion}.xlsx')
+        if formato == 'pdf':
+            buffer = generar_informe_materiales_pdf(datos, gestion)
+            return _respuesta_pdf(request, buffer, f'seguimiento_materiales_poa_{gestion}.pdf')
+        return Response({'gestion': gestion, **datos})
+
+
 class ReporteSeguimientoInstitucionalPOAView(APIView):
     """Informe institucional de seguimiento: físico, financiero y medios de verificación."""
     permission_classes = [IsAuthenticated]
@@ -1169,6 +1379,8 @@ class OrdenCompraPOAView(APIView):
                 return Response({'lineas': ['Las líneas de compra no tienen un formato válido.']}, status=status.HTTP_400_BAD_REQUEST)
         if not lineas:
             return Response({'lineas': ['Seleccione al menos un ítem consolidado.']}, status=status.HTTP_400_BAD_REQUEST)
+        if not isinstance(lineas, list) or any(not isinstance(linea, dict) for linea in lineas):
+            return Response({'lineas': ['Las líneas de compra no tienen un formato válido.']}, status=status.HTTP_400_BAD_REQUEST)
         try:
             gestion = int(request.data.get('gestion'))
         except (TypeError, ValueError):
@@ -1179,21 +1391,80 @@ class OrdenCompraPOAView(APIView):
         with transaction.atomic():
             orden = OrdenCompraPOA.objects.create(carrera=carrera, gestion=gestion, numero=numero, proveedor=proveedor, fecha=request.data['fecha'], observacion=(request.data.get('observacion') or ''), respaldo=request.FILES.get('respaldo'), creado_por=request.user)
             alertas = []
+            documentos_afectados = set()
             for linea in lineas:
-                origenes = [int(x) for x in (linea.get('origen_detalles') or [])]
-                origen_qs = DetallePresupuesto.objects.filter(id__in=origenes, actividad__objetivo__documento__unidad_solicitante=carrera, actividad__objetivo__documento__gestion=gestion, actividad__objetivo__documento__estado__in=['aprobado', 'ejecucion'])
+                asignaciones = linea.get('origenes_compra') or []
+                try:
+                    origenes = [int(x.get('detalle_id')) for x in asignaciones] if asignaciones else [int(x) for x in (linea.get('origen_detalles') or [])]
+                except (AttributeError, TypeError, ValueError):
+                    raise PermissionDenied('La lista de materiales de origen no es válida.')
+                origenes = list(dict.fromkeys(origenes))
+                origen_qs = DetallePresupuesto.objects.select_for_update().filter(id__in=origenes, actividad__objetivo__documento__unidad_solicitante=carrera, actividad__objetivo__documento__gestion=gestion, actividad__objetivo__documento__estado__in=['aprobado', 'ejecucion']).select_related('actividad__objetivo__documento')
                 if origen_qs.count() != len(set(origenes)):
                     raise PermissionDenied('Un detalle de origen no pertenece a la carrera, gestión o estado permitido.')
-                planificada = sum(d.cantidad for d in origen_qs)
-                comprada = int(linea.get('cantidad_comprada') or 0)
-                costo = Decimal(str(linea.get('costo_unitario_real') or 0))
-                if comprada <= 0 or costo < 0 or comprada > planificada:
+                try:
+                    comprada = int(linea.get('cantidad_comprada') or 0)
+                except (TypeError, ValueError):
+                    raise PermissionDenied('La cantidad comprada debe ser un número entero.')
+                try:
+                    costo = Decimal(str(linea.get('costo_unitario_real') or 0))
+                except (InvalidOperation, TypeError, ValueError):
+                    raise PermissionDenied('El costo unitario de compra no tiene un formato válido.')
+                origen_qs = list(origen_qs)
+                identidades_origen = {
+                    (detalle.tipo.strip(), detalle.partida.strip(), detalle.item.strip(), detalle.unidad_medida.strip(), detalle.caracteristicas.strip())
+                    for detalle in origen_qs
+                }
+                if len(identidades_origen) != 1:
+                    raise PermissionDenied('Una línea de compra debe agrupar materiales con la misma partida, unidad y características.')
+                tipo_origen, partida_origen, item_origen, unidad_origen, caracteristicas_origen = next(iter(identidades_origen))
+                if (
+                    str(linea.get('partida') or '').strip() != partida_origen
+                    or str(linea.get('item') or '').strip() != item_origen
+                    or str(linea.get('unidad_medida') or '').strip() != unidad_origen
+                    or str(linea.get('caracteristicas') or '').strip() != caracteristicas_origen
+                    or str(linea.get('tipo') or tipo_origen).strip() != tipo_origen
+                ):
+                    raise PermissionDenied('Los datos del material no coinciden con el requerimiento aprobado.')
+                cantidades_planificadas = {detalle.id: detalle.cantidad for detalle in origen_qs}
+                ya_compradas = _cantidades_compradas_por_origen(origenes, gestion, cantidades_planificadas)
+                if not asignaciones:
+                    restante = comprada
+                    asignaciones = []
+                    for origen_id in origenes:
+                        asignada = min(restante, max(0, cantidades_planificadas[origen_id] - ya_compradas.get(origen_id, 0)))
+                        if asignada:
+                            asignaciones.append({'detalle_id': origen_id, 'cantidad': asignada})
+                            restante -= asignada
+                        if restante <= 0:
+                            break
+                cantidades_solicitadas = {}
+                for asignacion in asignaciones:
+                    origen_id = int(asignacion.get('detalle_id'))
+                    cantidad_origen = int(asignacion.get('cantidad') or 0)
+                    cantidades_solicitadas[origen_id] = cantidades_solicitadas.get(origen_id, 0) + cantidad_origen
+                normalizadas = []
+                for origen_id, cantidad_origen in cantidades_solicitadas.items():
+                    saldo_origen = cantidades_planificadas.get(origen_id, 0) - ya_compradas.get(origen_id, 0)
+                    if cantidad_origen <= 0 or cantidad_origen > saldo_origen:
+                        raise PermissionDenied('La compra supera el saldo pendiente planificado para una actividad.')
+                    normalizadas.append({'detalle_id': origen_id, 'cantidad': cantidad_origen})
+                planificada = sum(cantidades_planificadas.get(a['detalle_id'], 0) for a in normalizadas)
+                if comprada <= 0 or not costo.is_finite() or costo < 0 or comprada > planificada:
                     raise PermissionDenied('La cantidad comprada debe ser positiva y no superar la cantidad planificada; el costo no puede ser negativo.')
-                estimado = sum((d.costo_total for d in origen_qs), Decimal('0'))
+                if sum(a['cantidad'] for a in normalizadas) != comprada:
+                    raise PermissionDenied('La cantidad comprada debe coincidir con la asignaciÃ³n de origen.')
+                origen_por_id = {detalle.id: detalle for detalle in origen_qs}
+                estimado = sum((
+                    Decimal(origen_por_id[a['detalle_id']].costo_unitario) * a['cantidad']
+                    for a in normalizadas
+                ), Decimal('0'))
                 real = comprada * costo
                 if real > estimado: alertas.append(f"{linea.get('item')}: costo real superior al estimado.")
-                DetalleOrdenCompraPOA.objects.create(orden=orden, partida=linea['partida'], item=linea['item'], unidad_medida=linea.get('unidad_medida') or '', caracteristicas=linea.get('caracteristicas') or '', tipo=linea.get('tipo') or 'funcionamiento', cantidad_planificada=planificada, cantidad_comprada=comprada, costo_unitario_real=costo, origen_detalles=origenes)
-            _crear_historial_documento(origen_qs.first().actividad.objetivo.documento, request.user, 'edicion', f'Orden de compra {numero} registrada.', datos_evento={'orden_id': orden.id})
+                DetalleOrdenCompraPOA.objects.create(orden=orden, partida=partida_origen, item=item_origen, unidad_medida=unidad_origen, caracteristicas=caracteristicas_origen, tipo=tipo_origen, cantidad_planificada=planificada, cantidad_comprada=comprada, costo_unitario_real=costo, origen_detalles=[a['detalle_id'] for a in normalizadas], origenes_compra=normalizadas)
+                documentos_afectados.update(d.actividad.objetivo.documento for d in origen_qs)
+            for documento in documentos_afectados:
+                _crear_historial_documento(documento, request.user, 'edicion', f'Orden de compra {numero} registrada.', datos_evento={'orden_id': orden.id})
         data = OrdenCompraPOASerializer(orden).data; data['alertas'] = alertas
         return Response(data, status=status.HTTP_201_CREATED)
 
@@ -1216,11 +1487,17 @@ class RecepcionMaterialPOAView(APIView):
         with transaction.atomic():
             recepcion = RecepcionMaterialPOA.objects.create(orden=orden, fecha=request.data.get('fecha') or timezone.now().date(), numero_respaldo=request.data.get('numero_respaldo') or '', recibido_por=request.data.get('recibido_por') or '', observacion=request.data.get('observacion') or '', respaldo=request.FILES.get('respaldo'), registrado_por=request.user)
             for linea in lineas:
-                detalle = get_object_or_404(DetalleOrdenCompraPOA, pk=linea.get('detalle_orden'), orden=orden)
+                detalle = get_object_or_404(DetalleOrdenCompraPOA.objects.select_for_update(), pk=linea.get('detalle_orden'), orden=orden)
                 recibido = int(linea.get('cantidad_recibida') or 0)
                 acumulado = sum(d.cantidad_recibida for d in detalle.recepciones_detalle.filter(recepcion__anulada=False))
                 if recibido <= 0 or acumulado + recibido > detalle.cantidad_comprada: raise PermissionDenied('La recepción supera el saldo comprado.')
-                DetalleRecepcionMaterialPOA.objects.create(recepcion=recepcion, detalle_orden=detalle, cantidad_recibida=recibido, costo_unitario_real=linea.get('costo_unitario_real') or detalle.costo_unitario_real)
+                try:
+                    costo_unitario = Decimal(str(linea.get('costo_unitario_real') if linea.get('costo_unitario_real') is not None else detalle.costo_unitario_real))
+                except (InvalidOperation, TypeError, ValueError):
+                    raise PermissionDenied('El costo unitario recibido no tiene un formato válido.')
+                if not costo_unitario.is_finite() or costo_unitario < 0:
+                    raise PermissionDenied('El costo unitario recibido no puede ser negativo.')
+                DetalleRecepcionMaterialPOA.objects.create(recepcion=recepcion, detalle_orden=detalle, cantidad_recibida=recibido, costo_unitario_real=costo_unitario)
             pendientes = any(sum(d.cantidad_recibida for d in detalle.recepciones_detalle.filter(recepcion__anulada=False)) < detalle.cantidad_comprada for detalle in orden.detalles.all())
             orden.estado = 'recibiendo' if pendientes else 'recibida'; orden.save(update_fields=['estado'])
         return Response(RecepcionMaterialPOASerializer(recepcion).data, status=status.HTTP_201_CREATED)
@@ -1228,24 +1505,114 @@ class RecepcionMaterialPOAView(APIView):
 
 class EntregaMaterialActividadView(APIView):
     permission_classes = [IsAuthenticated]
+
     def post(self, request):
         _requerir_elaborador(request)
-        detalle = get_object_or_404(DetalleRecepcionMaterialPOA.objects.select_related('recepcion__orden'), pk=request.data.get('detalle_recepcion'))
-        actividad = get_object_or_404(Actividad.objects.select_related('objetivo__documento'), pk=request.data.get('actividad'))
-        orden = detalle.recepcion.orden; carrera = _carrera_usuario_poa(request.user)
-        if not request.user.is_superuser and (orden.carrera_id != getattr(carrera, 'id', None) or actividad.objetivo.documento.unidad_solicitante_id != orden.carrera_id or actividad.objetivo.documento.gestion != orden.gestion): raise PermissionDenied('La entrega debe pertenecer a la misma carrera y gestión.')
-        origenes = set(detalle.detalle_orden.origen_detalles or [])
-        requeridos = list(DetallePresupuesto.objects.filter(actividad=actividad, id__in=origenes))
-        if not requeridos: raise PermissionDenied('Este material no fue planificado para la actividad seleccionada.')
-        cantidad = int(request.data.get('cantidad_entregada') or 0)
-        disponible = detalle.cantidad_recibida - sum(e.cantidad_entregada for e in detalle.entregas.filter(anulada=False))
-        entregado_actividad = sum(e.cantidad_entregada for e in EntregaMaterialActividad.objects.filter(actividad=actividad, anulada=False, detalle_recepcion__detalle_orden=detalle.detalle_orden))
-        if cantidad <= 0 or cantidad > disponible or cantidad + entregado_actividad > sum(r.cantidad for r in requeridos): raise PermissionDenied('La entrega supera el saldo recibido o el requerimiento de la actividad.')
+        lineas = request.data.get('lineas')
+        if isinstance(lineas, str):
+            try:
+                lineas = json.loads(lineas)
+            except json.JSONDecodeError:
+                return Response({'lineas': ['Las líneas de entrega no tienen un formato válido.']}, status=status.HTTP_400_BAD_REQUEST)
+        if not lineas:
+            actividad = request.data.get('actividad')
+            cantidad = request.data.get('cantidad_entregada')
+            lineas = [{'actividad': actividad, 'cantidad_entregada': cantidad}] if actividad and cantidad else []
+        if not lineas:
+            return Response({'lineas': ['Seleccione al menos una actividad y una cantidad.']}, status=status.HTTP_400_BAD_REQUEST)
         receptor = (request.data.get('nombre_receptor') or '').strip()
-        if not receptor: return Response({'nombre_receptor': ['El nombre del receptor es obligatorio.']}, status=status.HTTP_400_BAD_REQUEST)
-        entrega = EntregaMaterialActividad.objects.create(detalle_recepcion=detalle, actividad=actividad, cantidad_entregada=cantidad, fecha=request.data.get('fecha') or timezone.now().date(), nombre_receptor=receptor, ci_receptor=request.data.get('ci_receptor') or '', cargo_receptor=request.data.get('cargo_receptor') or '', telefono_receptor=request.data.get('telefono_receptor') or '', observacion=request.data.get('observacion') or '', acta_archivo=request.FILES.get('acta_archivo'), registrado_por=request.user)
-        return Response(EntregaMaterialActividadSerializer(entrega).data, status=status.HTTP_201_CREATED)
+        if not receptor:
+            return Response({'nombre_receptor': ['El nombre del receptor es obligatorio.']}, status=status.HTTP_400_BAD_REQUEST)
 
+        carrera = _carrera_usuario_poa(request.user)
+        with transaction.atomic():
+            detalle = get_object_or_404(
+                DetalleRecepcionMaterialPOA.objects.select_for_update().select_related('recepcion__orden'),
+                pk=request.data.get('detalle_recepcion'),
+            )
+            orden = detalle.recepcion.orden
+            if detalle.recepcion.anulada or orden.estado == 'cancelada':
+                raise PermissionDenied('No se pueden entregar materiales de una recepción u orden anulada.')
+            if not request.user.is_superuser and orden.carrera_id != getattr(carrera, 'id', None):
+                raise PermissionDenied('La recepción no pertenece a su carrera.')
+
+            detalle_orden = get_object_or_404(
+                DetalleOrdenCompraPOA.objects.select_for_update(),
+                pk=detalle.detalle_orden_id,
+            )
+            presupuesto = list(DetallePresupuesto.objects.filter(
+                id__in=detalle_orden.origen_detalles,
+            ).select_related('actividad__objetivo__documento'))
+            cantidades_planificadas = {item.id: item.cantidad for item in presupuesto}
+            asignadas = {}
+            for asignacion in detalle_orden.origenes_compra or []:
+                try:
+                    asignadas[int(asignacion['detalle_id'])] = int(asignacion['cantidad'])
+                except (KeyError, TypeError, ValueError):
+                    continue
+            if not asignadas:
+                restante = int(detalle_orden.cantidad_comprada or 0)
+                for presupuesto_origen in sorted(presupuesto, key=lambda item: item.id):
+                    cantidad = min(restante, presupuesto_origen.cantidad)
+                    if cantidad:
+                        asignadas[presupuesto_origen.id] = cantidad
+                        restante -= cantidad
+                    if restante <= 0:
+                        break
+
+            por_actividad = {}
+            actividades = {}
+            for linea in lineas:
+                try:
+                    actividad_id = int(linea.get('actividad'))
+                    cantidad = int(linea.get('cantidad_entregada') or 0)
+                except (AttributeError, TypeError, ValueError):
+                    return Response({'lineas': ['Cada entrega debe indicar una actividad y una cantidad válida.']}, status=status.HTTP_400_BAD_REQUEST)
+                if cantidad <= 0 or actividad_id in por_actividad:
+                    return Response({'lineas': ['Las cantidades deben ser positivas y cada actividad debe aparecer una sola vez.']}, status=status.HTTP_400_BAD_REQUEST)
+                por_actividad[actividad_id] = cantidad
+
+            for actividad_id, cantidad in por_actividad.items():
+                actividad = get_object_or_404(Actividad.objects.select_related('objetivo__documento'), pk=actividad_id)
+                if actividad.objetivo.documento.gestion != orden.gestion or actividad.objetivo.documento.unidad_solicitante_id != orden.carrera_id:
+                    raise PermissionDenied('La entrega debe pertenecer a la misma carrera y gestión.')
+                requerimiento = [item for item in presupuesto if item.actividad_id == actividad.id]
+                cantidad_asignada = sum(asignadas.get(item.id, 0) for item in requerimiento)
+                if not cantidad_asignada:
+                    raise PermissionDenied('Este material no fue comprado para la actividad seleccionada.')
+                entregado_actividad = sum(EntregaMaterialActividad.objects.filter(
+                    actividad=actividad,
+                    anulada=False,
+                    detalle_recepcion__detalle_orden=detalle_orden,
+                ).values_list('cantidad_entregada', flat=True))
+                if cantidad + entregado_actividad > cantidad_asignada:
+                    raise PermissionDenied('La entrega supera la cantidad comprada y planificada para la actividad.')
+                actividades[actividad_id] = actividad
+
+            entregado_desde_recepcion = sum(EntregaMaterialActividad.objects.filter(
+                detalle_recepcion=detalle,
+                anulada=False,
+            ).values_list('cantidad_entregada', flat=True))
+            total_entrega = sum(por_actividad.values())
+            if total_entrega + entregado_desde_recepcion > detalle.cantidad_recibida:
+                raise PermissionDenied('La entrega supera el saldo disponible de esta recepción.')
+
+            registros = []
+            for actividad_id, cantidad in por_actividad.items():
+                registros.append(EntregaMaterialActividad.objects.create(
+                    detalle_recepcion=detalle,
+                    actividad=actividades[actividad_id],
+                    cantidad_entregada=cantidad,
+                    fecha=request.data.get('fecha') or timezone.now().date(),
+                    nombre_receptor=receptor,
+                    ci_receptor=request.data.get('ci_receptor') or '',
+                    cargo_receptor=request.data.get('cargo_receptor') or '',
+                    telefono_receptor=request.data.get('telefono_receptor') or '',
+                    observacion=request.data.get('observacion') or '',
+                    acta_archivo=request.FILES.get('acta_archivo'),
+                    registrado_por=request.user,
+                ))
+        return Response(EntregaMaterialActividadSerializer(registros, many=True, context={'request': request}).data, status=status.HTTP_201_CREATED)
 
 class AnularMovimientoMaterialPOAView(APIView):
     """Anula movimientos sin borrarlos, respetando el orden de la trazabilidad."""

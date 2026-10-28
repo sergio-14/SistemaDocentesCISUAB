@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { FaSave, FaTimes } from 'react-icons/fa';
 import { createActividad, updateActividad, searchIndicadoresCatalogo } from '../../../apis/poa.api';
 import { Input, Textarea, Select, Modal } from './base';
@@ -9,17 +9,41 @@ const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', '
 const CAMPOS_OBLIGATORIOS = ['codigo', 'nombre', 'responsable', 'productos_esperados', 'mes_inicio', 'mes_fin', 'indicador_unidad', 'indicador_linea_base', 'indicador_meta'];
 const FORM_INICIAL = { codigo: '', nombre: '', responsable: '', productos_esperados: '', indicador_descripcion: '', indicador_unidad: 'numero', indicador_linea_base: '', indicador_meta: '', mes_inicio: 'enero', mes_fin: 'diciembre', riesgo_previsto: '' };
 
-export default function NuevaActividadModal({ onClose, onCreated, onUpdated, objetivoId, actividad }) {
+const sugerirSiguienteCodigo = (actividades = []) => {
+  const codigos = actividades
+    .map((item) => {
+      const codigo = String(item?.codigo || '').trim();
+      const match = codigo.match(/^(.*?)(\d+)\s*$/);
+      return match ? { prefijo: match[1], numero: Number(match[2]), ancho: match[2].length } : null;
+    })
+    .filter((item) => item && Number.isSafeInteger(item.numero));
+  if (!codigos.length) return '';
+
+  const ultimo = codigos.reduce((mayor, actual) => actual.numero >= mayor.numero ? actual : mayor);
+  return `${ultimo.prefijo}${String(ultimo.numero + 1).padStart(ultimo.ancho, '0')}`;
+};
+
+export default function NuevaActividadModal({ onClose, onCreated, onUpdated, objetivoId, actividad, actividades = [] }) {
   const [form, setForm] = useState(FORM_INICIAL);
   const [indicadores, setIndicadores] = useState([]);
   const [guardando, setGuardando] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [errorMessages, setErrorMessages] = useState([]);
+  const codigoEditado = useRef(false);
 
   useEffect(() => {
-    setForm(actividad ? { ...FORM_INICIAL, ...actividad, indicador_descripcion: actividad.indicador_descripcion || '' } : FORM_INICIAL);
+    codigoEditado.current = false;
+    setForm(actividad
+      ? { ...FORM_INICIAL, ...actividad, indicador_descripcion: actividad.indicador_descripcion || '' }
+      : { ...FORM_INICIAL, codigo: sugerirSiguienteCodigo(actividades) });
     setFieldErrors({}); setErrorMessages([]);
-  }, [actividad]);
+  }, [actividad, objetivoId]);
+
+  useEffect(() => {
+    if (actividad || codigoEditado.current) return;
+    const sugerencia = sugerirSiguienteCodigo(actividades);
+    setForm((current) => current.codigo === sugerencia ? current : { ...current, codigo: sugerencia });
+  }, [actividades, actividad]);
 
   useEffect(() => {
     const query = String(form.indicador_descripcion || '').trim();
@@ -32,6 +56,7 @@ export default function NuevaActividadModal({ onClose, onCreated, onUpdated, obj
     if (field) requestAnimationFrame(() => document.querySelector(`[name="${field}"]`)?.focus());
   };
   const cambiar = (campo, valor) => {
+    if (campo === 'codigo') codigoEditado.current = true;
     setForm((current) => ({ ...current, [campo]: valor }));
     if (fieldErrors[campo]) setFieldErrors((current) => ({ ...current, [campo]: '' }));
   };
@@ -66,5 +91,5 @@ export default function NuevaActividadModal({ onClose, onCreated, onUpdated, obj
     } finally { setGuardando(false); }
   };
 
-  return <Modal onClose={onClose}><div className="modal-panel w-full max-w-3xl"><div className="modal-header flex items-center justify-between"><div><p className="text-xs">Actividad</p><h3>{actividad?.id ? 'Editar actividad' : 'Nueva actividad'}</h3></div><button type="button" onClick={onClose} aria-label="Cerrar"><FaTimes /></button></div><form onSubmit={guardar} className="space-y-4 p-5" noValidate><ModalErrorAlert title="Revise los campos marcados:" messages={errorMessages} /><div className="grid gap-3 md:grid-cols-3"><Input label="Código" name="codigo" required value={form.codigo} error={fieldErrors.codigo} onChange={(e) => cambiar('codigo', e.target.value)} /><div className="md:col-span-2"><Input label="Nombre de la actividad" name="nombre" required value={form.nombre} error={fieldErrors.nombre} onChange={(e) => cambiar('nombre', e.target.value)} /></div><div className="md:col-span-3"><Input label="Responsable" name="responsable" required value={form.responsable} error={fieldErrors.responsable} onChange={(e) => cambiar('responsable', e.target.value)} /></div><div className="md:col-span-3"><Textarea label="Productos esperados" name="productos_esperados" required rows={3} value={form.productos_esperados} error={fieldErrors.productos_esperados} onChange={(e) => cambiar('productos_esperados', e.target.value)} /></div></div><div className="grid gap-3 md:grid-cols-3"><div className="md:col-span-2"><Input label="Indicador" name="indicador_descripcion" list="indicadores-poa" value={form.indicador_descripcion} error={fieldErrors.indicador_descripcion} onChange={(e) => cambiar('indicador_descripcion', e.target.value)} helperText="Opcional según las reglas actuales." /><datalist id="indicadores-poa">{indicadores.map((item) => <option key={item.id || item.descripcion || item.indicador} value={item.descripcion || item.nombre || item.indicador} />)}</datalist></div><Select label="Unidad" name="indicador_unidad" required value={form.indicador_unidad} error={fieldErrors.indicador_unidad} onChange={(e) => cambiar('indicador_unidad', e.target.value)}><option value="numero">Número</option><option value="porcentaje">Porcentaje</option></Select><Input label="Línea base" name="indicador_linea_base" required type="number" min="0" max={form.indicador_unidad === 'porcentaje' ? 100 : undefined} value={form.indicador_linea_base} error={fieldErrors.indicador_linea_base} onChange={(e) => cambiar('indicador_linea_base', e.target.value)} /><Input label="Meta" name="indicador_meta" required type="number" min="0" max={form.indicador_unidad === 'porcentaje' ? 100 : undefined} value={form.indicador_meta} error={fieldErrors.indicador_meta} onChange={(e) => cambiar('indicador_meta', e.target.value)} /><Select label="Mes inicio" name="mes_inicio" required value={form.mes_inicio} error={fieldErrors.mes_inicio} onChange={(e) => { cambiar('mes_inicio', e.target.value); if (MESES.indexOf(e.target.value) > MESES.indexOf(form.mes_fin)) cambiar('mes_fin', e.target.value); }}>{MESES.map((mes) => <option key={mes} value={mes}>{mes[0].toUpperCase() + mes.slice(1)}</option>)}</Select><Select label="Mes fin" name="mes_fin" required value={form.mes_fin} error={fieldErrors.mes_fin} onChange={(e) => cambiar('mes_fin', e.target.value)}>{MESES.map((mes) => <option key={mes} value={mes} disabled={MESES.indexOf(mes) < MESES.indexOf(form.mes_inicio)}>{mes[0].toUpperCase() + mes.slice(1)}</option>)}</Select></div><Textarea label="Riesgo previsto y medida de respuesta" name="riesgo_previsto" rows={2} value={form.riesgo_previsto} error={fieldErrors.riesgo_previsto} onChange={(e) => cambiar('riesgo_previsto', e.target.value)} placeholder="Opcional: riesgo y cómo se atenderá." /><div className="modal-actions flex justify-end gap-2"><button type="button" className="btn-cancel rounded px-3 py-2" onClick={onClose}>Cancelar</button><button disabled={guardando} className="btn-primary rounded px-3 py-2"><FaSave className="mr-1 inline" />{guardando ? 'Guardando…' : 'Guardar actividad'}</button></div></form></div></Modal>;
+  return <Modal onClose={onClose}><div className="modal-panel w-full max-w-3xl"><div className="modal-header flex items-center justify-between"><div><p className="text-xs">Actividad</p><h3>{actividad?.id ? 'Editar actividad' : 'Nueva actividad'}</h3></div><button type="button" onClick={onClose} aria-label="Cerrar"><FaTimes /></button></div><form onSubmit={guardar} className="space-y-4 p-5" noValidate><ModalErrorAlert title="Revise los campos marcados:" messages={errorMessages} /><div className="grid gap-3 md:grid-cols-3"><Input label="Código" name="codigo" required value={form.codigo} error={fieldErrors.codigo} helperText={actividad?.id ? undefined : (form.codigo ? 'Sugerencia automatica; puede modificarla.' : 'Ingrese manualmente el codigo de la primera actividad.')} onChange={(e) => cambiar('codigo', e.target.value)} /><div className="md:col-span-2"><Input label="Nombre de la actividad" name="nombre" required value={form.nombre} error={fieldErrors.nombre} onChange={(e) => cambiar('nombre', e.target.value)} /></div><div className="md:col-span-3"><Input label="Responsable" name="responsable" required value={form.responsable} error={fieldErrors.responsable} onChange={(e) => cambiar('responsable', e.target.value)} /></div><div className="md:col-span-3"><Textarea label="Productos esperados" name="productos_esperados" required rows={3} value={form.productos_esperados} error={fieldErrors.productos_esperados} onChange={(e) => cambiar('productos_esperados', e.target.value)} /></div></div><div className="grid gap-3 md:grid-cols-3"><div className="md:col-span-2"><Input label="Indicador" name="indicador_descripcion" list="indicadores-poa" value={form.indicador_descripcion} error={fieldErrors.indicador_descripcion} onChange={(e) => cambiar('indicador_descripcion', e.target.value)} helperText="Opcional según las reglas actuales." /><datalist id="indicadores-poa">{indicadores.map((item) => <option key={item.id || item.descripcion || item.indicador} value={item.descripcion || item.nombre || item.indicador} />)}</datalist></div><Select label="Unidad" name="indicador_unidad" required value={form.indicador_unidad} error={fieldErrors.indicador_unidad} onChange={(e) => cambiar('indicador_unidad', e.target.value)}><option value="numero">Número</option><option value="porcentaje">Porcentaje</option></Select><Input label="Línea base" name="indicador_linea_base" required type="number" min="0" max={form.indicador_unidad === 'porcentaje' ? 100 : undefined} value={form.indicador_linea_base} error={fieldErrors.indicador_linea_base} onChange={(e) => cambiar('indicador_linea_base', e.target.value)} /><Input label="Meta" name="indicador_meta" required type="number" min="0" max={form.indicador_unidad === 'porcentaje' ? 100 : undefined} value={form.indicador_meta} error={fieldErrors.indicador_meta} onChange={(e) => cambiar('indicador_meta', e.target.value)} /><Select label="Mes inicio" name="mes_inicio" required value={form.mes_inicio} error={fieldErrors.mes_inicio} onChange={(e) => { cambiar('mes_inicio', e.target.value); if (MESES.indexOf(e.target.value) > MESES.indexOf(form.mes_fin)) cambiar('mes_fin', e.target.value); }}>{MESES.map((mes) => <option key={mes} value={mes}>{mes[0].toUpperCase() + mes.slice(1)}</option>)}</Select><Select label="Mes fin" name="mes_fin" required value={form.mes_fin} error={fieldErrors.mes_fin} onChange={(e) => cambiar('mes_fin', e.target.value)}>{MESES.map((mes) => <option key={mes} value={mes} disabled={MESES.indexOf(mes) < MESES.indexOf(form.mes_inicio)}>{mes[0].toUpperCase() + mes.slice(1)}</option>)}</Select></div><Textarea label="Riesgo previsto y medida de respuesta" name="riesgo_previsto" rows={2} value={form.riesgo_previsto} error={fieldErrors.riesgo_previsto} onChange={(e) => cambiar('riesgo_previsto', e.target.value)} placeholder="Opcional: riesgo y cómo se atenderá." /><div className="modal-actions flex justify-end gap-2"><button type="button" className="btn-cancel rounded px-3 py-2" onClick={onClose}>Cancelar</button><button disabled={guardando} className="btn-primary rounded px-3 py-2"><FaSave className="mr-1 inline" />{guardando ? 'Guardando…' : 'Guardar actividad'}</button></div></form></div></Modal>;
 }

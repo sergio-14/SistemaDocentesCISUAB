@@ -338,6 +338,7 @@ const ActividadesPage = () => {
           documentoId={documentoId}
           documentoEstado={documentoEstado}
           actividad={actividadEdit}
+          actividades={actividades}
           onClose={() => { setActividadEdit(null); closeNueva(); }}
           onCreated={(a) => { setActividades(prev => [a, ...(prev || [])]); closeNueva(); }}
           onUpdated={(u) => {

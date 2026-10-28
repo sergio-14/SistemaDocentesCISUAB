@@ -456,8 +456,11 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
       if (nuevoEstado === 'observado') toast.success('Observación registrada correctamente.');
     } catch (err) {
       const responseData = err?.response?.data;
+      const erroresFormulacion = Array.isArray(responseData?.errores)
+        ? responseData.errores.filter(Boolean)
+        : [];
       const detail = responseData?.detail || responseData?.jefe_unidad?.[0] || responseData?.observaciones?.[0] || err?.message || 'Error al actualizar el documento';
-      toast.error(String(detail));
+      toast.error([detail, ...erroresFormulacion].join(' '));
     } finally {
       setUpdatingEstadoId(null);
     }

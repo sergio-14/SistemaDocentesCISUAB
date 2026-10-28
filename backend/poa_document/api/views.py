@@ -226,22 +226,22 @@ def _errores_formulacion_documento(documento):
         errores.append('Debe registrar al menos un objetivo específico.')
         return errores
 
-    codigos = set()
     for objetivo in objetivos:
         if not (objetivo.descripcion or '').strip():
             errores.append(f'El objetivo {objetivo.codigo or objetivo.id} no tiene descripción.')
         actividades = list(objetivo.actividades.all())
         if not actividades:
             errores.append(f'El objetivo {objetivo.codigo or objetivo.id} debe tener al menos una actividad.')
+        codigos_objetivo = set()
         for actividad in actividades:
             etiqueta = actividad.codigo or f'#{actividad.id}'
             codigo = (actividad.codigo or '').strip().lower()
             if not codigo:
                 errores.append(f'La actividad {etiqueta} no tiene código.')
-            elif codigo in codigos:
-                errores.append(f'El código de actividad "{actividad.codigo}" está repetido en el documento.')
+            elif codigo in codigos_objetivo:
+                errores.append(f'El código de actividad "{actividad.codigo}" está repetido en el objetivo {objetivo.codigo or objetivo.id}.')
             else:
-                codigos.add(codigo)
+                codigos_objetivo.add(codigo)
             obligatorios = {
                 'nombre': actividad.nombre, 'responsable': actividad.responsable,
                 'productos esperados': actividad.productos_esperados,

@@ -25,10 +25,12 @@ const ordenArchivados = (a, b) => (
   || String(a.docente_nombre || '').localeCompare(String(b.docente_nombre || ''))
 );
 
-// Solo superusuario, Director y Jefe de Estudios (la ruta y la API lo exigen).
+// Solo superusuario, Director, Jefe de Estudios e Instituto (la ruta y la API lo exigen). El
+// Instituto solo los consulta: no restaura.
 function FondosArchivados() {
   const { effectiveUser, activeAssignment } = useActiveRole();
   const esSuperusuario = effectiveUser?.is_superuser === true;
+  const puedeRestaurar = esSuperusuario || effectiveUser?.perfil?.rol !== 'iiisyp';
   const [archivados, setArchivados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -137,14 +139,16 @@ function FondosArchivados() {
         <Eye className="w-[18px] h-[18px]" strokeWidth={1.5} />
         <span>Ver</span>
       </Link>
-      <button data-escritura
-        type="button"
-        onClick={() => setFondoPorRestaurar(fondo)}
-        className={`${BOTON} bg-sky-600 hover:bg-sky-700 text-white`}
-      >
-        <ArchiveRestore className="w-[18px] h-[18px]" strokeWidth={1.5} />
-        <span>Restaurar</span>
-      </button>
+      {puedeRestaurar && (
+        <button data-escritura
+          type="button"
+          onClick={() => setFondoPorRestaurar(fondo)}
+          className={`${BOTON} bg-sky-600 hover:bg-sky-700 text-white`}
+        >
+          <ArchiveRestore className="w-[18px] h-[18px]" strokeWidth={1.5} />
+          <span>Restaurar</span>
+        </button>
+      )}
     </div>
   );
 
@@ -170,7 +174,7 @@ function FondosArchivados() {
               </p>
               <h2 className="text-2xl sm:text-3xl font-bold text-blue-900">Fondos Archivados</h2>
               <p className="mt-1 text-sm text-slate-600">
-                Fondos retirados del dashboard. Se consultan con sus documentos y se pueden restaurar.
+                Fondos retirados del dashboard. Se consultan con sus documentos{puedeRestaurar ? ' y se pueden restaurar' : ''}.
               </p>
             </div>
           </div>
@@ -302,8 +306,8 @@ function FondosArchivados() {
       {archivados.length > 0 && (
         <p className="rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-900">
           Un fondo archivado no se borra y sus clases no cuentan en los choques de horario, de modo que
-          la gestión se puede rehacer con un fondo nuevo. Al restaurarlo vuelve al dashboard con el estado
-          que tenía.
+          la gestión se puede rehacer con un fondo nuevo.
+          {puedeRestaurar && ' Al restaurarlo vuelve al dashboard con el estado que tenía.'}
         </p>
       )}
 

@@ -175,6 +175,15 @@ class IsAdminOrDirector(BasePermission):
         ))
 
 
+class PuedeConsultarReportes(BasePermission):
+    """Fondos archivados y comparativas: superusuario, o Director, Jefe de Estudios e
+    Instituto (IIISyP) como rol activo. El Instituto los consulta sin escribir nada."""
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and (
+            request.user.is_superuser or _rol_activo(request) in ['director', 'jefe_estudios', 'iiisyp']
+        ))
+
+
 class IsFullAdminOrDirectorCarrera(BasePermission):
     """
     Permite gestionar recursos de carrera al superusuario o al Director de Carrera.
@@ -708,12 +717,14 @@ class CarreraViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated], url_path='informe-gestion')
     def informe_gestion(self, request, pk=None):
         """Arts. 19 y 28: informe de gestión de la carrera (PDF) de una gestión, para la
-        Decanatura. Lo descargan el Director de la carrera (rol activo) y el superusuario."""
+        Decanatura. Lo descargan el Director y el Instituto (IIISyP) de la carrera (rol
+        activo) y el superusuario."""
         carrera = self.get_object()
         if not request.user.is_superuser and not (
-            self._rol_usuario(request.user) == 'director' and self._user_can_access_carrera(request.user, carrera)
+            self._rol_usuario(request.user) in ['director', 'iiisyp']
+            and self._user_can_access_carrera(request.user, carrera)
         ):
-            raise PermissionDenied('Solo el Director de la carrera descarga el informe de gestión.')
+            raise PermissionDenied('Solo el Director y el Instituto de la carrera descargan el informe de gestión.')
         try:
             gestion = int(request.query_params.get('gestion', ''))
         except ValueError:
@@ -1451,7 +1462,10 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         - Director/Jefe de Estudios: ve todos los de su carrera.
         - Docente: solo ve los suyos.
         """
-        queryset = super().get_queryset().filter(archivado=False)
+        queryset = super().get_queryset()
+        # El comparador también usa los archivados: son las gestiones ya concluidas.
+        if self.action != 'comparar':
+            queryset = queryset.filter(archivado=False)
         user = self.request.user
         try:
             perfil = _obtener_perfil_efectivo(user, self.request)
@@ -1863,9 +1877,9 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         serializer = self.get_serializer(fondo)
         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'], permission_classes=[IsAdminOrDirector])
+    @action(detail=False, methods=['get'], permission_classes=[PuedeConsultarReportes])
     def comparar(self, request):
-        """Comparar fondos de tiempo entre gestiones (superusuario, Director o Jefe de Estudios)."""
+        """Comparar fondos de tiempo entre gestiones (superusuario, Director, Jefe de Estudios o Instituto)."""
         try:
             docente_id, gestion1, gestion2 = (
                 int(request.query_params[clave]) for clave in ('docente', 'gestion1', 'gestion2')
@@ -1880,14 +1894,20 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         fondos = self.get_queryset().filter(
             docente_id=docente_id,
             gestion__in=[gestion1, gestion2],
-        ).select_related('docente', 'carrera').order_by('gestion')
+        ).select_related('docente', 'carrera').order_by('gestion', 'archivado', '-id')
 
-        serializer = self.get_serializer(fondos, many=True)
+        # Uno por gestión: el vigente y, si no hay, el archivado más reciente (una gestión
+        # rehecha tiene su fondo archivado y el nuevo).
+        por_gestion = {}
+        for fondo in fondos:
+            por_gestion.setdefault(fondo.gestion, fondo)
+
+        serializer = self.get_serializer(list(por_gestion.values()), many=True)
         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'], permission_classes=[IsAdminOrDirector])
+    @action(detail=False, methods=['get'], permission_classes=[PuedeConsultarReportes])
     def archivados(self, request):
-        """Fondos archivados: superusuario (todos), o Director y Jefe de Estudios (los de su carrera)."""
+        """Fondos archivados: superusuario (todos), o Director, Jefe de Estudios e Instituto (los de su carrera)."""
         queryset = FondoTiempo.objects.filter(archivado=True).select_related('docente', 'carrera')
 
         if not request.user.is_superuser:

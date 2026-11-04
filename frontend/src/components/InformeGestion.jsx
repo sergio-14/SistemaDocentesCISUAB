@@ -10,8 +10,9 @@ import { BLOQUE, BOTON, BOTON_DOCUMENTO } from './fondos/estilosFondo';
 
 const labelCls = 'mb-1.5 pl-1 block text-xs font-semibold text-slate-700';
 
-// Arts. 19 y 28: informe de gestión de la carrera (PDF) para la Decanatura. El Director lo
-// descarga de su carrera; el superusuario elige la carrera. La gestión sale de los fondos.
+// Arts. 19 y 28: informe de gestión de la carrera (PDF) para la Decanatura. El Director y el
+// Instituto lo descargan de su carrera; el superusuario elige la carrera. La gestión sale de
+// los fondos.
 function InformeGestion() {
   const { effectiveUser, activeCareerId, activeCareerName, activeAssignment } = useActiveRole();
   const esSuperusuario = effectiveUser?.is_superuser === true;

@@ -304,13 +304,13 @@ function App() {
               
               {/* Las rutas hijas son relativas al padre */}
               <Route path="fondo/:id" element={<AnimatedRoute><DetalleFondo isDark={isDark} /></AnimatedRoute>} />
-              <Route path="comparar" element={<RutaPorRol roles={['director', 'jefe_estudios']}><AnimatedRoute><Comparador /></AnimatedRoute></RutaPorRol>} />
+              <Route path="comparar" element={<RutaPorRol roles={['iiisyp', 'director', 'jefe_estudios']}><AnimatedRoute><Comparador /></AnimatedRoute></RutaPorRol>} />
 
               <Route path="cargas-horarias" element={<AnimatedRoute><CargaHorariaGeneral /></AnimatedRoute>} />
               <Route path="docentes/:id" element={<AnimatedRoute><FondoTiempoDocente /></AnimatedRoute>} />
               {/* Ruta para los fondos archivados dentro del módulo de Fondo de Tiempo */}
-              <Route path="archivados" element={<RutaPorRol roles={['director', 'jefe_estudios']}><AnimatedRoute><FondosArchivados /></AnimatedRoute></RutaPorRol>} />
-              <Route path="informe-gestion" element={<RutaPorRol roles={['director']}><AnimatedRoute><InformeGestion /></AnimatedRoute></RutaPorRol>} />
+              <Route path="archivados" element={<RutaPorRol roles={['iiisyp', 'director', 'jefe_estudios']}><AnimatedRoute><FondosArchivados /></AnimatedRoute></RutaPorRol>} />
+              <Route path="informe-gestion" element={<RutaPorRol roles={['iiisyp', 'director']}><AnimatedRoute><InformeGestion /></AnimatedRoute></RutaPorRol>} />
 
               {/* Rutas de Administración (Integradas en el Sidebar) */}
               <Route path="docentes" element={<AnimatedRoute><ListaDocentes isDark={isDark} /></AnimatedRoute>} />

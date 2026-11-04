@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeftRight, Eye } from 'lucide-react';
-import { compararFondos, getFondosTiempo } from '../apis/api';
+import { compararFondos, getFondosArchivados, getFondosTiempo } from '../apis/api';
 import { useActiveRole } from '../contexts/activeRole';
 import { getApiErrorMessage } from '../utils/formErrors';
 import FiltroDesplegable from './common/FiltroDesplegable';
@@ -40,6 +40,7 @@ function ResumenGestion({ fondo }) {
           <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">Gestión</p>
           <h3 className="text-3xl font-bold text-blue-900 tabular-nums leading-tight">{fondo.gestion}</h3>
           {fondo.descripcion && <div className="mt-1"><Etiqueta>{fondo.descripcion}</Etiqueta></div>}
+          {fondo.archivado && <div className="mt-1"><Etiqueta>Archivado</Etiqueta></div>}
         </div>
         <EstadoPill estado={estadoVisibleFondo(fondo)} />
       </div>
@@ -109,7 +110,8 @@ function TablaDiferencias({ anterior, posterior }) {
         <span className="text-right">Diferencia</span>
       </div>
       <div className="mt-3 md:mt-1 divide-y divide-azulado-300">
-        {ORDEN_UNIDADES.map((tipo) => {
+        {/* El Instituto solo recibe la unidad de Investigación: las demás no se listan. */}
+        {ORDEN_UNIDADES.filter((tipo) => unidadesA[tipo] || unidadesB[tipo]).map((tipo) => {
           const a = unidadesA[tipo];
           const b = unidadesB[tipo];
           return (
@@ -146,8 +148,8 @@ function TablaDiferencias({ anterior, posterior }) {
   );
 }
 
-// Solo superusuario, Director y Jefe de Estudios (la ruta y la API lo exigen). El docente
-// y las gestiones se eligen entre los fondos que el usuario ve en el dashboard.
+// Solo superusuario, Director, Jefe de Estudios e Instituto (la ruta y la API lo exigen). El docente
+// y las gestiones se eligen entre los fondos que el usuario ve, vigentes y archivados.
 function Comparador() {
   const { effectiveUser, activeAssignment } = useActiveRole();
   const esSuperusuario = effectiveUser?.is_superuser === true;
@@ -163,8 +165,11 @@ function Comparador() {
   useEffect(() => {
     let vigente = true;
     setCargandoLista(true);
-    getFondosTiempo()
-      .then((data) => vigente && setFondosVisibles(Array.isArray(data) ? data : []))
+    Promise.all([getFondosTiempo(), getFondosArchivados()])
+      .then(([vigentes, archivados]) => vigente && setFondosVisibles([
+        ...(Array.isArray(vigentes) ? vigentes : []),
+        ...(Array.isArray(archivados.data) ? archivados.data : []),
+      ]))
       .catch((err) => vigente && setError(getApiErrorMessage(err, 'No se pudieron cargar los fondos.')))
       .finally(() => vigente && setCargandoLista(false));
     return () => { vigente = false; };

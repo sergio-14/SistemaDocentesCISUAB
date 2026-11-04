@@ -72,9 +72,9 @@ function Sidebar({ user, collapsed: collapsedEscritorio, setCollapsed, esMovil =
   const menuItems = {
     principal: [
       { path: '/fondo-tiempo', icon: LayoutDashboard, label: esSoloDocente ? 'Mis fondos' : 'Dashboard', roles: ['iiisyp', 'director', 'jefe_estudios', 'docente'], superuser: true },
-      { path: '/fondo-tiempo/comparar', icon: ArrowLeftRight, label: 'Comparar Fondos', roles: ['director', 'jefe_estudios'], superuser: true },
-      { path: '/fondo-tiempo/archivados', icon: Archive, label: 'Fondos Archivados', roles: ['director', 'jefe_estudios'], superuser: true },
-      { path: '/fondo-tiempo/informe-gestion', icon: FileText, label: 'Informe de gestión', roles: ['director'], superuser: true },
+      { path: '/fondo-tiempo/comparar', icon: ArrowLeftRight, label: 'Comparar Fondos', roles: ['iiisyp', 'director', 'jefe_estudios'], superuser: true },
+      { path: '/fondo-tiempo/archivados', icon: Archive, label: 'Fondos Archivados', roles: ['iiisyp', 'director', 'jefe_estudios'], superuser: true },
+      { path: '/fondo-tiempo/informe-gestion', icon: FileText, label: 'Informe de gestión', roles: ['iiisyp', 'director'], superuser: true },
     ],
     administracion: [
       { path: '/fondo-tiempo/docentes', icon: GraduationCap, label: 'Docentes', roles: ['iiisyp', 'director', 'jefe_estudios'], superuser: true },

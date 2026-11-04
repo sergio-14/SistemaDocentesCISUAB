@@ -109,15 +109,17 @@ function Login({ onLogin }) {
 
   } catch (err) {
     console.error(err);
+    let mensaje = 'Error al iniciar sesión.';
     if (err.response?.status === 401) {
-      setLoginError(MENSAJE_CREDENCIALES);
+      mensaje = MENSAJE_CREDENCIALES;
     } else if (err.response?.status === 500) {
-      setLoginError('Error del servidor. Intenta más tarde.');
+      mensaje = 'Error del servidor. Intenta más tarde.';
     } else if (!err.response) {
-      setLoginError('No se puede conectar con el servidor.');
-    } else {
-      setLoginError('Error al iniciar sesión.');
+      mensaje = 'No se puede conectar con el servidor.';
     }
+    setLoginError(mensaje);
+    // Además de la línea roja de los campos, el aviso flotante (como con los campos vacíos).
+    toast.error(mensaje);
   } finally {
     if (!nextRoute) {
       setLoading(false);
@@ -159,11 +161,11 @@ function Login({ onLogin }) {
       </svg>
       <div className="pointer-events-none absolute inset-y-0 right-0 hidden lg:block w-[58vw] [clip-path:url(#login-mancha)]" aria-hidden="true">
         <Suspense fallback={null}>
-          <VideosParabas className="absolute inset-0 scale-110 blur-2xl opacity-40" />
+          <VideosParabas className="absolute inset-0 scale-110 blur-2xl opacity-60" />
         </Suspense>
-        <div className="absolute inset-0 bg-gradient-to-l from-sky-200/40 to-azulado-100/60" />
+        <div className="absolute inset-0 bg-gradient-to-l from-blue-900/40 to-blue-900/30" />
       </div>
-      <p className="pointer-events-none absolute left-[3vw] top-[2vh] hidden lg:block text-[8.5vw] font-extrabold leading-none tracking-tight text-blue-900/[0.06]" aria-hidden="true">
+      <p className="pointer-events-none absolute left-[3vw] top-[2vh] hidden lg:block text-[8.5vw] font-extrabold leading-none tracking-tight text-blue-900/[0.12]" aria-hidden="true">
         Bienvenido
       </p>
 
@@ -182,7 +184,7 @@ function Login({ onLogin }) {
           </div>
           {/* Línea punteada suelta en la parte blanca, separada del borde del video y con su propio vaivén. */}
           <svg className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden lg:block h-full w-[56%] overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M21,0 C12,4 2,9 4,18 C6,26 19,30 20,40 C21,50 12,55 8,63 C4,71 5,80 2,88 C0,93 -2,97 -4,100" fill="none" stroke="#7d9cc0" strokeOpacity="0.85" strokeWidth="1.5" strokeDasharray="5 6" vectorEffect="non-scaling-stroke" />
+            <path d="M21,0 C12,4 2,9 4,18 C6,26 19,30 20,40 C21,50 12,55 8,63 C4,71 5,80 2,88 C0,93 -2,97 -4,100" fill="none" stroke="#1e3a8a" strokeOpacity="0.4" strokeWidth="1.5" strokeDasharray="5 6" vectorEffect="non-scaling-stroke" />
           </svg>
 
           {/* Formulario: arriba la marca (logo y nombre); al medio, título y campos. Los mensajes de error

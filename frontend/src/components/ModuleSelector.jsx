@@ -1,23 +1,13 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowRight } from 'lucide-react';
 import ModalMiCuenta from './cuenta/ModalMiCuenta';
 import { useActiveRole } from '../contexts/activeRole';
 import { useErrorPulse } from '../utils/formErrors';
-import loroSilueta from '../assets/loro-silueta.webp';
 
-// La silueta del loro se pinta con el color de fondo a través de esta máscara.
-const MASCARA_LORO = {
-    WebkitMaskImage: `url(${loroSilueta})`,
-    maskImage: `url(${loroSilueta})`,
-    WebkitMaskSize: 'contain',
-    maskSize: 'contain',
-    WebkitMaskRepeat: 'no-repeat',
-    maskRepeat: 'no-repeat',
-    WebkitMaskPosition: 'center',
-    maskPosition: 'center',
-};
+// Los mismos videos del login, desenfocados y tenues, dentro de la división azul.
+const VideosParabas = lazy(() => import('./login/VideosParabas'));
 
 // --- ICONOS ---
 
@@ -213,7 +203,7 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
         <div className="space-y-6">
             {mostrarHerramientasGestion && (
                 <div>
-                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-900/60 dark:text-slate-400">{tituloHerramientasGestion}</p>
+                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-900/60 lg:text-white/80 dark:text-slate-400">{tituloHerramientasGestion}</p>
                     <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-1">
                         {herramientasVisibles.map((tool) => (
                             <ToolLink key={tool.name} {...tool} />
@@ -250,37 +240,32 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
 
             {/* Zona izquierda: la marca en la esquina, el título y los módulos. */}
             <section className="relative flex lg:min-h-screen flex-col px-5 sm:px-10 lg:pl-[4vw] lg:pr-10 pt-5 pb-10 lg:pt-8">
+                {/* En escritorio, "Panel de módulos" enorme y suave detrás, como el "Bienvenido" del login. */}
+                <h1 className="pointer-events-none absolute left-[3vw] top-[11vh] -z-10 hidden lg:block whitespace-nowrap text-[6.4vw] font-extrabold leading-none tracking-tight text-blue-900/[0.2] dark:text-white/[0.1]">
+                    Panel de módulos
+                </h1>
                 <div className="relative">
                 {/* En celular, mancha azulada detrás del encabezado y el título, con la línea punteada en su
                     borde; sigue el alto del bloque (en escritorio está la división). */}
                 <svg className="pointer-events-none absolute -inset-x-5 sm:-inset-x-10 -top-5 -bottom-10 -z-10 h-[calc(100%+3.75rem)] w-[calc(100%+2.5rem)] sm:w-[calc(100%+5rem)] lg:hidden" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                    <path className="fill-azulado-100 dark:fill-slate-900" d="M0,0 L100,0 L100,84 C82,96 66,78 48,88 C32,97 16,80 0,90 Z" />
-                    <path d="M0,97 C16,87 32,100 48,94 C66,85 82,100 100,91" fill="none" stroke="#7d9cc0" strokeOpacity="0.85" strokeWidth="1.5" strokeDasharray="5 6" vectorEffect="non-scaling-stroke" />
+                    <path className="fill-blue-900/45 dark:fill-slate-900" d="M0,0 L100,0 L100,84 C82,96 66,78 48,88 C32,97 16,80 0,90 Z" />
+                    <path d="M0,97 C16,87 32,100 48,94 C66,85 82,100 100,91" fill="none" stroke="#1e3a8a" strokeOpacity="0.4" strokeWidth="1.5" strokeDasharray="5 6" vectorEffect="non-scaling-stroke" />
                 </svg>
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <img src="/images/LOGOUAB.png" alt="Logo de la UABJB" className="h-11 lg:h-12 w-auto" />
                         <div className="leading-tight">
-                            <p className="text-sm font-extrabold text-blue-900 dark:text-sky-200">UABJB</p>
-                            <p className="hidden sm:block text-xs text-slate-500 dark:text-slate-400">Universidad Autónoma del Beni</p>
+                            <p className="text-sm font-extrabold text-white lg:text-blue-900 dark:text-sky-200">UABJB</p>
+                            <p className="hidden sm:block text-xs text-white/75 lg:text-slate-500 dark:text-slate-400">Universidad Autónoma del Beni</p>
                         </div>
                     </div>
                     <div className="lg:hidden">{cuenta}</div>
                 </div>
 
-                <div className="panel-entrada relative w-full max-w-3xl lg:mx-auto pt-8 pr-20 sm:pr-28 lg:pr-0 lg:pt-[9vh]">
-                    {/* En celular, el loro a la derecha del título, mirando hacia las letras. */}
-                    <div
-                        className="pointer-events-none absolute right-0 bottom-0 h-[7.5rem] sm:h-36 aspect-[1/1.75] -scale-x-100 bg-[#8fa8cd] dark:bg-slate-700 lg:hidden"
-                        style={MASCARA_LORO}
-                        aria-hidden="true"
-                    />
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Panel de módulos</p>
-                    <h1 className="mt-2 text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                        ¿A dónde vamos hoy<span className="text-sky-600">?</span>
-                    </h1>
-                    <p className="mt-2 sm:mt-3 text-sm sm:text-base text-slate-500 dark:text-slate-400">Seleccione el sistema al que desea ingresar.</p>
-                </div>
+                {/* En celular, el título va dentro de la mancha azulada; en escritorio, encima de los módulos. */}
+                <h1 className="pt-8 text-4xl sm:text-5xl font-extrabold tracking-tight text-white lg:hidden">
+                    Panel de módulos
+                </h1>
                 </div>
 
                 <main className="panel-entrada w-full max-w-3xl lg:mx-auto">
@@ -288,7 +273,7 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
                     {/* En celular, la administración y el rol van antes de los módulos. */}
                     {conColumnaLateral && <div className="mt-12 lg:hidden">{columnaLateral}</div>}
 
-                    <div className={`${conColumnaLateral ? 'mt-7' : 'mt-12'} lg:mt-9 grid grid-cols-2 gap-3 sm:gap-4`}>
+                    <div className={`${conColumnaLateral ? 'mt-7' : 'mt-12'} lg:mt-[24vh] grid grid-cols-2 gap-3 sm:gap-4`}>
                         {modules.map((module) => (
                             <ModuleCard
                                 key={module.clave}
@@ -305,37 +290,33 @@ const ModuleSelector = ({ user, onLogout, onProfileUpdate }) => {
             </section>
 
             {/* Zona derecha (solo escritorio): la división azulada con la línea punteada; arriba la persona,
-                luego la administración y el rol, "Módulos" grande abajo y el nombre de la universidad. */}
+                luego la administración y el rol, y abajo el nombre de la universidad. */}
             <section className="relative hidden lg:flex min-h-screen flex-col pl-[9vw] pr-10 py-8">
-                <svg className="pointer-events-none absolute inset-0 -z-10 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                {/* La división: los videos del login desenfocados y tenues bajo un velo azul, como la mancha del login. */}
+                <svg width="0" height="0" className="absolute" aria-hidden="true" focusable="false">
                     <defs>
-                        <linearGradient id="panel-division" x1="0" y1="0" x2="1" y2="1">
-                            <stop offset="0" stopColor="#DFE8F5" />
-                            <stop offset="1" stopColor="#B8C9E1" />
-                        </linearGradient>
+                        <clipPath id="panel-division" clipPathUnits="objectBoundingBox">
+                            <path d="M0.3,0 C0.16,0.05 0.09,0.12 0.13,0.24 C0.17,0.35 0.27,0.39 0.23,0.51 C0.19,0.63 0.08,0.66 0.1,0.79 C0.11,0.89 0.15,0.95 0.18,1 L1,1 L1,0 Z" />
+                        </clipPath>
                     </defs>
-                    <path className="dark:opacity-10" d="M30,0 C16,5 9,12 13,24 C17,35 27,39 23,51 C19,63 8,66 10,79 C11,89 15,95 18,100 L100,100 L100,0 Z" fill="url(#panel-division)" />
-                    <path d="M19,0 C7,6 2,13 5,24 C8,35 18,39 14,51 C10,63 1,67 2,79 C3,89 6,95 8,100" fill="none" stroke="#7d9cc0" strokeOpacity="0.85" strokeWidth="1.5" strokeDasharray="5 6" vectorEffect="non-scaling-stroke" />
                 </svg>
-                <p className="pointer-events-none absolute right-8 bottom-[9%] -z-10 text-[7vw] font-extrabold leading-none tracking-tight text-blue-900/[0.13] dark:text-white/[0.07]" aria-hidden="true">
-                    Módulos
-                </p>
-
+                <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden [clip-path:url(#panel-division)] dark:opacity-10" aria-hidden="true">
+                    <Suspense fallback={null}>
+                        <VideosParabas className="absolute inset-0 scale-110 blur-2xl opacity-60" />
+                    </Suspense>
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-900/30 to-blue-900/40" />
+                </div>
+                <svg className="pointer-events-none absolute inset-0 -z-10 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                    <path d="M19,0 C7,6 2,13 5,24 C8,35 18,39 14,51 C10,63 1,67 2,79 C3,89 6,95 8,100" fill="none" stroke="#1e3a8a" strokeOpacity="0.4" strokeWidth="1.5" strokeDasharray="5 6" vectorEffect="non-scaling-stroke" />
+                </svg>
                 <div className="flex justify-end">{cuenta}</div>
 
-                {/* Administración y rol de ingreso arriba del centro de la división, y el loro debajo. */}
+                {/* Administración y rol de ingreso arriba del centro de la división. */}
                 <div className={`relative w-full ${conColumnaLateral ? 'mt-[9vh]' : 'mt-[22vh]'}`}>
                     {conColumnaLateral && <aside className="panel-entrada mx-auto max-w-xs">{columnaLateral}</aside>}
-                    {/* Silueta del loro debajo de los botones, centrada bajo ellos (entre los botones y
-                        "Módulos"), mirando hacia los módulos, en el azulado de la división más intenso. */}
-                    <div
-                        className="pointer-events-none mx-auto mt-[6vh] h-[22vh] max-h-[210px] aspect-[1/1.75] -scale-x-100 bg-[#8fa8cd] dark:bg-slate-700"
-                        style={MASCARA_LORO}
-                        aria-hidden="true"
-                    />
                 </div>
 
-                <p className="mt-auto pt-8 text-right text-xs font-medium text-blue-900/70 dark:text-slate-400">
+                <p className="mt-auto pt-8 text-right text-xs font-medium text-white/80 dark:text-slate-400">
                     Universidad Autónoma del Beni "José Ballivián" · Trinidad, Beni
                 </p>
             </section>
@@ -350,7 +331,7 @@ const RoleInlineSelector = ({ assignments, activeAssignment, onSelect, getRoleLa
 
     return (
         <div>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Rol de ingreso</p>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 lg:text-white/80">Rol de ingreso</p>
             <div className={`space-y-2 rounded-2xl p-2 transition-colors ${
                 error
                     ? `bg-red-50 ring-2 ring-red-400/80 dark:bg-red-950/30 ${motionClass}`

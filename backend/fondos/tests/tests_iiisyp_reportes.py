@@ -63,6 +63,14 @@ class ReportesDelInstitutoTests(UsuariosBaseTestCase):
 
         self.assertEqual([fondo['id'] for fondo in respuesta.data], [rehecho.pk, self.vigente.pk])
 
+    def test_ve_las_siete_unidades_en_el_fondo_y_en_el_comparador(self):
+        detalle = self.como(self.instituto).get(f'/api/fondos-tiempo/{self.vigente.pk}/')
+        comparacion = self.comparar(self.instituto)
+
+        self.assertEqual(len(detalle.data['categorias']), 7)
+        for fondo in comparacion.data:
+            self.assertEqual(len(fondo['categorias']), 7)
+
     def test_descarga_el_informe_de_gestion_de_su_carrera(self):
         respuesta = self.informe_gestion(self.instituto)
 

@@ -110,8 +110,7 @@ function TablaDiferencias({ anterior, posterior }) {
         <span className="text-right">Diferencia</span>
       </div>
       <div className="mt-3 md:mt-1 divide-y divide-azulado-300">
-        {/* El Instituto solo recibe la unidad de Investigación: las demás no se listan. */}
-        {ORDEN_UNIDADES.filter((tipo) => unidadesA[tipo] || unidadesB[tipo]).map((tipo) => {
+        {ORDEN_UNIDADES.map((tipo) => {
           const a = unidadesA[tipo];
           const b = unidadesB[tipo];
           return (

@@ -421,7 +421,7 @@ function ListaFondos() {
                 )}
                 {esIisyp && (
                   <span className="mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-cyan-50 text-cyan-700 ring-1 ring-inset ring-cyan-300">
-                    Vista de Investigación - Solo Lectura
+                    Vista del Instituto - Solo Lectura
                   </span>
                 )}
               </div>

@@ -358,24 +358,6 @@ def _descripcion_otros(titulo_actividad):
     return descripcion
 
 
-def _usuario_es_iisyp_solo_lectura(context):
-    request = context.get('request') if context else None
-    if not request or not getattr(request, 'user', None) or request.user.is_superuser:
-        return False
-    perfil = get_effective_profile(request.user, request)
-    return bool(perfil and perfil.rol == 'iiisyp')
-
-
-def _filtrar_categorias_investigacion_para_iisyp(data, context):
-    if not _usuario_es_iisyp_solo_lectura(context):
-        return data
-
-    categorias = data.get('categorias')
-    if isinstance(categorias, list):
-        data['categorias'] = [categoria for categoria in categorias if categoria.get('tipo') == 'investigacion']
-    return data
-
-
 def _obtener_docente_para_validacion_fondo(bloques, docente_por_defecto=None):
     if isinstance(docente_por_defecto, Docente):
         return docente_por_defecto
@@ -2619,10 +2601,6 @@ class FondoTiempoSerializer(serializers.ModelSerializer):
                 })
         return super().to_internal_value(data)
 
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        return _filtrar_categorias_investigacion_para_iisyp(data, self.context)
-    
     def get_total_asignado(self, obj):
         if not hasattr(obj, '_total_asignado_calculado'):
             obj._total_asignado_calculado = obj.total_asignado
@@ -4500,10 +4478,6 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
         ).order_by('-fecha').first()
         return registro.fecha if registro else None
 
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        return _filtrar_categorias_investigacion_para_iisyp(data, self.context)
-    
     def get_informe_actual(self, obj):
         """Documento del informe (guardado o precargado con defaults, ver
         _informe_actual_o_borrador)."""

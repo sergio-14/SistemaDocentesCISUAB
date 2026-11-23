@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import IconButton from './IconButton';
 import { FaTimes } from 'react-icons/fa';
 import { createDetallePresupuesto, updateDetalle, getItemsCatalogo, crearSolicitudCambioPOA } from '../../../apis/poa.api';
@@ -45,6 +46,9 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
   const [selectedCatalogItem, setSelectedCatalogItem] = useState(null);
   const [showNuevoCatalogoItemModal, setShowNuevoCatalogoItemModal] = useState(false);
   const containerRef = useRef(null);
+  const itemSearchRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const [dropdownPosition, setDropdownPosition] = useState(null);
   const requestChangeMode = ['aprobado', 'ejecucion'].includes(String(documentoEstado || '').toLowerCase());
   const indiceInicioActividad = Math.max(0, MESES.indexOf(String(actividad?.mes_inicio || '').toLowerCase()));
   const indiceFinDetectado = MESES.indexOf(String(actividad?.mes_fin || '').toLowerCase());
@@ -85,7 +89,9 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
+      const clickedInForm = containerRef.current?.contains(event.target);
+      const clickedInDropdown = dropdownRef.current?.contains(event.target);
+      if (!clickedInForm && !clickedInDropdown) {
         setShowDropdown(false);
       }
     };
@@ -151,15 +157,61 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
       if (palabrasBusqueda.length && coincidencias.length === 0) return null;
 
       const coincidenciasDescripcion = palabrasBusqueda.filter((palabra) => descripcion.includes(palabra)).length;
-      const similitud = (coincidenciasDescripcion * 10)
+      const coberturaDescripcion = palabrasBusqueda.length
+        ? coincidenciasDescripcion / palabrasBusqueda.length
+        : 0;
+      const similitud = (coberturaDescripcion * 1000)
+        + (coincidenciasDescripcion * 20)
         + ((coincidencias.length - coincidenciasDescripcion) * 2)
-        + (queryNormalizada && descripcion.includes(queryNormalizada) ? 100 : 0);
+        + (queryNormalizada && descripcion.includes(queryNormalizada) ? 500 : 0);
       return { item: it, indice, similitud };
     })
     .filter(Boolean)
     .sort((a, b) => b.similitud - a.similitud || a.indice - b.indice)
-    .slice(0, 20)
     .map(({ item }) => item);
+
+  useLayoutEffect(() => {
+    if (!showDropdown || !hasSearchedItem || !itemSearchRef.current) {
+      setDropdownPosition(null);
+      return undefined;
+    }
+
+    const updateDropdownPosition = () => {
+      const anchor = itemSearchRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      const margin = 12;
+      const width = Math.min(rect.width, window.innerWidth - margin * 2);
+      const left = Math.max(margin, Math.min(rect.left, window.innerWidth - margin - width));
+      const spaceBelow = window.innerHeight - rect.bottom - margin;
+      const spaceAbove = rect.top - margin;
+      const opensAbove = spaceBelow < 360 && spaceAbove > spaceBelow;
+      const availableHeight = Math.max(
+        176,
+        Math.min(640, (opensAbove ? spaceAbove : spaceBelow) - 8),
+      );
+
+      setDropdownPosition({
+        left,
+        width,
+        maxHeight: availableHeight,
+        ...(opensAbove
+          ? { bottom: window.innerHeight - rect.top + 8 }
+          : { top: rect.bottom + 8 }),
+      });
+    };
+
+    updateDropdownPosition();
+    const handleScroll = (event) => {
+      if (!dropdownRef.current?.contains(event.target)) updateDropdownPosition();
+    };
+    window.addEventListener('resize', updateDropdownPosition);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      window.removeEventListener('resize', updateDropdownPosition);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [showDropdown, hasSearchedItem, catalogLoading, catalogError, filteredItems.length]);
 
   const handleSelectCatalogItem = (itemData) => {
     const descripcion = itemData.detalle ?? itemData.descripcion ?? itemData.nombre ?? itemData.nombre_item ?? itemData.codigo ?? '';
@@ -321,7 +373,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
           )}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Ítem / Detalle</label>
-            <div className="relative flex items-center gap-2">
+            <div ref={itemSearchRef} className="relative flex items-center gap-2">
               <input
                 name="item"
                 value={form.item}
@@ -346,74 +398,6 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
               >
                 Buscar
               </button>
-              {showDropdown && filteredItems.length > 0 && (
-                <div className="absolute z-30 left-0 right-0 mt-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-xl">
-                  <div className="px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
-                    Resultados encontrados: {filteredItems.length}
-                  </div>
-                  <div className="max-h-80 overflow-auto">
-                    {catalogLoading && <div className="p-3 text-sm text-gray-600 dark:text-slate-400">Cargando...</div>}
-                    {catalogError && <div className="p-3 text-sm text-red-600 dark:text-red-400">{catalogError}</div>}
-                    {!catalogLoading && !catalogError && filteredItems.map(it => (
-                      <button
-                        key={it.id ?? it.codigo ?? it.detalle ?? it.descripcion}
-                        type="button"
-                        onMouseDown={(e) => { e.preventDefault(); handleSelectCatalogItem(it); }}
-                        className="w-full text-left p-3 hover:bg-gray-100 dark:hover:bg-slate-700 text-sm text-gray-900 dark:text-slate-100 border-b border-slate-100 dark:border-slate-700"
-                      >
-                        <div className="font-medium">{it.detalle ?? it.descripcion ?? it.nombre ?? it.nombre_item ?? it.codigo}</div>
-                        {it.partida && <div className="text-xs text-gray-500 dark:text-slate-400">Partida: {it.partida.codigo ?? it.partida}</div>}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="p-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onMouseDown={(e) => { e.preventDefault(); abrirNuevoItemCatalogo(); }}
-                      className="px-3 py-1.5 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
-                    >
-                      + Agregar nuevo ítem
-                    </button>
-                    <button
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        setShowDropdown(false);
-                      }}
-                      className="px-3 py-1.5 rounded bg-slate-200 text-slate-800 text-sm hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
-                    >
-                      Cerrar
-                    </button>
-                  </div>
-                </div>
-              )}
-              {showDropdown && hasSearchedItem && !catalogLoading && !catalogError && filteredItems.length === 0 && (
-                <div className="absolute z-30 left-0 right-0 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 mt-1 rounded shadow-lg p-2">
-                  <div className="text-sm text-slate-600 dark:text-slate-300 mb-2">No se encontró el item en catálogo.</div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        abrirNuevoItemCatalogo();
-                      }}
-                      className="px-3 py-1.5 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
-                    >
-                      + Agregar nuevo item
-                    </button>
-                    <button
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        setShowDropdown(false);
-                      }}
-                      className="px-3 py-1.5 rounded bg-slate-200 text-slate-800 text-sm hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
-                    >
-                      Ninguno de estos / Cerrar
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
             {fieldErrors.item && <div className="text-xs text-red-600 dark:text-red-400 mt-1">{fieldErrors.item}</div>}
           </div>
@@ -549,6 +533,57 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
           </div>
         </form>
       </div>
+
+      {showDropdown && hasSearchedItem && dropdownPosition && createPortal(
+        <div
+          ref={dropdownRef}
+          className="z-[1000000] flex flex-col overflow-hidden rounded-lg border border-gray-300 bg-white shadow-xl dark:border-slate-600 dark:bg-slate-800"
+          style={{
+            position: 'fixed',
+            ...dropdownPosition,
+            height: Math.min(dropdownPosition.maxHeight, Math.max(168, 96 + Math.min(filteredItems.length, 8) * 70)),
+          }}
+        >
+          <div className="shrink-0 border-b border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300">
+            {catalogLoading ? 'Buscando ítems...' : `Resultados encontrados: ${filteredItems.length}`}
+          </div>
+          <div className="min-h-20 flex-1 overflow-y-auto overscroll-contain">
+            {catalogLoading && <div className="p-3 text-sm text-gray-600 dark:text-slate-400">Cargando...</div>}
+            {catalogError && <div className="p-3 text-sm text-red-600 dark:text-red-400">{catalogError}</div>}
+            {!catalogLoading && !catalogError && filteredItems.length === 0 && (
+              <div className="p-3 text-sm text-slate-600 dark:text-slate-300">No se encontró el ítem en catálogo.</div>
+            )}
+            {!catalogLoading && !catalogError && filteredItems.map((it) => (
+              <button
+                key={it.id ?? it.codigo ?? it.detalle ?? it.descripcion}
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); handleSelectCatalogItem(it); }}
+                className="w-full border-b border-slate-100 p-3 text-left text-sm text-gray-900 hover:bg-gray-100 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-700"
+              >
+                <div className="font-medium">{it.detalle ?? it.descripcion ?? it.nombre ?? it.nombre_item ?? it.codigo}</div>
+                {it.partida && <div className="text-xs text-gray-500 dark:text-slate-400">Partida: {it.partida.codigo ?? it.partida}</div>}
+              </button>
+            ))}
+          </div>
+          <div className="flex shrink-0 items-center justify-between gap-2 border-t border-slate-200 p-2 dark:border-slate-700">
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); abrirNuevoItemCatalogo(); }}
+              className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
+            >
+              + Agregar nuevo ítem
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); setShowDropdown(false); }}
+              className="rounded bg-slate-200 px-3 py-1.5 text-sm text-slate-800 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
 
       {showNuevoCatalogoItemModal && (
         <NuevoCatalogoItemModal

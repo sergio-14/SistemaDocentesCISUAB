@@ -1282,7 +1282,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   border-bottom: 2px solid #5b7792;
 }
 
-.poa-modal .modal-header :is(h1, h2, h3, h4, p, small, button) {
+.poa-modal .modal-header :is(h1, h2, h3, h4, p, small, span, button) {
   color: #243b53 !important;
 }
 
@@ -1313,10 +1313,24 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 .dark .poa-modal { background: transparent !important; }
 .dark .poa-modal .modal-header { background: #17212f !important; border-color: #6d8ba6; }
-.dark .poa-modal .modal-header :is(h1, h2, h3, h4, p, small, button) { color: #e2e8f0 !important; }
+.dark .poa-modal .modal-header :is(h1, h2, h3, h4, p, small, span, button) { color: #e2e8f0 !important; }
 .dark .poa-modal .btn-primary,
 .dark .poa-modal .btn-success { background: #36556d !important; border-color: #4b6a82 !important; box-shadow: none !important; }
 .dark .poa-modal .btn-cancel { background: #263646 !important; border-color: #536779 !important; box-shadow: none !important; }
+
+.poa-modal .modal-panel input:not(:disabled):not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.poa-modal .modal-panel select:not(:disabled),
+.poa-modal .modal-panel textarea:not(:disabled) {
+  color: #0f172a !important;
+  caret-color: #243b53;
+}
+
+.dark .poa-modal .modal-panel input:not(:disabled):not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.dark .poa-modal .modal-panel select:not(:disabled),
+.dark .poa-modal .modal-panel textarea:not(:disabled) {
+  color: #e2e8f0 !important;
+  caret-color: #e2e8f0;
+}
 
 /* El retorno del seguimiento se integra al encabezado global, no se duplica en el contenido. */
 .poa-main-surface header:has(> h2) > button:first-child {
@@ -4570,5 +4584,56 @@ table tbody tr[data-selected="true"] td {
   .poa-app .poa-presupuesto-detail-table tbody tr.poa-presupuesto-item-row td:not(.poa-presupuesto-mobile-hidden) {
     padding: 0.55rem 0.6rem !important;
     line-height: 1.2 !important;
+  }
+}
+
+/* Formulario de actividad compacto con acciones siempre accesibles. */
+.poa-modal.poa-activity-modal .modal-panel {
+  display: flex !important;
+  flex-direction: column !important;
+  max-height: min(84vh, 42rem) !important;
+  overflow: hidden !important;
+}
+
+.poa-modal.poa-activity-modal .modal-header {
+  flex-shrink: 0;
+}
+
+.poa-modal.poa-activity-modal .poa-activity-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  max-height: none !important;
+  overflow: hidden !important;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem !important;
+}
+
+.poa-modal.poa-activity-modal .poa-activity-fields {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.15rem;
+}
+
+.poa-modal.poa-activity-modal .poa-activity-form :is(.poa-input, .poa-select, .poa-textarea) {
+  padding-block: 0.4rem !important;
+}
+
+.poa-modal.poa-activity-modal .poa-activity-actions {
+  flex-shrink: 0;
+  margin-top: 0;
+  padding: 0.75rem 0 0 !important;
+}
+
+@media (max-width: 767px) {
+  .poa-modal.poa-activity-modal .modal-panel {
+    max-height: calc(100dvh - 1.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+  }
+
+  .poa-modal.poa-activity-modal .poa-activity-form {
+    padding: 0.85rem 1rem !important;
   }
 }

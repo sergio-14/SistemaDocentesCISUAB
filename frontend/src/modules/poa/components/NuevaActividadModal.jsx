@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const CAMPOS_OBLIGATORIOS = ['codigo', 'nombre', 'responsable', 'productos_esperados', 'mes_inicio', 'mes_fin', 'indicador_unidad', 'indicador_linea_base', 'indicador_meta'];
-const FORM_INICIAL = { codigo: '', nombre: '', responsable: '', productos_esperados: '', indicador_descripcion: '', indicador_unidad: 'numero', indicador_linea_base: '', indicador_meta: '', mes_inicio: 'enero', mes_fin: 'diciembre', riesgo_previsto: '' };
+const FORM_INICIAL = { codigo: '', nombre: '', responsable: '', productos_esperados: '', indicador_descripcion: '', indicador_unidad: 'numero', indicador_linea_base: '', indicador_meta: '', mes_inicio: 'enero', mes_fin: 'diciembre' };
 
 const sugerirSiguienteCodigo = (actividades = []) => {
   const codigos = actividades
@@ -33,8 +33,11 @@ export default function NuevaActividadModal({ onClose, onCreated, onUpdated, obj
 
   useEffect(() => {
     codigoEditado.current = false;
+    const actividadSinRiesgo = Object.fromEntries(
+      Object.entries(actividad || {}).filter(([campo]) => campo !== 'riesgo_previsto'),
+    );
     setForm(actividad
-      ? { ...FORM_INICIAL, ...actividad, indicador_descripcion: actividad.indicador_descripcion || '' }
+      ? { ...FORM_INICIAL, ...actividadSinRiesgo, indicador_descripcion: actividad.indicador_descripcion || '' }
       : { ...FORM_INICIAL, codigo: sugerirSiguienteCodigo(actividades) });
     setFieldErrors({}); setErrorMessages([]);
   }, [actividad, objetivoId]);
@@ -61,7 +64,8 @@ export default function NuevaActividadModal({ onClose, onCreated, onUpdated, obj
     if (fieldErrors[campo]) setFieldErrors((current) => ({ ...current, [campo]: '' }));
   };
   const cambiarIndicador = (campo, valor) => {
-    cambiar(campo, String(valor || '').replace(/\D/g, '').slice(0, 3));
+    const digitos = String(valor ?? '').match(/^\d{0,4}/)?.[0] ?? '';
+    cambiar(campo, digitos);
   };
   const validar = () => {
     const errors = {};
@@ -72,7 +76,7 @@ export default function NuevaActividadModal({ onClose, onCreated, onUpdated, obj
     if (!errors.mes_inicio && !errors.mes_fin && MESES.indexOf(form.mes_inicio) > MESES.indexOf(form.mes_fin)) errors.mes_fin = 'El mes final no puede ser anterior al mes inicial.';
     ['indicador_linea_base', 'indicador_meta'].forEach((campo) => {
       if (!errors[campo] && (!Number.isInteger(Number(form[campo])) || Number(form[campo]) < 0)) errors[campo] = 'Ingrese un número entero igual o mayor a cero.';
-      const limiteIndicador = form.indicador_unidad === 'porcentaje' ? 100 : 999;
+      const limiteIndicador = form.indicador_unidad === 'porcentaje' ? 100 : 9999;
       if (!errors[campo] && Number(form[campo]) > limiteIndicador) errors[campo] = `El valor no puede superar ${limiteIndicador}.`;
     });
     return errors;
@@ -116,7 +120,7 @@ export default function NuevaActividadModal({ onClose, onCreated, onUpdated, obj
         </div>
 
         <form onSubmit={guardar} className="modal-body poa-activity-form" noValidate>
-          <div className="poa-activity-fields space-y-3">
+          <div className="poa-activity-fields space-y-2">
             <ModalErrorAlert title="Revise los campos marcados:" messages={errorMessages} />
 
             <div className="grid gap-x-4 gap-y-2 md:grid-cols-[minmax(11rem,0.35fr)_minmax(0,1fr)]">
@@ -147,7 +151,6 @@ export default function NuevaActividadModal({ onClose, onCreated, onUpdated, obj
                 value={form.responsable}
                 error={fieldErrors.responsable}
                 onChange={(e) => cambiar('responsable', e.target.value)}
-                wrapperClassName="md:col-span-2"
                 inputClassName="!py-1.5"
               />
               <Textarea
@@ -158,54 +161,39 @@ export default function NuevaActividadModal({ onClose, onCreated, onUpdated, obj
                 value={form.productos_esperados}
                 error={fieldErrors.productos_esperados}
                 onChange={(e) => cambiar('productos_esperados', e.target.value)}
-                wrapperClassName="md:col-span-2"
                 textareaClassName="!py-1.5"
               />
             </div>
 
-            <div className="grid gap-x-4 gap-y-2 sm:grid-cols-3">
-              <div className="sm:col-span-2">
-                <Input
-                  label="Indicador"
-                  name="indicador_descripcion"
-                  list="indicadores-poa"
-                  value={form.indicador_descripcion}
-                  error={fieldErrors.indicador_descripcion}
-                  onChange={(e) => cambiar('indicador_descripcion', e.target.value)}
-                  helperText="Opcional según las reglas actuales."
-                  inputClassName="!py-1.5"
-                />
-                <datalist id="indicadores-poa">
-                  {indicadores.map((item) => (
-                    <option
-                      key={item.id || item.descripcion || item.indicador}
-                      value={item.descripcion || item.nombre || item.indicador}
-                    />
-                  ))}
-                </datalist>
-              </div>
-              <Select
-                label="Unidad"
-                name="indicador_unidad"
-                required
-                value={form.indicador_unidad}
-                error={fieldErrors.indicador_unidad}
-                onChange={(e) => cambiar('indicador_unidad', e.target.value)}
-                selectClassName="!py-1.5"
-              >
-                <option value="numero">Número</option>
-                <option value="porcentaje">Porcentaje</option>
-              </Select>
+            <div>
+              <Input
+                label="Indicador"
+                name="indicador_descripcion"
+                list="indicadores-poa"
+                value={form.indicador_descripcion}
+                error={fieldErrors.indicador_descripcion}
+                onChange={(e) => cambiar('indicador_descripcion', e.target.value)}
+                helperText="Opcional según las reglas actuales."
+                inputClassName="!py-1.5"
+              />
+              <datalist id="indicadores-poa">
+                {indicadores.map((item) => (
+                  <option
+                    key={item.id || item.descripcion || item.indicador}
+                    value={item.descripcion || item.nombre || item.indicador}
+                  />
+                ))}
+              </datalist>
             </div>
 
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 md:grid-cols-[7rem_7rem_minmax(7.5rem,1fr)_minmax(7.5rem,1fr)_8rem]">
               <Input
                 label="Línea base"
                 name="indicador_linea_base"
                 required
-                type="text"
-                inputMode="numeric"
-                maxLength={3}
+                type="number"
+                min="0"
+                max={form.indicador_unidad === 'porcentaje' ? 100 : 9999}
                 value={form.indicador_linea_base}
                 error={fieldErrors.indicador_linea_base}
                 onChange={(e) => cambiarIndicador('indicador_linea_base', e.target.value)}
@@ -216,9 +204,9 @@ export default function NuevaActividadModal({ onClose, onCreated, onUpdated, obj
                 label="Meta"
                 name="indicador_meta"
                 required
-                type="text"
-                inputMode="numeric"
-                maxLength={3}
+                type="number"
+                min="0"
+                max={form.indicador_unidad === 'porcentaje' ? 100 : 9999}
                 value={form.indicador_meta}
                 error={fieldErrors.indicador_meta}
                 onChange={(e) => cambiarIndicador('indicador_meta', e.target.value)}
@@ -258,18 +246,20 @@ export default function NuevaActividadModal({ onClose, onCreated, onUpdated, obj
                   </option>
                 ))}
               </Select>
+              <Select
+                label="Unidad"
+                name="indicador_unidad"
+                required
+                value={form.indicador_unidad}
+                error={fieldErrors.indicador_unidad}
+                onChange={(e) => cambiar('indicador_unidad', e.target.value)}
+                selectClassName="!py-1.5"
+              >
+                <option value="numero">Número</option>
+                <option value="porcentaje">Porcentaje</option>
+              </Select>
             </div>
 
-            <Textarea
-              label="Riesgo previsto y medida de respuesta"
-              name="riesgo_previsto"
-              rows={1}
-              value={form.riesgo_previsto}
-              error={fieldErrors.riesgo_previsto}
-              onChange={(e) => cambiar('riesgo_previsto', e.target.value)}
-              placeholder="Opcional: riesgo y cómo se atenderá."
-              textareaClassName="!py-1.5"
-            />
           </div>
 
           <div className="modal-actions poa-activity-actions flex shrink-0 justify-end gap-2">

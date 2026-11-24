@@ -1,18 +1,17 @@
 .poa-app .poa-main-surface .poa-dashboard {
-  --poa-dash-page: #f4f7fb;
-  --poa-dash-surface: #ffffff;
-  --poa-dash-raised: #f8fafc;
-  --poa-dash-line: #d5deea;
+  --poa-dash-page: transparent;
+  --poa-dash-surface: rgb(255 255 255 / 64%);
+  --poa-dash-raised: rgb(255 255 255 / 46%);
+  --poa-dash-line: rgb(255 255 255 / 82%);
   --poa-dash-ink: #172b4d;
   --poa-dash-text: #334e68;
   --poa-dash-muted: #5c6f84;
   --poa-dash-blue: #2c4aae;
   --poa-dash-blue-dark: #1e3a8a;
   --poa-dash-green: #28684f;
-  --poa-dash-green-bg: #edf7f1;
   --poa-dash-amber: #895a14;
   --poa-dash-radius: 12px;
-  --poa-dash-shadow: 0 1px 2px rgb(23 43 77 / 5%);
+  --poa-dash-shadow: 0 12px 28px rgb(23 43 77 / 8%), inset 0 1px 0 rgb(255 255 255 / 88%);
 
   width: 100%;
   max-width: 1500px;
@@ -33,6 +32,8 @@
   border-radius: var(--poa-dash-radius);
   background: var(--poa-dash-surface);
   box-shadow: var(--poa-dash-shadow);
+  -webkit-backdrop-filter: blur(12px) saturate(125%);
+  backdrop-filter: blur(12px) saturate(125%);
 }
 
 .poa-app .poa-main-surface .poa-dashboard__overview {
@@ -349,7 +350,7 @@
   min-height: 68px;
   margin: 0;
   padding: 12px;
-  border: 1px solid #e4eaf2;
+  border: 1px solid rgb(255 255 255 / 76%);
   border-radius: 8px;
   background: var(--poa-dash-raised);
   color: var(--poa-dash-text);
@@ -378,7 +379,7 @@
   width: 100%;
   min-height: 42px;
   padding: 9px 11px;
-  border: 1px solid #e4eaf2;
+  border: 1px solid rgb(255 255 255 / 76%);
   border-radius: 8px;
   background: var(--poa-dash-raised);
   color: var(--poa-dash-text);
@@ -407,7 +408,7 @@
   padding: 12px;
   border: 1px solid #cfe5d8;
   border-radius: 8px;
-  background: var(--poa-dash-green-bg);
+  background: rgb(237 247 241 / 86%);
   color: var(--poa-dash-green);
   font-size: 0.875rem;
 }
@@ -494,6 +495,14 @@
   transform: translateY(-1px);
 }
 
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .poa-app .poa-main-surface .poa-dashboard__overview,
+  .poa-app .poa-main-surface .poa-dashboard__panel,
+  .poa-app .poa-main-surface .poa-dashboard__kpi {
+    background: rgb(255 255 255 / 92%);
+  }
+}
+
 @keyframes poa-dashboard-arrive {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
@@ -567,5 +576,15 @@
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .poa-app .poa-main-surface .poa-dashboard__overview,
+  .poa-app .poa-main-surface .poa-dashboard__panel,
+  .poa-app .poa-main-surface .poa-dashboard__kpi {
+    background: rgb(255 255 255 / 96%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 }

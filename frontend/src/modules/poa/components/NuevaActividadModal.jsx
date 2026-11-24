@@ -144,14 +144,18 @@ export default function NuevaActividadModal({ onClose, onCreated, onUpdated, obj
                 onChange={(e) => cambiar('nombre', e.target.value)}
                 inputClassName="!py-1.5"
               />
-              <Input
+            </div>
+
+            <div className="grid gap-x-4 gap-y-2 md:grid-cols-[minmax(14rem,2fr)_minmax(0,3fr)]">
+              <Textarea
                 label="Responsable"
                 name="responsable"
                 required
+                rows={2}
                 value={form.responsable}
                 error={fieldErrors.responsable}
                 onChange={(e) => cambiar('responsable', e.target.value)}
-                inputClassName="!py-1.5"
+                textareaClassName="!py-1.5"
               />
               <Textarea
                 label="Productos esperados"

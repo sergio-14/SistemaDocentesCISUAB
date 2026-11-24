@@ -1040,8 +1040,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .poa-modal .modal-panel .modal-actions {
-  background: #f1f5f9;
-  border-top: 1px solid #d9e2ec;
+  background: transparent;
+  border-top: none;
 }
 
 /* Inputs dentro del modal */
@@ -1174,8 +1174,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .dark .poa-modal .modal-panel .modal-actions {
-  background: #1d2a39;
-  border-top-color: #415365;
+  background: transparent;
+  border-top: none;
 }
 
 .dark .poa-modal .modal-panel label {

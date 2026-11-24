@@ -291,18 +291,7 @@ const Header = ({
   const renderRightActions = () => {
     const p = location?.pathname || '';
     
-    if (p.startsWith('/poa/objetivos-especificos')) {
-      if (!canEdit) return null;
-      return renderActions([
-        createHeaderAction({
-          key: 'new-objetivos',
-          label: 'Nuevo',
-          icon: <FaPlus />,
-          type: 'new',
-          onClick: () => window.dispatchEvent(new CustomEvent('open-new', { detail: { page: 'objetivos' } })),
-        }),
-      ]);
-    }
+    if (p.startsWith('/poa/objetivos-especificos')) return null;
     
     if (p === '/poa/documentos' || p === '/poa/documentos-revision') {
       return renderActions([

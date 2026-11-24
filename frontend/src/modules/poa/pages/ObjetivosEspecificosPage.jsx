@@ -3,10 +3,11 @@ import { getObjetivosEspecificos, deleteObjetivo, getDocumentoPOAPorId, getDocum
 import NuevoObjetivoModal from '../components/NuevoObjetivoModal';
 import IconButton from '../components/IconButton';
 import Dialog from '../components/base/Dialog';
-import { FaBullseye, FaCoins, FaEdit, FaTasks, FaTrash, FaUniversity } from 'react-icons/fa';
+import { FaBullseye, FaCoins, FaEdit, FaPlus, FaTasks, FaTrash, FaUniversity } from 'react-icons/fa';
 import { useNavigate, useParams, useLocation, useOutletContext } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { buildPoaNavigationState, getPoaNavigationContext, normalizePoaGestion, savePoaNavigationContext } from '../utils/navigationContext';
+import './ObjetivosEspecificosPage.css';
 
 // Página que muestra los objetivos específicos relacionados a un documento
 const ObjetivosEspecificosPage = () => {
@@ -113,6 +114,7 @@ const ObjetivosEspecificosPage = () => {
   useEffect(() => {
     setLoading(true);
     setError(null);
+    setDocumentHeader(null);
 
     getObjetivosEspecificos(documentId)
       .then(res => {
@@ -173,6 +175,28 @@ const ObjetivosEspecificosPage = () => {
       })
       .finally(() => setLoading(false));
   }, [documentId, navContext?.gestion]);
+
+  useEffect(() => {
+    if (loading || error || objetivos.length > 0) return undefined;
+
+    let active = true;
+    const gestionContexto = navContext?.gestion ?? null;
+    setDocLoading(true);
+
+    const cargarDocumento = gestionContexto
+      ? getDocumentoPOAPorId(Number(documentId), Number(gestionContexto)).then((res) => res.data)
+      : getDocumentosPOAEncabezados().then((res) => {
+          const documentos = Array.isArray(res.data) ? res.data : (res.data.results || []);
+          return documentos.find((doc) => String(doc.id) === String(documentId) || String(doc.pk) === String(documentId)) || null;
+        });
+
+    cargarDocumento
+      .then((documento) => { if (active) setDocumentHeader(documento); })
+      .catch(() => { if (active) setDocumentHeader(null); })
+      .finally(() => { if (active) setDocLoading(false); });
+
+    return () => { active = false; };
+  }, [documentId, navContext?.gestion, objetivos.length, loading, error]);
 
   useEffect(() => {
     if (!objetivos || objetivos.length === 0) {
@@ -318,16 +342,6 @@ const ObjetivosEspecificosPage = () => {
     closeNuevo();
   };
 
-  // Listen for header 'Nuevo' button events
-  useEffect(() => {
-    const handler = (e) => {
-      if (canEdit && e?.detail?.page === 'objetivos') openNuevo();
-    };
-    window.addEventListener('open-new', handler);
-    return () => window.removeEventListener('open-new', handler);
-  }, [canEdit, documentoEstado]);
-
-
   const handleVerActividades = (objetivoId) => {
     const objetivoSeleccionado = (objetivos || []).find((objetivo) => Number(objetivo.id) === Number(objetivoId));
     navigate(`/poa/actividades/${objetivoId}`, {
@@ -351,7 +365,7 @@ const ObjetivosEspecificosPage = () => {
     : documentHeader?.objetivo_gestion_institucional) || '—';
 
   return (
-    <section className="flex flex-col items-start justify-start flex-1 pt-0 pb-12 w-full px-0">
+    <section className="poa-objectives-page flex flex-col items-start justify-start flex-1 pt-0 pb-12 w-full px-0">
       <Dialog
         open={Boolean(deleteDialogObjetivo)}
         type="danger"
@@ -424,7 +438,7 @@ const ObjetivosEspecificosPage = () => {
         </div>
       )}
 
-      {!loading && !error && totalObjetivos > 0 && (
+      {!loading && !error && (
         <div className="w-full mb-3">
           <div className="poa-mobile-kpi-strip poa-mobile-kpi-strip-3 flex flex-col gap-3 sm:flex-row">
             <div className="poa-mobile-kpi-card flex-1 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg shadow-lg p-3 text-white lg:grid lg:min-h-[4.6rem] lg:grid-cols-[3rem_minmax(0,1fr)] lg:items-center lg:gap-3">
@@ -470,7 +484,7 @@ const ObjetivosEspecificosPage = () => {
                   tabIndex={0}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleVerActividades(obj.id); } }}
                   onClick={() => handleVerActividades(obj.id)}
-                  className="rounded-xl border border-blue-300 dark:border-blue-700 bg-gradient-to-br from-blue-50 via-white to-cyan-50 dark:from-slate-900 dark:via-slate-900 dark:to-blue-950/60 shadow-lg p-3 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
+                  className="poa-objectives-page__objective-card rounded-xl border border-blue-300 dark:border-blue-700 bg-gradient-to-br from-blue-50 via-white to-cyan-50 dark:from-slate-900 dark:via-slate-900 dark:to-blue-950/60 shadow-lg p-3 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
                 >
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold bg-blue-600 text-white rounded-md shadow">
@@ -514,7 +528,7 @@ const ObjetivosEspecificosPage = () => {
                     </div>
                   </div>
 
-                  <div className="mt-2 pt-2 border-t border-blue-300 dark:border-slate-700 flex items-center justify-end gap-2">
+                  <div className="poa-objectives-page__objective-actions mt-2 pt-2 border-t border-blue-300 dark:border-slate-700 flex items-center justify-end gap-2">
                     {canEdit && (
                       <div className="flex items-center gap-1.5">
                         <IconButton
@@ -540,9 +554,30 @@ const ObjetivosEspecificosPage = () => {
               </div>
             );
           })
-        ) : !loading && !error ? (
-          <div className="col-span-full px-2 py-4 text-center text-gray-500 dark:text-slate-400">No hay objetivos específicos para mostrar.</div>
         ) : null}
+        {!loading && !error && canEdit && (
+          <button
+            type="button"
+            className="poa-objectives-page__add-card"
+            onClick={openNuevo}
+            aria-haspopup="dialog"
+          >
+            <span className="poa-objectives-page__add-icon"><FaPlus aria-hidden="true" /></span>
+            <span className="poa-objectives-page__add-title">Agregar nuevo objetivo</span>
+            <span className="poa-objectives-page__add-description">
+              Selecciona esta tarjeta para registrar un objetivo específico en este documento.
+            </span>
+          </button>
+        )}
+        {!loading && !error && !canEdit && totalObjetivos === 0 && (
+          <div className="poa-objectives-page__add-card poa-objectives-page__add-card--readonly" role="status">
+            <span className="poa-objectives-page__add-icon"><FaBullseye aria-hidden="true" /></span>
+            <span className="poa-objectives-page__add-title">Sin objetivos específicos</span>
+            <span className="poa-objectives-page__add-description">
+              Este documento todavía no tiene objetivos registrados.
+            </span>
+          </div>
+        )}
       </div>
     </section>
   );

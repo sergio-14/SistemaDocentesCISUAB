@@ -1,0 +1,95 @@
+.poa-app .poa-main-surface .poa-objectives-page__objective-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 256px;
+}
+
+.poa-app .poa-main-surface .poa-objectives-page__objective-actions {
+  margin-top: auto !important;
+}
+
+.poa-app .poa-main-surface .poa-objectives-page__add-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  min-height: 256px;
+  padding: 24px;
+  border: 1.5px dashed #7893b7;
+  border-radius: 12px;
+  background: #f8fbff;
+  color: #1e3a8a;
+  font-family: inherit;
+  text-align: center;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.poa-app .poa-main-surface button.poa-objectives-page__add-card {
+  cursor: pointer;
+}
+
+.poa-app .poa-main-surface button.poa-objectives-page__add-card:hover {
+  transform: translateY(-2px);
+  border-color: #2c4aae;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgb(30 58 138 / 10%);
+}
+
+.poa-app .poa-main-surface button.poa-objectives-page__add-card:focus-visible {
+  outline: 3px solid rgb(44 74 174 / 28%);
+  outline-offset: 3px;
+}
+
+.poa-app .poa-main-surface .poa-objectives-page__add-card--readonly {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+}
+
+.poa-app .poa-main-surface .poa-objectives-page__add-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid #d7e1ef;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #2c4aae;
+  font-size: 1.125rem;
+}
+
+.poa-app .poa-main-surface .poa-objectives-page__add-title {
+  color: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.poa-app .poa-main-surface .poa-objectives-page__add-description {
+  max-width: 260px;
+  color: #5c6f84;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 639px) {
+  .poa-app .poa-main-surface .poa-objectives-page__add-card {
+    min-height: 232px;
+    padding: 20px;
+  }
+
+  .poa-app .poa-main-surface .poa-objectives-page__objective-card {
+    min-height: 232px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poa-app .poa-main-surface .poa-objectives-page__add-card {
+    transition-duration: 0.01ms;
+  }
+}

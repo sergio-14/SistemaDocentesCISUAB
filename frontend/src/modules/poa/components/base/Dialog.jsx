@@ -3,15 +3,15 @@ import { FaExclamationTriangle, FaInfoCircle, FaTrashAlt, FaTimes } from 'react-
 import Modal from './Modal';
 
 const ICONS = {
-  info: <FaInfoCircle className="text-sky-300" size={18} />,
-  warning: <FaExclamationTriangle className="text-amber-300" size={18} />,
-  danger: <FaTrashAlt className="text-red-300" size={18} />,
+  info: <FaInfoCircle className="text-blue-700" size={18} />,
+  warning: <FaExclamationTriangle className="text-amber-700" size={18} />,
+  danger: <FaTrashAlt className="text-rose-700" size={18} />,
 };
 
 const COLORS = {
-  info: 'border-sky-400/40 bg-sky-950/90',
-  warning: 'border-amber-400/40 bg-amber-950/90',
-  danger: 'border-red-400/40 bg-red-950/90',
+  info: 'border-blue-200 bg-white',
+  warning: 'border-amber-200 bg-amber-50',
+  danger: 'border-rose-200 bg-rose-50',
 };
 
 const ButtonBase = ({ children, className = '', ...props }) => (
@@ -38,6 +38,8 @@ const Dialog = ({
   hideCancel = false,
   confirmDisabled = false,
 }) => {
+  const titleId = React.useId();
+  const messageId = React.useId();
   if (!open) return null;
 
   const confirmButtonClass =
@@ -58,15 +60,15 @@ const Dialog = ({
   };
 
   return (
-    <Modal onClose={handleCancel} className="z-[260]">
-      <div className={`modal-panel w-full max-w-md overflow-hidden ${COLORS[type] || COLORS.info}`}>
+    <Modal onClose={handleCancel} className="z-[260]" ariaLabelledBy={titleId} ariaDescribedBy={message ? messageId : undefined}>
+      <div className={`modal-panel poa-dialog-panel poa-dialog-${type} w-full max-w-md overflow-hidden ${COLORS[type] || COLORS.info}`}>
         <div className="modal-header flex items-start gap-3">
-          <div className="mt-0.5 shrink-0 rounded-2xl bg-white/10 p-2 shadow-inner">
+          <div className={`poa-dialog-icon poa-dialog-icon-${type} mt-0.5 shrink-0 rounded-2xl p-2`}>
             {ICONS[type] || ICONS.info}
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="text-base font-extrabold text-white leading-tight">{title}</h3>
-            {message && <p className="mt-2 text-sm leading-relaxed text-slate-100/90 whitespace-pre-line">{message}</p>}
+            <h3 id={titleId} className="text-base font-extrabold text-slate-900 leading-tight">{title}</h3>
+            {message && <p id={messageId} className="mt-2 text-sm leading-relaxed text-slate-700 whitespace-pre-line">{message}</p>}
           </div>
           <button
             type="button"
@@ -80,7 +82,7 @@ const Dialog = ({
         </div>
 
         {children && (
-          <div className="modal-body px-5 py-4 text-sm text-slate-100/90">
+          <div className="modal-body px-5 py-4 text-sm text-slate-700">
             {children}
           </div>
         )}

@@ -372,10 +372,11 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Ítem / Detalle</label>
+            <label htmlFor="item-presupuesto" className="block text-sm font-medium text-gray-700 dark:text-slate-300">Ítem / Detalle</label>
             <div ref={itemSearchRef} className="relative flex items-center gap-2">
               <input
                 name="item"
+                id="item-presupuesto"
                 value={form.item}
                 onChange={handleChange}
                 onKeyDown={(e) => {
@@ -387,6 +388,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
                 autoComplete="off"
                 required
                 aria-invalid={fieldErrors.item ? 'true' : undefined}
+                aria-describedby={fieldErrors.item ? 'item-presupuesto-error' : undefined}
                 className={`poa-input w-full px-2 py-1 ${fieldErrors.item ? 'border-red-500 dark:border-red-500 focus:ring-red-500 dark:focus:ring-red-500' : ''}`}
                 placeholder={catalogLoading ? 'Buscando ítems...' : 'Escribe el item y presiona Enter o Buscar'}
               />
@@ -399,7 +401,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
                 Buscar
               </button>
             </div>
-            {fieldErrors.item && <div className="text-xs text-red-600 dark:text-red-400 mt-1">{fieldErrors.item}</div>}
+            {fieldErrors.item && <div id="item-presupuesto-error" className="text-xs text-red-600 dark:text-red-400 mt-1">{fieldErrors.item}</div>}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -537,7 +539,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
       {showDropdown && hasSearchedItem && dropdownPosition && createPortal(
         <div
           ref={dropdownRef}
-          className="z-[1000000] flex flex-col overflow-hidden rounded-lg border border-gray-300 bg-white shadow-xl dark:border-slate-600 dark:bg-slate-800"
+          className="poa-catalog-search-dropdown z-[1000000] flex flex-col overflow-hidden rounded-lg border border-gray-300 bg-white shadow-xl dark:border-slate-600 dark:bg-slate-800"
           style={{
             position: 'fixed',
             ...dropdownPosition,
@@ -558,7 +560,7 @@ const NuevoPresupuestoModal = ({ actividadId, actividad, grupoPartida, documento
                 key={it.id ?? it.codigo ?? it.detalle ?? it.descripcion}
                 type="button"
                 onMouseDown={(e) => { e.preventDefault(); handleSelectCatalogItem(it); }}
-                className="w-full border-b border-slate-100 p-3 text-left text-sm text-gray-900 hover:bg-gray-100 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-700"
+                className="poa-catalog-search-result w-full border-b border-slate-100 p-3 text-left text-sm text-gray-900 hover:bg-gray-100 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-700"
               >
                 <div className="font-medium">{it.detalle ?? it.descripcion ?? it.nombre ?? it.nombre_item ?? it.codigo}</div>
                 {it.partida && <div className="text-xs text-gray-500 dark:text-slate-400">Partida: {it.partida.codigo ?? it.partida}</div>}

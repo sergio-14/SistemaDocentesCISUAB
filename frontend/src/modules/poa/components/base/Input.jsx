@@ -1,57 +1,40 @@
 import React from 'react';
 
-/**
- * Componente Input base para el módulo POA
- * Con soporte completo para temas claro/oscuro del sistema principal
- */
 const Input = React.forwardRef(({
   label,
   error,
   helperText,
+  id,
   className = '',
   wrapperClassName = '',
   labelClassName = '',
   inputClassName = '',
+  'aria-describedby': describedBy,
   ...props
 }, ref) => {
+  const generatedId = React.useId();
+  const fieldId = id || generatedId;
+  const helperId = helperText && !error ? `${fieldId}-help` : undefined;
+  const errorId = error ? `${fieldId}-error` : undefined;
+  const ariaDescribedBy = [describedBy, helperId, errorId].filter(Boolean).join(' ') || undefined;
+
   return (
     <div className={`poa-input-wrapper ${wrapperClassName}`}>
       {label && (
-        <label className={`poa-input-label block text-sm font-medium ${labelClassName}`}>
+        <label htmlFor={fieldId} className={`poa-input-label ${labelClassName}`}>
           {label}
         </label>
       )}
       <input
-        ref={ref}
-        aria-invalid={error ? 'true' : undefined}
-        className={`
-          poa-input
-          mt-1 block w-full rounded px-3 py-2
-          border border-gray-300 dark:border-sky-600/50
-          bg-white dark:bg-slate-900
-          text-gray-900 dark:text-slate-100
-          placeholder-gray-400 dark:placeholder-slate-500
-          focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-sky-500
-          focus:border-blue-500 dark:focus:border-sky-500
-          disabled:bg-gray-100 dark:disabled:bg-slate-800
-          disabled:text-gray-500 dark:disabled:text-slate-400
-          disabled:cursor-not-allowed
-          transition-colors duration-200
-          ${error ? 'border-red-500 dark:border-red-500 focus:ring-red-500 dark:focus:ring-red-500' : ''}
-          ${inputClassName}
-        `}
         {...props}
+        ref={ref}
+        id={fieldId}
+        aria-invalid={error ? 'true' : undefined}
+        aria-describedby={ariaDescribedBy}
+        className={`poa-input ${className} ${inputClassName}`.trim()}
       />
-      {helperText && !error && (
-        <p className="poa-input-helper mt-1 text-xs text-gray-500 dark:text-slate-400">
-          {helperText}
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="poa-input-error mt-1 text-xs text-red-600 dark:text-red-400">
-          {error}
-        </p>
-      )}
+      {helperId && <p id={helperId} className="poa-input-helper">{helperText}</p>}
+      {errorId && <p id={errorId} role="alert" className="poa-input-error">{error}</p>}
     </div>
   );
 });

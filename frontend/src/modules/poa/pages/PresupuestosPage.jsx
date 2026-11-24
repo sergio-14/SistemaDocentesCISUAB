@@ -432,7 +432,7 @@ const PresupuestosPage = () => {
 
   // Si no viene actividad, mostrar explicación
   return (
-  <section className="poa-presupuestos-page flex flex-col items-start flex-1 pt-0 pb-8 px-0 w-full text-sm">
+  <section className="flex flex-col items-start flex-1 pt-0 pb-8 px-0 w-full text-sm">
       <Dialog
         open={Boolean(deleteDialogDetalle)}
         type="danger"

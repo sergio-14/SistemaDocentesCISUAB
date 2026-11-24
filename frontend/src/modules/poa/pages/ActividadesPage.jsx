@@ -257,7 +257,7 @@ const ActividadesPage = () => {
   );
 
   return (
-  <section className="poa-activities-page flex flex-col items-start justify-start flex-1 pt-0 pb-12 w-full px-0">
+  <section className="flex flex-col items-start justify-start flex-1 pt-0 pb-12 w-full px-0">
       <Dialog
         open={Boolean(deleteDialogActividad)}
         type="danger"

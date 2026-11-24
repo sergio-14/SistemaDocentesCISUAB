@@ -351,7 +351,7 @@ const ObjetivosEspecificosPage = () => {
     : documentHeader?.objetivo_gestion_institucional) || '—';
 
   return (
-    <section className="poa-objectives-page flex flex-col items-start justify-start flex-1 pt-0 pb-12 w-full px-0">
+    <section className="flex flex-col items-start justify-start flex-1 pt-0 pb-12 w-full px-0">
       <Dialog
         open={Boolean(deleteDialogObjetivo)}
         type="danger"

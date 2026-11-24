@@ -331,7 +331,7 @@
    ============================================ */
 
 /* Modo claro - fondo base */
-.poa-app {
+body {
   font-family: 'Poppins', sans-serif;
   background-color: #f8fafc;
 }
@@ -462,6 +462,19 @@
 /* ============================================
    MODO OSCURO - Colores del sistema principal
    ============================================ */
+.dark {
+  background-color: #020617;
+}
+
+.dark body {
+  background: linear-gradient(to bottom, #020617, #050a16, #070b17);
+  color: #e2e8f0;
+}
+
+.dark #root {
+  background: linear-gradient(to bottom, #020617, #050a16, #070b17);
+}
+
 .dark .poa-app {
   background: #0f172a;
 }
@@ -745,21 +758,21 @@
 }
 
 /* Scrollbars en modo oscuro */
-.dark .poa-app ::-webkit-scrollbar {
+.dark ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
 }
 
-.dark .poa-app ::-webkit-scrollbar-track {
+.dark ::-webkit-scrollbar-track {
   background: #0b1224;
 }
 
-.dark .poa-app ::-webkit-scrollbar-thumb {
+.dark ::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, #1e3a8a, #3b82f6);
   border-radius: 3px;
 }
 
-.dark .poa-app ::-webkit-scrollbar-thumb:hover {
+.dark ::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, #3b82f6, #60a5fa);
 }
 
@@ -857,11 +870,11 @@
 }
 
 /* Global button hover: subtle lift, shadow and brightness (skip disabled) */
-.poa-app button {
+button {
   transition: transform 160ms cubic-bezier(.2,.8,.2,1), box-shadow 160ms cubic-bezier(.2,.8,.2,1), filter 160ms cubic-bezier(.2,.8,.2,1);
 }
-.dark .poa-app .btn-futuristic,
-.poa-app .btn-futuristic {
+.dark .btn-futuristic,
+.btn-futuristic {
   position: relative;
   border-radius: 0.75rem;
   overflow: hidden;
@@ -870,51 +883,51 @@
 }
 
 /* Estilo de botones alineado al sistema principal */
-.poa-app .btn-futuristic {
+.btn-futuristic {
   background: linear-gradient(to right, #2563eb, #4f46e5);
   color: #fff;
   border-color: rgba(37, 99, 235, 0.22);
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
 
-.dark .poa-app .btn-futuristic {
+.dark .btn-futuristic {
   background: linear-gradient(to right, #1e40af, #3730a3);
   color: #e2e8f0;
   border-color: rgba(99, 102, 241, 0.35);
   box-shadow: 0 6px 16px rgba(2, 6, 23, 0.5);
 }
 
-.poa-app .btn-futuristic::before {
+.btn-futuristic::before {
   content: none;
 }
 
-.poa-app .btn-futuristic::after {
+.btn-futuristic::after {
   content: none;
 }
 
-.poa-app .btn-futuristic:hover {
+.btn-futuristic:hover {
   transform: translateY(-1px) scale(1.02);
   filter: brightness(1.03);
   box-shadow: 0 8px 18px rgba(37, 99, 235, 0.35);
 }
 
-.dark .poa-app .btn-futuristic:hover {
+.dark .btn-futuristic:hover {
   box-shadow: 0 10px 22px rgba(2, 6, 23, 0.65);
   filter: brightness(1.06);
 }
 
-.poa-app .btn-futuristic:active {
+.btn-futuristic:active {
   transform: translateY(0) scale(0.995);
 }
-.poa-app button:not(:disabled):hover {
+button:not(:disabled):hover {
   transform: translateY(-3px);
   box-shadow: 0 8px 20px rgba(2,6,23,0.08);
   filter: brightness(1.03);
 }
-.poa-app button:active {
+button:active {
   transform: translateY(-1px) scale(0.997);
 }
-.poa-app button:disabled {
+button:disabled {
   transform: none;
   filter: none;
   box-shadow: none;
@@ -922,7 +935,7 @@
 }
 
 /* Keep focus visible for accessibility */
-.poa-app button:focus-visible {
+button:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px rgba(59,130,246,0.18);
 }
@@ -1418,9 +1431,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   color: rgba(226, 232, 240, 0.6);
 }
 
-.poa-app .card-refined,
-.poa-app .card-refined > .card-surface,
-.poa-app .card-refined .order-card {
+.card-refined,
+.card-refined > .card-surface,
+.card-refined .order-card {
   position: relative;
   border-radius: 1rem;
   border: 1px solid rgba(107,114,128,0.3);
@@ -1430,17 +1443,17 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   overflow: hidden;
 }
 
-.poa-app .card-refined:hover,
-.poa-app .card-refined > .card-surface:hover,
-.poa-app .card-refined .order-card:hover {
+.card-refined:hover,
+.card-refined > .card-surface:hover,
+.card-refined .order-card:hover {
   transform: translateY(-4px);
   border-color: rgba(59,130,246,0.5);
   box-shadow: 0 30px 70px rgba(15,23,42,0.25);
 }
 
-.dark .poa-app .card-refined,
-.dark .poa-app .card-refined > .card-surface,
-.dark .poa-app .card-refined .order-card,
+.dark .card-refined,
+.dark .card-refined > .card-surface,
+.dark .card-refined .order-card,
 .dark .poa-app .bg-white.border,
 .dark .poa-app .bg-white.border.rounded-lg,
 .dark .poa-app .shadow-lg {
@@ -1453,26 +1466,26 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 .dark .poa-app .bg-white.border:hover,
 .dark .poa-app .shadow-lg:hover,
-.dark .poa-app .card-refined:hover,
-.dark .poa-app .card-refined > .card-surface:hover,
-.dark .poa-app .card-refined .order-card:hover {
+.dark .card-refined:hover,
+.dark .card-refined > .card-surface:hover,
+.dark .card-refined .order-card:hover {
   border-color: rgba(14,165,233,0.8);
   box-shadow: 0 35px 110px rgba(2,6,23,0.85);
 }
 
 /* Badges/códigos dentro de tarjetas (modo oscuro): alto contraste */
-.dark .poa-app .card-refined .badge,
-.dark .poa-app .card-refined .chip,
-.dark .poa-app .card-refined .pill,
-.dark .poa-app .card-refined .rounded-full {
+.dark .card-refined .badge,
+.dark .card-refined .chip,
+.dark .card-refined .pill,
+.dark .card-refined .rounded-full {
   background: rgba(14,165,233,0.22);
   color: #eaf2ff;
   border: 1px solid rgba(56,189,248,0.45);
 }
 
-.dark .poa-app .card-refined .text-gray-300,
-.dark .poa-app .card-refined .text-slate-300,
-.dark .poa-app .card-refined .text-blue-300 {
+.dark .card-refined .text-gray-300,
+.dark .card-refined .text-slate-300,
+.dark .card-refined .text-blue-300 {
   color: #eaf2ff !important;
 }
 
@@ -2268,7 +2281,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 /* Divisor para tarjetas y modales: sutil y consistente */
-.poa-app .card-divider {
+.card-divider {
   height: 1px;
   width: 100%;
   background: linear-gradient(90deg, rgba(148,163,184,0.25), rgba(148,163,184,0.45), rgba(148,163,184,0.25));
@@ -2276,7 +2289,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 /* Elegant card variant: más sofisticado y sutil en ambos temas */
-.poa-app .card-elegant {
+.card-elegant {
   position: relative;
   border-radius: 1rem;
   /* Fondo con tinte azul suave para evitar blanco plano */
@@ -2285,7 +2298,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   border: 2px solid rgba(29,78,216,0.6);
   box-shadow: 0 26px 65px rgba(15,23,42,0.18), inset 0 0 0 1px rgba(255,255,255,0.42);
 }
-.poa-app .card-elegant::before {
+.card-elegant::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -2295,7 +2308,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   background: linear-gradient(145deg, rgba(255,255,255,0.20), rgba(255,255,255,0) 40%),
               radial-gradient(120% 120% at -10% -10%, rgba(59,130,246,0.14), rgba(59,130,246,0) 52%);
 }
-.poa-app .card-elegant::after {
+.card-elegant::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -2308,7 +2321,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 /* Override solo para navegadores que soportan mask (borde gradiente premium) */
 @supports ((-webkit-mask: linear-gradient(#000 0 0)) or (mask: linear-gradient(#000 0 0))) {
-  .poa-app .card-elegant::after {
+  .card-elegant::after {
     box-shadow: none;
     padding: 1.5px;
     background: linear-gradient(120deg, rgba(59,130,246,0.55), rgba(99,102,241,0.55));
@@ -2318,38 +2331,38 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     mask-composite: exclude;
   }
 }
-.poa-app .card-elegant:hover {
+.card-elegant:hover {
   transform: translateY(-4px);
   border-color: rgba(29,78,216,0.7);
   box-shadow: 0 28px 72px rgba(15,23,42,0.22), inset 0 0 0 1px rgba(255,255,255,0.4);
 }
 
 /* Legibilidad: textos más oscuros dentro de la tarjeta en tema claro */
-:root:not(.dark) .poa-app .card-elegant .text-gray-800,
-:root:not(.dark) .poa-app .card-elegant .text-slate-800,
-:root:not(.dark) .poa-app .card-elegant .text-gray-900,
-:root:not(.dark) .poa-app .card-elegant .text-slate-900 {
+:root:not(.dark) .card-elegant .text-gray-800,
+:root:not(.dark) .card-elegant .text-slate-800,
+:root:not(.dark) .card-elegant .text-gray-900,
+:root:not(.dark) .card-elegant .text-slate-900 {
   color: #0b1a3a !important;
 }
 
-.dark .poa-app .card-elegant {
+.dark .card-elegant {
   background: linear-gradient(180deg, rgba(9,14,28,0.94) 0%, rgba(12,18,32,0.96) 100%);
   border: 2px solid rgba(56,189,248,0.38);
   box-shadow: 0 36px 98px rgba(2,6,23,0.9);
 }
-.dark .poa-app .card-elegant::before {
+.dark .card-elegant::before {
   background: linear-gradient(145deg, rgba(14,165,233,0.18), rgba(99,102,241,0.14) 38%, rgba(0,0,0,0) 60%),
               radial-gradient(140% 140% at -15% -15%, rgba(59,130,246,0.10), rgba(59,130,246,0) 50%);
 }
-.dark .poa-app .card-elegant::after {
+.dark .card-elegant::after {
   background: linear-gradient(120deg, rgba(14,165,233,0.6), rgba(99,102,241,0.6));
 }
-.dark .poa-app .card-elegant:hover {
+.dark .card-elegant:hover {
   border-color: rgba(14,165,233,0.5);
   box-shadow: 0 38px 110px rgba(2,6,23,0.9);
 }
 
-.poa-app table {
+table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
@@ -2361,12 +2374,12 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   transition: box-shadow 0.35s ease, transform 0.35s ease;
 }
 
-.poa-app table:hover {
+table:hover {
   box-shadow: 0 35px 80px rgba(15,23,42,0.25);
 }
 
-.poa-app table th,
-.poa-app table td {
+table th,
+table td {
   padding: 0.75rem 0.9rem;
   border-bottom: 1px solid rgba(148,163,184,0.35);
   /* reducir más el tamaño de texto para mayor densidad */
@@ -2375,7 +2388,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   background: transparent;
 }
 
-.poa-app table th {
+table th {
   /* Encabezado institucional plano: sin gradientes ni brillo. */
   background: #e7edf3;
   color: #243b53;
@@ -2384,82 +2397,82 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   letter-spacing: 0.04em;
 }
 
-.poa-app table tbody tr {
+table tbody tr {
   background: #ffffff;
 }
 
-.poa-app table tbody tr:nth-child(even) {
+table tbody tr:nth-child(even) {
   background: #eff6ff;
 }
 
-.poa-app table tr:last-child td {
+table tr:last-child td {
   border-bottom: none;
 }
 
-.poa-app table tbody tr:hover {
+table tbody tr:hover {
   background: rgba(59,130,246,0.08);
 }
 
 /* Selección persistente de filas (tema claro) */
-.poa-app table tbody tr.is-selected,
-.poa-app table tbody tr[aria-selected="true"],
-.poa-app table tbody tr[data-selected="true"] {
+table tbody tr.is-selected,
+table tbody tr[aria-selected="true"],
+table tbody tr[data-selected="true"] {
   background: #bfdbfe !important;
   outline: 4px solid rgba(37, 99, 235, 0.82);
   outline-offset: -2px;
   box-shadow: inset 6px 0 0 #2563eb, 0 10px 28px rgba(37, 99, 235, 0.2);
 }
 
-.poa-app table tbody tr.is-selected td,
-.poa-app table tbody tr[aria-selected="true"] td,
-.poa-app table tbody tr[data-selected="true"] td {
+table tbody tr.is-selected td,
+table tbody tr[aria-selected="true"] td,
+table tbody tr[data-selected="true"] td {
   color: #0f172a !important;
   background: rgba(219, 234, 254, 0.72) !important;
 }
 
 /* Dark theme tables: solid surface for strong legibility */
-.dark .poa-app table {
+.dark table {
   background: #0b1224; /* solid deep navy */
   border-color: rgba(56,189,248,0.35);
   box-shadow: 0 30px 90px rgba(2,6,23,0.7);
 }
 
-.dark .poa-app table th,
-.dark .poa-app table td {
+.dark table th,
+.dark table td {
   border-bottom-color: rgba(56,189,248,0.26);
   color: #e6edf7;
   background: transparent; /* evitar velos translúcidos en celdas */
 }
 
 /* Encabezado institucional plano para el tema oscuro. */
-.dark .poa-app table th {
+.dark table th {
   background: #1f2d3d;
   color: #dbe5ef;
   border-color: #415365;
 }
 
 /* Zebra striping y hover para lectura */
-.dark .poa-app table tbody tr:nth-child(odd) {
+.dark table tbody tr:nth-child(odd) {
   background: rgba(255,255,255,0.02);
 }
-.dark .poa-app table tbody tr:nth-child(even) {
+.dark table tbody tr:nth-child(even) {
   background: rgba(9,14,28,0.35);
 }
-.dark .poa-app table tbody tr:hover {
+.dark table tbody tr:hover {
   background: rgba(37,99,235,0.16);
 }
 
 /* Selección persistente de filas (tema oscuro) */
-.dark .poa-app table tbody tr.is-selected,
-.dark .poa-app table tbody tr[aria-selected="true"],
-.dark .poa-app table tbody tr[data-selected="true"] {
+.dark table tbody tr.is-selected,
+.dark table tbody tr[aria-selected="true"],
+.dark table tbody tr[data-selected="true"] {
   background: linear-gradient(120deg, rgba(14,165,233,0.22), rgba(79,70,229,0.2)), #0d1630 !important;
   outline: 2px solid rgba(56,189,248,0.6);
   outline-offset: -2px;
 }
 
-.dark .poa-app table th,
-.dark .poa-app table td,
+.dark table th,
+.dark table td,
 .dark .poa-app .text-gray-800,
 .dark .poa-app .text-gray-900,
 .dark .poa-app .text-gray-700,
@@ -2469,17 +2482,17 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   color: #e2e8f0 !important;
 }
 
-.dark .poa-app table {
+.dark table {
   font-size: 0.82rem;
 }
 
-.dark .poa-app table th,
-.dark .poa-app table td {
+.dark table th,
+.dark table td {
   font-weight: 500;
   letter-spacing: 0.02em;
 }
 
-.dark .poa-app table th {
+.dark table th {
   color: #c7d2fe !important;
 }
 

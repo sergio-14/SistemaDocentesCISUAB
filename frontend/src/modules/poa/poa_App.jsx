@@ -1,8 +1,7 @@
 ﻿import { Routes, Route, Outlet } from 'react-router-dom';
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './index.css';
-import './design-system.css';
 import { useTheme } from '../../useTheme';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -15,8 +14,7 @@ import { replacePoaNavigationContext } from './utils/navigationContext';
 function POAApp({ user }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { theme: previousTheme, setTheme } = useTheme();
-  const previousThemeRef = useRef(previousTheme);
+  const { setTheme } = useTheme();
   const theme = 'light';
   const [showGestionModal, setShowGestionModal] = useState(false);
   const [headerSelectedActividad, setHeaderSelectedActividad] = useState(null);
@@ -27,9 +25,8 @@ function POAApp({ user }) {
   const lastScrollY = useRef(0);
   const scrollTimeout = useRef(null);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     setTheme('light');
-    return () => setTheme(previousThemeRef.current);
   }, []);
 
   const isHome = location?.pathname === '/poa' || location?.pathname === '/poa/';
@@ -148,7 +145,7 @@ function POAApp({ user }) {
   }, []);
 
   return (
-    <div className="poa-app poa-theme-light flex h-screen overflow-hidden" data-theme="light">
+    <div className={`poa-app flex h-screen overflow-hidden transition-colors duration-500`}>
       <ChatFlotantePOA currentUser={user} />
 
       {/* Sidebar */}
@@ -195,7 +192,7 @@ function POAApp({ user }) {
         />
 
         {/* Contenido central */}
-        <section className={`poa-main-surface poa-content ${isHome ? 'poa-content-home' : 'poa-content-page'} flex flex-col items-stretch justify-start flex-1 min-h-0 overflow-y-auto ${isHome ? 'pt-2 md:pt-2 pb-6' : 'pt-28 md:pt-16 pb-6'} ${isHome ? 'px-4 md:px-6 lg:px-8' : isEvidenciasPage ? 'px-4 md:px-8 lg:px-10' : (isActividadesPage || isPresupuestosPage || isObjetivosPage) ? 'px-2 md:px-4' : 'px-4 md:px-20'} w-full`}>
+        <section className={`poa-main-surface flex flex-col items-stretch justify-start flex-1 min-h-0 overflow-y-auto ${isHome ? 'pt-2 md:pt-2 pb-6' : 'pt-28 md:pt-16 pb-6'} ${isHome ? 'px-4 md:px-6 lg:px-8' : isEvidenciasPage ? 'px-4 md:px-8 lg:px-10' : (isActividadesPage || isPresupuestosPage || isObjetivosPage) ? 'px-2 md:px-4' : 'px-4 md:px-20'} w-full`}>
           <PoaBreadcrumb />
           <Outlet context={{ user, poaRoles, poaPermissions }} />
         </section>

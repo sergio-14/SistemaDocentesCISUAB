@@ -120,10 +120,10 @@ export default function NuevaActividadModal({ onClose, onCreated, onUpdated, obj
         </div>
 
         <form onSubmit={guardar} className="modal-body poa-activity-form" noValidate>
-          <div className="poa-activity-fields">
+          <div className="poa-activity-fields space-y-2">
             <ModalErrorAlert title="Revise los campos marcados:" messages={errorMessages} />
 
-            <div className="poa-activity-primary-fields grid gap-x-4 gap-y-2 md:grid-cols-[minmax(11rem,0.35fr)_minmax(0,1fr)]">
+            <div className="grid gap-x-4 gap-y-2 md:grid-cols-[minmax(11rem,0.35fr)_minmax(0,1fr)]">
               <Input
                 label="Código"
                 name="codigo"
@@ -165,7 +165,7 @@ export default function NuevaActividadModal({ onClose, onCreated, onUpdated, obj
               />
             </div>
 
-            <div className="poa-activity-indicator-field">
+            <div>
               <Input
                 label="Indicador"
                 name="indicador_descripcion"
@@ -186,7 +186,7 @@ export default function NuevaActividadModal({ onClose, onCreated, onUpdated, obj
               </datalist>
             </div>
 
-            <div className="poa-activity-metric-fields grid grid-cols-2 gap-x-4 gap-y-2 md:grid-cols-[7rem_7rem_minmax(7.5rem,1fr)_minmax(7.5rem,1fr)_8rem]">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 md:grid-cols-[7rem_7rem_minmax(7.5rem,1fr)_minmax(7.5rem,1fr)_8rem]">
               <Input
                 label="Línea base"
                 name="indicador_linea_base"

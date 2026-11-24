@@ -1,27 +1,252 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FaArrowRight, FaCalendarAlt, FaChartLine, FaClipboardCheck, FaExclamationTriangle, FaFileAlt, FaImage, FaMoneyBillWave } from 'react-icons/fa';
+import {
+  FaArrowRight,
+  FaCalendarAlt,
+  FaExclamationTriangle,
+  FaMoneyBillWave,
+} from 'react-icons/fa';
 import { getBandejaSeguimientoPOA, getTableroPOA } from '../../../apis/poa.api';
+import './POAHomePage.css';
 
-const money = (v) => `Bs. ${Number(v || 0).toLocaleString('es-BO', { minimumFractionDigits: 2 })}`;
-const estados = { elaboracion: 'En elaboración', revision: 'En revisión', observado: 'Observados', aprobado: 'Aprobados', ejecucion: 'En ejecución' };
-const Kpi = ({ label, value, Icon, tone = 'text-[#365d7d]' }) => <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900"><div className="flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">{label}</span><Icon className={tone} /></div><b className={`mt-1 block text-2xl ${tone}`}>{value}</b></div>;
+const money = (value) => `Bs. ${Number(value || 0).toLocaleString('es-BO', { minimumFractionDigits: 2 })}`;
+const estados = {
+  elaboracion: 'En elaboración',
+  revision: 'En revisión',
+  observado: 'Observados',
+  aprobado: 'Aprobados',
+  ejecucion: 'En ejecución',
+};
+
+function Kpi({ label, value, tone = 'default' }) {
+  return (
+    <article className={`poa-dashboard__kpi poa-dashboard__kpi--${tone}`}>
+      <p className="poa-dashboard__kpi-label">{label}</p>
+      <p className="poa-dashboard__kpi-value">{value}</p>
+    </article>
+  );
+}
 
 export default function POAHomePage() {
-  const navigate = useNavigate(); const location = useLocation();
-  const [modo, setModo] = useState(() => location.state?.modo || 'ejecucion'); const [data, setData] = useState(null); const [tablero, setTablero] = useState(null); const [error, setError] = useState('');
-  useEffect(() => { if (location.state?.modo) setModo(location.state.modo); }, [location.state?.modo]);
-  useEffect(() => { const gestion = new Date().getFullYear(); setData(null); setError(''); Promise.all([getBandejaSeguimientoPOA({ gestion, modo }), getTableroPOA({ gestion })]).then(([b, t]) => { setData(b.data); setTablero(t.data); }).catch(() => setError('No se pudo cargar el tablero de trabajo.')); }, [modo]);
-  if (error) return <div className="mx-auto mt-6 w-full max-w-[1500px] rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">{error}</div>;
-  if (!data || !tablero) return <div className="mx-auto mt-6 w-full max-w-[1500px] text-sm text-slate-700 dark:text-slate-200">Cargando tablero de trabajo…</div>;
-  const r = data.resumen || {}; const e = tablero.estados_documento || {}; const agenda = tablero.agenda_mensual || {}; const p = tablero.presupuesto || {};
-  const fisico = Number(r.avance_fisico || 0); const financiero = Number(p.planificado) ? Math.round(Number(p.comprometido || 0) / Number(p.planificado) * 100) : 0;
-  const kpis = modo === 'ejecucion' ? [['Programas activos', r.documentos, FaFileAlt], ['Actividades activas', r.actividades, FaClipboardCheck], ['Avance físico', `${fisico}%`, FaChartLine, 'text-[#467565]'], ['Sin evidencia', Math.max(0, r.actividades - r.con_evidencia), FaImage, 'text-[#9a7040]']] : [['En elaboración', e.elaboracion || 0, FaFileAlt], ['En revisión', e.revision || 0, FaClipboardCheck], ['Observados', e.observado || 0, FaExclamationTriangle, 'text-[#9a7040]'], ['Aprobados', e.aprobado || 0, FaChartLine, 'text-[#467565]']];
-  const abrirAlerta = (a) => { if (a.accion === 'ver_materiales') navigate('/poa/consolidado-requerimientos', { state: { materialTab: 'entregas' } }); else if (a.referencia?.documento_id) navigate(`/poa/seguimiento/programa/${a.referencia.documento_id}`, { state: { modo: 'ejecucion' } }); };
-  return <section className="mx-auto w-full max-w-[1500px] pb-8 text-slate-800 dark:text-slate-100">
-    <header className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900"><p className="text-[11px] font-bold uppercase tracking-[.16em] text-[#365d7d] dark:text-slate-300">Gestión POA · {data.gestion}</p><div className="mt-1 flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">Bandeja de trabajo</h2><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Controle la preparación documental, la ejecución de actividades y los materiales de su carrera.</p></div><div className="text-right"><p className="text-[10px] font-bold uppercase text-slate-600 dark:text-slate-300">Presupuesto comprometido</p><b>{money(p.comprometido)} <span className="text-xs text-slate-600 dark:text-slate-300">/ {money(p.planificado)}</span></b></div></div><nav className="mt-4 flex gap-5 border-b"><button onClick={() => setModo('ejecucion')} className={`border-b-2 pb-2 text-sm font-bold ${modo === 'ejecucion' ? 'border-[#365d7d] text-[#294b67] dark:text-white' : 'border-transparent text-slate-600 dark:text-slate-300'}`}>Ejecución</button><button onClick={() => setModo('planificado')} className={`border-b-2 pb-2 text-sm font-bold ${modo === 'planificado' ? 'border-[#365d7d] text-[#294b67] dark:text-white' : 'border-transparent text-slate-600 dark:text-slate-300'}`}>Planificación</button></nav></header>
-    <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">{kpis.map(([l, v, I, t]) => <Kpi key={l} label={l} value={v} Icon={I} tone={t} />)}</div>
-    <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]"><section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"><div className="flex justify-between"><div><h3 className="font-bold text-slate-900 dark:text-white">{modo === 'ejecucion' ? 'Programas en ejecución' : 'Documentos en planificación'}</h3><p className="text-xs text-slate-600 dark:text-slate-300">Abra un programa para acceder a sus objetivos, actividades y evidencias.</p></div><b className="text-xs text-slate-600 dark:text-slate-300">{data.programas.length} documentos</b></div><div className="mt-3 space-y-2">{data.programas.map((x) => <button key={x.id} onClick={() => navigate(`/poa/seguimiento/programa/${x.id}`, { state: { modo } })} className="w-full rounded-xl border border-slate-200 p-3 text-left transition hover:border-[#7891a8] hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"><div className="flex justify-between gap-3"><div><b className="text-slate-800 dark:text-white">{x.programa}</b><p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{modo === 'planificado' ? estados[x.estado_documento] : `${x.en_ejecucion} en ejecución · ${x.completadas}/${x.total_actividades} completadas`}</p></div><FaArrowRight className="mt-2 text-[#365d7d]" /></div>{modo === 'ejecucion' && <div className="mt-2 h-1.5 rounded bg-slate-200"><div className="h-full rounded bg-[#467565]" style={{ width: `${x.avance_porcentaje}%` }} /></div>}</button>)}{!data.programas.length && <p className="rounded-xl border border-dashed p-6 text-center text-sm text-slate-600 dark:text-slate-300">No hay documentos para esta vista.</p>}</div></section>
-      <aside className="space-y-4"><section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"><h3 className="font-bold text-slate-900 dark:text-white"><FaCalendarAlt className="mr-2 inline text-[#365d7d]" />Agenda de {agenda.mes || 'este mes'}</h3><div className="mt-3 grid grid-cols-2 gap-2 text-sm"><p className="rounded bg-slate-100 p-2 dark:bg-slate-800">Programadas <b className="block">{agenda.programadas || 0}</b></p><p className="rounded bg-slate-100 p-2 dark:bg-slate-800">En curso <b className="block">{agenda.en_ejecucion || 0}</b></p><p className="rounded bg-slate-100 p-2 dark:bg-slate-800">Completadas <b className="block">{agenda.completadas || 0}</b></p><p className="rounded bg-slate-100 p-2 dark:bg-slate-800">Retrasadas <b className="block">{agenda.retrasadas || 0}</b></p></div></section><section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"><h3 className="font-bold text-slate-900 dark:text-white"><FaExclamationTriangle className="mr-2 inline text-[#9a7040]" />Trabajo prioritario</h3><div className="mt-2 space-y-2">{tablero.alertas?.length ? tablero.alertas.map((a, i) => <button key={i} onClick={() => abrirAlerta(a)} className="w-full rounded-lg bg-slate-100 p-2 text-left text-xs text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200">{a.mensaje}</button>) : <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">No hay acciones pendientes.</p>}</div></section><section className="rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900"><h3 className="font-bold text-slate-900 dark:text-white"><FaMoneyBillWave className="mr-2 inline text-[#365d7d]" />Ejecución presupuestaria</h3><p className="mt-2 text-slate-600 dark:text-slate-300">Comprometido: <b>{financiero}%</b></p><div className="mt-1 h-2 rounded bg-slate-200"><div className="h-full rounded bg-[#365d7d]" style={{ width: `${financiero}%` }} /></div><p className="mt-3 text-xs text-slate-600 dark:text-slate-300">Recibido: <b>{money(p.recibido)}</b><br />Entregado: <b>{money(p.entregado)}</b></p></section></aside></div>
-  </section>;
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [modo, setModo] = useState(() => location.state?.modo || 'ejecucion');
+  const [data, setData] = useState(null);
+  const [tablero, setTablero] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (location.state?.modo) setModo(location.state.modo);
+  }, [location.state?.modo]);
+
+  useEffect(() => {
+    const gestion = new Date().getFullYear();
+    setData(null);
+    setError('');
+    Promise.all([
+      getBandejaSeguimientoPOA({ gestion, modo }),
+      getTableroPOA({ gestion }),
+    ])
+      .then(([bandeja, resumen]) => {
+        setData(bandeja.data);
+        setTablero(resumen.data);
+      })
+      .catch(() => setError('No se pudo cargar el tablero de trabajo.'));
+  }, [modo]);
+
+  if (error) {
+    return (
+      <div className="poa-dashboard__message poa-dashboard__message--error" role="alert">
+        {error}
+      </div>
+    );
+  }
+
+  if (!data || !tablero) {
+    return <div className="poa-dashboard__message" role="status">Cargando tablero de trabajo…</div>;
+  }
+
+  const resumen = data.resumen || {};
+  const estadosDocumento = tablero.estados_documento || {};
+  const agenda = tablero.agenda_mensual || {};
+  const presupuesto = tablero.presupuesto || {};
+  const avanceFisico = Number(resumen.avance_fisico || 0);
+  const avanceFinanciero = Number(presupuesto.planificado)
+    ? Math.round(Number(presupuesto.comprometido || 0) / Number(presupuesto.planificado) * 100)
+    : 0;
+  const kpis = modo === 'ejecucion'
+    ? [
+        { label: 'Programas activos', value: resumen.documentos },
+        { label: 'Actividades activas', value: resumen.actividades },
+        { label: 'Avance físico', value: `${avanceFisico}%`, tone: 'positive' },
+        { label: 'Sin evidencia', value: Math.max(0, resumen.actividades - resumen.con_evidencia), tone: 'attention' },
+      ]
+    : [
+        { label: 'En elaboración', value: estadosDocumento.elaboracion || 0 },
+        { label: 'En revisión', value: estadosDocumento.revision || 0 },
+        { label: 'Observados', value: estadosDocumento.observado || 0, tone: 'attention' },
+        { label: 'Aprobados', value: estadosDocumento.aprobado || 0, tone: 'positive' },
+      ];
+
+  const abrirAlerta = (alerta) => {
+    if (alerta.accion === 'ver_materiales') {
+      navigate('/poa/consolidado-requerimientos', { state: { materialTab: 'entregas' } });
+    } else if (alerta.referencia?.documento_id) {
+      navigate(`/poa/seguimiento/programa/${alerta.referencia.documento_id}`, {
+        state: { modo: 'ejecucion' },
+      });
+    }
+  };
+
+  return (
+    <section className="poa-dashboard" aria-labelledby="poa-dashboard-title">
+      <header className="poa-dashboard__overview">
+        <div className="poa-dashboard__title-block">
+          <p className="poa-dashboard__eyebrow">Gestión POA · {data.gestion}</p>
+          <h1 id="poa-dashboard-title">Bandeja de trabajo</h1>
+          <p className="poa-dashboard__intro">
+            Controle la preparación documental, la ejecución de actividades y los materiales de su carrera.
+          </p>
+        </div>
+
+        <nav className="poa-dashboard__tabs" aria-label="Vista del tablero">
+          <button
+            type="button"
+            aria-pressed={modo === 'ejecucion'}
+            className={modo === 'ejecucion' ? 'is-active' : ''}
+            onClick={() => setModo('ejecucion')}
+          >
+            Ejecución
+          </button>
+          <button
+            type="button"
+            aria-pressed={modo === 'planificado'}
+            className={modo === 'planificado' ? 'is-active' : ''}
+            onClick={() => setModo('planificado')}
+          >
+            Planificación
+          </button>
+        </nav>
+      </header>
+
+      <div className="poa-dashboard__kpis" aria-label="Indicadores del tablero">
+        {kpis.map((kpi) => <Kpi key={kpi.label} {...kpi} />)}
+      </div>
+
+      <div className="poa-dashboard__content">
+        <section className="poa-dashboard__panel poa-dashboard__programs">
+          <div className="poa-dashboard__panel-heading">
+            <div>
+              <h2>{modo === 'ejecucion' ? 'Programas en ejecución' : 'Documentos en planificación'}</h2>
+              <p>Abra un programa para acceder a sus objetivos, actividades y evidencias.</p>
+            </div>
+            <span className="poa-dashboard__document-count">{data.programas.length} documentos</span>
+          </div>
+
+          <div className="poa-dashboard__program-list">
+            {data.programas.map((programa) => {
+              const porcentaje = Math.min(100, Math.max(0, Number(programa.avance_porcentaje || 0)));
+
+              return (
+                <button
+                  type="button"
+                  key={programa.id}
+                  className="poa-dashboard__program"
+                  onClick={() => navigate(`/poa/seguimiento/programa/${programa.id}`, { state: { modo } })}
+                >
+                  <span className="poa-dashboard__program-main">
+                    <span className="poa-dashboard__program-name">{programa.programa}</span>
+                    <span className="poa-dashboard__program-meta">
+                      {modo === 'planificado'
+                        ? estados[programa.estado_documento]
+                        : `${programa.en_ejecucion} en ejecución · ${programa.completadas}/${programa.total_actividades} completadas`}
+                    </span>
+                  </span>
+                  <FaArrowRight className="poa-dashboard__program-arrow" aria-hidden="true" />
+                  {modo === 'ejecucion' && (
+                    <span className="poa-dashboard__program-progress">
+                      <span
+                        className="poa-dashboard__progress"
+                        role="progressbar"
+                        aria-label={`Avance de ${programa.programa}`}
+                        aria-valuemin="0"
+                        aria-valuemax="100"
+                        aria-valuenow={porcentaje}
+                      >
+                        <span style={{ width: `${porcentaje}%` }} />
+                      </span>
+                      <span className="poa-dashboard__program-percent">{porcentaje}%</span>
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {!data.programas.length && (
+              <p className="poa-dashboard__empty">No hay documentos para esta vista.</p>
+            )}
+          </div>
+        </section>
+
+        <aside className="poa-dashboard__aside">
+          <section className="poa-dashboard__panel">
+            <div className="poa-dashboard__panel-heading poa-dashboard__panel-heading--compact">
+              <h2><FaCalendarAlt aria-hidden="true" /> Agenda de {agenda.mes || 'este mes'}</h2>
+            </div>
+            <div className="poa-dashboard__agenda">
+              <p>Programadas <b>{agenda.programadas || 0}</b></p>
+              <p>En curso <b>{agenda.en_ejecucion || 0}</b></p>
+              <p>Completadas <b>{agenda.completadas || 0}</b></p>
+              <p>Retrasadas <b>{agenda.retrasadas || 0}</b></p>
+            </div>
+          </section>
+
+          <section className="poa-dashboard__panel">
+            <div className="poa-dashboard__panel-heading poa-dashboard__panel-heading--compact">
+              <h2><FaExclamationTriangle aria-hidden="true" /> Trabajo prioritario</h2>
+            </div>
+            <div className="poa-dashboard__alerts">
+              {tablero.alertas?.length
+                ? tablero.alertas.map((alerta, index) => (
+                    <button
+                      type="button"
+                      key={`${alerta.mensaje}-${index}`}
+                      onClick={() => abrirAlerta(alerta)}
+                    >
+                      {alerta.mensaje}
+                      <FaArrowRight aria-hidden="true" />
+                    </button>
+                  ))
+                : <p className="poa-dashboard__no-alerts">No hay acciones pendientes.</p>}
+            </div>
+          </section>
+
+          <section className="poa-dashboard__panel poa-dashboard__budget-panel">
+            <div className="poa-dashboard__budget-heading">
+              <div>
+                <h2><FaMoneyBillWave aria-hidden="true" /> Ejecución presupuestaria</h2>
+                <p className="poa-dashboard__section-label">Comprometido</p>
+              </div>
+              <p className="poa-dashboard__budget-percent">{avanceFinanciero}%</p>
+            </div>
+            <p className="poa-dashboard__budget-amount">{money(presupuesto.comprometido)}</p>
+            <div
+              className="poa-dashboard__progress poa-dashboard__progress--budget"
+              role="progressbar"
+              aria-label="Presupuesto comprometido"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow={Math.min(100, Math.max(0, avanceFinanciero))}
+            >
+              <span style={{ width: `${Math.min(100, Math.max(0, avanceFinanciero))}%` }} />
+            </div>
+            <div className="poa-dashboard__budget-footer">
+              <span>Planificado <b>{money(presupuesto.planificado)}</b></span>
+              <span>Recibido <b>{money(presupuesto.recibido)}</b></span>
+              <span>Entregado <b>{money(presupuesto.entregado)}</b></span>
+            </div>
+          </section>
+        </aside>
+      </div>
+    </section>
+  );
 }

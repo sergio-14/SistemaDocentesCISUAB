@@ -1,0 +1,292 @@
+.poa-app .poa-main-surface .poa-director-dashboard {
+  --director-ink: #183153;
+  --director-text: #425a76;
+  --director-muted: #687d95;
+  --director-blue: #2452b7;
+  --director-border: #d7e2ef;
+  --director-surface: rgb(255 255 255 / 88%);
+
+  width: 100%;
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: clamp(14px, 2vw, 26px);
+  color: var(--director-ink);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 180px;
+  padding: clamp(22px, 3vw, 38px);
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 56%);
+  border-radius: 18px;
+  background:
+    radial-gradient(ellipse at 90% 10%, rgb(76 132 235 / 28%), transparent 36%),
+    linear-gradient(120deg, #183b78, #2452b7 72%, #3267cb);
+  box-shadow: 0 18px 40px rgb(24 49 83 / 15%);
+  color: #fff;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__hero-copy {
+  max-width: 720px;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__eyebrow {
+  margin: 0 0 9px;
+  color: #d9e8ff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.015em;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__hero h1 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.7rem, 3vw, 2.35rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.12;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__hero-copy > p:last-child {
+  max-width: 620px;
+  margin: 11px 0 0;
+  color: #e5efff;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__year {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 2px;
+  min-width: 108px;
+  padding: 13px 16px;
+  border: 1px solid rgb(255 255 255 / 32%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 12%);
+  color: #e4eeff;
+  text-align: center;
+  backdrop-filter: blur(8px);
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__year span {
+  font-size: 0.75rem;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__year strong {
+  color: #fff;
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__notice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--director-border);
+  border-left: 4px solid #b67b18;
+  border-radius: 12px;
+  background: var(--director-surface);
+  box-shadow: 0 8px 22px rgb(24 49 83 / 7%);
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__notice.is-clear {
+  border-left-color: #39805d;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__notice-icon {
+  display: grid;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 11px;
+  background: #fff3d8;
+  color: #98620c;
+  font-size: 1rem;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__notice.is-clear .poa-director-dashboard__notice-icon {
+  background: #e6f4eb;
+  color: #28684f;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__notice-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__notice-copy h2 {
+  margin: 0;
+  color: var(--director-ink);
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__notice-copy p {
+  margin: 3px 0 0;
+  color: var(--director-text);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__notice-action {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid #c8d7ee;
+  border-radius: 8px;
+  background: #f5f8fd;
+  color: #1f478f;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__notice-action:hover {
+  border-color: #9eb8de;
+  background: #eaf1fc;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__notice-action span {
+  display: inline-grid;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  place-items: center;
+  border-radius: 999px;
+  background: #234eaa;
+  color: #fff;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__summary article {
+  display: flex;
+  min-width: 0;
+  min-height: 82px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 17px;
+  border: 1px solid var(--director-border);
+  border-radius: 12px;
+  background: var(--director-surface);
+  box-shadow: 0 6px 18px rgb(24 49 83 / 5%);
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__summary span {
+  color: var(--director-muted);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__summary strong {
+  color: var(--director-ink);
+  font-size: 1.55rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__message {
+  width: 100%;
+  max-width: 1360px;
+  margin: 20px auto;
+  padding: 16px;
+  border: 1px solid var(--director-border, #d7e2ef);
+  border-radius: 11px;
+  background: #fff;
+  color: var(--director-text, #425a76);
+  font: 400 0.9375rem/1.5 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.poa-app .poa-main-surface .poa-director-dashboard__message--error {
+  border-color: #e8c4c4;
+  background: #fff7f7;
+  color: #8c3030;
+}
+
+@media (max-width: 899px) {
+  .poa-app .poa-main-surface .poa-director-dashboard__summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 599px) {
+  .poa-app .poa-main-surface .poa-director-dashboard {
+    padding: 12px 8px;
+  }
+
+  .poa-app .poa-main-surface .poa-director-dashboard__hero {
+    align-items: flex-start;
+    min-height: 0;
+    flex-direction: column;
+    gap: 18px;
+    padding: 22px;
+  }
+
+  .poa-app .poa-main-surface .poa-director-dashboard__year {
+    grid-template-columns: auto auto;
+    align-items: baseline;
+    justify-content: start;
+    gap: 8px;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .poa-app .poa-main-surface .poa-director-dashboard__notice {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 14px;
+  }
+
+  .poa-app .poa-main-surface .poa-director-dashboard__notice-copy {
+    flex-basis: calc(100% - 56px);
+  }
+
+  .poa-app .poa-main-surface .poa-director-dashboard__notice-action {
+    margin-left: 56px;
+  }
+
+  .poa-app .poa-main-surface .poa-director-dashboard__summary article {
+    min-height: 74px;
+    padding: 12px;
+  }
+
+  .poa-app .poa-main-surface .poa-director-dashboard__summary span {
+    font-size: 0.75rem;
+  }
+
+  .poa-app .poa-main-surface .poa-director-dashboard__summary strong {
+    font-size: 1.35rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poa-app .poa-main-surface .poa-director-dashboard__notice-action {
+    transition-duration: 0.01ms;
+  }
+}

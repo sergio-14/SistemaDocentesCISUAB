@@ -18,7 +18,6 @@ export default function Sidebar({ onOpenGestionSelector, onOpenRevisionBoard, se
   const location = useLocation();
   const isDirector = user?.perfil?.rol === 'director' && !user?.is_superuser;
   const showCatalogs = !isDirector && Boolean(user?.is_superuser || poaPermissions.canEdit);
-  const showMaterials = true;
   const [isDesktop, setIsDesktop] = useState(desktop);
   const [open, setOpen] = useState(() => desktop() && window.localStorage.getItem('poa-sidebar-open') !== 'false');
   const [catalogosOpen, setCatalogosOpen] = useState(() => location.pathname.startsWith('/poa/catalogos'));
@@ -90,39 +89,54 @@ export default function Sidebar({ onOpenGestionSelector, onOpenRevisionBoard, se
             {section('Inicio')}
             {link({ name: 'Inicio', icon: FaHome, path: '/poa' })}
 
-            {section('Planificación')}
-            <button type="button" className={itemClass('/poa/documentos')} title="Documentos POA" onClick={() => { onOpenGestionSelector?.(); afterNavigate(); }}>
-              <FaFileAlt className="h-5 w-5 shrink-0" />
-              {!collapsed && <span className="text-sm font-semibold">Documentos POA</span>}
-            </button>
-            {poaPermissions.canReview && (
-              <button type="button" className={itemClass('/poa/documentos-revision')} title="Revisión POA" onClick={() => { onOpenRevisionBoard?.(); afterNavigate(); }}>
-                <FaClipboardCheck className="h-5 w-5 shrink-0" />
-                {!collapsed && <span className="text-sm font-semibold">Revisión POA</span>}
-              </button>
-            )}
-
-            {showMaterials && (
+            {isDirector ? (
               <>
+                {section('Gestión anual')}
+                <button type="button" className={itemClass('/poa/documentos-revision')} title="Revisión POA" onClick={() => { onOpenRevisionBoard?.(); afterNavigate(); }}>
+                  <FaClipboardCheck className="h-5 w-5 shrink-0" />
+                  {!collapsed && <span className="text-sm font-semibold">Revisión POA</span>}
+                </button>
+                <button type="button" className={itemClass('/poa/documentos')} title="Ejecución POA" onClick={() => { onOpenGestionSelector?.(); afterNavigate(); }}>
+                  <FaFileAlt className="h-5 w-5 shrink-0" />
+                  {!collapsed && <span className="text-sm font-semibold">Ejecución POA</span>}
+                </button>
+                {poaPermissions.canManageAccess && (
+                  <>
+                    {section('Administración')}
+                    {link({ name: 'Accesos POA', icon: FaUsers, path: '/poa/accesos' })}
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                {section('Planificación')}
+                <button type="button" className={itemClass('/poa/documentos')} title="Documentos POA" onClick={() => { onOpenGestionSelector?.(); afterNavigate(); }}>
+                  <FaFileAlt className="h-5 w-5 shrink-0" />
+                  {!collapsed && <span className="text-sm font-semibold">Documentos POA</span>}
+                </button>
+                {poaPermissions.canReview && (
+                  <button type="button" className={itemClass('/poa/documentos-revision')} title="Revisión POA" onClick={() => { onOpenRevisionBoard?.(); afterNavigate(); }}>
+                    <FaClipboardCheck className="h-5 w-5 shrink-0" />
+                    {!collapsed && <span className="text-sm font-semibold">Revisión POA</span>}
+                  </button>
+                )}
                 {section('Ejecución y materiales')}
                 {link({ name: 'Materiales', icon: FaBoxOpen, path: '/poa/consolidado-requerimientos' })}
+                {(showCatalogs || poaPermissions.canManageAccess) && section('Configuración')}
+                {showCatalogs && (
+                  <>
+                    <button type="button" className={itemClass('/poa/catalogos')} title="Catálogos" onClick={() => { if (collapsed) { toggle(); return; } setCatalogosOpen((value) => !value); }}>
+                      <FaList className="h-5 w-5 shrink-0" />
+                      {!collapsed && <span className="text-sm font-semibold">Catálogos</span>}
+                    </button>
+                    {catalogosOpen && !collapsed && <CatalogosMenu onMenuClick={() => { setCatalogosOpen(false); afterNavigate(); }} />}
+                  </>
+                )}
+                {poaPermissions.canManageAccess && link({ name: 'Accesos POA', icon: FaUsers, path: '/poa/accesos' })}
+                {section('Consultas')}
+                {link({ name: 'Reportes', icon: FaFilePdf, path: '/poa/reportes' })}
               </>
             )}
-
-            {(showCatalogs || poaPermissions.canManageAccess) && section(isDirector ? 'Administración' : 'Configuración')}
-            {showCatalogs && (
-              <>
-                <button type="button" className={itemClass('/poa/catalogos')} title="Catálogos" onClick={() => { if (collapsed) { toggle(); return; } setCatalogosOpen((value) => !value); }}>
-                  <FaList className="h-5 w-5 shrink-0" />
-                  {!collapsed && <span className="text-sm font-semibold">Catálogos</span>}
-                </button>
-                {catalogosOpen && !collapsed && <CatalogosMenu onMenuClick={() => { setCatalogosOpen(false); afterNavigate(); }} />}
-              </>
-            )}
-            {poaPermissions.canManageAccess && link({ name: 'Accesos POA', icon: FaUsers, path: '/poa/accesos' })}
-
-            {section('Consultas')}
-            {link({ name: 'Reportes', icon: FaFilePdf, path: '/poa/reportes' })}
           </div>
         </nav>
         <div className="poa-sidebar-footer border-t border-blue-800/50 p-4">

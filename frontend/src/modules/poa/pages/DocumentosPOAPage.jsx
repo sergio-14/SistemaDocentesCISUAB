@@ -153,6 +153,8 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
   const canEdit = !!poaPermissions.canEdit;
   const canReview = !!poaPermissions.canReview;
   const isRevisionBoard = viewMode === 'revision-observado';
+  const isDirector = outletContext.user?.perfil?.rol === 'director' && !outletContext.user?.is_superuser;
+  const isDirectorExecutionBoard = viewMode === 'director-ejecucion' || (viewMode === 'all' && isDirector);
   const documentosPath = isRevisionBoard ? '/poa/documentos-revision' : '/poa/documentos';
   const isDark = effectiveTheme === 'dark';
   const navContext = useMemo(() => getPoaNavigationContext(location?.state), [location?.key, location?.state]);
@@ -468,9 +470,17 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
 
   const filteredDocs = useMemo(() => {
     const list = Array.isArray(docs) ? docs : [];
-    if (!isRevisionBoard) return list;
-    return list.filter((doc) => doc?.estado === 'revision' || getPendingSolicitudes(doc).length > 0);
-  }, [docs, isRevisionBoard]);
+    if (isRevisionBoard) {
+      return list.filter((doc) => doc?.estado === 'revision' || getPendingSolicitudes(doc).length > 0);
+    }
+    if (isDirectorExecutionBoard) {
+      return list.filter((doc) => (
+        ['aprobado', 'ejecucion'].includes(doc?.estado)
+        && getPendingSolicitudes(doc).length === 0
+      ));
+    }
+    return list;
+  }, [docs, isRevisionBoard, isDirectorExecutionBoard]);
 
   const filteredResumen = useMemo(() => (
     filteredDocs.reduce((acc, doc) => {
@@ -487,10 +497,14 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
     }, { total: 0, elaboracion: 0, revision: 0, observado: 0, aprobado: 0, ejecucion: 0, solicitudes: 0, otro: 0 })
   ), [filteredDocs]);
 
-  const boardTitle = isRevisionBoard ? 'Revision de Documentos POA' : 'Documentos POA';
+  const boardTitle = isRevisionBoard
+    ? 'Revision de Documentos POA'
+    : isDirectorExecutionBoard ? 'Ejecución POA' : 'Documentos POA';
   const boardDescription = isRevisionBoard
     ? 'Aqui se concentran los documentos enviados a revision y las solicitudes de cambio pendientes.'
-    : 'Seleccione una gestión para ver y administrar sus documentos.';
+    : isDirectorExecutionBoard
+      ? 'Inicie documentos aprobados y consulte los POA activos de su carrera.'
+      : 'Seleccione una gestión para ver y administrar sus documentos.';
 
   const summaryCardBase = 'poa-summary-stat poa-mobile-kpi-card poa-kpi-formal rounded-lg p-3 border shadow-sm bg-white/85 dark:bg-slate-900/55';
   const statTone = isDark
@@ -542,7 +556,7 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
           <GestionSelectorModal
             currentUser={outletContext?.user || outletContext?.currentUser || null}
             poaRoles={poaRoles}
-            canCreateDocument={canEdit}
+            canCreateDocument={canEdit && !isDirectorExecutionBoard}
             onClose={() => setShowModal(false)}
             onCancel={handleGestionCancel}
             onSuccess={handleSuccess}
@@ -735,20 +749,20 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
             </div>
 
             <div className="w-full mb-4">
-              <div className={`poa-mobile-kpi-strip ${isRevisionBoard ? 'poa-mobile-kpi-strip-3' : 'poa-mobile-kpi-strip-6'} grid gap-3 ${isRevisionBoard ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-2 md:grid-cols-6'}`}>
+              <div className={'poa-mobile-kpi-strip ' + ((isRevisionBoard || isDirectorExecutionBoard) ? 'poa-mobile-kpi-strip-3 grid gap-3 grid-cols-1 md:grid-cols-3' : 'poa-mobile-kpi-strip-6 grid gap-3 grid-cols-2 md:grid-cols-6')}>
                 <div className={`${summaryCardBase} ${statTone.total}`}>
                   <p className="poa-summary-stat-label text-[11px] uppercase tracking-widest font-bold">Total</p>
                   <p className="poa-summary-stat-value text-2xl font-bold">{filteredResumen.total}</p>
                 </div>
                 <div className={`${summaryCardBase} ${statTone.revision}`}>
-                  <p className="poa-summary-stat-label text-[11px] uppercase tracking-widest font-bold">En revisión</p>
-                  <p className="poa-summary-stat-value text-2xl font-bold">{filteredResumen.revision}</p>
+                  <p className="poa-summary-stat-label text-[11px] uppercase tracking-widest font-bold">{isDirectorExecutionBoard ? 'Aprobados' : 'En revisión'}</p>
+                  <p className="poa-summary-stat-value text-2xl font-bold">{isDirectorExecutionBoard ? filteredResumen.aprobado : filteredResumen.revision}</p>
                 </div>
                 <div className={`${summaryCardBase} ${statTone.observado}`}>
-                  <p className="poa-summary-stat-label text-[11px] uppercase tracking-widest font-bold">{isRevisionBoard ? 'Solicitudes' : 'Observados'}</p>
-                  <p className="poa-summary-stat-value text-2xl font-bold">{isRevisionBoard ? filteredResumen.solicitudes : filteredResumen.observado}</p>
+                  <p className="poa-summary-stat-label text-[11px] uppercase tracking-widest font-bold">{isRevisionBoard ? 'Solicitudes' : isDirectorExecutionBoard ? 'En ejecución' : 'Observados'}</p>
+                  <p className="poa-summary-stat-value text-2xl font-bold">{isRevisionBoard ? filteredResumen.solicitudes : isDirectorExecutionBoard ? filteredResumen.ejecucion : filteredResumen.observado}</p>
                 </div>
-                {!isRevisionBoard && (
+                {!isRevisionBoard && !isDirectorExecutionBoard && (
                   <>
                     <div className={`${summaryCardBase} ${statTone.elaboracion}`}>
                       <p className="poa-summary-stat-label text-[11px] uppercase tracking-widest font-bold">En elaboración</p>
@@ -784,10 +798,10 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
                   const jefeUnidad = getPersonaLabel(doc.jefe_unidad, null);
                   const note = reviewNotesByDoc[doc.id] || '';
                   const canRespondThisDoc = canReview && estado === 'revision';
-                  const canSendToRevision = canEdit && !isRevisionBoard && (estado === 'elaboracion' || estado === 'observado');
+                  const canSendToRevision = canEdit && !isRevisionBoard && !isDirectorExecutionBoard && (estado === 'elaboracion' || estado === 'observado');
                   const canOpenDocument = !isRevisionBoard;
-                  const canEditDocument = canEdit && !isRevisionBoard && estado !== 'revision';
-                  const canDeleteDocument = canEdit && !isRevisionBoard && ['elaboracion', 'observado'].includes(estado);
+                  const canEditDocument = canEdit && !isRevisionBoard && !isDirectorExecutionBoard && estado !== 'revision';
+                  const canDeleteDocument = canEdit && !isRevisionBoard && !isDirectorExecutionBoard && ['elaboracion', 'observado'].includes(estado);
                   const canStartExecution = canReview && estado === 'aprobado' && !isRevisionBoard;
                   return (
                     <div key={doc.id || idx} className="w-full">
@@ -1098,7 +1112,9 @@ const DocumentosPOAPage = ({ viewMode = 'all' }) => {
                 <div className="col-span-full rounded-xl border border-dashed border-slate-300 bg-white/70 px-5 py-8 text-center text-gray-500 dark:border-slate-700 dark:bg-slate-950/30 dark:text-slate-400">
                   {isRevisionBoard
                     ? 'No hay documentos en revision ni solicitudes pendientes para la gestion seleccionada.'
-                    : 'No hay documentos para mostrar.'}
+                    : isDirectorExecutionBoard
+                      ? 'No hay documentos aprobados o en ejecución para esta gestión.'
+                      : 'No hay documentos para mostrar.'}
                 </div>
               )}
             </div>

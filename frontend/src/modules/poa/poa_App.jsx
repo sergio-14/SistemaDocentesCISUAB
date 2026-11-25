@@ -9,7 +9,7 @@ import PoaBreadcrumb from './components/PoaBreadcrumb';
 import ChatFlotantePOA from './components/ChatFlotantePOA';
 import GestionSelectorModal from './components/GestionSelectorModal';
 import { getUsuariosPOA } from '../../apis/poa.api';
-import { replacePoaNavigationContext } from './utils/navigationContext';
+import { getPoaNavigationContext, replacePoaNavigationContext } from './utils/navigationContext';
 
 function POAApp({ user }) {
   const navigate = useNavigate();
@@ -77,7 +77,7 @@ function POAApp({ user }) {
 
   const openRevisionBoard = () => {
     const targetPath = '/poa/documentos-revision';
-    const gestion = new Date().getFullYear() + 1;
+    const gestion = Number(getPoaNavigationContext(location?.state)?.gestion) || new Date().getFullYear();
     setShowGestionModal(false);
     navigate(targetPath, {
       state: replacePoaNavigationContext({ gestion, documentosPath: targetPath }),

@@ -10,7 +10,7 @@ import CampoBusqueda from './common/CampoBusqueda';
 import ModalConfirmar from './common/ModalConfirmar';
 import Paginacion from './common/Paginacion';
 import SelectorVista from './common/SelectorVista';
-import SelectorGestion from './fondos/SelectorGestion';
+import FiltroMenu from './common/FiltroMenu';
 import { BLOQUE, BOTON, ESTADOS_FONDO, estadoVisibleFondo } from './fondos/estilosFondo';
 import { Avatar, EstadoPill, Etiqueta } from './fondos/ElementosFondo';
 
@@ -35,7 +35,7 @@ function FondosArchivados() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [busqueda, setBusqueda] = useState('');
-  const [gestionFiltro, setGestionFiltro] = useState('todas');
+  const [gestionFiltro, setGestionFiltro] = useState('');
   const [pagina, setPagina] = useState(1);
   const [vista, setVista] = useState(() => {
     try {
@@ -113,7 +113,7 @@ function FondosArchivados() {
   const gestiones = [...new Set(archivados.map((fondo) => fondo.gestion).filter(Boolean))].sort((a, b) => b - a);
   const texto = busqueda.trim().toLowerCase();
   const filtrados = archivados.filter((fondo) => {
-    if (gestionFiltro !== 'todas' && String(fondo.gestion) !== gestionFiltro) return false;
+    if (gestionFiltro && String(fondo.gestion) !== String(gestionFiltro)) return false;
     if (!texto) return true;
     return (esSuperusuario ? [fondo.docente_nombre, fondo.carrera_nombre] : [fondo.docente_nombre])
       .some((campo) => (campo || '').toLowerCase().includes(texto));
@@ -202,14 +202,21 @@ function FondosArchivados() {
             }}
             placeholder={esSuperusuario ? 'Buscar docente o carrera' : 'Buscar docente'}
           />
-          <SelectorGestion
-            value={gestionFiltro}
-            onChange={(gestion) => {
-              setGestionFiltro(gestion ?? 'todas');
+          <FiltroMenu
+            columnas={[{
+              clave: 'gestion',
+              titulo: 'Gestión',
+              opciones: gestiones.map((gestion) => ({ valor: String(gestion), etiqueta: `Gestión ${gestion}` })),
+            }]}
+            valores={{ gestion: gestionFiltro }}
+            onCambiar={(_, gestion) => {
+              setGestionFiltro(gestion);
               setPagina(1);
             }}
-            placeholder="Todas las gestiones"
-            options={gestiones.map((gestion) => ({ value: String(gestion), label: `Gestión ${gestion}` }))}
+            onLimpiar={() => {
+              setGestionFiltro('');
+              setPagina(1);
+            }}
           />
           <SelectorVista vista={vista} onCambiar={cambiarVista} className="ml-auto" />
         </div>

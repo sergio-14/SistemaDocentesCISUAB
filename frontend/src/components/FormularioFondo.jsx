@@ -5,6 +5,8 @@ import { getDocentes, getCarreras, crearFondoTiempo, getCalendarioActivo, getCal
 import api, { obtenerTodos } from '../apis/api';
 import toast from 'react-hot-toast';
 import ModalCentrado from './common/ModalCentrado';
+import PanelDesplegable from './common/PanelDesplegable';
+import { cascada } from '../utils/cascada';
 import {
   ERROR_MOTION_CLASS,
   ERROR_SHAKE_DURATION_MS,
@@ -171,7 +173,7 @@ const SelectConDropdown = ({
         </button>
       </div>
       {open && menuStyle && createPortal(
-        <div ref={menuRef} className="rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl max-h-60 overflow-auto" style={menuStyle}>
+        <PanelDesplegable ref={menuRef} className="rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl max-h-60 overflow-auto" style={menuStyle}>
           <div className="p-2">
           {!buscando && tituloSinBusqueda && filteredOptions.length > 0 && (
             <div className="px-3 pt-1 pb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -179,12 +181,13 @@ const SelectConDropdown = ({
             </div>
           )}
           {filteredOptions.length > 0 ? (
-            filteredOptions.map((option) => (
+            filteredOptions.map((option, indice) => (
               <button
                 key={option.value}
                 type="button"
                 onClick={() => handleSelect(option.value)}
-                className={`w-full text-left px-3 py-2 text-sm rounded-lg ${
+                style={cascada(indice)}
+                className={`desplegable-opcion w-full text-left px-3 py-2 text-sm rounded-lg ${
                   String(value) === String(option.value)
                     ? 'bg-sky-600 text-white font-semibold hover:bg-sky-700'
                     : 'bg-transparent text-slate-700 hover:bg-[#2C4AAE] hover:text-white'
@@ -199,7 +202,7 @@ const SelectConDropdown = ({
             </div>
           )}
           </div>
-        </div>,
+        </PanelDesplegable>,
         document.body
       )}
     </div>
@@ -784,8 +787,7 @@ function FormularioFondo({ editar = false }) {
       <form
         onSubmit={handleSubmit}
         noValidate
-        className="w-full max-w-2xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up"
-        style={{ animationDuration: '180ms' }}
+        className="w-full max-w-2xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl"
       >
         {/* Encabezado */}
         <div className="flex items-center justify-between gap-4 px-5 sm:px-7 pt-6 pb-5 [border-bottom:1px_solid_#B8C9E1]">

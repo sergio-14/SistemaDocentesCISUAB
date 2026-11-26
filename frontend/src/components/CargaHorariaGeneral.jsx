@@ -7,7 +7,7 @@ import { ETIQUETAS_DEDICACION } from '../utils/dedicaciones';
 import { paginar } from '../utils/paginacion';
 import AsignarMateriaOtraCarrera from './AsignarMateriaOtraCarrera';
 import CampoBusqueda from './common/CampoBusqueda';
-import FiltroDesplegable from './common/FiltroDesplegable';
+import FiltroMenu from './common/FiltroMenu';
 import NumeroAnimado from './common/NumeroAnimado';
 import Paginacion from './common/Paginacion';
 import SelectorVista from './common/SelectorVista';
@@ -50,6 +50,8 @@ const CargaHorariaGeneral = () => {
       return 'tarjetas';
     }
   });
+  // Tarjetas o Lista: a la que se vuelve al quitar la vista "Materias asignadas".
+  const [vistaDocentes, setVistaDocentes] = useState(() => (vista === 'lista' ? 'lista' : 'tarjetas'));
   const [pagina, setPagina] = useState(1);
   // Ventana para asignar una materia a un docente de otra carrera.
   const [asignando, setAsignando] = useState(false);
@@ -87,6 +89,7 @@ const CargaHorariaGeneral = () => {
 
   const cambiarVista = (nuevaVista) => {
     setVista(nuevaVista);
+    if (nuevaVista !== 'materias') setVistaDocentes(nuevaVista);
     setPagina(1);
     try {
       localStorage.setItem(VISTA_CARGA_KEY, nuevaVista);
@@ -220,24 +223,25 @@ const CargaHorariaGeneral = () => {
           />
           {/* Filtro de carrera: solo el superusuario ve todas las carreras */}
           {esSuperusuario && !verMaterias && (
-            <div className="min-w-0 flex-1 sm:flex-none sm:w-64">
-              <FiltroDesplegable
-                value={carreraFiltro}
-                onChange={setCarreraFiltro}
-                options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
-                placeholder="Todas las carreras"
-                ariaLabel="Filtrar por carrera"
-                emptyText="No hay carreras que coincidan"
-              />
-            </div>
+            <FiltroMenu
+              columnas={[{
+                clave: 'carrera',
+                titulo: 'Carrera',
+                opciones: carreras.map((c) => ({ valor: String(c.id), etiqueta: c.nombre })),
+              }]}
+              valores={{ carrera: carreraFiltro }}
+              onCambiar={(_, carrera) => setCarreraFiltro(carrera)}
+              onLimpiar={() => setCarreraFiltro('')}
+            />
           )}
           <div className="ml-auto flex flex-wrap items-center gap-2">
             {/* Materias de esta carrera asignadas a docentes de otra carrera: vista aparte. */}
             <div className="flex items-center p-1 rounded-full bg-azulado-100 ring-1 ring-inset ring-azulado-300">
               <button
                 type="button"
-                title="Materias asignadas"
-                onClick={() => cambiarVista('materias')}
+                title={verMaterias ? 'Volver a los docentes' : 'Materias asignadas'}
+                aria-pressed={verMaterias}
+                onClick={() => cambiarVista(verMaterias ? vistaDocentes : 'materias')}
                 className={`inline-flex items-center gap-2 px-3 sm:px-4 h-9 rounded-full text-sm font-medium transition-colors ${
                   verMaterias ? 'bg-blue-900 text-white shadow-sm' : 'text-slate-600 hover:text-blue-900'
                 }`}

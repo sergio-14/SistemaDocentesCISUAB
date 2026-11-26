@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ERROR_MOTION_CLASS } from '../../utils/formErrors';
+import { cascada } from '../../utils/cascada';
 import { AvisoUsuario, CandadoIcon } from './PiezasFormularioUsuario';
 
 // Lista de transferencia de los formularios de usuario (crear y editar): a la
@@ -189,15 +190,16 @@ const ListaTransferenciaRoles = ({
                 </div>
                 {puedeElegirCarrera && carreraAbierta === index && (
                   <div className="px-1 pt-1.5 pb-1">
-                    <div role="listbox" aria-label="Carrera del usuario" className="ml-auto w-full sm:w-[75%] rounded-2xl bg-white ring-1 ring-azulado-300 shadow-lg max-h-40 overflow-y-auto p-1.5">
-                      {carreras.map((opcion) => (
+                    <div role="listbox" aria-label="Carrera del usuario" className="desplegable-panel ml-auto w-full sm:w-[75%] rounded-2xl bg-white ring-1 ring-azulado-300 shadow-lg max-h-40 overflow-y-auto p-1.5">
+                      {carreras.map((opcion, indice) => (
                         <button
                           key={opcion.id}
                           type="button"
                           role="option"
                           aria-selected={String(opcion.id) === String(carrera)}
                           onClick={() => elegir(opcion.id)}
-                          className={`w-full text-left px-3 py-1.5 rounded-xl text-xs ${
+                          style={cascada(indice)}
+                          className={`desplegable-opcion w-full text-left px-3 py-1.5 rounded-xl text-xs ${
                             String(opcion.id) === String(carrera) ? 'bg-sky-600/80 text-white font-semibold' : 'text-slate-700 hover:bg-blue-900 hover:text-white'
                           }`}
                         >

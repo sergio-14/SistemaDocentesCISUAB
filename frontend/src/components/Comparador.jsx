@@ -5,6 +5,7 @@ import { compararFondos, getFondosArchivados, getFondosTiempo } from '../apis/ap
 import { useActiveRole } from '../contexts/activeRole';
 import { getApiErrorMessage } from '../utils/formErrors';
 import FiltroDesplegable from './common/FiltroDesplegable';
+import FiltroMenu from './common/FiltroMenu';
 import { BLOQUE, BOTON, ORDEN_UNIDADES, estadoVisibleFondo } from './fondos/estilosFondo';
 import { BarraProgreso, EstadoPill, Etiqueta } from './fondos/ElementosFondo';
 
@@ -286,33 +287,40 @@ function Comparador() {
         </div>
       ) : (
         <>
-          {/* Docente y gestiones: el propio campo filtra al escribir */}
-          <div className={`${BLOQUE} p-3 grid gap-2 sm:gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)] items-center`}>
-            <FiltroDesplegable
-              value={docente}
-              onChange={setDocente}
-              options={docentes}
-              placeholder="Docente"
-              ariaLabel="Docente"
-              permitirQuitar={false}
-            />
-            <FiltroDesplegable
-              value={gestionA}
-              onChange={setGestionA}
-              options={opcionesGestion(gestionB)}
-              placeholder={gestionesDocente.length > 1 ? 'Gestión a comparar' : 'Sin otra gestión'}
-              ariaLabel="Gestión a comparar"
-              emptyText="El docente no tiene otra gestión"
-              permitirQuitar={false}
-              disabled={gestionesDocente.length < 2}
-            />
-            <FiltroDesplegable
-              value={gestionB}
-              onChange={setGestionB}
-              options={opcionesGestion(gestionA)}
-              placeholder="Gestión"
-              ariaLabel="Gestión"
-              permitirQuitar={false}
+          {/* Docente (el propio campo filtra al escribir) y, en el Filtrar, las dos gestiones:
+              "Gestión" siempre tiene una marcada; sin "Comparar con" se ve solo ese fondo. */}
+          <div className={`${BLOQUE} p-3 flex flex-wrap items-center gap-2 sm:gap-3`}>
+            <div className="min-w-0 w-full sm:flex-1 sm:max-w-md">
+              <FiltroDesplegable
+                value={docente}
+                onChange={setDocente}
+                options={docentes}
+                placeholder="Docente"
+                ariaLabel="Docente"
+                permitirQuitar={false}
+              />
+            </div>
+            <FiltroMenu
+              etiqueta="Gestiones"
+              columnas={[
+                {
+                  clave: 'gestion',
+                  titulo: 'Gestión',
+                  obligatoria: true,
+                  opciones: opcionesGestion(gestionA).map((opcion) => ({ valor: opcion.value, etiqueta: opcion.label })),
+                },
+                {
+                  clave: 'comparar',
+                  titulo: 'Comparar con',
+                  nota: 'El docente no tiene otra gestión',
+                  opciones: opcionesGestion(gestionB).map((opcion) => ({ valor: opcion.value, etiqueta: opcion.label })),
+                },
+              ]}
+              valores={{ gestion: gestionB, comparar: gestionA }}
+              onCambiar={(clave, valor) => {
+                if (clave === 'gestion') setGestionB(valor);
+                if (clave === 'comparar') setGestionA(valor);
+              }}
             />
           </div>
 

@@ -5,7 +5,7 @@ import { Link, Outlet } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useActiveRole } from '../../contexts/activeRole';
 import CampoBusqueda from '../common/CampoBusqueda';
-import FiltroDesplegable from '../common/FiltroDesplegable';
+import FiltroMenu from '../common/FiltroMenu';
 import Interruptor from '../common/Interruptor';
 import ModalCentrado from '../common/ModalCentrado';
 import NumeroAnimado from '../common/NumeroAnimado';
@@ -347,28 +347,29 @@ const MateriaList = () => {
                         placeholder="Buscar materia o sigla"
                         className="w-full lg:w-auto lg:flex-1 lg:max-w-sm"
                     />
-                    {isSuperAdmin && (
-                        <div className="min-w-0 w-full sm:w-72">
-                            <FiltroDesplegable
-                                value={carreraSeleccionada}
-                                onChange={setCarreraSeleccionada}
-                                options={carreraOptions}
-                                placeholder="Todas las carreras"
-                                ariaLabel="Filtrar por carrera"
-                                emptyText="No hay carreras que coincidan"
-                            />
-                        </div>
-                    )}
-                    <div className="min-w-0 flex-1 sm:flex-none sm:w-56">
-                        <FiltroDesplegable
-                            value={semestreSeleccionado}
-                            onChange={setSemestreSeleccionado}
-                            options={semestreOptions}
-                            placeholder="Todos los semestres"
-                            ariaLabel="Filtrar por semestre"
-                            emptyText="No hay semestres que coincidan"
-                        />
-                    </div>
+                    <FiltroMenu
+                        columnas={[
+                            ...(isSuperAdmin ? [{
+                                clave: 'carrera',
+                                titulo: 'Carrera',
+                                opciones: carreraOptions.map((opcion) => ({ valor: String(opcion.value), etiqueta: opcion.label })),
+                            }] : []),
+                            {
+                                clave: 'semestre',
+                                titulo: 'Semestre',
+                                opciones: semestreOptions.map((opcion) => ({ valor: String(opcion.value), etiqueta: opcion.label })),
+                            },
+                        ]}
+                        valores={{ carrera: carreraSeleccionada, semestre: semestreSeleccionado }}
+                        onCambiar={(clave, valor) => {
+                            if (clave === 'carrera') setCarreraSeleccionada(valor);
+                            if (clave === 'semestre') setSemestreSeleccionado(valor);
+                        }}
+                        onLimpiar={() => {
+                            setCarreraSeleccionada('');
+                            setSemestreSeleccionado('');
+                        }}
+                    />
                     <SelectorVista vista={vista} onCambiar={cambiarVista} className="ml-auto" />
                 </div>
 
@@ -499,7 +500,7 @@ const MateriaList = () => {
             {/* Confirmación de eliminación */}
             {showDeleteModal && (
                 <ModalCentrado onClose={closeDeleteModal}>
-                    <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '160ms' }}>
+                    <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
                         <div className="px-6 pt-6">
                             <h4 className="text-xl font-bold text-red-700">Confirmar eliminación</h4>
                             <p className="mt-1 text-sm text-slate-600">

@@ -1272,7 +1272,7 @@ function ListaCarreras() {
     const estructuraFija = editar && (!puedeEditarEstructura || identidadFija);
     const inactiva = editar && !formData.activo;
     return (
-      <div className="w-full max-w-5xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '180ms' }}>
+      <div className="w-full max-w-5xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
         <div className="px-5 sm:px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
           <h2 className="text-xl font-bold text-blue-900">{editar ? 'Editar Carrera' : 'Nueva Carrera'}</h2>
           <p className="mt-0.5 text-sm text-slate-600">Identidad, logo y orientación institucional de la carrera.</p>
@@ -1592,7 +1592,7 @@ function ListaCarreras() {
       {/* Detalle de la carrera */}
       {showModal && carreraSeleccionada && isViewMode && (
         <ModalCentrado onClose={cerrarModalCarrera}>
-          <div className="w-full max-w-4xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '180ms' }}>
+          <div className="w-full max-w-4xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
             <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-5 [border-bottom:1px_solid_#B8C9E1]">
               {logoPreview ? (
                 <img src={logoPreview} alt="Logo de la carrera" className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl object-contain bg-white ring-1 ring-inset ring-azulado-300 p-2 flex-shrink-0" />
@@ -1742,7 +1742,7 @@ function ListaCarreras() {
       {/* Confirmación de eliminación */}
       {showDeleteModal && (
         <ModalCentrado onClose={closeDeleteModal}>
-          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '160ms' }}>
+          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
             <div className="px-6 pt-6">
               <h4 className="text-xl font-bold text-red-700">Confirmar eliminación</h4>
               <p className="mt-1 text-sm text-slate-600">
@@ -1793,7 +1793,7 @@ function ListaCarreras() {
       {/* No se puede eliminar: tiene datos asociados */}
       {showDependencyWarningModal && carreraToDelete && (
         <ModalCentrado onClose={() => setShowDependencyWarningModal(false)}>
-          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '160ms' }}>
+          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
             <div className="px-6 pt-6">
               <h4 className="text-xl font-bold text-red-700">No se puede eliminar</h4>
               <p className="mt-1 text-sm text-slate-600">
@@ -1834,7 +1834,7 @@ function ListaCarreras() {
       {/* Campo de texto largo en grande */}
       {expandedField && (
         <ModalCentrado onClose={() => setExpandedField(null)}>
-          <div className="w-full max-w-4xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '180ms' }}>
+          <div className="w-full max-w-4xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
             <div className="flex items-center justify-between gap-3 px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
               <h3 className="text-xl font-bold text-blue-900">{CAMPOS_TEXTO_LARGO[expandedField].label}</h3>
               <button

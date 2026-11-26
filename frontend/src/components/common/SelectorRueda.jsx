@@ -57,7 +57,7 @@ function SelectorRueda({ value, options, onChange, placeholder, titulo, disabled
 
       {abierto && (
         <ModalCentrado onClose={cancelar}>
-          <div className="animate-campo-entrada w-full max-w-xs rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl p-4">
+          <div className="w-full max-w-xs rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl p-4">
             <h3 className="px-1 pb-3 text-base text-blue-900">{titulo}</h3>
             <RuedaOpciones
               key={`rueda-${token}`}

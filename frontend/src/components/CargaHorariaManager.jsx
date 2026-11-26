@@ -5,6 +5,8 @@ import toast from 'react-hot-toast';
 import { ERROR_FIELD_BORDER_CLASS, ERROR_MOTION_CLASS, ERROR_SHAKE_DURATION_MS, getApiErrorMessage } from '../utils/formErrors';
 import MensajeErrorCampo from './common/MensajeErrorCampo';
 import SelectorRueda from './common/SelectorRueda';
+import PanelDesplegable from './common/PanelDesplegable';
+import { cascada } from '../utils/cascada';
 
 const PARALELOS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
@@ -32,6 +34,8 @@ const SUBACTIVIDADES_POR_CATEGORIA = {
             { value: 'gabinetes', label: 'Gabinetes' },
             { value: 'modulos_productivos', label: 'Módulos productivos' },
             { value: 'aulas_tic', label: 'Aulas TIC' },
+            { value: 'aulas_virtuales', label: 'Planificación y gestión de aulas virtuales' },
+            { value: 'aulas_moviles_visita_obra', label: 'Aulas móviles (visita de obra)' },
             { value: 'practicas_preprofesionales', label: 'Prácticas preprofesionales y/o laborales' },
             { value: 'otros', label: 'Otros' },
         ],
@@ -135,6 +139,9 @@ const SUBACTIVIDADES_POR_CATEGORIA = {
             { value: 'eventos_culturales', label: 'Eventos culturales' },
             { value: 'desfile_6_agosto', label: 'Desfile 6 agosto' },
             { value: 'desfile_18_noviembre', label: 'Desfile 18 noviembre' },
+            { value: 'desfile_dia_del_mar', label: 'Desfile Día del Mar' },
+            { value: 'bautizo_carrera', label: 'Bautizo de la carrera' },
+            { value: 'dia_autonomia_universitaria', label: 'Día de la Autonomía Universitaria' },
             { value: 'claustros_universitarios', label: 'Claustros universitarios' },
             { value: 'asociacion_docente', label: 'Asociación Docente' },
             { value: 'capacitacion_complementaria', label: 'Capacitación complementaria' },
@@ -189,6 +196,9 @@ const HORAS_ANUALES_OFICIALES = {
         entrada_folclorica: 16,
         acto_academico_universitario: 16,
         desfile_18_noviembre: 16,
+        desfile_dia_del_mar: 16,
+        bautizo_carrera: 16,
+        dia_autonomia_universitaria: 16,
         claustros_universitarios: 16,
         participacion_actividades_culturales_sociales_deportivas: 16,
         eventos_culturales: 16,
@@ -358,21 +368,22 @@ const CustomSelect = ({
             )}
 
             {open && !disabled && menuStyle && createPortal(
-                <div ref={menuRef} style={menuStyle} className="rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl overflow-hidden">
+                <PanelDesplegable ref={menuRef} style={menuStyle} className="rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl overflow-hidden">
                     <div className="max-h-64 overflow-auto p-2">
                         {filtradas.length === 0 ? (
                             <div className="px-3 py-2 text-xs text-slate-500">
                                 {options.length === 0 ? emptyText : 'Sin resultados'}
                             </div>
                         ) : (
-                            filtradas.map((opt) => {
+                            filtradas.map((opt, indice) => {
                                 const active = opt.value?.toString() === value?.toString();
                                 return (
                                     <button
                                         key={opt.value}
                                         type="button"
                                         onClick={() => handlePick(opt.value)}
-                                        className={`w-full text-left px-3 py-2 text-[13px] rounded-lg ${
+                                        style={cascada(indice)}
+                                        className={`desplegable-opcion w-full text-left px-3 py-2 text-[13px] rounded-lg ${
                                             active
                                                 ? 'bg-sky-600 text-white font-semibold hover:bg-sky-700'
                                                 : 'bg-transparent text-slate-700 hover:bg-[#2C4AAE] hover:text-white'
@@ -385,7 +396,7 @@ const CustomSelect = ({
                             })
                         )}
                     </div>
-                </div>,
+                </PanelDesplegable>,
                 document.body
             )}
         </div>

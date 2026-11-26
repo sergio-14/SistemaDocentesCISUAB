@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api, { getCarreras, getDocentes, obtenerTodos } from '../apis/api';
 import ModalUsuario from './ModalUsuario';
@@ -14,7 +13,7 @@ import PerfilUsuario from './usuarios/PerfilUsuario';
 import { useActiveRole } from '../contexts/activeRole';
 import CampoResolucionJefe from './common/CampoResolucionJefe';
 import CampoBusqueda from './common/CampoBusqueda';
-import FiltroDesplegable from './common/FiltroDesplegable';
+import FiltroMenu from './common/FiltroMenu';
 import Interruptor from './common/Interruptor';
 import ModalCentrado from './common/ModalCentrado';
 import ModalConfirmar from './common/ModalConfirmar';
@@ -1385,26 +1384,30 @@ const initialData = {
         {/* Bloque 2: búsqueda, carrera (solo superusuario), huérfanos y vista */}
         <div className={`${BLOQUE} p-3 flex flex-wrap items-center gap-2 sm:gap-3`}>
           <CampoBusqueda value={searchTerm} onChange={setSearchTerm} placeholder="Buscar por nombre o C.I." />
-          {esSuperuserActual && (
-            <div className="min-w-0 flex-1 sm:flex-none sm:w-64">
-              <FiltroDesplegable
-                value={selectedCarrera}
-                onChange={setSelectedCarrera}
-                options={carrerasGestionables.map((carrera) => ({ value: carrera.id, label: carrera.nombre }))}
-                placeholder="Todas las carreras"
-                ariaLabel="Filtrar por carrera"
-                emptyText="No hay carreras que coincidan"
-              />
-            </div>
-          )}
-          {hayOrfanos && (
-            <button
-              type="button"
-              onClick={() => setShowOnlyOrphans((prev) => !prev)}
-              className={`${BOTON_CHICO} h-9 ${showOnlyOrphans ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-red-50 text-red-800 ring-1 ring-inset ring-red-200 hover:bg-red-100'}`}
-            >
-              {showOnlyOrphans ? 'Mostrar todos' : 'Ver sin perfil o ficha'}
-            </button>
+          {(esSuperuserActual || hayOrfanos || showOnlyOrphans) && (
+            <FiltroMenu
+              columnas={[
+                ...(esSuperuserActual ? [{
+                  clave: 'carrera',
+                  titulo: 'Carrera',
+                  opciones: carrerasGestionables.map((carrera) => ({ valor: String(carrera.id), etiqueta: carrera.nombre })),
+                }] : []),
+                ...(hayOrfanos || showOnlyOrphans ? [{
+                  clave: 'vinculo',
+                  titulo: 'Cuenta',
+                  opciones: [{ valor: 'sin_vinculo', etiqueta: 'Sin perfil o ficha' }],
+                }] : []),
+              ]}
+              valores={{ carrera: selectedCarrera, vinculo: showOnlyOrphans ? 'sin_vinculo' : '' }}
+              onCambiar={(clave, valor) => {
+                if (clave === 'carrera') setSelectedCarrera(valor);
+                if (clave === 'vinculo') setShowOnlyOrphans(Boolean(valor));
+              }}
+              onLimpiar={() => {
+                setSelectedCarrera('');
+                setShowOnlyOrphans(false);
+              }}
+            />
           )}
           <SelectorVista vista={vista} onCambiar={cambiarVista} className="ml-auto" />
         </div>
@@ -1523,15 +1526,13 @@ const initialData = {
       </div>
 
       {/* MODAL DE CREACIÓN DE USUARIO */}
-      {isCreating && createPortal((
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-blue-950/30 backdrop-blur-sm">
-          <div className="min-h-full flex items-center justify-center p-3 sm:p-6">
+      {isCreating && (
+        <ModalCentrado>
             <div
               role="dialog"
               aria-modal="true"
               aria-labelledby="nuevo-usuario-titulo"
-              className="w-full max-w-5xl overflow-hidden rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up"
-              style={{ animationDuration: '180ms' }}
+              className="w-full max-w-5xl overflow-hidden rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl"
             >
               {/* Bloques como el detalle del fondo: Cuenta y Roles y carrera, sin desplazarse. */}
               <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-3">
@@ -1711,9 +1712,8 @@ const initialData = {
                 </div>
               </form>
             </div>
-          </div>
-        </div>
-      ), document.body)}
+        </ModalCentrado>
+      )}
 
       {/* Perfil del usuario (Ver) con Editar y Eliminar */}
       {usuarioPerfil && (
@@ -1758,7 +1758,7 @@ const initialData = {
       {/* Confirmación de pausa o reactivación */}
       {showToggleModal && usuarioToToggle && (
         <ModalCentrado onClose={() => setShowToggleModal(false)}>
-          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '160ms' }}>
+          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
             <div className="px-6 pt-6">
               <h4 className="text-xl font-bold text-blue-900">
                 {usuarioToToggle.is_active ? 'Pausar acceso' : 'Reactivar acceso'}

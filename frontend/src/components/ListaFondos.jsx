@@ -11,10 +11,11 @@ import ModalCentrado from './common/ModalCentrado';
 import ModalConfirmar from './common/ModalConfirmar';
 import Paginacion from './common/Paginacion';
 import SelectorVista from './common/SelectorVista';
-import SelectorGestion from './fondos/SelectorGestion';
+import FiltroMenu from './common/FiltroMenu';
 import { paginar } from '../utils/paginacion';
 import { BLOQUE, BOTON, BOTON_DOCUMENTO, ESTADOS_FONDO, estadoVisibleFondo } from './fondos/estilosFondo';
 import { Avatar, BarraProgreso, EstadoPill, Etiqueta } from './fondos/ElementosFondo';
+import NumeroAnimado from './common/NumeroAnimado';
 
 const CONSULTA_FONDOS_MS = 30000;
 
@@ -92,8 +93,9 @@ function ListaFondos() {
   // Fondo que se va a archivar (abre la confirmación).
   const [fondoPorArchivar, setFondoPorArchivar] = useState(null);
   const [busqueda, setBusqueda] = useState('');
-  const [gestionFiltro, setGestionFiltro] = useState('todas');
-  const [estadoFiltro, setEstadoFiltro] = useState('todos');
+  // Filtrar: una gestión ('' = todas) y varios estados ([] = todos).
+  const [gestionFiltro, setGestionFiltro] = useState('');
+  const [estadosFiltro, setEstadosFiltro] = useState([]);
   const [pagina, setPagina] = useState(1);
   const listaRef = useRef(null);
   const [vista, setVista] = useState(() => {
@@ -245,7 +247,7 @@ function ListaFondos() {
   // Arts. 19 y 28: informe de gestión de la carrera (PDF), para el Director de la carrera.
   // Gestión: la del filtro o, sin filtro, la más reciente de los fondos.
   const esDirectorCarrera = activeRole === 'director' && !esSuperusuario && Boolean(activeCareerId);
-  const gestionInforme = gestionFiltro !== 'todas' ? Number(gestionFiltro) : (gestiones[0] || new Date().getFullYear());
+  const gestionInforme = gestionFiltro ? Number(gestionFiltro) : (gestiones[0] || new Date().getFullYear());
   const bajarInformeGestion = async () => {
     try {
       await descargarInformeGestion(activeCareerId, gestionInforme, effectiveUser?.perfil?.carrera_codigo);
@@ -259,8 +261,8 @@ function ListaFondos() {
   // Estados con algún fondo, en el orden del flujo (ESTADOS_FONDO).
   const estadosConFondos = Object.keys(ESTADOS_FONDO).filter((estado) => fondos.some((fondo) => estadoVisibleFondo(fondo) === estado));
   const fondosFiltrados = fondos.filter((fondo) => {
-    if (gestionFiltro !== 'todas' && String(fondo.gestion) !== gestionFiltro) return false;
-    if (estadoFiltro !== 'todos' && estadoVisibleFondo(fondo) !== estadoFiltro) return false;
+    if (gestionFiltro && String(fondo.gestion) !== String(gestionFiltro)) return false;
+    if (estadosFiltro.length > 0 && !estadosFiltro.includes(estadoVisibleFondo(fondo))) return false;
     if (!texto) return true;
     // Los demás roles solo ven su carrera: buscan por docente.
     return (esSuperusuario ? [fondo.docente_nombre, fondo.carrera_nombre] : [fondo.docente_nombre])
@@ -289,8 +291,21 @@ function ListaFondos() {
     const estado = ESTADOS_FONDO[estadoVisibleFondo(propio)] || ESTADOS_FONDO.borrador;
     resumenRol = [{ valor: propio.gestion, texto: estado.label, prefijo: 'Tu fondo' }];
   }
+  // Contadores de la cabecera: muestran solo ese estado o, si ya era el único, quitan el filtro.
   const filtrarPorEstado = (estado) => {
-    setEstadoFiltro((actual) => (actual === estado ? 'todos' : estado));
+    setEstadosFiltro((actual) => (actual.length === 1 && actual[0] === estado ? [] : [estado]));
+    setPagina(1);
+  };
+
+  const cambiarFiltro = (clave, valor) => {
+    if (clave === 'gestion') setGestionFiltro(valor);
+    if (clave === 'estado') setEstadosFiltro(valor);
+    setPagina(1);
+  };
+
+  const limpiarFiltros = () => {
+    setGestionFiltro('');
+    setEstadosFiltro([]);
     setPagina(1);
   };
 
@@ -314,13 +329,18 @@ function ListaFondos() {
     </span>
   );
 
-  const progreso = (fondo) => (
+  // La barra y su porcentaje arrancan juntos poco después de que entra su fila o tarjeta.
+  const retrasoProgreso = (indice) => 150 + Math.min(indice, 8) * 35;
+
+  const progreso = (fondo, indice) => (
     <div>
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-xs font-medium text-slate-600">Progreso</span>
-        <span className="text-sm font-bold text-blue-900 tabular-nums">{porcentaje(fondo)}%</span>
+        <span className="text-sm font-bold text-blue-900 tabular-nums">
+          <NumeroAnimado valor={porcentaje(fondo)} desde={0} duracion={600} retraso={retrasoProgreso(indice)} />%
+        </span>
       </div>
-      <BarraProgreso valor={porcentaje(fondo)} />
+      <BarraProgreso valor={porcentaje(fondo)} retraso={retrasoProgreso(indice)} />
     </div>
   );
 
@@ -402,7 +422,7 @@ function ListaFondos() {
                         </>
                       );
                       const clase = 'inline-flex items-center gap-2 rounded-xl bg-azulado-100 px-3 py-1.5 ring-1 ring-inset ring-azulado-300';
-                      const activo = estadoFiltro === item.estado;
+                      const activo = estadosFiltro.length === 1 && estadosFiltro[0] === item.estado;
                       if (!item.estado || (item.valor === 0 && !activo)) return <span key={item.texto} className={clase}>{contenido}</span>;
                       return (
                         <button
@@ -473,25 +493,23 @@ function ListaFondos() {
           />
         </label>
 
-        <SelectorGestion
-          value={gestionFiltro}
-          onChange={(gestion) => {
-            setGestionFiltro(gestion ?? 'todas');
-            setPagina(1);
-          }}
-          placeholder="Todas las gestiones"
-          options={gestiones.map((gestion) => ({ value: String(gestion), label: `Gestión ${gestion}` }))}
-        />
-
-        <SelectorGestion
-          value={estadoFiltro}
-          onChange={(estado) => {
-            setEstadoFiltro(estado ?? 'todos');
-            setPagina(1);
-          }}
-          placeholder="Todos los estados"
-          ariaLabel="Filtrar por estado"
-          options={estadosConFondos.map((estado) => ({ value: estado, label: ESTADOS_FONDO[estado].label }))}
+        <FiltroMenu
+          columnas={[
+            {
+              clave: 'gestion',
+              titulo: 'Gestión',
+              opciones: gestiones.map((gestion) => ({ valor: String(gestion), etiqueta: `Gestión ${gestion}` })),
+            },
+            {
+              clave: 'estado',
+              titulo: 'Estado',
+              multiple: true,
+              opciones: estadosConFondos.map((estado) => ({ valor: estado, etiqueta: ESTADOS_FONDO[estado].label })),
+            },
+          ]}
+          valores={{ gestion: gestionFiltro, estado: estadosFiltro }}
+          onCambiar={cambiarFiltro}
+          onLimpiar={limpiarFiltros}
         />
 
         <SelectorVista vista={vista} onCambiar={cambiarVista} className="ml-auto" />
@@ -550,7 +568,7 @@ function ListaFondos() {
                   <span className="xl:hidden text-xs font-medium text-slate-600">Horas asignadas</span>
                   {horas(fondo)}
                 </div>
-                {progreso(fondo)}
+                {progreso(fondo, indice)}
                 <div className="hidden xl:block"><EstadoPill estado={estadoVisibleFondo(fondo)} /></div>
                 {acciones(fondo)}
               </div>
@@ -582,7 +600,7 @@ function ListaFondos() {
                 {horas(fondo)}
               </div>
 
-              {progreso(fondo)}
+              {progreso(fondo, indice)}
 
               <div className="pt-3 [border-top:1px_solid_#B8C9E1]">
                 {acciones(fondo)}

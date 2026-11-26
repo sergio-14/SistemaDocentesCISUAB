@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import PanelDesplegable from './PanelDesplegable';
+import { cascada } from '../../utils/cascada';
 
 // Desplegable escribible con el estilo del dashboard (filtros de carrera y semestre, y la
 // carrera de los formularios): el propio campo es el buscador; al pulsarlo se despliega la
@@ -104,15 +106,16 @@ function FiltroDesplegable({
         </svg>
       </span>
       {open && !disabled && (
-        <div role="listbox" className="absolute z-40 mt-2 w-full rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl max-h-72 overflow-auto p-2">
-          {filteredOptions.map((option) => (
+        <PanelDesplegable role="listbox" className="absolute z-40 mt-2 w-full rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl max-h-72 overflow-auto p-2">
+          {filteredOptions.map((option, indice) => (
             <button
               key={option.value}
               type="button"
               role="option"
               aria-selected={String(value) === String(option.value)}
               onClick={() => elegir(option)}
-              className={`w-full text-left px-3 py-1.5 text-xs rounded-lg ${
+              style={cascada(indice)}
+              className={`desplegable-opcion w-full text-left px-3 py-1.5 text-xs rounded-lg ${
                 String(value) === String(option.value)
                   ? 'bg-sky-600 text-white font-semibold hover:bg-blue-900'
                   : 'bg-transparent text-slate-700 hover:bg-[#2C4AAE] hover:text-white'
@@ -124,7 +127,7 @@ function FiltroDesplegable({
           {filteredOptions.length === 0 && (
             <div className="px-3 py-2 text-xs text-slate-500">{emptyText}</div>
           )}
-        </div>
+        </PanelDesplegable>
       )}
     </div>
   );

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { createPortal } from 'react-dom';
 import { FaEdit, FaTrash } from 'react-icons/fa';
 import api, { getCalendarios, getCarreras } from '../apis/api';
 import { finAnteriorAInicio, hoyBolivia } from '../utils/fechas';
@@ -10,6 +9,8 @@ import { useActiveRole } from '../contexts/activeRole';
 import RuedaOpciones from './common/RuedaOpciones';
 import { CalendarioFlotante } from './common/CalendarioFecha';
 import ModalCentrado from './common/ModalCentrado';
+import PanelDesplegable from './common/PanelDesplegable';
+import { cascada } from '../utils/cascada';
 import NumeroAnimado from './common/NumeroAnimado';
 import Interruptor from './common/Interruptor';
 import Paginacion from './common/Paginacion';
@@ -154,15 +155,16 @@ const SelectConDropdown = ({
       </div>
 
       {open && !disabled && (
-        <div className="absolute z-50 mt-2 w-full rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl">
+        <PanelDesplegable className="absolute z-50 mt-2 w-full rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl">
           <div className="max-h-56 overflow-auto p-2">
             {visibleOptions.length > 0 ? (
-              visibleOptions.map((option) => (
+              visibleOptions.map((option, indice) => (
                 <button
                   key={option.value}
                   type="button"
                   onClick={() => handleSelect(option.value)}
-                  className={`w-full text-left px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                  style={cascada(indice)}
+                  className={`desplegable-opcion w-full text-left px-3 py-1.5 text-xs rounded-lg transition-colors ${
                     String(option.value) === String(value)
                       ? 'bg-sky-600 text-white font-semibold hover:bg-blue-900'
                       : 'text-slate-700 hover:bg-[#2C4AAE] hover:text-white'
@@ -175,7 +177,7 @@ const SelectConDropdown = ({
               <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">{emptyText}</div>
             )}
           </div>
-        </div>
+        </PanelDesplegable>
       )}
       {errorMessage && <p className={`text-xs text-red-600 dark:text-red-400 mt-1 ${motionClass}`}>{errorMessage}</p>}
     </div>
@@ -1662,14 +1664,10 @@ function ListaCalendarios() {
         />
       </div>
 
-      {showModal && createPortal(
-        <div
-          className="fixed top-0 right-0 bottom-0 z-50 overflow-y-auto bg-blue-950/30 backdrop-blur-sm animate-fade-in"
-          style={{ left: 'var(--fondo-sidebar-width, 0px)', animationDuration: '160ms' }}
-        >
+      {showModal && (
+        <ModalCentrado>
           {/* Si el formulario no entra en la pantalla se desplaza el fondo: nada queda cortado. */}
-          <div className="min-h-full flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-azulado-50 rounded-3xl ring-1 ring-azulado-300 shadow-2xl max-w-6xl w-full overflow-visible animate-slide-up" style={{ animationDuration: '180ms' }}>
+          <div className="bg-azulado-50 rounded-3xl ring-1 ring-azulado-300 shadow-2xl max-w-6xl w-full overflow-visible">
             <div className="px-5 sm:px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
               <h3 className="text-xl font-bold text-blue-900">
                 {calendarioSeleccionado ? 'Editar Calendario' : 'Nuevo Calendario'}
@@ -1895,14 +1893,12 @@ function ListaCalendarios() {
               </div>
             </form>
           </div>
-          </div>
-        </div>,
-        document.body
+        </ModalCentrado>
       )}
 
       {showToggleModal && calendarioToToggle && (
         <ModalCentrado onClose={() => setShowToggleModal(false)}>
-          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '160ms' }}>
+          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
             <div className="px-6 pt-6">
               <h4 className="text-xl font-bold text-blue-900 flex items-center gap-2">
                 {calendarioToToggle.activo ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
@@ -1947,7 +1943,7 @@ function ListaCalendarios() {
       {/* Modal de Confirmación de Eliminación */}
       {showDeleteModal && (
         <ModalCentrado onClose={closeDeleteModal}>
-          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '160ms' }}>
+          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
             <div className="px-6 pt-6">
               <h4 className="text-xl font-bold text-red-700">Confirmar eliminación</h4>
               <p className="mt-1 text-sm text-slate-600">
@@ -1997,7 +1993,7 @@ function ListaCalendarios() {
 
       {showDependencyWarningModal && calendarioToDelete && (
         <ModalCentrado onClose={() => setShowDependencyWarningModal(false)}>
-          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '160ms' }}>
+          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
             <div className="px-6 pt-6">
               <h4 className="text-xl font-bold text-red-700">No se puede eliminar</h4>
               <p className="mt-1 text-sm text-slate-600">

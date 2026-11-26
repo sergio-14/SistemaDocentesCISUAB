@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import api, { getCarreras } from '../../apis/api';
 import toast from 'react-hot-toast';
 import { useActiveRole } from '../../contexts/activeRole';
 import FiltroDesplegable from '../common/FiltroDesplegable';
 import SelectorRueda from '../common/SelectorRueda';
+import ModalCentrado from '../common/ModalCentrado';
 import { BOTON } from '../fondos/estilosFondo';
 import {
   getBackendErrorMessage,
@@ -289,14 +289,9 @@ const MateriaForm = () => {
     const carreraPulse = useErrorPulse(errors.carrera, errorPulse);
     const horasTotales = (Number(formData.horas_teoricas) || 0) + (Number(formData.horas_practicas) || 0);
 
-    // Se monta en <body> y cubre el área a la derecha del sidebar (en el celular, toda la pantalla).
-    return createPortal(
-        <div
-            className="fixed top-0 right-0 bottom-0 z-50 overflow-y-auto bg-blue-950/30 backdrop-blur-sm animate-fade-in"
-            style={{ left: 'var(--fondo-sidebar-width, 0px)', animationDuration: '160ms' }}
-        >
-            <div className="min-h-full flex items-center justify-center p-3 sm:p-6">
-                <div className="w-full max-w-3xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up" style={{ animationDuration: '180ms' }}>
+    return (
+        <ModalCentrado>
+                <div className="w-full max-w-3xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
                     <div className="px-5 sm:px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
                         <h2 className="text-xl font-bold text-blue-900">
                             {id ? 'Editar Materia' : 'Nueva Materia'}
@@ -413,9 +408,7 @@ const MateriaForm = () => {
                         </div>
                     </form>
                 </div>
-            </div>
-        </div>,
-        document.body
+        </ModalCentrado>
     );
 };
 

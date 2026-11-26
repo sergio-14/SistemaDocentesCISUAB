@@ -117,8 +117,7 @@ function ModalConfirmar({
         aria-labelledby={idTitulo}
         aria-describedby={idMensaje}
         onKeyDown={alPulsarTecla}
-        className="w-full max-w-lg overflow-hidden rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up"
-        style={{ animationDuration: '160ms' }}
+        className="w-full max-w-lg overflow-hidden rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl"
       >
         <div className="flex items-start gap-4 px-6 pt-6">
           <span

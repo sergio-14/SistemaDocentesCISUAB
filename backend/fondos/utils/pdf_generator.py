@@ -81,6 +81,8 @@ ETIQUETAS_TIPO_ACTIVIDAD = {
         'gabinetes': 'Gabinetes',
         'modulos_productivos': 'Módulos productivos',
         'aulas_tic': 'Aulas TIC',
+        'aulas_virtuales': 'Planificación y gestión de aulas virtuales',
+        'aulas_moviles_visita_obra': 'Aulas móviles (visita de obra)',
         'practicas_preprofesionales': 'Prácticas preprofesionales y/o laborales',
     },
     'investigacion': {
@@ -148,6 +150,9 @@ ETIQUETAS_TIPO_ACTIVIDAD = {
         'eventos_culturales': 'Eventos culturales',
         'desfile_6_agosto': 'Desfile 6 agosto',
         'desfile_18_noviembre': 'Desfile 18 noviembre',
+        'desfile_dia_del_mar': 'Desfile Día del Mar',
+        'bautizo_carrera': 'Bautizo de la carrera',
+        'dia_autonomia_universitaria': 'Día de la Autonomía Universitaria',
         'claustros_universitarios': 'Claustros universitarios',
         'asociacion_docente': 'Asociación Docente',
         'capacitacion_complementaria': 'Capacitación complementaria',

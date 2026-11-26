@@ -14,12 +14,16 @@ import { DEDICACIONES_HORARIO, ETIQUETAS_DEDICACION, describirDedicacion, horasS
 import { hoyBolivia } from '../utils/fechas';
 import { CalendarioFlotante } from './common/CalendarioFecha';
 import NumeroAnimado from './common/NumeroAnimado';
-import FiltroDesplegable from './common/FiltroDesplegable';
+import FiltroMenu from './common/FiltroMenu';
 import CampoBusqueda from './common/CampoBusqueda';
 import Paginacion from './common/Paginacion';
 import SelectorVista from './common/SelectorVista';
 import { paginar } from '../utils/paginacion';
 import ModalFichaDocente from './docentes/ModalFichaDocente';
+import ModalCentrado from './common/ModalCentrado';
+import ModalConfirmar from './common/ModalConfirmar';
+import PanelDesplegable from './common/PanelDesplegable';
+import { cascada } from '../utils/cascada';
 import { useActiveRole } from '../contexts/activeRole';
 import { BLOQUE, BOTON } from './fondos/estilosFondo';
 import { Avatar, Etiqueta } from './fondos/ElementosFondo';
@@ -313,9 +317,9 @@ const SelectConDropdown = ({
 
       {/* Menú desplegable */}
       {open && menuStyle && createPortal(
-        <div ref={menuRef} className="rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl" style={menuStyle}>
+        <PanelDesplegable ref={menuRef} className="rounded-xl border-2 border-[#3A56AF] bg-white shadow-xl" style={menuStyle}>
           <div className={`p-2 ${menuClassName}`}>
-            {options.map((option) => (
+            {options.map((option, indice) => (
               <button
                 key={option.value}
                 type="button"
@@ -324,7 +328,8 @@ const SelectConDropdown = ({
                   if (option.disabled) return;
                   handleSelect(option.value);
                 }}
-                className={`w-full text-left px-3 py-1.5 text-xs rounded-lg ${
+                style={cascada(indice)}
+                className={`desplegable-opcion w-full text-left px-3 py-1.5 text-xs rounded-lg ${
                   option.value === value
                     ? 'bg-sky-600 text-white font-semibold'
                     : option.disabled
@@ -336,7 +341,7 @@ const SelectConDropdown = ({
               </button>
             ))}
           </div>
-        </div>,
+        </PanelDesplegable>,
         document.body
       )}
 
@@ -1856,26 +1861,23 @@ function ListaDocentes() {
           <CampoBusqueda value={searchTerm} onChange={setSearchTerm} placeholder="Buscar por nombre o C.I." />
           {/* Filtro de carrera: solo el superusuario ve todas las carreras */}
           {esSuperusuario && (
-            <div className="min-w-0 flex-1 sm:flex-none sm:w-64">
-              <FiltroDesplegable
-                value={selectedCarrera}
-                onChange={setSelectedCarrera}
-                options={carreras.map((c) => ({ value: c.id, label: c.nombre }))}
-                placeholder="Todas las carreras"
-                ariaLabel="Filtrar por carrera"
-                emptyText="No hay carreras que coincidan"
-              />
-            </div>
+            <FiltroMenu
+              columnas={[{
+                clave: 'carrera',
+                titulo: 'Carrera',
+                opciones: carreras.map((c) => ({ valor: String(c.id), etiqueta: c.nombre })),
+              }]}
+              valores={{ carrera: selectedCarrera }}
+              onCambiar={(_, carrera) => setSelectedCarrera(carrera)}
+              onLimpiar={() => setSelectedCarrera('')}
+            />
           )}
           <SelectorVista vista={vista} onCambiar={cambiarVista} className="ml-auto" />
         </div>
 
         {/* MODAL DE CREACION DE DOCENTE */}
-        {isCreating && createPortal((
-          <div
-            className="fixed top-0 right-0 bottom-0 z-50 flex items-center justify-center bg-blue-950/30 backdrop-blur-sm p-4"
-            style={{ left: 'var(--fondo-sidebar-width, 0px)' }}
-          >
+        {isCreating && (
+          <ModalCentrado>
             <div className="bg-azulado-50 rounded-3xl ring-1 ring-azulado-300 shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
               {/* Header */}
               <div className="px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
@@ -2204,8 +2206,8 @@ function ListaDocentes() {
                 </button>
               </div>
             </div>
-          </div>
-        ), document.body)}
+          </ModalCentrado>
+        )}
 
         {/* Bloque 3: docentes en tarjetas o en lista (15 por página en lista y 9 en tarjetas);
             al cambiar de vista, de carrera o de página entran escalonados */}
@@ -2349,11 +2351,8 @@ function ListaDocentes() {
       )}
 
       {/* Modal Crear/Editar */}
-      {showModal && docenteSeleccionado && createPortal((
-        <div
-          className="fixed top-0 right-0 bottom-0 z-50 flex items-center justify-center bg-blue-950/30 backdrop-blur-sm p-4 animate-fade-in"
-          style={{ left: 'var(--fondo-sidebar-width, 0px)' }}
-        >
+      {showModal && docenteSeleccionado && (
+        <ModalCentrado>
           <div className="bg-azulado-50 rounded-3xl ring-1 ring-azulado-300 shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
             {/* Header */}
             <div className="px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
@@ -2621,143 +2620,77 @@ function ListaDocentes() {
               </button>
             </div>
           </div>
-        </div>
-      ), document.body)}
+        </ModalCentrado>
+      )}
 
-      {confirmacionDesactivarDocente && createPortal((
-        <div
-          className="fixed top-0 right-0 bottom-0 z-[75] flex items-center justify-center p-4"
-          style={{ left: 'var(--fondo-sidebar-width, 0px)' }}
-        >
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={() => setConfirmacionDesactivarDocente(null)} />
-          <div className="relative w-full max-w-lg rounded-2xl border border-amber-500/80 dark:border-amber-700/60 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden animate-slide-up" style={{ animationDuration: '160ms' }}>
-            <div className="px-5 py-4 border-b border-amber-400/70 dark:border-slate-700/70 bg-gradient-to-r from-amber-300 via-amber-100 to-amber-50 dark:from-amber-900/30 dark:via-slate-900 dark:to-slate-900">
-              <h4 className="text-lg font-bold text-amber-900 dark:text-amber-300 flex items-center gap-2">
-                <span>{confirmacionDesactivarDocente.tieneHistorial ? '⚠️' : 'ℹ️'}</span>
-                Confirmar desactivación
-              </h4>
-            </div>
-            <div className="px-5 py-4 text-slate-700 dark:text-slate-200">
-              {confirmacionDesactivarDocente.tieneHistorial ? (
-                <p className="text-sm leading-relaxed whitespace-pre-line">
-                  Este docente tiene horas declaradas o fondos validados.{'\n'}
-                  Al desactivarlo: se bloquean nuevas declaraciones,{'\n'}
-                  pero su historial se conserva para auditoría.{'\n'}
-                  ¿Confirmar desactivación?
-                </p>
-              ) : (
-                <p className="text-sm leading-relaxed whitespace-pre-line">
-                  Al desactivar este docente no podrá declarar horas{'\n'}
-                  ni aparecer en listados activos hasta que sea reactivado.{'\n'}
-                  ¿Confirmar?
-                </p>
-              )}
-            </div>
-            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700/70 flex justify-end gap-3 bg-slate-50 dark:bg-slate-950/70">
-              <button
-                type="button"
-                onClick={() => setConfirmacionDesactivarDocente(null)}
-                className="px-4 py-2 rounded-lg font-semibold text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setConfirmacionDesactivarDocente(null);
-                  aplicarCambioFormulario('activo', '', 'checkbox', false);
-                }}
-                className="px-4 py-2 rounded-lg font-bold text-white bg-amber-600 hover:bg-amber-700 dark:bg-amber-700 dark:hover:bg-amber-800"
-              >
-                Desactivar
-              </button>
-            </div>
-          </div>
-        </div>
-      ), document.body)}
+      {confirmacionDesactivarDocente && (
+        <ModalConfirmar
+          etiqueta="Docentes"
+          titulo="Desactivar docente"
+          tono="peligro"
+          mensaje={confirmacionDesactivarDocente.tieneHistorial
+            ? 'Este docente tiene horas declaradas o fondos validados.'
+            : 'El docente no podrá declarar horas ni aparecer en los listados activos hasta que se reactive.'}
+          detalle={confirmacionDesactivarDocente.tieneHistorial
+            ? ['Se bloquean sus nuevas declaraciones.', 'Su historial se conserva para auditoría.']
+            : []}
+          textoAccion="Desactivar"
+          onConfirmar={() => {
+            setConfirmacionDesactivarDocente(null);
+            aplicarCambioFormulario('activo', '', 'checkbox', false);
+          }}
+          onCancelar={() => setConfirmacionDesactivarDocente(null)}
+        />
+      )}
 
-      {confirmacionCambioPendiente && createPortal((
-        <div
-          className="fixed top-0 right-0 bottom-0 z-[75] flex items-center justify-center p-4"
-          style={{ left: 'var(--fondo-sidebar-width, 0px)' }}
-        >
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={() => setConfirmacionCambioPendiente(null)} />
-          <div className="relative w-full max-w-lg rounded-2xl border border-amber-500/80 dark:border-amber-700/60 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden animate-slide-up" style={{ animationDuration: '160ms' }}>
-            <div className="px-5 py-4 border-b border-amber-400/70 dark:border-slate-700/70 bg-gradient-to-r from-amber-300 via-amber-100 to-amber-50 dark:from-amber-900/30 dark:via-slate-900 dark:to-slate-900">
-              <h4 className="text-lg font-bold text-amber-900 dark:text-amber-300 flex items-center gap-2">
-                <span>⚠️</span>
-                {confirmacionCambioPendiente.titulo}
-              </h4>
-            </div>
-            <div className="px-5 py-4 space-y-3 text-slate-700 dark:text-slate-200">
-              <p className="text-sm leading-relaxed whitespace-pre-line">{confirmacionCambioPendiente.mensaje}</p>
-            </div>
-            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700/70 flex justify-end gap-3 bg-slate-50 dark:bg-slate-950/70">
-              <button
-                type="button"
-                onClick={() => setConfirmacionCambioPendiente(null)}
-                className="px-4 py-2 rounded-lg font-semibold text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const cambio = confirmacionCambioPendiente;
-                  setConfirmacionCambioPendiente(null);
-                  aplicarCambioFormulario(cambio.name, cambio.value, cambio.type, cambio.checked);
-                }}
-                className="px-4 py-2 rounded-lg font-bold text-white bg-amber-600 hover:bg-amber-700 dark:bg-amber-700 dark:hover:bg-amber-800"
-              >
-                Confirmar cambio
-              </button>
-            </div>
-          </div>
-        </div>
-      ), document.body)}
+      {confirmacionCambioPendiente && (
+        <ModalConfirmar
+          etiqueta="Docentes"
+          titulo={confirmacionCambioPendiente.titulo}
+          mensaje={<span className="whitespace-pre-line">{confirmacionCambioPendiente.mensaje}</span>}
+          textoAccion="Confirmar cambio"
+          onConfirmar={() => {
+            const cambio = confirmacionCambioPendiente;
+            setConfirmacionCambioPendiente(null);
+            aplicarCambioFormulario(cambio.name, cambio.value, cambio.type, cambio.checked);
+          }}
+          onCancelar={() => setConfirmacionCambioPendiente(null)}
+        />
+      )}
 
-      {/* Modal de Confirmacion de Eliminacion */}
-      {showDeleteModal && createPortal((
-        <div
-          className="fixed top-0 right-0 bottom-0 z-[70] flex items-center justify-center p-4"
-          style={{ left: 'var(--fondo-sidebar-width, 0px)' }}
-        >
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={closeDeleteModal} />
-          <div className="relative w-full max-w-lg rounded-2xl border border-red-600/80 dark:border-red-700/50 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden animate-slide-up" style={{ animationDuration: '160ms' }}>
-            <div className="px-5 py-4 border-b border-red-400 dark:border-slate-700/70 bg-gradient-to-r from-red-400 via-red-200 to-red-50 dark:from-red-900/30 dark:via-slate-900 dark:to-slate-900">
-              <h4 className="text-lg font-bold text-red-900 dark:text-red-300 flex items-center gap-2">
-                <span>!</span>
-                Confirmar Eliminacion
-              </h4>
-            </div>
-            <div className="px-5 py-4 space-y-3 text-slate-700 dark:text-slate-200">
-              <p className="text-sm leading-relaxed">
-                Se eliminara el docente <strong className="text-slate-900 dark:text-white">{docenteToDelete?.nombre_completo}</strong> del sistema de forma permanente.
+      {/* Confirmación de eliminación: el mismo diseño que en Carreras y Calendario. */}
+      {showDeleteModal && (
+        <ModalCentrado onClose={closeDeleteModal}>
+          <div className="w-full max-w-lg rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl">
+            <div className="px-6 pt-6">
+              <h4 className="text-xl font-bold text-red-700">Confirmar eliminación</h4>
+              <p className="mt-1 text-sm text-slate-600">
+                Se eliminará el docente <strong className="text-slate-900">{docenteToDelete?.nombre_completo}</strong> del sistema de forma permanente.
               </p>
-              <div className="rounded-lg border border-red-700/70 bg-red-200/70 dark:bg-red-500/10 px-3 py-2 text-sm text-red-900 dark:text-red-200">
-                Accion irreversible: <strong className="text-red-900 dark:text-red-300">El docente perdera su acceso definitivamente.</strong>
+            </div>
+            <div className="px-6 py-4 space-y-3 text-sm">
+              <div className="rounded-2xl bg-red-50 ring-1 ring-inset ring-red-200 px-4 py-3 text-red-800">
+                Acción irreversible: <strong>el docente perderá su acceso definitivamente.</strong>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                  Escribe el nombre exacto del docente para habilitar la eliminacion:
+                <label className={LABEL_CAMPO}>
+                  Escribe el nombre exacto del docente para habilitar la eliminación:
                 </label>
                 <input
                   type="text"
                   value={deleteConfirmText}
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  placeholder="Escribe el nombre del docente para confirmar"
-                  className="w-full px-3 py-2 rounded-lg border border-red-400/40 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500/60"
+                  placeholder={docenteToDelete?.nombre_completo || ''}
+                  spellCheck={false}
+                  className={`${CAMPO} ring-1 ring-azulado-300 focus:ring-2 focus:ring-red-400/50 !bg-azulado-100`}
                 />
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Esta operacion no se puede deshacer.
-              </p>
             </div>
-            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700/70 flex justify-end gap-3 bg-slate-50 dark:bg-slate-950/70">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-6 pb-6">
               <button
                 type="button"
                 onClick={closeDeleteModal}
-                className="px-4 py-2 rounded-lg font-semibold text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className={`${BOTON} px-5 py-2.5 text-slate-700 hover:bg-azulado-200`}
               >
                 Cancelar
               </button>
@@ -2765,14 +2698,14 @@ function ListaDocentes() {
                 type="button"
                 onClick={confirmarEliminar}
                 disabled={deleteConfirmText !== (docenteToDelete?.nombre_completo || '')}
-                className="px-4 py-2 rounded-lg font-bold text-white bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 disabled:bg-red-900/40 disabled:text-slate-300 disabled:cursor-not-allowed"
+                className={`${BOTON} px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-500`}
               >
                 Eliminar
               </button>
             </div>
           </div>
-        </div>
-      ), document.body)}
+        </ModalCentrado>
+      )}
     </div>
   );
 }

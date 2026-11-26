@@ -1737,6 +1737,117 @@ html.sin-elevacion-poa button:active {
   }
 }
 
+/* Desplegables (PanelDesplegable): el panel entra desde el campo y las opciones en cascada.
+   `backwards` no deja transform al terminar. */
+@keyframes desplegableEntrada {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+}
+
+@keyframes desplegableEntradaArriba {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+}
+
+@keyframes desplegableOpcion {
+  from { opacity: 0; transform: translateY(-6px); }
+}
+
+.desplegable-panel {
+  animation: desplegableEntrada 200ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  transform-origin: top center;
+}
+
+.desplegable-panel[data-lado='arriba'] {
+  animation-name: desplegableEntradaArriba;
+  transform-origin: bottom center;
+}
+
+.desplegable-opcion {
+  animation: desplegableOpcion 240ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(40ms + var(--i, 0) * 30ms);
+}
+
+/* Filtrar: el contador de filtros activos y "Limpiar" aparecen con un rebote corto. */
+@keyframes filtroContador {
+  from { opacity: 0; transform: scale(0.5); }
+}
+
+.animate-filtro-contador {
+  animation: filtroContador 260ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+/* Copia que se desvanece al cerrar: nada de adentro vuelve a animarse. */
+.desplegable-saliendo,
+.desplegable-saliendo * {
+  animation: none !important;
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desplegable-panel,
+  .desplegable-panel[data-lado='arriba'] {
+    animation: fadeInSuave 120ms ease-out backwards;
+  }
+
+  .desplegable-opcion,
+  .animate-filtro-contador {
+    animation: none;
+  }
+}
+
+/* Barras de progreso (BarraProgreso): crecen desde 0 al aparecer y se deslizan al cambiar
+   de valor. El valor final va en línea (transform); la animación solo define el inicio. */
+@keyframes barraProgresoCrece {
+  from { transform: translateX(-100%); }
+}
+
+.barra-progreso-relleno {
+  animation: barraProgresoCrece 600ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barra-progreso-relleno {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* Ventanas flotantes (ModalCentrado): el fondo se oscurece enseguida; la ventana espera
+   invisible a que su contenido se asiente y entra una sola vez. `backwards` no deja ningún
+   transform al terminar, así no encierra los desplegables fixed de adentro. */
+@keyframes modalFondoEntrada {
+  from { opacity: 0; }
+}
+
+@keyframes modalVentanaEntrada {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+}
+
+.modal-centrado-fondo {
+  animation: modalFondoEntrada 150ms ease-out backwards;
+}
+
+.modal-centrado-ventana[data-estado='midiendo'] {
+  opacity: 0;
+}
+
+.modal-centrado-ventana[data-estado='abierta'] {
+  animation: modalVentanaEntrada 220ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+}
+
+/* Copia que se desvanece al cerrar: nada de adentro vuelve a animarse. */
+.modal-centrado-saliendo,
+.modal-centrado-saliendo * {
+  animation: none !important;
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-centrado-ventana[data-estado='abierta'] {
+    animation: modalFondoEntrada 120ms ease-out backwards;
+  }
+}
+
 /* Formulario de carga del fondo: cada campo que aparece (o cambia con la unidad o la
    sub-actividad) entra con un fundido corto desde arriba. */
 @keyframes campoEntrada {

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import api from '../apis/api';
 import toast from 'react-hot-toast';
 import { horasSemanalesDedicacion } from '../utils/dedicaciones';
@@ -14,6 +13,7 @@ import CampoUsuario from './usuarios/CampoUsuario';
 import { CandadoCampo, NotaUsuario, SeccionUsuario } from './usuarios/PiezasFormularioUsuario';
 import ListaTransferenciaRoles from './usuarios/ListaTransferenciaRoles';
 import ModalConfirmar from './common/ModalConfirmar';
+import ModalCentrado from './common/ModalCentrado';
 import { BOTON } from './fondos/estilosFondo';
 
 // Brinco del panel de roles cuando aparece (o se repite) un error.
@@ -510,15 +510,13 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
     );
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-blue-950/30 backdrop-blur-sm">
-      <div className="min-h-full flex items-center justify-center p-3 sm:p-6">
+  return (
+    <ModalCentrado>
         <div
           role="dialog"
           aria-modal="true"
           aria-labelledby="editar-usuario-titulo"
-          className="w-full max-w-6xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up"
-          style={{ animationDuration: '180ms' }}
+          className="w-full max-w-6xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl"
         >
           <div className="flex items-start justify-between gap-4 px-5 sm:px-6 pt-6 pb-4 [border-bottom:1px_solid_#B8C9E1]">
             <div className="min-w-0">
@@ -682,7 +680,6 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
             </div>
           </form>
         </div>
-      </div>
 
       {showResetConfirm && (
         <ModalConfirmar
@@ -695,8 +692,7 @@ const ModalUsuario = ({ isOpen, onClose, onSaveSuccess, userToEdit, docentes, ca
           onCancelar={() => setShowResetConfirm(false)}
         />
       )}
-    </div>,
-    document.body
+    </ModalCentrado>
   );
 };
 

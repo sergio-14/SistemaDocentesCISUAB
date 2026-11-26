@@ -148,8 +148,7 @@ function PerfilUsuario({
         role="dialog"
         aria-modal="true"
         aria-labelledby="perfil-usuario-titulo"
-        className="w-full max-w-5xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl animate-slide-up"
-        style={{ animationDuration: '180ms' }}
+        className="w-full max-w-5xl rounded-3xl bg-azulado-50 ring-1 ring-azulado-300 shadow-2xl"
       >
         <div className="flex items-start justify-between gap-4 px-5 sm:px-6 pt-6 pb-5 [border-bottom:1px_solid_#B8C9E1]">
           <div className="flex items-center gap-4 min-w-0">

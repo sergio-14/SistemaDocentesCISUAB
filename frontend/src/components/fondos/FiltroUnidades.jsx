@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import PanelDesplegable from '../common/PanelDesplegable';
+import { cascada } from '../../utils/cascada';
 
 // Desplegable de "Actividades planificadas": una casilla por unidad para mostrarla u
 // ocultarla. Las unidades sin carga se listan sin casilla activa (no tienen actividades).
@@ -71,22 +73,24 @@ function FiltroUnidades({ unidades, ocultas, onCambiar }) {
       </button>
 
       {abierto && (
-        <div
+        <PanelDesplegable
           role="menu"
-          className="animate-campo-entrada absolute right-0 top-full z-30 mt-1.5 w-64 max-w-[calc(100vw-2rem)] rounded-xl bg-white p-1.5 ring-1 ring-azulado-300 shadow-lg"
+          style={{ transformOrigin: 'top right' }}
+          className="absolute right-0 top-full z-30 mt-1.5 w-64 max-w-[calc(100vw-2rem)] rounded-xl bg-white p-1.5 ring-1 ring-azulado-300 shadow-lg"
         >
           <button
             type="button"
             role="menuitemcheckbox"
             aria-checked={todasMarcadas}
             onClick={() => onCambiar(todasMarcadas ? new Set(conCarga.map((unidad) => unidad.tipo)) : new Set())}
-            className="w-full flex items-center justify-between gap-3 px-2.5 py-1.5 rounded-lg text-xs text-left font-semibold text-blue-900 hover:bg-azulado-100 transition-colors"
+            style={cascada(0)}
+            className="desplegable-opcion w-full flex items-center justify-between gap-3 px-2.5 py-1.5 rounded-lg text-xs text-left font-semibold text-blue-900 hover:bg-azulado-100 transition-colors"
           >
             Todas las unidades
             <Casilla marcada={todasMarcadas} />
           </button>
           <div className="my-1 h-px bg-azulado-200" />
-          {unidades.map((unidad) => (
+          {unidades.map((unidad, indice) => (
             <button
               key={unidad.tipo}
               type="button"
@@ -94,14 +98,15 @@ function FiltroUnidades({ unidades, ocultas, onCambiar }) {
               aria-checked={unidad.conCarga && !ocultas.has(unidad.tipo)}
               disabled={!unidad.conCarga}
               onClick={() => alternar(unidad.tipo)}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-left text-slate-800 hover:bg-azulado-100 transition-colors disabled:cursor-default disabled:hover:bg-transparent disabled:text-slate-400"
+              style={cascada(indice + 1)}
+              className="desplegable-opcion w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-left text-slate-800 hover:bg-azulado-100 transition-colors disabled:cursor-default disabled:hover:bg-transparent disabled:text-slate-400"
             >
               <span className="flex-1 min-w-0 truncate" title={unidad.nombre}>{unidad.nombre}</span>
               {!unidad.conCarga && <span className="text-xs text-slate-400">Sin carga</span>}
               <Casilla marcada={unidad.conCarga && !ocultas.has(unidad.tipo)} />
             </button>
           ))}
-        </div>
+        </PanelDesplegable>
       )}
     </div>
   );

@@ -21,10 +21,17 @@ export function Avatar({ nombre, size = 'w-12 h-12' }) {
   );
 }
 
-export function BarraProgreso({ valor, color = 'bg-blue-900' }) {
+// El relleno ocupa todo el ancho y se corre a la izquierda lo que falta (solo transform):
+// al aparecer crece desde 0 y, si cambia el valor, se desliza al nuevo. La punta derecha
+// conserva su forma; la pista recorta el resto. retraso (ms): para entrar en cascada.
+export function BarraProgreso({ valor, color = 'bg-blue-900', retraso = 0 }) {
+  const porcentaje = Math.min(100, Math.max(0, Number(valor) || 0));
   return (
     <div className="h-2 w-full rounded-full bg-azulado-200 overflow-hidden">
-      <div className={`h-full rounded-full ${color} transition-all duration-500`} style={{ width: `${valor}%` }} />
+      <div
+        className={`barra-progreso-relleno h-full w-full rounded-full ${color}`}
+        style={{ transform: `translateX(${porcentaje - 100}%)`, animationDelay: `${retraso}ms` }}
+      />
     </div>
   );
 }

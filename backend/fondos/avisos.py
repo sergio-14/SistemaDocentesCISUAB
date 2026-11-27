@@ -18,7 +18,7 @@ El Instituto no recibe avisos y nadie recibe el aviso de lo que hizo él mismo.
 from datetime import timedelta
 
 from django.db import IntegrityError, transaction
-from django.db.models import F, Max
+from django.db.models import F, Max, Q
 from django.utils import timezone
 
 from fondos.models import AvisoVisto, HistorialFondo
@@ -27,6 +27,11 @@ from fondos.models import AvisoVisto, HistorialFondo
 # suave) y, por papel, (texto, botón). Textos cortos: quién y qué pasó; el botón abre
 # el fondo y dice lo que toca hacer ("Revisar", "Corregir") o "Ver".
 AVISOS = {
+    # El Jefe de Estudios creó el fondo: el docente lo elabora y lo presenta.
+    'fondo_creado': {
+        'tono': 'aviso',
+        'docente': ('Tu fondo de tiempo {gestion} está listo: registra tus actividades y preséntalo', 'Completar'),
+    },
     'fondo_presentado': {
         'tono': 'aviso',
         'revisor': ('{docente} presentó su fondo {gestion}', 'Revisar'),
@@ -81,6 +86,8 @@ MAXIMO_AVISOS = 20
 
 def evento_de(historial):
     """Evento de un registro del historial, o None si ese cambio no tiene aviso."""
+    if historial.tipo_cambio == 'creacion':
+        return 'fondo_creado'
     nuevo, anterior = historial.estado_nuevo, historial.estado_anterior
     if nuevo == 'en_ejecucion':
         # A ejecución se llega al aprobar el fondo, al iniciarla (aprobados de antes) o
@@ -165,7 +172,10 @@ def ultimos_cambios_de_estado(fondo_ids):
 
 def es_vigente(historial, ultimos):
     """Un aviso queda superado cuando su fondo ya pasó a otro estado (p. ej. "presentó su
-    informe" con el fondo ya finalizado): solo se avisa el último cambio de cada fondo."""
+    informe" con el fondo ya finalizado): solo se avisa el último cambio de cada fondo. El de
+    la creación vale mientras el fondo no haya cambiado de estado."""
+    if historial.tipo_cambio == 'creacion':
+        return historial.fondo_tiempo_id not in ultimos
     return ultimos.get(historial.fondo_tiempo_id) == historial.id
 
 
@@ -187,7 +197,8 @@ def avisos_para_usuario(user, perfil, fondos_visibles, rol):
         return []
 
     eventos = HistorialFondo.objects.filter(
-        fondo_tiempo__in=fondos_visibles, estado_nuevo__in=ESTADOS_CON_AVISO,
+        Q(estado_nuevo__in=ESTADOS_CON_AVISO) | Q(tipo_cambio='creacion'),
+        fondo_tiempo__in=fondos_visibles,
         fecha__gte=timezone.now() - timedelta(days=DIAS_RECIENTES),
     ).exclude(usuario=user).exclude(
         id__in=AvisoVisto.objects.filter(usuario=user, rol=rol).values('historial_id'),

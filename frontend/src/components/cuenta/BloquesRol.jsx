@@ -13,7 +13,7 @@ const enDias = (iso) => {
   if (!dias || dias <= 0) return 'hoy';
   return dias === 1 ? 'mañana' : `en ${dias} días`;
 };
-const NOMBRE_PLAZO = { 'programas analíticos': 'Programas analíticos', proyectos: 'Presentación de proyectos' };
+const NOMBRE_PLAZO = { 'programas analíticos': 'Programas analíticos', proyectos: 'Presentación de proyectos', informe: 'Informe del fondo' };
 const MAXIMO_PENDIENTES = 5;
 
 // ---------- Docente ----------
@@ -214,17 +214,25 @@ export function ResumenCarrera({ fondos, gestion, ancho = false }) {
 }
 
 // Director: fondos presentados por revisar (y los informes presentados) y los evaluados por
-// finalizar; Jefe: fondos observados por corregir (y los informes observados).
+// finalizar; Jefe: fondos en borrador u observados sin materias asignadas (el resto del fondo
+// lo elabora y lo corrige el docente).
 const PENDIENTES = {
-  director: { estados: ['presentado_director', 'informe_presentado', 'informe_evaluado'], vacio: 'No hay fondos por revisar ni por finalizar' },
-  jefe_estudios: { estados: ['observado', 'informe_observado'], vacio: 'No hay fondos observados por corregir' },
+  director: {
+    incluye: (fondo) => ['presentado_director', 'informe_presentado', 'informe_evaluado'].includes(estadoVisibleFondo(fondo)),
+    vacio: 'No hay fondos por revisar ni por finalizar',
+  },
+  jefe_estudios: {
+    incluye: (fondo) => Boolean(fondo.sin_materias),
+    vacio: 'No hay fondos sin materias asignadas',
+    detalle: 'Sin materias asignadas',
+  },
 };
 
 export function Pendientes({ fondos, rol }) {
   const regla = PENDIENTES[rol];
   let contenido = <Cargando />;
   if (fondos) {
-    const lista = fondos.filter((fondo) => regla.estados.includes(estadoVisibleFondo(fondo)));
+    const lista = fondos.filter(regla.incluye);
     contenido = lista.length === 0 ? (
       <SinDatos>{regla.vacio}</SinDatos>
     ) : (
@@ -233,7 +241,10 @@ export function Pendientes({ fondos, rol }) {
           <FilaLista key={fondo.id}>
             <div className="min-w-0">
               <p className="font-semibold text-slate-800 truncate" title={fondo.docente_nombre}>{fondo.docente_nombre}</p>
-              <div className="mt-1"><EstadoPill estado={estadoVisibleFondo(fondo)} /></div>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <EstadoPill estado={estadoVisibleFondo(fondo)} />
+                {regla.detalle && <span className="text-xs text-slate-600">{regla.detalle}</span>}
+              </div>
             </div>
             <Link to={`/fondo-tiempo/fondo/${fondo.id}`} className={`${BOTON_CHICO} bg-blue-900 hover:bg-blue-950 text-white flex-shrink-0`}>
               <Eye className="w-3.5 h-3.5" strokeWidth={1.75} />

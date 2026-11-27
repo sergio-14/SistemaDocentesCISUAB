@@ -66,11 +66,28 @@ const SearchIcon = (props) => (
 // En ejecución también: el docente que deja la carrera a mitad de la gestión (ver views.py).
 const ESTADOS_ARCHIVABLES = ['aprobado_director', 'en_ejecucion', 'finalizado', 'rechazado'];
 
+// Días que faltan para el plazo del informe (fin de la gestión), o null.
+const DIAS_RECORDATORIO_INFORME = 15;
+const diasParaElInforme = (fecha) => {
+  if (!fecha) return null;
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  return Math.round((new Date(`${fecha}T00:00:00`) - hoy) / 86400000);
+};
+
 // Presentado en una carrera sin Director activo: espera hasta que se asigne uno (Art. 8).
-function EstadoConAviso({ fondo }) {
+// Al docente, en ejecución, le recuerda el plazo del informe en los últimos 15 días.
+function EstadoConAviso({ fondo, esDocente = false }) {
+  const dias = esDocente ? diasParaElInforme(fondo.plazo_informe) : null;
+  const recordar = dias !== null && dias >= 0 && dias <= DIAS_RECORDATORIO_INFORME;
   return (
     <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
       <EstadoPill estado={estadoVisibleFondo(fondo)} />
+      {recordar && (
+        <span className="inline-flex items-center whitespace-nowrap rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-800 ring-1 ring-inset ring-sky-200">
+          {dias === 0 ? 'Informe: vence hoy' : `Informe: vence en ${dias} ${dias === 1 ? 'día' : 'días'}`}
+        </span>
+      )}
       {fondo.sin_director && (
         <span
           title="La carrera no tiene Director asignado: el fondo espera su revisión."
@@ -203,6 +220,8 @@ function ListaFondos() {
   const puedeArchivar = user?.is_superuser === true || ['director', 'jefe_estudios'].includes(user?.perfil?.rol);
 
   const puedeCrear = puedeCrearFondoTiempo(user);
+  // Recordatorio del plazo del informe: solo al docente, con su rol de docente.
+  const esDocenteActivo = user?.perfil?.rol === 'docente' && user?.is_superuser !== true;
   const esIisyp = user?.perfil?.rol === 'iiisyp' && user?.is_superuser !== true;
 
   const generarFondosMasivamente = async () => {
@@ -576,7 +595,7 @@ function ListaFondos() {
                     <div className="font-bold text-blue-900 truncate" title={fondo.docente_nombre}>{fondo.docente_nombre}</div>
                     {esSuperusuario && <div className="text-sm text-slate-600 truncate">{fondo.carrera_nombre}</div>}
                   </div>
-                  <div className="xl:hidden"><EstadoConAviso fondo={fondo} /></div>
+                  <div className="xl:hidden"><EstadoConAviso fondo={fondo} esDocente={esDocenteActivo} /></div>
                 </div>
                 <div className="flex flex-wrap gap-2 min-w-0">
                   <Etiqueta>{fondo.gestion}</Etiqueta>
@@ -587,7 +606,7 @@ function ListaFondos() {
                   {horas(fondo)}
                 </div>
                 {progreso(fondo, indice)}
-                <div className="hidden xl:block"><EstadoConAviso fondo={fondo} /></div>
+                <div className="hidden xl:block"><EstadoConAviso fondo={fondo} esDocente={esDocenteActivo} /></div>
                 {acciones(fondo)}
               </div>
             ))}
@@ -605,7 +624,7 @@ function ListaFondos() {
                     {esSuperusuario && <p className="text-sm text-slate-600 truncate">{fondo.carrera_nombre}</p>}
                   </div>
                 </div>
-                <EstadoConAviso fondo={fondo} />
+                <EstadoConAviso fondo={fondo} esDocente={esDocenteActivo} />
               </div>
 
               <div className="flex flex-wrap gap-2">

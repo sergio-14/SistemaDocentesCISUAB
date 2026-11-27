@@ -2684,12 +2684,35 @@ class FondoTiempoListSerializer(serializers.ModelSerializer):
     estado_informe = serializers.SerializerMethodField()
     # Presentado en una carrera sin Director activo: espera hasta que se asigne uno.
     sin_director = serializers.SerializerMethodField()
+    # En borrador u observado sin materias asignadas: pendiente del Jefe de Estudios.
+    sin_materias = serializers.SerializerMethodField()
+    # En ejecución con el informe sin presentar: hasta cuándo (Art. 28), para el recordatorio.
+    plazo_informe = serializers.SerializerMethodField()
 
     class Meta:
         model = FondoTiempo
         fields = ['id', 'docente', 'docente_nombre', 'carrera', 'carrera_nombre',
                   'gestion', 'descripcion', 'total_asignado', 'horas_efectivas',
-                  'porcentaje_completado', 'estado', 'estado_informe', 'sin_director']
+                  'porcentaje_completado', 'estado', 'estado_informe', 'sin_director',
+                  'sin_materias', 'plazo_informe']
+
+    def get_sin_materias(self, obj):
+        if obj.estado not in ('borrador', 'observado'):
+            return False
+        # La lista lo trae anotado (FondoTiempoViewSet.filter_queryset); si no, se consulta.
+        if hasattr(obj, 'tiene_materias'):
+            return not obj.tiene_materias
+        return not obj.cargas.filter(tipo_actividad='clases_aula').exists()
+
+    def get_plazo_informe(self, obj):
+        if obj.estado != 'en_ejecucion' or self.get_estado_informe(obj) == 'enviado':
+            return None
+        cache = self.context.setdefault('_plazo_informe', {})
+        clave = (obj.carrera_id, obj.gestion)
+        if clave not in cache:
+            limite = obj.plazo_informe()[1]
+            cache[clave] = limite.isoformat() if limite else None
+        return cache[clave]
 
     def get_sin_director(self, obj):
         # Solo importa mientras espera la revisión; una consulta por carrera en la lista.

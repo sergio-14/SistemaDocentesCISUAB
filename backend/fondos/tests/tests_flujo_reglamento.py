@@ -202,3 +202,41 @@ class QuienElaboraElFondoTests(BaseFlujo):
         )])
         asignada = self.client.post('/api/cargas-horarias/', datos, format='json')
         self.assertEqual(asignada.status_code, status.HTTP_201_CREATED, asignada.data)
+
+
+class FaltantesDeLosFlujosTests(BaseFlujo):
+    """El docente se entera de su fondo y de su plazo; el Jefe ve sus pendientes reales."""
+
+    def test_el_docente_recibe_el_aviso_de_su_fondo_creado(self):
+        from fondos.avisos import avisos_para_usuario, clave_rol
+        from fondos.models import HistorialFondo
+        HistorialFondo.objects.create(
+            fondo_tiempo=self.fondo, usuario=self.jefe, tipo_cambio='creacion', descripcion='Fondo creado',
+        )
+        perfil = self.dueno.perfil
+        avisos = avisos_para_usuario(self.dueno, perfil, FondoTiempo.objects.filter(pk=self.fondo.pk), 'base')
+        self.assertEqual([a['evento'] for a in avisos], ['fondo_creado'])
+        self.assertEqual(avisos[0]['accion'], 'Completar')
+
+        # Una vez presentado, el aviso de creación ya no vale.
+        HistorialFondo.objects.create(
+            fondo_tiempo=self.fondo, usuario=self.dueno, tipo_cambio='presentacion', descripcion='Presentado',
+            estado_anterior='borrador', estado_nuevo='presentado_director',
+        )
+        self.assertEqual(avisos_para_usuario(self.dueno, perfil, FondoTiempo.objects.filter(pk=self.fondo.pk), 'base'), [])
+
+    def test_la_lista_marca_fondos_sin_materias_y_el_plazo_del_informe(self):
+        self.client.force_authenticate(self.jefe)
+        fila = self._fila()
+        self.assertTrue(fila['sin_materias'])
+        self.assertIsNone(fila['plazo_informe'])
+
+        self._estado('en_ejecucion')
+        fila = self._fila()
+        self.assertFalse(fila['sin_materias'])
+        self.assertEqual(fila['plazo_informe'], '2026-12-15')
+
+    def _fila(self):
+        response = self.client.get('/api/fondos-tiempo/')
+        filas = response.data['results'] if isinstance(response.data, dict) else response.data
+        return next(f for f in filas if f['id'] == self.fondo.pk)

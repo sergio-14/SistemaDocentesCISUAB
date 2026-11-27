@@ -69,11 +69,22 @@ def _datos_docente(docente, hoy):
     else:
         carreras = DocenteCarrera.objects.filter(docente=docente, activo=True).values('carrera')
         calendarios = CalendarioAcademico.objects.filter(carrera__in=carreras, gestion=gestion)
+    plazos = _proximos_plazos(calendarios, fondo, hoy)
+    # Art. 28: el informe, hasta el fin de la gestión, mientras no lo haya presentado.
+    if fondo and fondo.estado in ('borrador', 'observado', 'presentado_director', 'aprobado_director', 'en_ejecucion'):
+        calendario, limite = fondo.plazo_informe()
+        if limite and limite >= hoy:
+            plazos.append({
+                'plazo': 'informe',
+                'calendario': nombre_calendario_en_fondo(calendario, fondo),
+                'fecha': limite.isoformat(),
+            })
+            plazos.sort(key=lambda p: (p['fecha'], p['plazo']))
     return {
         'id': docente.id,
         'fondo_actual': FondoTiempoListSerializer(fondo).data if fondo else None,
         'carreras_donde_dicta': _carreras_donde_dicta(fondo) if fondo else [],
-        'proximos_plazos': _proximos_plazos(calendarios, fondo, hoy),
+        'proximos_plazos': plazos,
     }
 
 

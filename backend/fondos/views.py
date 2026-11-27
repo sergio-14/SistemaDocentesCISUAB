@@ -10,7 +10,7 @@ from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 from django.http import Http404, HttpResponse, FileResponse
 from django.db import transaction, IntegrityError
-from django.db.models import F, Max, OuterRef, ProtectedError, prefetch_related_objects, Q, Subquery
+from django.db.models import Exists, F, Max, OuterRef, ProtectedError, prefetch_related_objects, Q, Subquery
 from django.core.exceptions import ValidationError as DjangoValidationError
 from datetime import datetime, date
 from decimal import Decimal
@@ -1599,10 +1599,15 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         (FondoTiempoListSerializer.estado_informe)."""
         queryset = super().filter_queryset(queryset)
         if self.action == 'list':
-            queryset = queryset.annotate(estado_informe_actual=Subquery(
-                InformeFondo.objects.filter(fondo_tiempo=OuterRef('pk'), tipo='parcial')
-                .order_by('-fecha_elaboracion').values('estado')[:1]
-            ))
+            queryset = queryset.annotate(
+                estado_informe_actual=Subquery(
+                    InformeFondo.objects.filter(fondo_tiempo=OuterRef('pk'), tipo='parcial')
+                    .order_by('-fecha_elaboracion').values('estado')[:1]
+                ),
+                tiene_materias=Exists(
+                    CargaHoraria.objects.filter(fondo=OuterRef('pk'), tipo_actividad='clases_aula')
+                ),
+            )
         return queryset
 
     def get_serializer_class(self):

@@ -88,6 +88,55 @@ const datosVacios = () => Object.fromEntries(TODOS_LOS_CAMPOS.map((c) => [c, '']
  * de "7 cajas sueltas" que existía antes. Reutiliza los mismos endpoints ya
  * probados (guardar-informe-borrador, presentar, pdf-informe).
  */
+
+// Parte I del informe: horas planificadas del fondo por unidad del Art. 12, como en los
+// informes reales de la carrera (2024). No se edita: sale del fondo aprobado.
+const UNIDADES_PLANIFICACION = [
+  ['academica', 'Académica'],
+  ['investigacion', 'Investigación'],
+  ['extension_universitaria', 'Extensión universitaria'],
+  ['interaccion_social', 'Interacción social'],
+  ['gestion', 'Gestión'],
+  ['academica_administrativa', 'Académica-administrativa'],
+  ['social_cultural_deportiva', 'Social, cultural, deportiva y Otros'],
+];
+
+function PlanificacionInforme({ categorias }) {
+  const horas = UNIDADES_PLANIFICACION.map(([tipo, nombre]) => [
+    nombre,
+    Math.round(Number(categorias.find((categoria) => categoria.tipo === tipo)?.total_horas || 0)),
+  ]);
+  const total = horas.reduce((suma, [, valor]) => suma + valor, 0);
+  return (
+    <div className="mb-6">
+      <h3 className="font-bold uppercase text-[13.5px] mb-2">Parte I: Planificación</h3>
+      <table className="w-full border-collapse text-[12.5px]">
+        <thead>
+          <tr className="bg-slate-100">
+            <th className="border border-slate-400 px-2 py-1 text-left font-bold">Unidad (Art. 12)</th>
+            <th className="border border-slate-400 px-2 py-1 text-right font-bold w-24">Horas/año</th>
+            <th className="border border-slate-400 px-2 py-1 text-right font-bold w-20">%</th>
+          </tr>
+        </thead>
+        <tbody>
+          {horas.map(([nombre, valor]) => (
+            <tr key={nombre}>
+              <td className="border border-slate-400 px-2 py-1">{nombre}</td>
+              <td className="border border-slate-400 px-2 py-1 text-right tabular-nums">{valor}</td>
+              <td className="border border-slate-400 px-2 py-1 text-right tabular-nums">{total ? ((valor * 100) / total).toFixed(1) : '0.0'}</td>
+            </tr>
+          ))}
+          <tr className="font-bold">
+            <td className="border border-slate-400 px-2 py-1">Total</td>
+            <td className="border border-slate-400 px-2 py-1 text-right tabular-nums">{total}</td>
+            <td className="border border-slate-400 px-2 py-1 text-right tabular-nums">{total ? '100.0' : '0.0'}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function EditorInformePage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -569,6 +618,10 @@ export default function EditorInformePage() {
               placeholder="Señor Director: ..."
               className="block text-[13.5px] leading-relaxed text-justify mb-6"
             />
+
+            {/* Parte I: las horas del fondo por unidad, como en el PDF y el Word (solo lectura). */}
+            <PlanificacionInforme categorias={fondo?.categorias || []} />
+            <h3 className="font-bold uppercase text-[13.5px] mb-3">Parte II: Ejecución</h3>
 
             {/* 5. Las 7 categorías del Art. 12° */}
             {seccionesInforme.map(({ campo, numero, titulo, requerido, placeholder }) => (

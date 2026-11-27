@@ -62,7 +62,7 @@ from .serializers import (
 from .role_context import get_effective_profile, get_active_careers_for_user
 from .permisos_fondo import (
     es_docente_del_fondo, es_jefatura_del_fondo, puede_escribir_observaciones,
-    puede_resolver_observaciones, trabaja_el_fondo,
+    puede_resolver_observaciones, redacta_el_informe, trabaja_el_fondo,
 )
 from .solo_lectura import CarreraInactivaSoloLecturaMixin as CarreraInactivaSoloLecturaBase
 from .models import (
@@ -2019,8 +2019,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         """
         fondo = self.get_object()
 
-        perfil = _obtener_perfil_efectivo(request.user, request)
-        if not fondo.puede_redactar_informe(request.user, perfil):
+        if not redacta_el_informe(request, fondo):
             raise PermissionDenied("Solo el docente dueño del fondo puede editar su informe.")
 
         if fondo.estado != 'en_ejecucion':
@@ -2123,8 +2122,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         
         # Solo el docente dueño (con su rol de docente): ni el superusuario, ni Jefatura,
         # ni Dirección redactan o presentan el informe de otro docente.
-        perfil = _obtener_perfil_efectivo(request.user, request)
-        if not fondo.puede_redactar_informe(request.user, perfil):
+        if not redacta_el_informe(request, fondo):
             raise PermissionDenied("Solo el docente dueño del fondo puede presentar su informe.")
 
         if fondo.estado != 'en_ejecucion':
@@ -2180,7 +2178,10 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             fondo_tiempo=fondo,
             usuario=request.user,
             tipo_cambio='informe_presentado',
-            descripcion='Docente presentó Informe Final de cumplimiento.' + (
+            descripcion=(
+                'Docente presentó Informe Final de cumplimiento.' if es_docente_del_fondo(request, fondo)
+                else 'Jefatura de Estudios registró el Informe Final de cumplimiento (el docente no tiene cuenta en el sistema).'
+            ) + (
                 ' Presentado fuera de plazo: límite '
                 + date.fromisoformat(informe_tarde[0]['fecha_limite']).strftime('%d/%m/%Y') + '.'
                 if informe_tarde else ''

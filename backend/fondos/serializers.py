@@ -12,7 +12,7 @@ from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia,
 from .role_context import get_active_assignment, get_active_careers_for_user, get_effective_profile, serialize_assignment
 from .permisos_fondo import (
     es_jefatura_del_fondo, es_revisor_del_fondo, jefatura_trabaja_el_fondo, puede_escribir_observaciones,
-    puede_resolver_observaciones, trabaja_el_fondo,
+    puede_resolver_observaciones, redacta_el_informe, trabaja_el_fondo,
 )
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from .utils.informe_html import CAMPOS_HTML_RICO_INFORME, sanitizar_html_informe
@@ -4525,7 +4525,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if not request or obj.estado != 'en_ejecucion':
             return False
-        if not obj.puede_redactar_informe(request.user, get_effective_profile(request.user, request)):
+        if not redacta_el_informe(request, obj):
             return False
         informe = obj.informes.filter(tipo='parcial').order_by('-fecha_elaboracion').first()
         return informe is None or informe.estado in ('borrador', 'observado')

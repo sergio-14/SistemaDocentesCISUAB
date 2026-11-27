@@ -65,6 +65,14 @@ def trabaja_el_fondo(request, fondo):
     return es_docente_del_fondo(request, fondo) or jefatura_trabaja_el_fondo(request, fondo)
 
 
+def redacta_el_informe(request, fondo):
+    """Quien guarda y presenta el informe: el docente dueño con su rol de docente; si no tiene
+    cuenta en el sistema, el Jefe de Estudios registra el informe que el docente entregó."""
+    from .role_context import get_effective_profile as perfil_efectivo
+    perfil = perfil_efectivo(request.user, request) if getattr(request, 'user', None) else None
+    return fondo.puede_redactar_informe(request.user, perfil) or jefatura_trabaja_el_fondo(request, fondo)
+
+
 def es_revisor_del_fondo(request, fondo):
     """Quien aprueba, observa, evalúa y finaliza: nadie su propio fondo; el del Director de
     la carrera, el superusuario; el resto, el Director (rol activo) de la carrera."""

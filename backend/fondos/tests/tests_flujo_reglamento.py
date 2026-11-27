@@ -328,3 +328,23 @@ class FaltantesDeLosFlujosTests(BaseFlujo):
 
         pdf = self.client.get(f'/api/fondos-tiempo/{self.fondo.pk}/pdf-informe/')
         self.assertEqual(pdf.status_code, status.HTTP_200_OK)
+
+    def test_el_jefe_registra_el_informe_del_docente_sin_cuenta(self):
+        sin_cuenta = self.crear_docente('SININFORME')
+        fondo = FondoTiempo.objects.create(docente=sin_cuenta, carrera=self.carrera, gestion=2026)
+        forzar_campos(FondoTiempo.objects.filter(pk=fondo.pk), estado='en_ejecucion')
+        self.client.force_authenticate(self.jefe)
+
+        self.assertTrue(self.client.get(f'/api/fondos-tiempo/{fondo.pk}/').data['puede_editar_informe'])
+        response = self.client.post(f'/api/fondos-tiempo/{fondo.pk}/presentar/', INFORME, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        fondo.refresh_from_db()
+        self.assertEqual(fondo.estado, 'informe_presentado')
+        self.assertIn('Jefatura de Estudios registró', fondo.historial.get(tipo_cambio='informe_presentado').descripcion)
+
+        # Con cuenta, el Jefe no redacta el informe del docente.
+        self._estado('en_ejecucion')
+        self.assertEqual(
+            self.client.post(f'/api/fondos-tiempo/{self.fondo.pk}/presentar/', INFORME, format='json').status_code,
+            status.HTTP_403_FORBIDDEN,
+        )

@@ -425,7 +425,9 @@ const useErrorEnVivo = (mensaje, idToast) => {
     return brinco;
 };
 
-const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], onCargaUpdate, readOnly = true, versionCargas = 0 }) => {
+// modo: 'materias' (el Jefe de Estudios asigna las clases en aula), 'actividades' (el docente
+// registra el resto de sus ítems) o 'todo'. El backend aplica la misma regla.
+const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], onCargaUpdate, readOnly = true, versionCargas = 0, modo = 'todo' }) => {
     const [cargas, setCargas] = useState([]);
     const [semestre, setSemestre] = useState('');
     const [materias, setMaterias] = useState([]);
@@ -681,6 +683,12 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
     );
 
     const handleMateriaChange = (materiaId) => {
+        // El docente no asigna clases: elige una de sus materias asignadas y esta solo
+        // identifica su sub-actividad.
+        if (modo === 'actividades') {
+            setFormData(prev => ({ ...prev, materia: materiaId }));
+            return;
+        }
         const materia = materias.find(m => m.id.toString() === materiaId);
         if (materia) {
             if (formData.categoria === 'academica' && formData.tipo_actividad && formData.tipo_actividad !== 'clases_aula') {
@@ -699,7 +707,8 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
             const horas = prev.tipo_actividad === 'clases_aula' && materia
                 ? Number(materia.horas_totales || 0) * semanasDeClase(calendarioId)
                 : prev.horas;
-            return { ...prev, calendario: calendarioId, horas };
+            // El docente elige entre las materias asignadas en ese calendario.
+            return { ...prev, calendario: calendarioId, horas, materia: modo === 'actividades' ? '' : prev.materia };
         });
     };
 
@@ -735,7 +744,9 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
         }));
     };
 
-    const categoriaOptions = CATEGORIA_OPCIONES.map(opt => ({ value: opt.value, label: opt.label }));
+    const categoriaOptions = CATEGORIA_OPCIONES
+        .filter(opt => modo !== 'materias' || opt.value === 'academica')
+        .map(opt => ({ value: opt.value, label: opt.label }));
     const paraleloOptions = PARALELOS.map(p => ({ value: p, label: `Paralelo ${p}` }));
     const calendarioOptions = calendarios.map(cal => ({ value: String(cal.id), label: `${cal.periodo_display} ${cal.gestion}` }));
     const semestreOptions = semestresDisponibles.map(s => ({ value: s.toString(), label: `${s}° Semestre` }));
@@ -747,14 +758,26 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
             value: m.id.toString(),
             label: `${m.nombre} (${m.horas_teoricas} HT / ${m.horas_practicas} HP - Total: ${m.horas_totales} hrs/sem)`
         }));
+    // Docente: solo las materias que el Jefe de Estudios le asignó en ese calendario.
+    const materiasAsignadasOptions = [...new Map(
+        cargas
+            .filter(carga => carga.tipo_actividad === 'clases_aula' && carga.materia
+                && String(carga.calendario || '') === String(formData.calendario || ''))
+            .map(carga => [String(carga.materia), {
+                value: String(carga.materia),
+                label: carga.materia_sigla ? `${carga.materia_nombre} (${carga.materia_sigla})` : carga.materia_nombre,
+            }]),
+    ).values()];
+    const opcionesMateria = modo === 'actividades' ? materiasAsignadasOptions : materiaOptions;
     const esAcademica = formData.categoria === 'academica';
     const requiereMateriaAcademica = esAcademica;
     const esSubactividadAcademica = esAcademica && formData.tipo_actividad && formData.tipo_actividad !== 'clases_aula';
     const configCategoria = SUBACTIVIDADES_POR_CATEGORIA[formData.categoria] || null;
     const tiposCargoDelDocente = fondoDetalle?.tipos_ejercicio_cargo || [];
     const tipoActividadOptions = (configCategoria?.opciones || []).filter((opt) => (
-        !TIPOS_EJERCICIO_CARGO.includes(opt.value)
-        || tiposCargoDelDocente.includes(opt.value)
+        (!TIPOS_EJERCICIO_CARGO.includes(opt.value) || tiposCargoDelDocente.includes(opt.value))
+        && (modo !== 'materias' || opt.value === 'clases_aula')
+        && (modo !== 'actividades' || opt.value !== 'clases_aula')
     ));
     // La unidad suma sus ítems; el fondo, todas sus unidades (horas por año) hasta las horas efectivas.
     const totalUnidad = cargas
@@ -873,7 +896,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
 
                 {esAcademica ? (
                     <div key="academica" className="animate-campo-entrada space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className={`grid gap-4 ${modo === 'actividades' ? 'grid-cols-1' : 'grid-cols-2'}`}>
                             <div>
                                 <label className={labelCls}>Calendario</label>
                                 <CustomSelect
@@ -885,6 +908,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                                     emptyText="La gestión no tiene calendarios académicos"
                                 />
                             </div>
+                            {modo !== 'actividades' && (
                             <div>
                                 <label className={labelCls}>Semestre / Nivel</label>
                                 <SelectorRueda
@@ -899,6 +923,7 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                                     disabled={loadingMaterias || isReadOnly}
                                 />
                             </div>
+                            )}
                         </div>
 
                         <div>
@@ -916,15 +941,26 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
 
                         {formData.tipo_actividad && (
                             <div className="animate-campo-entrada">
-                                <label className={labelCls}>Materia (malla curricular)</label>
-                                <CustomSelect
-                                    value={selectedMateriaId}
-                                    options={materiaOptions}
-                                    onChange={handleMateriaChange}
-                                    placeholder={!semestre ? 'Seleccione un nivel primero' : 'Seleccionar materia'}
-                                    disabled={!semestre || isReadOnly}
-                                    emptyText={!semestre ? 'Selecciona primero un nivel' : 'No hay materias en este nivel'}
-                                />
+                                <label className={labelCls}>{modo === 'actividades' ? 'Materia asignada' : 'Materia (malla curricular)'}</label>
+                                {modo === 'actividades' ? (
+                                    <CustomSelect
+                                        value={selectedMateriaId}
+                                        options={opcionesMateria}
+                                        onChange={handleMateriaChange}
+                                        placeholder="Seleccionar materia"
+                                        disabled={isReadOnly}
+                                        emptyText="El Jefe de Estudios todavía no le asignó materias en este calendario"
+                                    />
+                                ) : (
+                                    <CustomSelect
+                                        value={selectedMateriaId}
+                                        options={opcionesMateria}
+                                        onChange={handleMateriaChange}
+                                        placeholder={!semestre ? 'Seleccione un nivel primero' : 'Seleccionar materia'}
+                                        disabled={!semestre || isReadOnly}
+                                        emptyText={!semestre ? 'Selecciona primero un nivel' : 'No hay materias en este nivel'}
+                                    />
+                                )}
                             </div>
                         )}
 

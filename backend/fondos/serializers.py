@@ -10,7 +10,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import UNIDADES_FONDO, DocumentoActividad, actualizar_con_historial, clase_documento_actividad, nombre_calendario_en_fondo, fondo_de_la_carga, mensaje_sin_fondo, roles_del_docente_en_carrera
 from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, PerfilUsuario, AsignacionCarrera, InformeFondo, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, DatosLaborales, ProgramaAnalitico
 from .role_context import get_active_assignment, get_active_careers_for_user, get_effective_profile, serialize_assignment
-from .permisos_fondo import es_jefatura_del_fondo, puede_escribir_observaciones, puede_resolver_observaciones
+from .permisos_fondo import es_docente_del_fondo, es_jefatura_del_fondo, puede_escribir_observaciones, puede_resolver_observaciones
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from .utils.informe_html import CAMPOS_HTML_RICO_INFORME, sanitizar_html_informe
 from .utils.informe_imagenes import firmar_imagenes_html
@@ -2682,12 +2682,25 @@ class FondoTiempoListSerializer(serializers.ModelSerializer):
     total_asignado = serializers.SerializerMethodField()
     # Estado del informe de cumplimiento (borrador, enviado, observado, aprobado) o None.
     estado_informe = serializers.SerializerMethodField()
+    # Presentado en una carrera sin Director activo: espera hasta que se asigne uno.
+    sin_director = serializers.SerializerMethodField()
 
     class Meta:
         model = FondoTiempo
         fields = ['id', 'docente', 'docente_nombre', 'carrera', 'carrera_nombre',
                   'gestion', 'descripcion', 'total_asignado', 'horas_efectivas',
-                  'porcentaje_completado', 'estado', 'estado_informe']
+                  'porcentaje_completado', 'estado', 'estado_informe', 'sin_director']
+
+    def get_sin_director(self, obj):
+        # Solo importa mientras espera la revisión; una consulta por carrera en la lista.
+        if obj.estado != 'presentado_director':
+            return False
+        cache = self.context.setdefault('_carreras_con_director', {})
+        if obj.es_de_director_de_su_carrera():
+            return False
+        if obj.carrera_id not in cache:
+            cache[obj.carrera_id] = obj.tiene_director_que_revise()
+        return not cache[obj.carrera_id]
 
     def get_estado_informe(self, obj):
         # La lista lo trae anotado (FondoTiempoViewSet.filter_queryset); si no, se consulta.
@@ -4343,6 +4356,8 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     total_asignado = serializers.SerializerMethodField()
     # Permisos
     puede_editar = serializers.SerializerMethodField()
+    # El Jefe de Estudios asigna las materias (clases en aula).
+    puede_asignar_materias = serializers.SerializerMethodField()
     # El editor del informe se abre en solo lectura si es False.
     puede_editar_informe = serializers.SerializerMethodField()
     # Variantes de "Ejercicio del cargo" que el formulario de cargas ofrece.
@@ -4360,6 +4375,8 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     finalizado_el = serializers.DateTimeField(source='fecha_finalizacion', read_only=True)
     # Con el informe evaluado, desde cuándo (el "Tiempo en etapa" cuenta desde ahí).
     evaluado_el = serializers.SerializerMethodField()
+    # Art. 28: hasta cuándo presentar el informe (fin del último calendario de la gestión).
+    plazo_informe = serializers.SerializerMethodField()
     # Arts. 15 y 18: presentado después de los plazos del calendario. Va tal cual
     # ([{plazo, calendario, fecha_limite, fecha_presentacion}]): el detalle lo muestra
     # como una etiqueta "Fuera de plazo" con su explicación al pasar el mouse.
@@ -4384,10 +4401,10 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             'categorias', 'informes', 'observaciones_detalladas',
             'informe_actual',
             # Permisos
-            'puede_editar', 'puede_editar_informe', 'tipos_ejercicio_cargo', 'puede_iniciar_ejecucion',
+            'puede_editar', 'puede_asignar_materias', 'puede_editar_informe', 'tipos_ejercicio_cargo', 'puede_iniciar_ejecucion',
             'puede_escribir_observaciones', 'puede_resolver_observaciones',
             'es_fondo_propio', 'es_fondo_de_director', 'documento_decanatura', 'documento_decanatura_informe',
-            'finalizado_el', 'evaluado_el',
+            'finalizado_el', 'evaluado_el', 'plazo_informe',
         ]
         read_only_fields = [
             'estado', 'horas_efectivas',
@@ -4429,11 +4446,20 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
         ).data
 
     def get_puede_editar(self, obj):
-        """Mismas condiciones que FondoTiempoViewSet._puede_editar_fondo (rol activo): el
-        Jefe de Estudios de la carrera con el fondo en borrador u observado. El
-        superusuario, el Director y el docente lo ven en solo lectura."""
+        """El docente dueño (rol activo de docente) elabora su fondo en borrador u observado:
+        distribuye sus horas, sube sus programas y documentos y lo presenta al Director. El
+        Jefe asigna las materias (puede_asignar_materias); el superusuario y el Director lo
+        ven en solo lectura (ver permisos_fondo)."""
         request = self.context.get('request')
-        if not request or not getattr(request, 'user', None):
+        if not request or not getattr(request, 'user', None) or obj.archivado:
+            return False
+        return obj.estado in ['borrador', 'observado'] and es_docente_del_fondo(request, obj)
+
+    def get_puede_asignar_materias(self, obj):
+        """El Jefe de Estudios de la carrera asigna las materias (clases en aula) del fondo en
+        borrador u observado (Art. 9)."""
+        request = self.context.get('request')
+        if not request or not getattr(request, 'user', None) or obj.archivado:
             return False
         return obj.estado in ['borrador', 'observado'] and es_jefatura_del_fondo(request, obj)
 
@@ -4483,6 +4509,12 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
 
     def get_es_fondo_de_director(self, obj):
         return obj.es_de_director_de_su_carrera()
+
+    def get_plazo_informe(self, obj):
+        calendario, limite = obj.plazo_informe()
+        if not limite:
+            return None
+        return {'fecha': limite.isoformat(), 'calendario': nombre_calendario_en_fondo(calendario, obj)}
 
     def get_evaluado_el(self, obj):
         """Cuándo pasó a informe_evaluado (cambiar la evaluación no reinicia la etapa)."""

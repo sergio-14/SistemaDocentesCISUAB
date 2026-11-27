@@ -47,9 +47,9 @@ const VISTA_MATERIAS_KEY = 'materias_vista';
 
 const PildoraEstado = ({ activa }) => (
     <span className={`inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${
-        activa ? 'bg-emerald-50 text-emerald-800 ring-emerald-200' : 'bg-slate-100 text-slate-600 ring-slate-300'
+        activa ? 'bg-blue-50 text-blue-800 ring-blue-200' : 'bg-slate-100 text-slate-600 ring-slate-300'
     }`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${activa ? 'bg-emerald-600' : 'bg-slate-400'}`} />
+        <span className={`w-1.5 h-1.5 rounded-full ${activa ? 'bg-blue-600' : 'bg-slate-400'}`} />
         {activa ? 'Activa' : 'Inactiva'}
     </span>
 );
@@ -255,7 +255,7 @@ const MateriaList = () => {
         <div className="flex flex-wrap gap-2">
             <Link data-escritura
                 to={`/fondo-tiempo/materias/editar/${materia.id}`}
-                className={`${BOTON_CHICO} bg-emerald-500 hover:bg-emerald-600 text-white`}
+                className={`${BOTON_CHICO} bg-blue-900 hover:bg-blue-950 text-white`}
             >
                 <FaEdit size={12} />
                 <span>Editar</span>
@@ -328,7 +328,7 @@ const MateriaList = () => {
                         </div>
                         <div className="flex flex-wrap gap-2 text-xs">
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
-                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                                <span className="h-1.5 w-1.5 rounded-full bg-sky-300" />
                                 <NumeroAnimado valor={totalActivas} singular="activa" plural="activas" />
                             </span>
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">

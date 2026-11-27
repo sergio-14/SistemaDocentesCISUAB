@@ -63,7 +63,25 @@ const SearchIcon = (props) => (
   </svg>
 );
 
-const ESTADOS_ARCHIVABLES = ['aprobado_director', 'finalizado', 'rechazado'];
+// En ejecución también: el docente que deja la carrera a mitad de la gestión (ver views.py).
+const ESTADOS_ARCHIVABLES = ['aprobado_director', 'en_ejecucion', 'finalizado', 'rechazado'];
+
+// Presentado en una carrera sin Director activo: espera hasta que se asigne uno (Art. 8).
+function EstadoConAviso({ fondo }) {
+  return (
+    <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
+      <EstadoPill estado={estadoVisibleFondo(fondo)} />
+      {fondo.sin_director && (
+        <span
+          title="La carrera no tiene Director asignado: el fondo espera su revisión."
+          className="inline-flex items-center whitespace-nowrap rounded-full bg-azulado-100 px-2.5 py-1 text-xs font-medium text-slate-700 ring-1 ring-inset ring-azulado-300"
+        >
+          Sin Director
+        </span>
+      )}
+    </span>
+  );
+}
 
 const VISTA_STORAGE_KEY = 'fondos_vista_dashboard';
 
@@ -356,7 +374,7 @@ function ListaFondos() {
       {puedeEditar(fondo) && (
         <Link
           to={`/fondo-tiempo/editar-fondo/${fondo.id}`}
-          className={`${BOTON} bg-emerald-500 hover:bg-emerald-600 text-white`}
+          className={`${BOTON} bg-azulado-100 hover:bg-azulado-200 text-blue-900 ring-1 ring-inset ring-azulado-300`}
         >
           <PencilIcon className="w-[18px] h-[18px]" />
           <span>Editar</span>
@@ -440,8 +458,8 @@ function ListaFondos() {
                   </div>
                 )}
                 {esIisyp && (
-                  <span className="mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-cyan-50 text-cyan-700 ring-1 ring-inset ring-cyan-300">
-                    Vista del Instituto - Solo Lectura
+                  <span className="mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-azulado-100 text-slate-700 ring-1 ring-inset ring-azulado-300">
+                    Vista del Instituto · Solo lectura
                   </span>
                 )}
               </div>
@@ -558,7 +576,7 @@ function ListaFondos() {
                     <div className="font-bold text-blue-900 truncate" title={fondo.docente_nombre}>{fondo.docente_nombre}</div>
                     {esSuperusuario && <div className="text-sm text-slate-600 truncate">{fondo.carrera_nombre}</div>}
                   </div>
-                  <div className="xl:hidden"><EstadoPill estado={estadoVisibleFondo(fondo)} /></div>
+                  <div className="xl:hidden"><EstadoConAviso fondo={fondo} /></div>
                 </div>
                 <div className="flex flex-wrap gap-2 min-w-0">
                   <Etiqueta>{fondo.gestion}</Etiqueta>
@@ -569,7 +587,7 @@ function ListaFondos() {
                   {horas(fondo)}
                 </div>
                 {progreso(fondo, indice)}
-                <div className="hidden xl:block"><EstadoPill estado={estadoVisibleFondo(fondo)} /></div>
+                <div className="hidden xl:block"><EstadoConAviso fondo={fondo} /></div>
                 {acciones(fondo)}
               </div>
             ))}
@@ -587,7 +605,7 @@ function ListaFondos() {
                     {esSuperusuario && <p className="text-sm text-slate-600 truncate">{fondo.carrera_nombre}</p>}
                   </div>
                 </div>
-                <EstadoPill estado={estadoVisibleFondo(fondo)} />
+                <EstadoConAviso fondo={fondo} />
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -671,7 +689,7 @@ function ListaFondos() {
               <>
                 <div className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full ring-1 ring-inset ${
                   resultadoMasivo.creados > 0
-                    ? 'bg-emerald-50 text-emerald-600 ring-emerald-200'
+                    ? 'bg-blue-50 text-blue-900 ring-blue-200'
                     : 'bg-sky-50 text-sky-600 ring-sky-200'
                 }`}>
                   {resultadoMasivo.creados > 0 ? (
@@ -694,7 +712,7 @@ function ListaFondos() {
                 </p>
                 <div className="mt-5 divide-y divide-azulado-300 rounded-2xl bg-azulado-100 ring-1 ring-inset ring-azulado-300 text-left text-sm">
                   {[
-                    { label: 'Creados', valor: resultadoMasivo.creados, color: 'text-emerald-700' },
+                    { label: 'Creados', valor: resultadoMasivo.creados, color: 'text-blue-900' },
                     { label: 'Omitidos por Dedicación Exclusiva', valor: resultadoMasivo.omitidosExclusiva, color: 'text-slate-800' },
                     { label: 'Omitidos: ya tienen fondo o sin calendario activo', valor: resultadoMasivo.omitidosExistentes, color: 'text-slate-800' },
                   ].map((fila) => (
@@ -726,6 +744,9 @@ function ListaFondos() {
           detalle={[
             'No se borra: se puede consultar y restaurar desde Fondos Archivados.',
             'Sus clases dejan de contar en los choques de horario.',
+            ...(fondoPorArchivar.estado === 'en_ejecucion'
+              ? ['Está en ejecución: el docente ya no presentará su informe de esta gestión.']
+              : []),
           ]}
           textoAccion="Archivar"
           textoTrabajando="Archivando..."

@@ -66,8 +66,8 @@ const CHIP_ROL = 'inline-flex items-center whitespace-nowrap px-2.5 py-1 rounded
 const ROL_STYLES = {
   iiisyp: 'bg-sky-50 text-sky-800 ring-sky-200',
   director: 'bg-blue-50 text-blue-900 ring-blue-200',
-  jefe_estudios: 'bg-cyan-50 text-cyan-800 ring-cyan-200',
-  docente: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
+  jefe_estudios: 'bg-[#F5F8FF] text-blue-800 ring-[#C7D7F7]',
+  docente: 'bg-azulado-100 text-slate-700 ring-azulado-300',
 };
 
 const obtenerRolesUsuario = (usuario) => {
@@ -1239,7 +1239,7 @@ const initialData = {
 
   const chipsRoles = (usuario) => {
     if (usuario.is_superuser) {
-      return <span className={`${CHIP_ROL} bg-amber-50 text-amber-800 ring-amber-200`}>Super Admin</span>;
+      return <span className={`${CHIP_ROL} bg-azulado-100 text-blue-900 ring-azulado-300`}>Super Admin</span>;
     }
     const roles = obtenerRolesUsuario(usuario);
     if (roles.length === 0) return <span className="text-xs text-slate-500">Sin rol</span>;
@@ -1254,14 +1254,14 @@ const initialData = {
 
   const avisosUsuario = (usuario) => (
     <>
-      {!usuario.perfil && <span className="text-xs font-semibold text-amber-700">Sin perfil</span>}
-      {usuarioTienePerfilDocentePendiente(usuario) && <span className="text-xs font-semibold text-amber-700">Falta crear la ficha de docente</span>}
+      {!usuario.perfil && <span className="text-xs font-semibold text-sky-800">Sin perfil</span>}
+      {usuarioTienePerfilDocentePendiente(usuario) && <span className="text-xs font-semibold text-sky-800">Falta crear la ficha de docente</span>}
     </>
   );
 
   const estadoUsuario = (usuario) => (
     usuario.is_superuser ? (
-      <span className="text-xs font-semibold text-amber-700">Protegido</span>
+      <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700"><svg className="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path strokeLinecap="round" strokeLinejoin="round" d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>Protegido</span>
     ) : (
       <span className="flex items-center gap-2.5">
         <Interruptor
@@ -1307,7 +1307,7 @@ const initialData = {
 
   const estadoFilaLista = (usuario) => (
     usuario.is_superuser ? (
-      <span className={`${CHIP_ESTADO} bg-amber-50 text-amber-700 ring-amber-300`}>Protegido</span>
+      <span className={`${CHIP_ESTADO} gap-1 bg-azulado-100 text-slate-700 ring-azulado-300`}><svg className="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path strokeLinecap="round" strokeLinejoin="round" d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>Protegido</span>
     ) : (
       <span className="flex items-center gap-2.5">
         <Interruptor
@@ -1316,7 +1316,7 @@ const initialData = {
           onChange={() => intentarCambiarEstado(usuario)}
           etiqueta={usuario.is_active ? 'Desactivar usuario' : 'Activar usuario'}
         />
-        <span className={`${CHIP_ESTADO} ${usuario.is_active ? 'bg-emerald-50 text-emerald-700 ring-emerald-300' : 'bg-red-50 text-red-700 ring-red-300'}`}>
+        <span className={`${CHIP_ESTADO} ${usuario.is_active ? 'bg-blue-50 text-blue-800 ring-blue-200' : 'bg-red-50 text-red-700 ring-red-300'}`}>
           {usuario.is_active ? 'Activo' : 'Inactivo'}
         </span>
       </span>
@@ -1370,7 +1370,7 @@ const initialData = {
             </div>
             <div className="flex flex-wrap gap-2 text-xs">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <span className="h-1.5 w-1.5 rounded-full bg-sky-300" />
                 <NumeroAnimado valor={totalActivosUsuarios} singular="activo" plural="activos" />
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
@@ -1795,7 +1795,7 @@ const initialData = {
                     toast.error(getApiErrorMessage(err, 'No se pudo cambiar el estado del usuario.'));
                   }
                 }}
-                className={`${BOTON} px-5 py-2.5 text-white ${usuarioToToggle.is_active ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                className={`${BOTON} px-5 py-2.5 ${usuarioToToggle.is_active ? 'bg-white text-red-700 ring-1 ring-inset ring-red-400 hover:bg-red-50' : 'bg-blue-900 hover:bg-blue-950 text-white'}`}
               >
                 {usuarioToToggle.is_active ? 'Pausar acceso' : 'Reactivar'}
               </button>

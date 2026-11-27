@@ -35,7 +35,7 @@ const getVinculoCarrera = (docente, carreraId) => {
 // Materia asignada por el Jefe de otra carrera (doble carrera): la gestiona esa Jefatura.
 const EtiquetaOtraCarrera = ({ detalle }) => (
   detalle?.es_de_otra_carrera ? (
-    <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">
+    <span className="ml-2 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-800 ring-1 ring-inset ring-sky-200">
       {detalle.carrera_calendario}
     </span>
   ) : null
@@ -131,15 +131,19 @@ function DetalleFondo() {
   const esJefeEstudios = rolOperativo === 'jefe_estudios';
   const esRevisorDelFondo = esRevisor(fondo, { rol: rolOperativo, esSuperusuario: esSuperAdmin });
   const requiereDocumentoDecanatura = Boolean(fondo?.es_fondo_de_director);
-  // El fondo lo trabaja solo Jefatura de Estudios; el superusuario y el Director lo ven en
-  // solo lectura (el superusuario solo revisa el fondo de un Director).
-  const puedeGestionarCarga = esJefeEstudios;
+  // Como en los fondos reales: el docente dueño elabora su fondo (distribuye sus horas, sube
+  // sus programas y documentos y lo presenta al Director) y el Jefe de Estudios asigna las
+  // materias. El superusuario y el Director lo ven en solo lectura. Lo decide el backend
+  // (puede_editar y puede_asignar_materias) con el rol activo.
+  const esDocenteDueno = Boolean(fondo?.es_fondo_propio) && rolOperativo === 'docente';
+  const puedeGestionarCarga = Boolean(fondo?.puede_editar || fondo?.puede_asignar_materias);
+  const modoCarga = fondo?.puede_editar ? 'actividades' : 'materias';
   const soloLecturaPorRol = !puedeGestionarCarga;
-  const puedePresentarADirector = fondo?.estado === 'borrador' && esJefeEstudios;
-  const puedeReenviarADirector = fondo?.estado === 'observado' && esJefeEstudios;
-  const fondoPresentadoADirector = fondo?.estado === 'presentado_director' && esJefeEstudios;
-  // Un fondo rechazado vuelve a borrador para corregirlo (Jefe de su carrera).
-  const puedeVolverABorrador = fondo?.estado === 'rechazado' && esJefeEstudios;
+  const puedePresentarADirector = fondo?.estado === 'borrador' && Boolean(fondo?.puede_editar);
+  const puedeReenviarADirector = fondo?.estado === 'observado' && Boolean(fondo?.puede_editar);
+  const fondoPresentadoADirector = fondo?.estado === 'presentado_director' && esDocenteDueno;
+  // Un fondo rechazado vuelve a borrador para corregirlo (el docente dueño).
+  const puedeVolverABorrador = fondo?.estado === 'rechazado' && esDocenteDueno;
 
   useEffect(() => {
     estadoFondoRef.current = null;
@@ -294,7 +298,7 @@ function DetalleFondo() {
         return;
       }
 
-      await presentarFondoADirector(fondo.id);
+      const respuesta = await presentarFondoADirector(fondo.id);
       setFondo((prev) => prev ? {
         ...prev,
         estado: 'presentado_director',
@@ -305,6 +309,8 @@ function DetalleFondo() {
       }
       estadoFondoRef.current = 'presentado_director';
       toast.success(esReenvio ? 'Fondo reenviado al Director correctamente' : 'Fondo presentado al Director exitosamente');
+      // Art. 8: sin Director activo en la carrera, el fondo espera hasta que se asigne uno.
+      if (respuesta?.data?.aviso) toast(respuesta.data.aviso);
     } catch (err) {
       console.error('Error al presentar:', err);
       console.error('Error response:', err.response?.data);
@@ -566,13 +572,17 @@ function DetalleFondo() {
   const motivoPresentacionBloqueada = !unidadesCompletas
     ? `Unidades: ${totalUnidades} de ${horasEfectivasAnuales} h/año (deben sumar exactamente las horas efectivas)`
     : documentosFaltantes.join('. ');
-  // Las cargas (y sus PDF) se modifican solo con el fondo en borrador u observado, por el
-  // Jefe de Estudios de la carrera de la carga (las materias de otra carrera, desde la
-  // pantalla de esa Jefatura). El backend aplica las mismas reglas.
+  // Las cargas (y sus PDF) se modifican solo con el fondo en borrador u observado. Las
+  // materias, el Jefe de Estudios de la carrera de la materia (las de otra carrera, desde
+  // la pantalla de esa Jefatura); el resto de los ítems y todos los PDF (programas
+  // analíticos y documentos), el docente dueño. El backend aplica las mismas reglas.
   const fondoEditable = ['borrador', 'observado'].includes(fondo.estado) && !fondo.archivado;
   const puedeModificarCarga = (detalle) => (
-    fondoEditable && esJefeEstudios && !detalle.es_de_otra_carrera
+    fondoEditable && (detalle.tipo_actividad === 'clases_aula'
+      ? Boolean(fondo.puede_asignar_materias) && !detalle.es_de_otra_carrera
+      : Boolean(fondo.puede_editar))
   );
+  const puedeSubirDocumento = fondoEditable && Boolean(fondo.puede_editar);
   // Antes de abrir la confirmación se revisa que la carga se pueda quitar (el fondo
   // puede haber cambiado de estado mientras la pantalla estaba abierta).
   const pedirEliminarCarga = (detalle, categoria) => {
@@ -673,7 +683,7 @@ function DetalleFondo() {
         <div className="rounded-3xl bg-gradient-to-br from-blue-900 to-blue-950 text-white p-5 sm:p-6 flex items-center justify-between gap-4 shadow-[0_4px_14px_rgba(30,58,138,0.25)]">
           <div>
             <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-200">
-              <span className={`h-2 w-2 rounded-full ${etapaFinalizada ? 'bg-blue-300' : 'bg-emerald-400 animate-pulse'}`} />
+              <span className={`h-2 w-2 rounded-full ${etapaFinalizada ? 'bg-blue-300' : 'bg-sky-300 animate-pulse'}`} />
               Tiempo en etapa
             </p>
             {etapaFinalizada ? (
@@ -716,7 +726,7 @@ function DetalleFondo() {
         <div className={`${BLOQUE} p-5 sm:p-6`}>
           <h3 className="text-lg font-bold text-blue-900">Fondo pendiente de presentación</h3>
           <p className="mt-1.5 text-sm leading-6 text-slate-600">
-            Este fondo aún no ha sido presentado por el Jefe de Estudios. La carga por unidad y las acciones de revisión estarán disponibles cuando el fondo sea presentado formalmente al Director.
+            Este fondo aún no ha sido presentado por el docente. La carga por unidad y las acciones de revisión estarán disponibles cuando el fondo sea presentado formalmente al Director.
           </p>
         </div>
       ) : (
@@ -735,7 +745,7 @@ function DetalleFondo() {
                   </div>
                   <div className="flex justify-between gap-3 py-2.5">
                     <span className="text-slate-600">Suma de unidades</span>
-                    <span className={`font-bold tabular-nums ${unidadesCompletas ? 'text-emerald-600' : 'text-slate-800'}`}>{totalUnidades} h</span>
+                    <span className={`font-bold tabular-nums ${unidadesCompletas ? 'text-blue-900' : 'text-slate-800'}`}>{unidadesCompletas && '✓ '}{totalUnidades} h</span>
                   </div>
                   <div className="flex justify-between gap-3 pt-2.5">
                     <span className="text-slate-600">Por asignar</span>
@@ -745,7 +755,7 @@ function DetalleFondo() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-center gap-2">
-                  <BarraProgreso valor={avanceUnidades} color={unidadesCompletas ? 'bg-emerald-500' : 'bg-blue-900'} />
+                  <BarraProgreso valor={avanceUnidades} />
                   <span className="text-xs font-bold text-blue-900 tabular-nums w-9 text-right">{avanceUnidades}%</span>
                 </div>
               </div>
@@ -903,6 +913,7 @@ function DetalleFondo() {
                   onCargaUpdate={handleActualizacionHoras}
                   readOnly={soloLecturaPorRol || !fondoEditable}
                   versionCargas={versionCargas}
+                  modo={modoCarga}
                 />
               ) : (
                 <div>
@@ -989,7 +1000,7 @@ function DetalleFondo() {
                   <button
                     onClick={presentarADirector}
                     disabled={!puedeConfirmarPresentacion}
-                    className={`${ACCION} ${puedeConfirmarPresentacion ? 'bg-amber-500 hover:bg-amber-600 text-white' : ACCION_DESHABILITADA}`}
+                    className={`${ACCION} ${puedeConfirmarPresentacion ? 'bg-blue-900 hover:bg-blue-950 text-white' : ACCION_DESHABILITADA}`}
                     title={puedeConfirmarPresentacion ? 'Reenviar al Director' : motivoPresentacionBloqueada}
                   >
                     Reenviar al Director
@@ -997,8 +1008,8 @@ function DetalleFondo() {
                 )}
 
                 {fondoPresentadoADirector && (
-                  <p className="flex items-center justify-center gap-2 rounded-full bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800 ring-1 ring-inset ring-amber-200">
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                  <p className="flex items-center justify-center gap-2 rounded-full bg-sky-50 px-4 py-2.5 text-sm font-medium text-sky-800 ring-1 ring-inset ring-sky-200">
+                    <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
                     Esperando revisión del Director
                   </p>
                 )}
@@ -1008,13 +1019,13 @@ function DetalleFondo() {
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={abrirFormularioObservar}
-                      className={`${ACCION} bg-sky-600 hover:bg-sky-700 text-white`}
+                      className={`${ACCION} bg-azulado-100 hover:bg-azulado-200 text-blue-900 ring-1 ring-inset ring-azulado-300`}
                     >
                       Observar
                     </button>
                     <button
                       onClick={() => setMostrarModalAprobar(true)}
-                      className={`${ACCION} bg-emerald-500 hover:bg-emerald-600 text-white`}
+                      className={`${ACCION} bg-blue-900 hover:bg-blue-950 text-white`}
                     >
                       Aprobar
                     </button>
@@ -1045,6 +1056,15 @@ function DetalleFondo() {
                   >
                     {fondo.informe_actual?.estado === 'observado' ? 'Corregir informe' : 'Redactar informe'}
                   </button>
+                )}
+                {fondo.puede_editar_informe && fondo.plazo_informe && (
+                  <p className="text-center text-xs text-slate-600">
+                    Plazo del informe:{' '}
+                    <span className="font-semibold text-slate-800 tabular-nums">
+                      {new Date(`${fondo.plazo_informe.fecha}T00:00:00`).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    </span>{' '}
+                    (fin de la gestión)
+                  </p>
                 )}
 
                 {/* Informe evaluado: el revisor finaliza el fondo o cambia la evaluación. */}
@@ -1197,7 +1217,7 @@ function DetalleFondo() {
                                           materiaId={detalle.materia_id}
                                           calendarioId={detalle.calendario_id}
                                           url={detalle.programa_analitico_url}
-                                          puedeSubir={puedeModificarCarga(detalle)}
+                                          puedeSubir={puedeSubirDocumento}
                                           onSubido={() => cargarDetalle({ silencioso: true })}
                                         />
                                       )}
@@ -1206,7 +1226,7 @@ function DetalleFondo() {
                                           cargaId={detalle.id}
                                           clase={detalle.requiere_documento}
                                           url={detalle.documento_url}
-                                          puedeSubir={puedeModificarCarga(detalle)}
+                                          puedeSubir={puedeSubirDocumento}
                                           onSubido={() => cargarDetalle({ silencioso: true })}
                                         />
                                       )}
@@ -1424,7 +1444,7 @@ function DetalleFondo() {
             'El fondo quedará bloqueado para edición',
             'Se registrará la fecha de aprobación',
             'El docente será notificado',
-            'Pasará al estado "Aprobado por Director"',
+            'Pasará a "En ejecución": el docente ya puede redactar su informe',
           ]}
           textoAccion="Aprobar fondo"
           textoTrabajando="Aprobando..."

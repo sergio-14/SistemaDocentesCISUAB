@@ -66,7 +66,7 @@ const EstadoTimeline = ({ estado, className = '' }) => {
                 completa
                   ? 'bg-sky-600 text-white'
                   : actual
-                    ? `${conProblema ? 'bg-orange-500' : 'bg-blue-900'} ring-4 ${conProblema ? 'ring-orange-100' : 'ring-azulado-200'}`
+                    ? `${conProblema ? 'bg-red-500' : 'bg-blue-900'} ring-4 ${conProblema ? 'ring-red-100' : 'ring-azulado-200'}`
                     : 'bg-azulado-200'
               }`}>
                 {completa && (
@@ -86,11 +86,11 @@ const EstadoTimeline = ({ estado, className = '' }) => {
                 {conRama && (
                   <div className="relative mt-2 flex items-center gap-2 pl-3">
                     {/* Codo que sale de la línea del flujo hacia la rama */}
-                    <span className="absolute -left-[23px] -top-2 h-[calc(50%+0.5rem)] w-[33px] rounded-bl-lg border-b-2 border-l-2 border-orange-300" />
-                    <span className="relative z-10 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-orange-500 ring-4 ring-orange-100">
+                    <span className="absolute -left-[23px] -top-2 h-[calc(50%+0.5rem)] w-[33px] rounded-bl-lg border-b-2 border-l-2 border-red-300" />
+                    <span className="relative z-10 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-red-500 ring-4 ring-red-100">
                       <span className="h-1.5 w-1.5 rounded-full bg-white" />
                     </span>
-                    <span className="text-sm font-bold leading-6 text-orange-700">{rama.label}</span>
+                    <span className="text-sm font-bold leading-6 text-red-700">{rama.label}</span>
                   </div>
                 )}
               </div>

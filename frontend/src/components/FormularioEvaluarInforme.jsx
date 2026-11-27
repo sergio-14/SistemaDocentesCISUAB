@@ -66,9 +66,9 @@ function FormularioEvaluarInforme({ fondoId, evaluacionInicial = null, onInforme
   };
 
   const opcionesCumplimiento = [
-    { value: 'cumplido', label: 'Cumplido', descripcion: 'Actividades completadas satisfactoriamente', activo: 'bg-emerald-50 text-emerald-800', punto: 'bg-emerald-500' },
-    { value: 'parcial', label: 'Cumplimiento parcial', descripcion: 'Cumplimiento incompleto de actividades', activo: 'bg-amber-50 text-amber-800', punto: 'bg-amber-500' },
-    { value: 'incumplido', label: 'Incumplido', descripcion: 'Actividades no realizadas', activo: 'bg-red-50 text-red-800', punto: 'bg-red-400' },
+    { value: 'cumplido', label: 'Cumplido', descripcion: 'Actividades completadas satisfactoriamente', activo: 'bg-blue-50 text-blue-900', punto: 'bg-blue-900' },
+    { value: 'parcial', label: 'Cumplimiento parcial', descripcion: 'Cumplimiento incompleto de actividades', activo: 'bg-sky-50 text-sky-800', punto: 'bg-sky-500' },
+    { value: 'incumplido', label: 'Incumplido', descripcion: 'Actividades no realizadas', activo: 'bg-red-50 text-red-700', punto: 'bg-red-500' },
   ];
   const envioDeshabilitado = loading || !formData.cumplimiento;
 
@@ -165,7 +165,7 @@ function FormularioEvaluarInforme({ fondoId, evaluacionInicial = null, onInforme
             type="button"
             onClick={handleSubmit}
             disabled={envioDeshabilitado}
-            className={`${BOTON} px-5 py-2.5 ${envioDeshabilitado ? 'bg-slate-200 text-slate-500 cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-600 text-white'}`}
+            className={`${BOTON} px-5 py-2.5 ${envioDeshabilitado ? 'bg-slate-200 text-slate-500 cursor-not-allowed' : 'bg-blue-900 hover:bg-blue-950 text-white'}`}
           >
             {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
             {loading ? 'Guardando...' : 'Guardar evaluación'}

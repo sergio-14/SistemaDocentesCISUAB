@@ -523,7 +523,7 @@ const CampoFacultad = ({
                         className={`${CAMPO} ${CAMPO_NORMAL} h-8 px-3`}
                         style={{ border: 'none' }}
                       />
-                      <button type="button" onClick={guardarEdicion} title="Guardar" className="flex-shrink-0 text-emerald-600 hover:text-emerald-700">
+                      <button type="button" onClick={guardarEdicion} title="Guardar" className="flex-shrink-0 text-blue-900 hover:text-blue-950">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                       </button>
                       <button type="button" onClick={cancelarEdicion} title="Cancelar" className="flex-shrink-0 text-red-600 hover:text-red-700">
@@ -653,9 +653,9 @@ const LogoCarrera = ({ carrera, className }) => (
 
 const ChipEstadoCarrera = ({ activa }) => (
   <span className={`inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${
-    activa ? 'bg-emerald-50 text-emerald-800 ring-emerald-200' : 'bg-red-50 text-red-800 ring-red-200'
+    activa ? 'bg-blue-50 text-blue-800 ring-blue-200' : 'bg-red-50 text-red-800 ring-red-200'
   }`}>
-    <span className={`w-1.5 h-1.5 rounded-full ${activa ? 'bg-emerald-600' : 'bg-red-600'}`} />
+    <span className={`w-1.5 h-1.5 rounded-full ${activa ? 'bg-blue-600' : 'bg-red-600'}`} />
     {activa ? 'Activa' : 'Inactiva'}
   </span>
 );
@@ -1287,7 +1287,7 @@ function ListaCarreras() {
               </div>
             )}
             {identidadFija && (
-              <div className="rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-3 text-sm text-amber-900">
+              <div className="rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-900">
                 Esta carrera ya tiene datos académicos ({identidadBloqueada.map((item) => `${item.etiqueta}: ${item.cantidad}`).join(', ')}).
                 El nombre, el código, la facultad, la Resolución de Creación (HCU) y su fecha no se pueden cambiar.
               </div>
@@ -1464,7 +1464,7 @@ function ListaCarreras() {
             </div>
             <div className="flex flex-wrap gap-2 text-xs">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <span className="h-1.5 w-1.5 rounded-full bg-sky-300" />
                 <NumeroAnimado valor={totalActivas} singular="activa" plural="activas" />
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
@@ -1814,7 +1814,7 @@ function ListaCarreras() {
                   </div>
                 )
               )}
-              <div className="rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-3 text-amber-900">
+              <div className="rounded-2xl bg-sky-50 px-4 py-3 text-sky-900">
                 Si la carrera ya no se usa, desactívala: sus datos quedan como histórico de solo lectura.
               </div>
             </div>

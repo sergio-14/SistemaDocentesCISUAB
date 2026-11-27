@@ -48,7 +48,7 @@ const ArchivoPdfAccion = ({ endpoint, campos, nombre, url, puedeSubir, onSubido 
         </a>
       ) : (
         !puedeSubir && (
-          <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 font-semibold text-amber-800">
+          <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 font-semibold text-sky-800 ring-1 ring-inset ring-sky-200">
             Sin {nombre.toLowerCase()}
           </span>
         )
@@ -64,7 +64,7 @@ const ArchivoPdfAccion = ({ endpoint, campos, nombre, url, puedeSubir, onSubido 
             className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold transition-colors disabled:opacity-60 ${
               url
                 ? 'text-slate-600 hover:bg-azulado-200'
-                : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                : 'bg-sky-100 text-sky-900 hover:bg-sky-200'
             }`}
           >
             <Upload className="h-3.5 w-3.5" />

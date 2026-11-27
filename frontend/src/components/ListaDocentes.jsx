@@ -440,53 +440,53 @@ const DEDICACIONES_FICHA = ['tiempo_completo', 'medio_tiempo', ...DEDICACIONES_H
 
 const dedicacionStyles = {
   tiempo_completo: {
-    bg: 'bg-blue-50 dark:bg-blue-900/10',
-    accent: 'ring-1 ring-inset ring-blue-200',
-    icon: 'text-blue-700',
-    title: 'text-blue-900 dark:text-blue-300',
-    text: 'text-blue-800 dark:text-blue-400',
+    bg: 'bg-sky-50 dark:bg-sky-900/10',
+    accent: 'ring-1 ring-inset ring-sky-200',
+    icon: 'text-sky-700',
+    title: 'text-sky-900 dark:text-sky-300',
+    text: 'text-sky-800 dark:text-sky-400',
   },
   medio_tiempo: {
-    bg: 'bg-green-50 dark:bg-green-900/10',
-    accent: 'ring-1 ring-inset ring-green-200',
-    icon: 'text-green-700',
-    title: 'text-green-900 dark:text-green-300',
-    text: 'text-green-800 dark:text-green-400',
+    bg: 'bg-sky-50 dark:bg-sky-900/10',
+    accent: 'ring-1 ring-inset ring-sky-200',
+    icon: 'text-sky-700',
+    title: 'text-sky-900 dark:text-sky-300',
+    text: 'text-sky-800 dark:text-sky-400',
   },
   horario_16: {
-    bg: 'bg-cyan-50 dark:bg-cyan-900/10',
-    accent: 'ring-1 ring-inset ring-cyan-200',
-    icon: 'text-cyan-700',
-    title: 'text-cyan-900 dark:text-cyan-300',
-    text: 'text-cyan-800 dark:text-cyan-400',
+    bg: 'bg-sky-50 dark:bg-sky-900/10',
+    accent: 'ring-1 ring-inset ring-sky-200',
+    icon: 'text-sky-700',
+    title: 'text-sky-900 dark:text-sky-300',
+    text: 'text-sky-800 dark:text-sky-400',
   },
   horario_24: {
-    bg: 'bg-emerald-50 dark:bg-emerald-900/10',
-    accent: 'ring-1 ring-inset ring-emerald-200',
-    icon: 'text-emerald-700',
-    title: 'text-emerald-900 dark:text-emerald-300',
-    text: 'text-emerald-800 dark:text-emerald-400',
+    bg: 'bg-sky-50 dark:bg-sky-900/10',
+    accent: 'ring-1 ring-inset ring-sky-200',
+    icon: 'text-sky-700',
+    title: 'text-sky-900 dark:text-sky-300',
+    text: 'text-sky-800 dark:text-sky-400',
   },
   horario_40: {
-    bg: 'bg-amber-50 dark:bg-amber-900/10',
-    accent: 'ring-1 ring-inset ring-amber-200',
-    icon: 'text-amber-700',
-    title: 'text-amber-900 dark:text-amber-300',
-    text: 'text-amber-800 dark:text-amber-400',
+    bg: 'bg-sky-50 dark:bg-sky-900/10',
+    accent: 'ring-1 ring-inset ring-sky-200',
+    icon: 'text-sky-700',
+    title: 'text-sky-900 dark:text-sky-300',
+    text: 'text-sky-800 dark:text-sky-400',
   },
   horario_48: {
-    bg: 'bg-rose-50 dark:bg-rose-900/10',
-    accent: 'ring-1 ring-inset ring-rose-200',
-    icon: 'text-rose-700',
-    title: 'text-rose-900 dark:text-rose-300',
-    text: 'text-rose-800 dark:text-rose-400',
+    bg: 'bg-sky-50 dark:bg-sky-900/10',
+    accent: 'ring-1 ring-inset ring-sky-200',
+    icon: 'text-sky-700',
+    title: 'text-sky-900 dark:text-sky-300',
+    text: 'text-sky-800 dark:text-sky-400',
   },
   dedicacion_exclusiva: {
-    bg: 'bg-violet-50 dark:bg-violet-900/10',
-    accent: 'ring-1 ring-inset ring-violet-200',
-    icon: 'text-violet-700',
-    title: 'text-violet-900 dark:text-violet-300',
-    text: 'text-violet-800 dark:text-violet-400',
+    bg: 'bg-sky-50 dark:bg-sky-900/10',
+    accent: 'ring-1 ring-inset ring-sky-200',
+    icon: 'text-sky-700',
+    title: 'text-sky-900 dark:text-sky-300',
+    text: 'text-sky-800 dark:text-sky-400',
   },
 };
 
@@ -1649,7 +1649,7 @@ function ListaDocentes() {
   const tooltipBloqueoCarrera = 'No editable: el docente tiene fondos, cargas o saldos en su carrera';
   const tooltipDatosUsuarios = 'Estos datos se gestionan desde Usuarios';
   const estiloBloqueado = CAMPO_BLOQUEADO;
-  const estiloAdvertenciaEditable = '!ring-amber-300';
+  const estiloAdvertenciaEditable = '!ring-sky-300';
 
   const handleEditarEnUsuarios = () => {
     const userId = docenteSeleccionado?.usuario_id || docenteSeleccionado?.user_id;
@@ -1768,7 +1768,7 @@ function ListaDocentes() {
               type="button"
               onClick={() => !info.bloqueoEditar && abrirModalEditar(docente)}
               disabled={info.bloqueoEditar}
-              className={`${BOTON} bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-emerald-500`}
+              className={`${BOTON} bg-azulado-100 hover:bg-azulado-200 text-blue-900 ring-1 ring-inset ring-azulado-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-azulado-100`}
               title={info.bloqueoEditar ? 'Ficha fija: el docente tiene un Fondo de Tiempo presentado o informes' : 'Editar'}
             >
               <FaEdit size={14} />
@@ -1845,7 +1845,7 @@ function ListaDocentes() {
             </div>
             <div className="flex flex-wrap gap-2 text-xs">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <span className="h-1.5 w-1.5 rounded-full bg-sky-300" />
                 <NumeroAnimado valor={totalActivos} singular="activo" plural="activos" />
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
@@ -2157,7 +2157,7 @@ function ListaDocentes() {
                               })()}
                             </p>
                             {avisoFeriados && formData.dedicacion !== 'dedicacion_exclusiva' && (
-                              <p className="text-xs leading-5 mt-1.5 font-semibold text-amber-700 dark:text-amber-300">
+                              <p className="text-xs leading-5 mt-1.5 font-semibold text-sky-800 dark:text-sky-300">
                                 {avisoFeriados}
                               </p>
                             )}

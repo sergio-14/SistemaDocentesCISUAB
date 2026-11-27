@@ -33,8 +33,8 @@ AVISOS = {
     },
     'fondo_observado': {
         'tono': 'atencion',
-        'jefe': ('Fondo de {docente} observado', 'Corregir'),
-        'docente': ('Tu fondo tiene observaciones', 'Ver'),
+        'jefe': ('Fondo de {docente} observado', 'Ver'),
+        'docente': ('Tu fondo tiene observaciones', 'Corregir'),
     },
     'fondo_rechazado': {
         'tono': 'atencion',
@@ -44,7 +44,7 @@ AVISOS = {
     'fondo_aprobado': {
         'tono': 'exito',
         'jefe': ('Fondo de {docente} aprobado', 'Ver'),
-        'docente': ('Tu fondo fue aprobado', 'Ver'),
+        'docente': ('Tu fondo fue aprobado: ya puedes redactar tu informe', 'Ver'),
     },
     'ejecucion_iniciada': {
         'tono': 'exito',
@@ -83,8 +83,13 @@ def evento_de(historial):
     """Evento de un registro del historial, o None si ese cambio no tiene aviso."""
     nuevo, anterior = historial.estado_nuevo, historial.estado_anterior
     if nuevo == 'en_ejecucion':
-        # A ejecución se llega al iniciarla o cuando el Director observa el informe.
-        return {'aprobado_director': 'ejecucion_iniciada', 'informe_presentado': 'informe_observado'}.get(anterior)
+        # A ejecución se llega al aprobar el fondo, al iniciarla (aprobados de antes) o
+        # cuando el Director observa el informe.
+        return {
+            'presentado_director': 'fondo_aprobado',
+            'aprobado_director': 'ejecucion_iniciada',
+            'informe_presentado': 'informe_observado',
+        }.get(anterior)
     return {
         'presentado_director': 'fondo_presentado',
         'observado': 'fondo_observado',

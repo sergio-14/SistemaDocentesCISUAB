@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
+import { Lock } from 'lucide-react';
 import { useActiveRole } from '../../contexts/activeRole';
 import api from '../../apis/api';
 
 // Evento que dispara ListaCarreras al activar o desactivar una carrera.
 export const EVENTO_CARRERAS_ACTUALIZADAS = 'carreras-actualizadas';
 
-const CLASES = 'flex items-start gap-3 rounded-xl border border-amber-500/50 bg-amber-100 px-4 py-3 text-sm text-amber-900 shadow-sm dark:border-amber-400/40 dark:bg-amber-900/30 dark:text-amber-100';
+const CLASES = 'flex items-start gap-3 rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:bg-sky-900/30 dark:text-sky-100';
 
 // El superusuario no trabaja en una sola carrera: se le avisa qué carreras
 // están desactivadas, porque sus datos también son de solo lectura para él.
@@ -52,7 +53,7 @@ const AvisoCarreraInactiva = ({ className = '' }) => {
     const restantes = inactivas.total - inactivas.nombres.length;
     return (
       <div role="status" className={`${CLASES} ${className}`}>
-        <span aria-hidden="true" className="text-lg leading-none">🔒</span>
+        <Lock aria-hidden="true" className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-900" strokeWidth={2} />
         <p>
           <strong>Solo lectura.</strong>{' '}
           {inactivas.total === 1 ? 'La carrera ' : 'Las carreras '}
@@ -68,7 +69,7 @@ const AvisoCarreraInactiva = ({ className = '' }) => {
 
   return (
     <div role="status" className={`${CLASES} ${className}`}>
-      <span aria-hidden="true" className="text-lg leading-none">🔒</span>
+      <Lock aria-hidden="true" className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-900" strokeWidth={2} />
       <p>
         <strong>Modo solo lectura.</strong>{' '}
         La carrera {activeCareerName ? <strong>{activeCareerName}</strong> : 'activa'} está desactivada:

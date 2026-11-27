@@ -158,10 +158,10 @@ function PerfilUsuario({
               <p className="text-sm text-slate-600 truncate">@{usuario.username}</p>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${
-                  usuario.is_active ? 'bg-emerald-50 text-emerald-800 ring-emerald-200' : 'bg-red-50 text-red-700 ring-red-200'
+                  usuario.is_active ? 'bg-blue-50 text-blue-800 ring-blue-200' : 'bg-red-50 text-red-700 ring-red-200'
                 }`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${usuario.is_active ? 'bg-emerald-600' : 'bg-red-500'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full ${usuario.is_active ? 'bg-blue-600' : 'bg-red-500'}`} />
                   {usuario.is_active ? 'Activo' : 'Inactivo'}
                 </span>
                 {chipsRoles}

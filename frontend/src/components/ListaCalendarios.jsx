@@ -1434,9 +1434,9 @@ function ListaCalendarios() {
   ];
   const pildoraEstado = (cal) => (
     <span className={`inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${
-      cal.activo ? 'bg-emerald-50 text-emerald-800 ring-emerald-200' : 'bg-slate-100 text-slate-600 ring-slate-300'
+      cal.activo ? 'bg-blue-50 text-blue-800 ring-blue-200' : 'bg-slate-100 text-slate-600 ring-slate-300'
     }`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${cal.activo ? 'bg-emerald-600' : 'bg-slate-400'}`} />
+      <span className={`w-1.5 h-1.5 rounded-full ${cal.activo ? 'bg-blue-600' : 'bg-slate-400'}`} />
       {cal.activo ? 'Activo' : 'Inactivo'}
     </span>
   );
@@ -1454,7 +1454,7 @@ function ListaCalendarios() {
       <button data-escritura
         type="button"
         onClick={() => abrirModal(cal)}
-        className={`${BOTON} bg-emerald-500 hover:bg-emerald-600 text-white`}
+        className={`${BOTON} bg-blue-900 hover:bg-blue-950 text-white`}
       >
         <FaEdit size={14} />
         <span>Editar</span>
@@ -1526,7 +1526,7 @@ function ListaCalendarios() {
             </div>
             <div className="flex flex-wrap gap-2 text-xs">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <span className="h-1.5 w-1.5 rounded-full bg-sky-300" />
                 <NumeroAnimado valor={totalActivos} singular="activo" plural="activos" />
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-blue-100 tabular-nums">
@@ -1788,7 +1788,7 @@ function ListaCalendarios() {
                 </div>
 
                 {isDateRangeInvalid && (
-                  <div className="md:col-span-2 xl:col-span-4 rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-2.5 text-sm text-amber-800">
+                  <div className="md:col-span-2 xl:col-span-4 rounded-2xl bg-red-50 px-4 py-2.5 text-sm text-red-700">
                     {endDateErrorMessage}
                   </div>
                 )}
@@ -1912,7 +1912,7 @@ function ListaCalendarios() {
             </div>
             <div className="px-6 py-4 space-y-3 text-sm">
               {calendarioToToggle.activo && (
-                <div className="rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-3 text-amber-900">
+                <div className="rounded-2xl bg-sky-50 px-4 py-3 text-sky-900">
                   Si desactiva el calendario activo, algunos procesos pueden quedarse sin periodo vigente (registro, seguimiento y reportes) hasta activar otro calendario.
                 </div>
               )}
@@ -1931,7 +1931,7 @@ function ListaCalendarios() {
               <button
                 type="button"
                 onClick={confirmarToggleActivo}
-                className={`${BOTON} px-5 py-2.5 text-white ${calendarioToToggle.activo ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                className={`${BOTON} px-5 py-2.5 ${calendarioToToggle.activo ? 'bg-white text-red-700 ring-1 ring-inset ring-red-400 hover:bg-red-50' : 'bg-blue-900 hover:bg-blue-950 text-white'}`}
               >
                 {calendarioToToggle.activo ? 'Desactivar' : 'Activar'}
               </button>
@@ -1954,7 +1954,7 @@ function ListaCalendarios() {
               <div className="rounded-2xl bg-red-50 ring-1 ring-inset ring-red-200 px-4 py-3 text-red-800">
                 Acción irreversible: <strong>se perderá el periodo y sus fechas de referencia para este calendario.</strong>
               </div>
-              <div className="rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-3 text-amber-900">
+              <div className="rounded-2xl bg-sky-50 px-4 py-3 text-sky-900">
                 Dependencias actuales: {deleteImpact.cargas_horarias} cargas horarias.
               </div>
               <div>
@@ -2004,7 +2004,7 @@ function ListaCalendarios() {
               <div className="rounded-2xl bg-red-50 ring-1 ring-inset ring-red-200 px-4 py-3 text-red-800">
                 Dependencias detectadas: {deleteImpact.cargas_horarias} cargas horarias, {deleteImpact.fondos_gestion || 0} fondos de la gestión sin otro calendario.
               </div>
-              <div className="rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-3 text-amber-900">
+              <div className="rounded-2xl bg-sky-50 px-4 py-3 text-sky-900">
                 Para eliminar este calendario, primero debes mover o eliminar manualmente sus registros asociados.
               </div>
             </div>

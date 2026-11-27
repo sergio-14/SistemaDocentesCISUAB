@@ -226,7 +226,7 @@ class AvisosPorSocketTests(SocketBaseTests):
              'Fondo de {n} observado', 'Tu fondo tiene observaciones'),
             ('observar', {'accion': 'rechazar', 'observacion': 'No corresponde.'},
              'Fondo de {n} rechazado', 'Tu fondo fue rechazado'),
-            ('aprobar', {}, 'Fondo de {n} aprobado', 'Tu fondo fue aprobado'),
+            ('aprobar', {}, 'Fondo de {n} aprobado', 'Tu fondo fue aprobado: ya puedes redactar tu informe'),
         )
         for ruta, datos, al_jefe, al_docente in casos:
             with self.subTest(accion=datos.get('accion', ruta)):
@@ -291,7 +291,7 @@ class AvisosPorSocketTests(SocketBaseTests):
                 self.assertLogs('fondos.tiempo_real', level='WARNING'):
             self._accion(self.director, 'aprobar')
         self.fondo.refresh_from_db()
-        self.assertEqual(self.fondo.estado, 'aprobado_director')
+        self.assertEqual(self.fondo.estado, 'en_ejecucion')
 
 
 class ChatPorSocketTests(SocketBaseTests):

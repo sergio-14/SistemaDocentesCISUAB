@@ -165,7 +165,7 @@ class AutoaprobacionTests(UsuariosBaseTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.fondo_comun.refresh_from_db()
-        self.assertEqual(self.fondo_comun.estado, 'aprobado_director')
+        self.assertEqual(self.fondo_comun.estado, 'en_ejecucion')
 
     def test_el_superusuario_aprueba_el_fondo_del_director_con_el_pdf_de_decanatura(self):
         self.client.force_authenticate(self.superuser)
@@ -183,7 +183,7 @@ class AutoaprobacionTests(UsuariosBaseTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.fondo_director.refresh_from_db()
-        self.assertEqual(self.fondo_director.estado, 'aprobado_director')
+        self.assertEqual(self.fondo_director.estado, 'en_ejecucion')
         self.assertEqual(self.fondo_director.aprobado_por, self.superuser)
         self.assertTrue(self.fondo_director.documento_decanatura.name.endswith('.pdf'))
 
@@ -196,17 +196,22 @@ class AutoaprobacionTests(UsuariosBaseTestCase):
         )
         self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN, getattr(response, 'data', None))
 
-    def test_el_jefe_de_estudios_si_puede_presentar_su_propio_fondo(self):
+    def test_el_jefe_de_estudios_presenta_su_propio_fondo_con_su_rol_de_docente(self):
         jefe = self.crear_usuario('jefe_docente', 'jefe_estudios', carrera=self.otra_carrera, is_staff=True, ci='JEF')
-        AsignacionCarrera.objects.create(user=jefe, carrera=self.otra_carrera, rol='docente')
+        como_docente = AsignacionCarrera.objects.create(user=jefe, carrera=self.otra_carrera, rol='docente')
         docente_jefe = self.crear_docente('JEF', usuario=jefe, carrera=self.otra_carrera)
         PerfilUsuario.objects.filter(user=jefe).update(docente=docente_jefe)
+        AsignacionCarrera.objects.filter(pk=como_docente.pk).update(docente=docente_jefe)
         fondo = FondoTiempo.objects.create(docente=docente_jefe, carrera=self.otra_carrera, gestion=2026)
         self.client.force_authenticate(jefe)
+        url = f'/api/fondos-tiempo/{fondo.pk}/presentar-a-director/'
 
-        response = self.client.patch(f'/api/fondos-tiempo/{fondo.pk}/presentar-a-director/', {}, format='json')
+        # Con su rol de Jefe no: el fondo lo presenta el docente dueño.
+        como_jefe = self.client.patch(url, {}, format='json')
+        self.assertEqual(como_jefe.status_code, status.HTTP_403_FORBIDDEN, como_jefe.data)
 
-        # No se le prohíbe por ser su fondo: falla solo por requisitos del fondo (unidades vacías).
+        # Con su rol de docente sí: falla solo por requisitos del fondo (unidades vacías).
+        response = self.client.patch(url, {}, format='json', HTTP_X_ACTIVE_ASSIGNMENT=str(como_docente.pk))
         self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
         self.assertIn('La suma de las unidades', str(response.data))
 

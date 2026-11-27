@@ -840,8 +840,8 @@ function FormularioFondo({ editar = false }) {
             <div className={shakingFields.gestion ? ERROR_MOTION_CLASS : ''}>
               {etiqueta('Gestión',
                 calendarioActivo && String(formData.gestion) === String(calendarioActivo.gestion) && (
-                  <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 ring-1 ring-inset ring-blue-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
                     Activa
                   </span>
                 )
@@ -892,7 +892,7 @@ function FormularioFondo({ editar = false }) {
               />
               {mensajeCampo('docente')}
               {formData.carrera && formData.gestion && !cargandoDocentes && docenteOptions.length === 0 && (
-                <p className="text-xs text-amber-700 mt-1.5 pl-4">
+                <p className="text-xs text-sky-800 mt-1.5 pl-4">
                   Todos los docentes tienen fondo de tiempo en esta gestión
                 </p>
               )}

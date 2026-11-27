@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Archive, ArchiveRestore, Eye } from 'lucide-react';
+import { Archive, ArchiveRestore, Eye, Info } from 'lucide-react';
 import { getFondosArchivados, restaurarFondo } from '../apis/api';
 import { useActiveRole } from '../contexts/activeRole';
 import { getApiErrorMessage } from '../utils/formErrors';
@@ -310,11 +310,15 @@ function FondosArchivados() {
 
       <Paginacion paginaActual={paginaActual} totalPaginas={totalPaginas} onCambiar={irAPagina} />
 
+      {/* Nota discreta al pie: una línea gris pequeña, sin caja ni fondo de color. */}
       {archivados.length > 0 && (
-        <p className="rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-900">
-          Un fondo archivado no se borra y sus clases no cuentan en los choques de horario, de modo que
-          la gestión se puede rehacer con un fondo nuevo.
-          {puedeRestaurar && ' Al restaurarlo vuelve al dashboard con el estado que tenía.'}
+        <p className="mx-auto flex max-w-3xl items-start justify-center gap-1.5 px-2 text-xs leading-relaxed text-slate-500">
+          <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" strokeWidth={2} aria-hidden="true" />
+          <span>
+            Un fondo archivado no se borra y sus clases no cuentan en los choques de horario, de modo que
+            la gestión se puede rehacer con un fondo nuevo.
+            {puedeRestaurar && ' Al restaurarlo vuelve al dashboard con el estado que tenía.'}
+          </span>
         </p>
       )}
 

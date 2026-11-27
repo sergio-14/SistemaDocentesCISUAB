@@ -1105,6 +1105,35 @@ class FondoTiempo(models.Model):
                 })
         return vencidos
 
+    def plazo_informe(self):
+        """Art. 28: el informe se presenta a la finalización de la gestión. Su plazo es el fin
+        del último calendario académico de la gestión en la carrera del fondo. Devuelve
+        (calendario, fecha) o (None, None) si la gestión no tiene calendario."""
+        calendario = self.calendarios_de_la_gestion().order_by('-fecha_fin').first()
+        return (calendario, calendario.fecha_fin) if calendario else (None, None)
+
+    def plazo_informe_vencido(self, fecha):
+        """Lista (vacía o de un elemento) con el plazo del informe si `fecha` lo supera, en el
+        mismo formato que plazos_vencidos (se suma a fuera_de_plazo, sin bloquear)."""
+        calendario, limite = self.plazo_informe()
+        if not limite or fecha <= limite:
+            return []
+        return [{
+            'plazo': 'informe',
+            'calendario': nombre_calendario_en_fondo(calendario, self),
+            'fecha_limite': limite.isoformat(),
+            'fecha_presentacion': fecha.isoformat(),
+        }]
+
+    def tiene_director_que_revise(self):
+        """True si alguien puede revisar el fondo: el del Director lo revisa el superusuario;
+        el resto necesita un Director activo (usuario y asignación activos) en la carrera."""
+        if self.es_de_director_de_su_carrera():
+            return True
+        return AsignacionCarrera.objects.filter(
+            carrera_id=self.carrera_id, rol='director', activo=True, user__is_active=True,
+        ).exists()
+
     def textos_fuera_de_plazo(self):
         """'Presentado fuera de plazo (proyectos, Anual 2026): límite 31/03/2026, presentado 05/04/2026'."""
         def dd_mm_aaaa(iso):
@@ -1255,9 +1284,12 @@ class FondoTiempo(models.Model):
             ('borrador', 'presentado_director'),
             ('observado', 'presentado_director'),
             ('presentado_director', 'aprobado_director'),
+            # Art. 18: aprobado, el fondo se ejecuta en su gestión; desde 2026-11 aprobar lo
+            # deja directamente en ejecución (los aprobados de antes siguen con "Iniciar").
+            ('presentado_director', 'en_ejecucion'),
             ('presentado_director', 'observado'),
             ('presentado_director', 'rechazado'),
-            # Un fondo rechazado vuelve a borrador para corregirlo (Jefe o superusuario).
+            # Un fondo rechazado vuelve a borrador para corregirlo (el docente dueño).
             ('rechazado', 'borrador'),
             ('aprobado_director', 'en_ejecucion'),
             ('en_ejecucion', 'informe_presentado'),

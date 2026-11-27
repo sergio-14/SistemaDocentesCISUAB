@@ -82,7 +82,7 @@ class AvisosPorRolTests(UsuariosBaseTestCase):
         self._accion(self.director, 'aprobar')
         self._reciben({
             self.jefe: [f'Fondo de {self.nombre} aprobado'],
-            self.usuario_docente: ['Tu fondo fue aprobado'],
+            self.usuario_docente: ['Tu fondo fue aprobado: ya puedes redactar tu informe'],
         })
 
     def test_director_inicia_la_ejecucion(self):

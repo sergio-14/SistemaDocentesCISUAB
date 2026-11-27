@@ -180,10 +180,10 @@ function ModalFichaDocente({ docenteId, puedeEditarContacto, onClose, onActualiz
               )}
               {docente && (
                 <span className={`mt-4 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${
-                  docente.activo ? 'bg-emerald-50 text-emerald-800 ring-emerald-200' : 'bg-red-50 text-red-800 ring-red-200'
+                  docente.activo ? 'bg-blue-50 text-blue-800 ring-blue-200' : 'bg-red-50 text-red-800 ring-red-200'
                 }`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${docente.activo ? 'bg-emerald-600' : 'bg-red-600'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full ${docente.activo ? 'bg-blue-600' : 'bg-red-600'}`} />
                   {docente.activo ? 'Activo' : 'Inactivo'}
                 </span>
               )}

@@ -61,7 +61,7 @@ from .serializers import (
 )
 from .role_context import get_effective_profile, get_active_careers_for_user
 from .permisos_fondo import (
-    es_jefatura_del_fondo, puede_escribir_observaciones, puede_resolver_observaciones, tiene_rol_en_carrera,
+    es_docente_del_fondo, es_jefatura_del_fondo, puede_escribir_observaciones, puede_resolver_observaciones,
 )
 from .solo_lectura import CarreraInactivaSoloLecturaMixin as CarreraInactivaSoloLecturaBase
 from .models import (
@@ -1065,12 +1065,13 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
 
     def get_permissions(self):
         """
-        Solo los Jefes de Estudio crean, editan o borran (el superusuario, solo lectura).
+        Escriben el Jefe de Estudios (las materias) y el docente dueño del fondo (el resto de
+        sus ítems); el superusuario, el Director y el Instituto, solo lectura.
         """
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             user = self.request.user
-            if user.is_superuser or _rol_activo(self.request) != 'jefe_estudios':
-                raise PermissionDenied("Solo Jefes de Estudio pueden modificar cargas horarias.")
+            if user.is_superuser or _rol_activo(self.request) not in ('jefe_estudios', 'docente'):
+                raise PermissionDenied("Solo el Jefe de Estudios (materias) y el docente dueño del fondo modifican su carga.")
         
         return super().get_permissions()
 
@@ -1117,29 +1118,56 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
         """Valida que el fondo de la carga esté en estado editable (borrador/observado)."""
         validar_fondo_con_cargas_editables(fondo)
 
-    def _validar_carrera_responsable(self, fondo, calendario):
-        """Las materias las gestiona el Jefe de la carrera del calendario (en doble carrera,
-        el de otra carrera asigna al fondo del docente en la suya); los demás ítems, el
-        Jefe de la carrera del fondo."""
-        carrera = calendario.carrera if calendario else fondo.carrera
-        if not _usuario_tiene_acceso_a_carrera(self.request.user, carrera, self.request):
+    def _validar_carrera_responsable(self, fondo, calendario, tipo_actividad):
+        """Las materias (clases en aula) las asigna el Jefe de la carrera del calendario (en
+        doble carrera, el de otra carrera asigna al fondo del docente en la suya). Los demás
+        ítems los registra el docente dueño del fondo, con su rol de docente."""
+        if tipo_actividad == 'clases_aula':
+            carrera = calendario.carrera if calendario else fondo.carrera
+            if not (
+                _rol_activo(self.request) == 'jefe_estudios'
+                and _usuario_tiene_acceso_a_carrera(self.request.user, carrera, self.request)
+            ):
+                raise PermissionDenied(
+                    f'Las materias las asigna el Jefe de Estudios de {carrera.nombre}.'
+                )
+            return
+        if not es_docente_del_fondo(self.request, fondo):
             raise PermissionDenied(
-                f'Solo el Jefe de Estudios de {carrera.nombre} puede gestionar esta carga horaria.'
+                'Los ítems del fondo (salvo las materias) los registra el docente dueño del fondo.'
             )
 
     def perform_create(self, serializer):
         # El serializer asigna el fondo (o rechaza la carga si el docente no tiene).
         datos = serializer.validated_data
-        self._validar_carrera_responsable(datos['fondo'], datos.get('calendario'))
+        self._validar_carrera_responsable(datos['fondo'], datos.get('calendario'), datos.get('tipo_actividad'))
         self._validar_estado_fondo(datos['fondo'])
+        self._validar_materia_asignada(datos)
         serializer.save()
+
+    def _validar_materia_asignada(self, datos):
+        """Una sub-actividad académica es de una materia que el docente dicta: una de las que
+        el Jefe de Estudios le asignó (clases en aula) en ese calendario de su fondo."""
+        materia = datos.get('materia')
+        if datos.get('categoria') != 'academica' or datos.get('tipo_actividad') == 'clases_aula' or not materia:
+            return
+        asignadas = datos['fondo'].cargas.filter(tipo_actividad='clases_aula', materia=materia)
+        if datos.get('calendario'):
+            asignadas = asignadas.filter(calendario=datos['calendario'])
+        if not asignadas.exists():
+            raise drf_serializers.ValidationError({
+                'materia': 'Elija una de las materias que el Jefe de Estudios le asignó en ese calendario.'
+            })
 
     def perform_update(self, serializer):
         # Si cambian el docente o el calendario, la carga pasa a otro fondo: ambos deben ser editables.
         instance = serializer.instance
         datos = serializer.validated_data
-        self._validar_carrera_responsable(instance.fondo, instance.calendario)
-        self._validar_carrera_responsable(datos['fondo'], datos.get('calendario'))
+        self._validar_carrera_responsable(instance.fondo, instance.calendario, instance.tipo_actividad)
+        self._validar_carrera_responsable(
+            datos.get('fondo', instance.fondo), datos.get('calendario', instance.calendario),
+            datos.get('tipo_actividad', instance.tipo_actividad),
+        )
         self._validar_estado_fondo(instance.fondo)
         self._validar_estado_fondo(datos['fondo'])
         carga = serializer.save()
@@ -1148,7 +1176,7 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
             DocumentoActividad.objects.filter(carga=carga).delete()
 
     def perform_destroy(self, instance):
-        self._validar_carrera_responsable(instance.fondo, instance.calendario)
+        self._validar_carrera_responsable(instance.fondo, instance.calendario, instance.tipo_actividad)
         self._validar_estado_fondo(instance.fondo)
         instance.delete()
 
@@ -1189,8 +1217,8 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
 
 class ProgramaAnaliticoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.GenericViewSet):
     """POST /api/programas-analiticos/: sube o reemplaza el PDF del programa analítico de
-    una materia en un calendario del fondo. Lo hace el Jefe de Estudios de la carrera de
-    la materia, con el fondo en borrador u observado."""
+    una materia en un calendario del fondo. Lo hace el docente dueño del fondo (Art. 18: lo
+    presenta junto con su fondo), con el fondo en borrador u observado."""
     queryset = ProgramaAnalitico.objects.all()
     serializer_class = ProgramaAnaliticoSerializer
     permission_classes = [IsAuthenticated]
@@ -1202,10 +1230,8 @@ class ProgramaAnaliticoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Generic
         datos = serializer.validated_data
         fondo, materia, calendario = datos['fondo'], datos['materia'], datos['calendario']
 
-        if not tiene_rol_en_carrera(request, 'jefe_estudios', calendario.carrera_id):
-            raise PermissionDenied(
-                f'Solo el Jefe de Estudios de {calendario.carrera.nombre} sube el programa analítico de esta materia.'
-            )
+        if not es_docente_del_fondo(request, fondo):
+            raise PermissionDenied('El programa analítico lo sube el docente dueño del fondo.')
         if fondo.archivado or fondo.estado not in ['borrador', 'observado']:
             raise PermissionDenied('El programa analítico solo se sube con el fondo en borrador u observado.')
 
@@ -1230,8 +1256,8 @@ class ProgramaAnaliticoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Generic
 
 class DocumentoActividadViewSet(CarreraInactivaSoloLecturaMixin, viewsets.GenericViewSet):
     """POST /api/documentos-actividad/: sube o reemplaza el PDF del proyecto o curso de un
-    ítem del fondo. Como el programa analítico: el Jefe de Estudios de la carrera del
-    fondo, con el fondo en borrador u observado."""
+    ítem del fondo. Como el programa analítico: el docente dueño del fondo (Art. 14: los
+    proyectos los elaboran los docentes), con el fondo en borrador u observado."""
     queryset = DocumentoActividad.objects.all()
     serializer_class = DocumentoActividadSerializer
     permission_classes = [IsAuthenticated]
@@ -1243,10 +1269,8 @@ class DocumentoActividadViewSet(CarreraInactivaSoloLecturaMixin, viewsets.Generi
         carga = serializer.validated_data['carga']
         fondo = carga.fondo
 
-        if not es_jefatura_del_fondo(request, fondo):
-            raise PermissionDenied(
-                f'Solo el Jefe de Estudios de {fondo.carrera.nombre} sube el documento de esta actividad.'
-            )
+        if not es_docente_del_fondo(request, fondo):
+            raise PermissionDenied('El documento de la actividad lo sube el docente dueño del fondo.')
         if fondo.archivado or fondo.estado not in ['borrador', 'observado']:
             raise PermissionDenied('El documento solo se sube con el fondo en borrador u observado.')
 
@@ -1617,9 +1641,11 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             )
 
     def _puede_editar_fondo(self, fondo):
-        """El fondo lo edita el Jefe de Estudios de su carrera, en borrador u observado; el
-        superusuario y el Director lo ven en solo lectura (ver permisos_fondo)."""
-        return fondo.estado in ['borrador', 'observado'] and es_jefatura_del_fondo(self.request, fondo)
+        """El fondo lo editan el docente dueño y el Jefe de Estudios de su carrera, en borrador
+        u observado; el superusuario y el Director lo ven en solo lectura (ver permisos_fondo)."""
+        return fondo.estado in ['borrador', 'observado'] and (
+            es_docente_del_fondo(self.request, fondo) or es_jefatura_del_fondo(self.request, fondo)
+        )
 
     def create(self, request, *args, **kwargs):
         """
@@ -1760,8 +1786,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         
         if not self._puede_editar_fondo(instance):
             raise PermissionDenied(
-                "Acción no permitida. Solo el Jefe de Estudios de la carrera edita el fondo, "
-                "en estado borrador u observado."
+                "Acción no permitida. El fondo lo editan el docente dueño y el Jefe de Estudios de "
+                "la carrera, en estado borrador u observado."
             )
         
         partial = kwargs.pop('partial', False)
@@ -1785,8 +1811,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         
         if not self._puede_editar_fondo(instance):
             raise PermissionDenied(
-                "Acción no permitida. Solo el Jefe de Estudios de la carrera edita el fondo, "
-                "en estado borrador u observado."
+                "Acción no permitida. El fondo lo editan el docente dueño y el Jefe de Estudios de "
+                "la carrera, en estado borrador u observado."
             )
         
         kwargs['partial'] = True
@@ -1807,9 +1833,10 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
                 f"Solo el superusuario o el Director y el Jefe de Estudios de la carrera pueden {accion} fondos."
             )
 
-    # Los mismos que ofrece el botón Archivar (ESTADOS_ARCHIVABLES de ListaFondos.jsx): un
-    # fondo en revisión o en ejecución no se archiva para rehacerlo fuera del flujo.
-    ESTADOS_ARCHIVABLES = ['aprobado_director', 'finalizado', 'rechazado']
+    # Los mismos que ofrece el botón Archivar (ESTADOS_ARCHIVABLES de ListaFondos.jsx). En
+    # ejecución también: el docente que deja la carrera a mitad de la gestión no presentará su
+    # informe. Un fondo en revisión (presentado o con el informe presentado) no se archiva.
+    ESTADOS_ARCHIVABLES = ['aprobado_director', 'en_ejecucion', 'finalizado', 'rechazado']
 
     def _registrar_creacion(self, fondo, descripcion):
         """Primer registro del historial, con quien crea el fondo. Sin estado anterior ni
@@ -1840,7 +1867,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         if instance.estado not in self.ESTADOS_ARCHIVABLES:
             return Response(
                 {'error': f'No se puede archivar un fondo en estado "{instance.get_estado_display()}": '
-                          'solo aprobados, finalizados o rechazados.'},
+                          'solo aprobados, en ejecución, finalizados o rechazados.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -2084,8 +2111,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
     @action(detail=True, methods=['post'])
     @transaction.atomic
     def presentar(self, request, pk=None):
-        """Presentar el informe final (fondo en ejecución). El fondo lo presenta Jefatura al
-        Director con presentar-a-director."""
+        """Presentar el informe final (fondo en ejecución). El fondo se presenta antes, con
+        presentar-a-director."""
         fondo = self.get_object()
         
         # Solo el docente dueño (con su rol de docente): ni el superusuario, ni Jefatura,
@@ -2096,7 +2123,7 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
 
         if fondo.estado != 'en_ejecucion':
             return Response(
-                {'error': 'Solo se presenta el informe con el fondo en ejecución. El fondo lo presenta Jefatura al Director.'},
+                {'error': 'Solo se presenta el informe con el fondo en ejecución.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -2120,6 +2147,13 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         estado_anterior = fondo.estado
         fondo.estado = 'informe_presentado'
         fondo.fecha_informe = timezone.now()
+        # Art. 28: se registra (sin bloquear) si se presentó después del fin de la gestión. Solo
+        # la primera vez: el reenvío tras las correcciones conserva lo registrado.
+        informe_tarde = []
+        if not any(v.get('plazo') == 'informe' for v in fondo.fuera_de_plazo or []):
+            informe_tarde = fondo.plazo_informe_vencido(timezone.localdate())
+            if informe_tarde:
+                fondo.fuera_de_plazo = list(fondo.fuera_de_plazo or []) + informe_tarde
         fondo.save()
 
         # Crear o actualizar el informe con datos reales; queda marcado
@@ -2140,7 +2174,11 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             fondo_tiempo=fondo,
             usuario=request.user,
             tipo_cambio='informe_presentado',
-            descripcion='Docente presentó Informe Final de cumplimiento.',
+            descripcion='Docente presentó Informe Final de cumplimiento.' + (
+                ' Presentado fuera de plazo: límite '
+                + date.fromisoformat(informe_tarde[0]['fecha_limite']).strftime('%d/%m/%Y') + '.'
+                if informe_tarde else ''
+            ),
             estado_anterior=estado_anterior,
             estado_nuevo='informe_presentado'
         )
@@ -2155,8 +2193,8 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         fondo = self.get_object()
         user = request.user
 
-        if not es_jefatura_del_fondo(request, fondo):
-            raise PermissionDenied("Solo Jefatura de Estudios de la carrera puede presentar fondos al Director.")
+        if not es_docente_del_fondo(request, fondo):
+            raise PermissionDenied("El fondo lo presenta al Director el docente dueño (con su rol de docente).")
 
         if fondo.estado not in ['borrador', 'observado']:
             return Response(
@@ -2203,22 +2241,30 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             fondo_tiempo=fondo,
             usuario=user,
             tipo_cambio='presentacion',
-            descripcion='Fondo presentado por Jefatura de Estudios al Director.'
+            descripcion='Fondo presentado por el docente al Director.'
             + (' ' + '. '.join(fondo.textos_fuera_de_plazo()) + '.' if fondo.fuera_de_plazo else ''),
             estado_anterior=estado_anterior,
             estado_nuevo='presentado_director'
         )
 
-        return Response({'status': 'Fondo presentado correctamente'}, status=status.HTTP_200_OK)
+        respuesta = {'status': 'Fondo presentado correctamente'}
+        # Art. 8: la Dirección de Carrera revisa. Sin Director activo el fondo espera hasta que
+        # se asigne uno (lo asigna el superusuario a mano).
+        if not fondo.tiene_director_que_revise():
+            respuesta['aviso'] = (
+                'La carrera no tiene Director asignado: el fondo quedará esperando su revisión '
+                'hasta que se asigne uno.'
+            )
+        return Response(respuesta, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], url_path='volver-a-borrador')
     @transaction.atomic
     def volver_a_borrador(self, request, pk=None):
-        """Un fondo rechazado vuelve a borrador para corregirlo: el Jefe de Estudios de su carrera."""
+        """Un fondo rechazado vuelve a borrador para corregirlo: el docente dueño."""
         fondo = self.get_object()
         user = request.user
-        if not es_jefatura_del_fondo(request, fondo):
-            raise PermissionDenied("Solo el Jefe de Estudios de la carrera puede devolver a borrador un fondo rechazado.")
+        if not es_docente_del_fondo(request, fondo):
+            raise PermissionDenied("Un fondo rechazado lo devuelve a borrador el docente dueño.")
 
         if fondo.estado != 'rechazado':
             return Response(
@@ -2324,10 +2370,14 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         serializer = AprobarFondoSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        # Cambiar estado
+        # Art. 18: aprobado, el fondo se ejecuta en su gestión. Queda directamente en
+        # ejecución (el docente ya puede redactar su informe); la aprobación queda en el
+        # historial con su fecha y quién aprobó.
         estado_anterior = fondo.estado
-        fondo.estado = 'aprobado_director'
-        fondo.fecha_aprobacion = timezone.now()
+        ahora = timezone.now()
+        fondo.estado = 'en_ejecucion'
+        fondo.fecha_aprobacion = ahora
+        fondo.fecha_inicio_ejecucion = ahora
         fondo.aprobado_por = request.user
         if documento_decanatura:
             fondo.documento_decanatura = documento_decanatura
@@ -2346,9 +2396,9 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             fondo_tiempo=fondo,
             usuario=request.user,
             tipo_cambio='aprobacion',
-            descripcion=f'Fondo aprobado por Director. {observacion}',
+            descripcion=f'Fondo aprobado por Director: queda en ejecución. {observacion}'.strip(),
             estado_anterior=estado_anterior,
-            estado_nuevo='aprobado_director'
+            estado_nuevo='en_ejecucion'
         )
         
         output_serializer = FondoTiempoDetalleSerializer(fondo, context={'request': request})

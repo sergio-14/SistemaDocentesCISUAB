@@ -7,7 +7,13 @@ export function EstadoPill({ estado }) {
   const info = ESTADOS_FONDO[estado] || ESTADOS_FONDO.borrador;
   return (
     <span className={`inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${info.pill}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${info.dot}`} />
+      {info.check ? (
+        <svg className="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m5 12.5 4.5 4.5L19 7.5" />
+        </svg>
+      ) : (
+        <span className={`w-1.5 h-1.5 rounded-full ${info.dot}`} />
+      )}
       {info.label}
     </span>
   );

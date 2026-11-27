@@ -1106,11 +1106,12 @@ class FondoTiempo(models.Model):
         return vencidos
 
     def plazo_informe(self):
-        """Art. 28: el informe se presenta a la finalización de la gestión. Su plazo es el fin
-        del último calendario académico de la gestión en la carrera del fondo. Devuelve
-        (calendario, fecha) o (None, None) si la gestión no tiene calendario."""
+        """Art. 28: el informe se presenta a la finalización de la gestión: el 31 de diciembre
+        de su año. No es el fin de clases del calendario: los informes reales de la carrera se
+        entregaron del 17 al 21 de diciembre de 2024, después de las clases. Devuelve
+        (último calendario de la gestión, fecha) o (None, None) si la gestión no tiene calendario."""
         calendario = self.calendarios_de_la_gestion().order_by('-fecha_fin').first()
-        return (calendario, calendario.fecha_fin) if calendario else (None, None)
+        return (calendario, date(self.gestion, 12, 31)) if calendario else (None, None)
 
     def plazo_informe_vencido(self, fecha):
         """Lista (vacía o de un elemento) con el plazo del informe si `fecha` lo supera, en el

@@ -1105,35 +1105,24 @@ class FondoTiempo(models.Model):
                 })
         return vencidos
 
-    def plazo_informe(self):
-        """Art. 28: el informe se presenta a la finalización de la gestión: el 31 de diciembre
-        de su año. No es el fin de clases del calendario: los informes reales de la carrera se
-        entregaron del 17 al 21 de diciembre de 2024, después de las clases. Devuelve
-        (último calendario de la gestión, fecha) o (None, None) si la gestión no tiene calendario."""
+    def fin_del_periodo_academico(self):
+        """Art. 28: el informe se presenta "a la finalización de la gestión o periodo
+        académico". El reglamento no fija una fecha límite para el informe (los informes reales
+        llegaron del 17 de diciembre al 8 de enero): el sistema no la inventa. El fin del
+        periodo es la fecha de fin del último calendario de la gestión, la que pone la carrera.
+        Devuelve (calendario, fecha) o (None, None) si la gestión no tiene calendario."""
         calendario = self.calendarios_de_la_gestion().order_by('-fecha_fin').first()
-        return (calendario, date(self.gestion, 12, 31)) if calendario else (None, None)
-
-    def plazo_informe_vencido(self, fecha):
-        """Lista (vacía o de un elemento) con el plazo del informe si `fecha` lo supera, en el
-        mismo formato que plazos_vencidos (se suma a fuera_de_plazo, sin bloquear)."""
-        calendario, limite = self.plazo_informe()
-        if not limite or fecha <= limite:
-            return []
-        return [{
-            'plazo': 'informe',
-            'calendario': nombre_calendario_en_fondo(calendario, self),
-            'fecha_limite': limite.isoformat(),
-            'fecha_presentacion': fecha.isoformat(),
-        }]
+        return (calendario, calendario.fecha_fin) if calendario else (None, None)
 
     def motivo_no_calificable_sin_informe(self, hoy):
-        """'' si el fondo se puede calificar "Incumplido" sin informe (en ejecución, plazo del
-        informe vencido y el informe sin presentar); si no, el motivo."""
+        """'' si el revisor puede calificar "Incumplido" sin informe (Art. 19): el fondo en
+        ejecución, el periodo académico de la gestión terminado y el informe sin presentar.
+        No es un plazo: es la decisión del Director; si no, el motivo."""
         if self.estado != 'en_ejecucion':
             return 'Solo se califica sin informe un fondo en ejecución.'
-        _calendario, limite = self.plazo_informe()
-        if not limite or hoy <= limite:
-            return 'Todavía no venció el plazo del informe (fin de la gestión).'
+        _calendario, fin = self.fin_del_periodo_academico()
+        if not fin or hoy <= fin:
+            return 'Todavía no terminó el periodo académico de la gestión.'
         informe = self.informes.filter(tipo='parcial').order_by('-fecha_elaboracion').first()
         if informe and informe.estado == 'enviado':
             return 'El docente ya presentó su informe: se evalúa el informe.'

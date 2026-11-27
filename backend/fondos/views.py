@@ -2151,13 +2151,6 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
         estado_anterior = fondo.estado
         fondo.estado = 'informe_presentado'
         fondo.fecha_informe = timezone.now()
-        # Art. 28: se registra (sin bloquear) si se presentó después del fin de la gestión. Solo
-        # la primera vez: el reenvío tras las correcciones conserva lo registrado.
-        informe_tarde = []
-        if not any(v.get('plazo') == 'informe' for v in fondo.fuera_de_plazo or []):
-            informe_tarde = fondo.plazo_informe_vencido(timezone.localdate())
-            if informe_tarde:
-                fondo.fuera_de_plazo = list(fondo.fuera_de_plazo or []) + informe_tarde
         fondo.save()
 
         # Crear o actualizar el informe con datos reales; queda marcado
@@ -2181,10 +2174,6 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
             descripcion=(
                 'Docente presentó Informe Final de cumplimiento.' if es_docente_del_fondo(request, fondo)
                 else 'Jefatura de Estudios registró el Informe Final de cumplimiento (el docente no tiene cuenta en el sistema).'
-            ) + (
-                ' Presentado fuera de plazo: límite '
-                + date.fromisoformat(informe_tarde[0]['fecha_limite']).strftime('%d/%m/%Y') + '.'
-                if informe_tarde else ''
             ),
             estado_anterior=estado_anterior,
             estado_nuevo='informe_presentado'
@@ -2547,19 +2536,22 @@ class FondoTiempoViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet)
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated], url_path='calificar-sin-informe')
     @transaction.atomic
     def calificar_sin_informe(self, request, pk=None):
-        """Art. 19: informar el cumplimiento o el INCUMPLIMIENTO. Si venció el plazo del
-        informe (fin de la gestión, Art. 28) y el docente no lo presentó, el revisor lo califica
-        "Incumplido" sin informe: en_ejecucion -> informe_evaluado; después se finaliza como
-        siempre."""
+        """Art. 19: informar el cumplimiento o el INCUMPLIMIENTO. Terminado el periodo
+        académico de la gestión (Art. 28) sin que el docente presente su informe, el revisor
+        puede calificarlo "Incumplido" sin informe: en_ejecucion -> informe_evaluado; después se
+        finaliza como siempre. El reglamento no fija una fecha límite: lo decide el Director."""
         fondo = self.get_object()
         self._revisor_evaluacion(request, fondo, 'calificar')
         motivo = fondo.motivo_no_calificable_sin_informe(timezone.localdate())
         if motivo:
             return Response({'error': motivo}, status=status.HTTP_400_BAD_REQUEST)
 
-        _calendario, limite = fondo.plazo_informe()
+        _calendario, fin = fondo.fin_del_periodo_academico()
         observacion = (request.data.get('observacion') or '').strip()
-        texto = f'No presentó el informe hasta el {limite.strftime("%d/%m/%Y")} (fin de la gestión).'
+        texto = (
+            f'No presentó su informe; el periodo académico de la gestión terminó el '
+            f'{fin.strftime("%d/%m/%Y")}.'
+        )
         informe = fondo.informes.filter(tipo='parcial').order_by('-fecha_elaboracion').first()
         if informe is None:
             usuario_docente = User.objects.filter(

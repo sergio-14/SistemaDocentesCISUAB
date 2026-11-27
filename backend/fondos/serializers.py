@@ -2689,15 +2689,16 @@ class FondoTiempoListSerializer(serializers.ModelSerializer):
     sin_director = serializers.SerializerMethodField()
     # En borrador u observado sin materias asignadas: pendiente del Jefe de Estudios.
     sin_materias = serializers.SerializerMethodField()
-    # En ejecución con el informe sin presentar: hasta cuándo (Art. 28), para el recordatorio.
-    plazo_informe = serializers.SerializerMethodField()
+    # En ejecución, periodo académico terminado y sin informe: el revisor puede calificar
+    # "Incumplido" sin informe (Art. 19). Para los pendientes del Director.
+    calificable_sin_informe = serializers.SerializerMethodField()
 
     class Meta:
         model = FondoTiempo
         fields = ['id', 'docente', 'docente_nombre', 'carrera', 'carrera_nombre',
                   'gestion', 'descripcion', 'total_asignado', 'horas_efectivas',
                   'porcentaje_completado', 'estado', 'estado_informe', 'sin_director',
-                  'sin_materias', 'plazo_informe']
+                  'sin_materias', 'calificable_sin_informe']
 
     def get_sin_materias(self, obj):
         if obj.estado not in ('borrador', 'observado'):
@@ -2707,15 +2708,15 @@ class FondoTiempoListSerializer(serializers.ModelSerializer):
             return not obj.tiene_materias
         return not obj.cargas.filter(tipo_actividad='clases_aula').exists()
 
-    def get_plazo_informe(self, obj):
+    def get_calificable_sin_informe(self, obj):
         if obj.estado != 'en_ejecucion' or self.get_estado_informe(obj) == 'enviado':
-            return None
-        cache = self.context.setdefault('_plazo_informe', {})
+            return False
+        cache = self.context.setdefault('_fin_del_periodo', {})
         clave = (obj.carrera_id, obj.gestion)
         if clave not in cache:
-            limite = obj.plazo_informe()[1]
-            cache[clave] = limite.isoformat() if limite else None
-        return cache[clave]
+            cache[clave] = obj.fin_del_periodo_academico()[1]
+        fin = cache[clave]
+        return bool(fin and timezone.localdate() > fin)
 
     def get_sin_director(self, obj):
         # Solo importa mientras espera la revisión; una consulta por carrera en la lista.
@@ -4405,8 +4406,6 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     finalizado_el = serializers.DateTimeField(source='fecha_finalizacion', read_only=True)
     # Con el informe evaluado, desde cuándo (el "Tiempo en etapa" cuenta desde ahí).
     evaluado_el = serializers.SerializerMethodField()
-    # Art. 28: hasta cuándo presentar el informe (fin del último calendario de la gestión).
-    plazo_informe = serializers.SerializerMethodField()
     # Calendarios para las sub-actividades: los de su carrera y los de sus materias en otra.
     calendarios_materias = serializers.SerializerMethodField()
     # Arts. 15 y 18: presentado después de los plazos del calendario. Va tal cual
@@ -4437,7 +4436,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             'puede_editar_informe', 'tipos_ejercicio_cargo', 'puede_iniciar_ejecucion',
             'puede_escribir_observaciones', 'puede_resolver_observaciones',
             'es_fondo_propio', 'es_fondo_de_director', 'documento_decanatura', 'documento_decanatura_informe',
-            'finalizado_el', 'evaluado_el', 'plazo_informe', 'calendarios_materias',
+            'finalizado_el', 'evaluado_el', 'calendarios_materias',
         ]
         read_only_fields = [
             'estado', 'horas_efectivas',
@@ -4565,12 +4564,6 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
 
     def get_es_fondo_de_director(self, obj):
         return obj.es_de_director_de_su_carrera()
-
-    def get_plazo_informe(self, obj):
-        calendario, limite = obj.plazo_informe()
-        if not limite:
-            return None
-        return {'fecha': limite.isoformat(), 'calendario': nombre_calendario_en_fondo(calendario, obj)}
 
     def get_evaluado_el(self, obj):
         """Cuándo pasó a informe_evaluado (cambiar la evaluación no reinicia la etapa)."""

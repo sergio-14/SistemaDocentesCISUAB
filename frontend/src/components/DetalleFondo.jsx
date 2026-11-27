@@ -104,7 +104,7 @@ function DetalleFondo() {
   // Informe evaluado: cambiar la evaluación o finalizar el fondo (con el documento de la
   // Decanatura si es el fondo del Director, Art. 28).
   const [mostrarCambiarEvaluacion, setMostrarCambiarEvaluacion] = useState(false);
-  // Art. 19: vencido el plazo sin informe, el revisor lo califica "Incumplido".
+  // Art. 19: terminado el periodo sin informe, el revisor puede calificarlo "Incumplido".
   const [mostrarCalificarSinInforme, setMostrarCalificarSinInforme] = useState(false);
   const [mostrarModalFinalizar, setMostrarModalFinalizar] = useState(false);
   const [documentoDecanaturaFinal, setDocumentoDecanaturaFinal] = useState(null);
@@ -1065,15 +1065,6 @@ function DetalleFondo() {
                     {fondo.informe_actual?.estado === 'observado' ? 'Corregir informe' : 'Redactar informe'}
                   </button>
                 )}
-                {fondo.puede_editar_informe && fondo.plazo_informe && (
-                  <p className="text-center text-xs text-slate-600">
-                    Plazo del informe:{' '}
-                    <span className="font-semibold text-slate-800 tabular-nums">
-                      {new Date(`${fondo.plazo_informe.fecha}T00:00:00`).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                    </span>{' '}
-                    (fin de la gestión)
-                  </p>
-                )}
 
                 {fondo.jefatura_trabaja_el_fondo && ['borrador', 'observado', 'rechazado'].includes(fondo.estado) && (
                   <p className="rounded-2xl bg-sky-50 px-4 py-3 text-xs text-sky-900">
@@ -1081,7 +1072,7 @@ function DetalleFondo() {
                   </p>
                 )}
 
-                {/* Vencido el plazo sin informe: el revisor lo califica "Incumplido" (Art. 19). */}
+                {/* Terminado el periodo sin informe: el revisor puede calificarlo "Incumplido" (Art. 19). */}
                 {fondo.puede_calificar_sin_informe && (
                   <button
                     onClick={() => setMostrarCalificarSinInforme(true)}
@@ -1496,7 +1487,7 @@ function DetalleFondo() {
           tono="peligro"
           etiqueta="Fondo de tiempo"
           titulo="Calificar sin informe"
-          mensaje={<>Venció el plazo del informe y <strong className="text-blue-900">{fondo.docente?.nombre_completo || 'el docente'}</strong> no lo presentó.</>}
+          mensaje={<>Terminó el periodo académico de la gestión y <strong className="text-blue-900">{fondo.docente?.nombre_completo || 'el docente'}</strong> no presentó su informe.</>}
           detalle={[
             'Se califica "Incumplido" (Art. 19) y queda pendiente de finalizar',
             'El docente ya no podrá presentar el informe de esta gestión',

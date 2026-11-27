@@ -81,35 +81,20 @@ class FlujoDelReglamentoTests(BaseFlujo):
         self.fondo.refresh_from_db()
         self.assertTrue(self.fondo.archivado)
 
-    # --- Art. 28: plazo del informe ------------------------------------------------------
+    # --- Art. 28: el informe no tiene fecha límite -----------------------------------------
 
-    def test_el_plazo_del_informe_es_el_fin_de_la_gestion(self):
-        calendario, limite = self.fondo.plazo_informe()
-        self.assertEqual(limite, date(2026, 12, 31))
-        self.assertEqual(calendario.periodo, '2')
-
-    def test_informe_presentado_a_tiempo_no_queda_fuera_de_plazo(self):
-        self._presentar_informe(date(2026, 12, 20))
+    def test_el_informe_no_tiene_fecha_limite_ni_queda_fuera_de_plazo(self):
+        # El reglamento no fija una fecha: los informes reales llegaron hasta el 8 de enero.
+        self._presentar_informe(date(2027, 1, 8))
 
         self.assertEqual(self.fondo.estado, 'informe_presentado')
         self.assertEqual(self.fondo.fuera_de_plazo, [])
+        self.assertNotIn('plazo', self.fondo.historial.get(tipo_cambio='informe_presentado').descripcion)
 
-    def test_informe_presentado_despues_del_fin_de_la_gestion_queda_fuera_de_plazo(self):
-        self._presentar_informe(date(2027, 1, 5))
-
-        self.assertEqual(self.fondo.estado, 'informe_presentado')
-        self.assertEqual(len(self.fondo.fuera_de_plazo), 1)
-        vencido = self.fondo.fuera_de_plazo[0]
-        self.assertEqual(vencido['plazo'], 'informe')
-        self.assertEqual(vencido['fecha_limite'], '2026-12-31')
-        self.assertEqual(vencido['fecha_presentacion'], '2027-01-05')
-        self.assertIn('fuera de plazo', self.fondo.historial.get(tipo_cambio='informe_presentado').descripcion)
-
-    def test_el_reenvio_del_informe_no_registra_el_plazo_dos_veces(self):
-        self._presentar_informe(date(2027, 1, 5))
-        self._presentar_informe(date(2027, 1, 10))
-
-        self.assertEqual([v['plazo'] for v in self.fondo.fuera_de_plazo], ['informe'])
+    def test_el_fin_del_periodo_es_el_del_ultimo_calendario(self):
+        calendario, fin = self.fondo.fin_del_periodo_academico()
+        self.assertEqual(fin, date(2026, 12, 15))
+        self.assertEqual(calendario.periodo, '2')
 
     # --- Art. 8: carrera sin Director ----------------------------------------------------
 
@@ -225,16 +210,19 @@ class FaltantesDeLosFlujosTests(BaseFlujo):
         )
         self.assertEqual(avisos_para_usuario(self.dueno, perfil, FondoTiempo.objects.filter(pk=self.fondo.pk), 'base'), [])
 
-    def test_la_lista_marca_fondos_sin_materias_y_el_plazo_del_informe(self):
+    def test_la_lista_marca_fondos_sin_materias_y_los_calificables_sin_informe(self):
         self.client.force_authenticate(self.jefe)
         fila = self._fila()
         self.assertTrue(fila['sin_materias'])
-        self.assertIsNone(fila['plazo_informe'])
+        self.assertFalse(fila['calificable_sin_informe'])
 
         self._estado('en_ejecucion')
-        fila = self._fila()
+        with mock.patch('django.utils.timezone.localdate', return_value=date(2026, 12, 10)):
+            fila = self._fila()
         self.assertFalse(fila['sin_materias'])
-        self.assertEqual(fila['plazo_informe'], '2026-12-31')
+        self.assertFalse(fila['calificable_sin_informe'])
+        with mock.patch('django.utils.timezone.localdate', return_value=date(2026, 12, 16)):
+            self.assertTrue(self._fila()['calificable_sin_informe'])
 
     def _fila(self):
         response = self.client.get('/api/fondos-tiempo/')
@@ -255,25 +243,25 @@ class FaltantesDeLosFlujosTests(BaseFlujo):
         self.assertNotEqual(presentar.status_code, status.HTTP_403_FORBIDDEN, presentar.data)
         self.assertTrue(self.client.get(f'/api/fondos-tiempo/{fondo.pk}/').data['jefatura_trabaja_el_fondo'])
 
-    def test_el_director_califica_incumplido_sin_informe_vencido_el_plazo(self):
+    def test_el_director_califica_incumplido_sin_informe_terminado_el_periodo(self):
         self._estado('en_ejecucion')
         url = f'/api/fondos-tiempo/{self.fondo.pk}/calificar-sin-informe/'
         self.client.force_authenticate(self.director)
         with mock.patch('django.utils.timezone.localdate', return_value=date(2026, 12, 10)):
             self.assertEqual(self.client.post(url).status_code, status.HTTP_400_BAD_REQUEST)
         self.client.force_authenticate(self.dueno)
-        with mock.patch('django.utils.timezone.localdate', return_value=date(2027, 1, 5)):
+        with mock.patch('django.utils.timezone.localdate', return_value=date(2026, 12, 16)):
             self.assertIn(self.client.post(url).status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
         self.client.force_authenticate(self.director)
-        with mock.patch('django.utils.timezone.localdate', return_value=date(2027, 1, 5)):
+        with mock.patch('django.utils.timezone.localdate', return_value=date(2026, 12, 16)):
             response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.fondo.refresh_from_db()
         self.assertEqual(self.fondo.estado, 'informe_evaluado')
         informe = self.fondo.informes.get(tipo='parcial')
         self.assertEqual(informe.cumplimiento, 'incumplido')
-        self.assertIn('31/12/2026', informe.evaluacion_director)
+        self.assertIn('15/12/2026', informe.evaluacion_director)
 
     def test_el_superusuario_ve_las_carreras_sin_director(self):
         self.client.force_authenticate(self.superuser)

@@ -13,7 +13,7 @@ const enDias = (iso) => {
   if (!dias || dias <= 0) return 'hoy';
   return dias === 1 ? 'mañana' : `en ${dias} días`;
 };
-const NOMBRE_PLAZO = { 'programas analíticos': 'Programas analíticos', proyectos: 'Presentación de proyectos', informe: 'Informe del fondo' };
+const NOMBRE_PLAZO = { 'programas analíticos': 'Programas analíticos', proyectos: 'Presentación de proyectos' };
 const MAXIMO_PENDIENTES = 5;
 
 // ---------- Docente ----------
@@ -55,10 +55,7 @@ function queTeToca(fondo) {
   if (estado === 'rechazado') return 'Fue rechazado: corrígelo y vuelve a presentarlo.';
   if (estado === 'informe_observado') return 'Corrige tu informe y vuelve a presentarlo.';
   if (estado === 'en_ejecucion' && fondo.estado_informe !== 'enviado') {
-    const plazo = fondo.plazo_informe
-      ? ` hasta el ${new Date(`${fondo.plazo_informe}T00:00:00`).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
-      : '';
-    return `Redacta y presenta tu informe${plazo}.`;
+    return 'Al terminar la gestión, redacta y presenta tu informe.';
   }
   return null;
 }
@@ -294,21 +291,16 @@ export function ResumenCarrera({ fondos, gestion, ancho = false }) {
 // Director: fondos presentados por revisar (y los informes presentados) y los evaluados por
 // finalizar; Jefe: fondos en borrador u observados sin materias asignadas (el resto del fondo
 // lo elabora y lo corrige el docente).
-// En ejecución con el plazo del informe vencido y el informe sin presentar (Art. 19: se
-// puede calificar "Incumplido" sin informe).
-const plazoInformeVencido = (fondo) => {
-  if (fondo.estado !== 'en_ejecucion' || !fondo.plazo_informe) return false;
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
-  return new Date(`${fondo.plazo_informe}T00:00:00`) < hoy;
-};
+// En ejecución, terminado el periodo académico y sin informe: el Director puede calificarlo
+// "Incumplido" sin informe (Art. 19). Lo calcula el backend.
+const plazoInformeVencido = (fondo) => Boolean(fondo.calificable_sin_informe);
 
 const PENDIENTES = {
   director: {
     incluye: (fondo) => ['presentado_director', 'informe_presentado', 'informe_evaluado'].includes(estadoVisibleFondo(fondo))
       || plazoInformeVencido(fondo),
     vacio: 'No hay fondos por revisar ni por finalizar',
-    detalle: (fondo) => (plazoInformeVencido(fondo) ? 'Plazo vencido sin informe: calificar' : ''),
+    detalle: (fondo) => (plazoInformeVencido(fondo) ? 'Periodo terminado sin informe' : ''),
   },
   jefe_estudios: {
     incluye: (fondo) => Boolean(fondo.sin_materias),

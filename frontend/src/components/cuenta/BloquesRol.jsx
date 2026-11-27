@@ -294,15 +294,26 @@ export function ResumenCarrera({ fondos, gestion, ancho = false }) {
 // Director: fondos presentados por revisar (y los informes presentados) y los evaluados por
 // finalizar; Jefe: fondos en borrador u observados sin materias asignadas (el resto del fondo
 // lo elabora y lo corrige el docente).
+// En ejecución con el plazo del informe vencido y el informe sin presentar (Art. 19: se
+// puede calificar "Incumplido" sin informe).
+const plazoInformeVencido = (fondo) => {
+  if (fondo.estado !== 'en_ejecucion' || !fondo.plazo_informe) return false;
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  return new Date(`${fondo.plazo_informe}T00:00:00`) < hoy;
+};
+
 const PENDIENTES = {
   director: {
-    incluye: (fondo) => ['presentado_director', 'informe_presentado', 'informe_evaluado'].includes(estadoVisibleFondo(fondo)),
+    incluye: (fondo) => ['presentado_director', 'informe_presentado', 'informe_evaluado'].includes(estadoVisibleFondo(fondo))
+      || plazoInformeVencido(fondo),
     vacio: 'No hay fondos por revisar ni por finalizar',
+    detalle: (fondo) => (plazoInformeVencido(fondo) ? 'Plazo vencido sin informe: calificar' : ''),
   },
   jefe_estudios: {
     incluye: (fondo) => Boolean(fondo.sin_materias),
     vacio: 'No hay fondos sin materias asignadas',
-    detalle: 'Sin materias asignadas',
+    detalle: () => 'Sin materias asignadas',
   },
 };
 
@@ -321,7 +332,7 @@ export function Pendientes({ fondos, rol }) {
               <p className="font-semibold text-slate-800 truncate" title={fondo.docente_nombre}>{fondo.docente_nombre}</p>
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                 <EstadoPill estado={estadoVisibleFondo(fondo)} />
-                {regla.detalle && <span className="text-xs text-slate-600">{regla.detalle}</span>}
+                {regla.detalle?.(fondo) && <span className="text-xs text-slate-600">{regla.detalle(fondo)}</span>}
               </div>
             </div>
             <Link to={`/fondo-tiempo/fondo/${fondo.id}`} className={`${BOTON_CHICO} bg-blue-900 hover:bg-blue-950 text-white flex-shrink-0`}>

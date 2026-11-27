@@ -21,7 +21,7 @@ from docx.shared import Cm, Pt, RGBColor
 
 from fondos.models import SECCIONES_INFORME
 from fondos.utils.informe_imagenes import leer_imagen as leer_imagen_informe
-from fondos.utils.informe_texto import CAMPOS_TEXTO_INFORME, construir_defaults_informe
+from fondos.utils.informe_texto import CAMPOS_TEXTO_INFORME, construir_defaults_informe, planificacion_por_unidad
 from fondos.utils.pdf_generator import _normalizar_color_css, _parsear_estilo_css, _tamano_fuente_a_pt
 
 FUENTE = 'Verdana'
@@ -531,6 +531,26 @@ def generar_informe_word(fondo, informe):
 
     # 3. Saludo e introducción
     _escribir_html(documento, textos['saludo_intro_html'])
+
+    # 3b. Parte I: Planificación (horas del fondo por unidad) y Parte II: Ejecución, como en
+    # los informes reales de la carrera (2024) y en el PDF.
+    filas_plan, total_plan = planificacion_por_unidad(fondo)
+    _parrafo(documento, 'PARTE I: PLANIFICACIÓN', negrita=True, antes=12, despues=4).paragraph_format.keep_with_next = True
+    tabla_plan = documento.add_table(rows=len(filas_plan) + 2, cols=3)
+    tabla_plan.style = 'Table Grid'
+    _ancho_columna(tabla_plan, 0, ANCHO_CONTENIDO - Cm(6))
+    _ancho_columna(tabla_plan, 1, Cm(3))
+    _ancho_columna(tabla_plan, 2, Cm(3))
+    filas_tabla = [('Unidad (Art. 12)', 'Horas/año', '%', True)]
+    filas_tabla += [(nombre, str(horas), f'{porcentaje:.1f}', False) for nombre, horas, porcentaje in filas_plan]
+    filas_tabla.append(('Total', str(total_plan), '100.0' if total_plan else '0.0', True))
+    for fila, (nombre, horas, porcentaje, negrita) in enumerate(filas_tabla):
+        for columna, texto in enumerate((nombre, horas, porcentaje)):
+            parrafo = tabla_plan.cell(fila, columna).paragraphs[0]
+            parrafo.add_run(texto).bold = negrita
+            if columna:
+                parrafo.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    _parrafo(documento, 'PARTE II: EJECUCIÓN', negrita=True, antes=12, despues=4).paragraph_format.keep_with_next = True
 
     # 4. Secciones (las opcionales vacías se omiten, como en el PDF)
     definicion = informe.secciones() if informe else SECCIONES_INFORME

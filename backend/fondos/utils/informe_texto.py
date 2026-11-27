@@ -229,3 +229,14 @@ def construir_defaults_informe(fondo):
         'firma_cargo': cargo_firma,
         'firma_email': email_docente or '',
     }
+
+
+def planificacion_por_unidad(fondo):
+    """Parte I del informe (como en los informes reales de la carrera, 2024): las horas
+    planificadas del fondo por unidad del Art. 12. Devuelve ([(unidad, horas, %)], total)."""
+    from django.db.models import Sum
+    from fondos.models import UNIDADES_FONDO
+    por_unidad = dict(fondo.cargas.order_by().values_list('categoria').annotate(total=Sum('horas')))
+    horas = [(nombre, int(round(float(por_unidad.get(unidad) or 0)))) for unidad, nombre in UNIDADES_FONDO]
+    total = sum(valor for _nombre, valor in horas)
+    return [(nombre, valor, round(valor * 100 / total, 1) if total else 0) for nombre, valor in horas], total

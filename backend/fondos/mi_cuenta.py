@@ -93,11 +93,14 @@ def _datos_superusuario(gestion):
     evaluar o por finalizar, y las carreras activas sin Director (sus fondos no tienen quién
     los revise)."""
     from .models import AsignacionCarrera, Carrera
+    hoy = timezone.localdate()
     por_revisar = [
         fondo for fondo in FondoTiempo.objects.filter(
-            archivado=False, estado__in=('presentado_director', 'informe_presentado', 'informe_evaluado'),
+            archivado=False,
+            estado__in=('presentado_director', 'en_ejecucion', 'informe_presentado', 'informe_evaluado'),
         ).select_related('docente', 'carrera').order_by('gestion', 'id')
         if fondo.es_de_director_de_su_carrera()
+        and (fondo.estado != 'en_ejecucion' or not fondo.motivo_no_calificable_sin_informe(hoy))
     ]
     con_director = AsignacionCarrera.objects.filter(
         rol='director', activo=True, user__is_active=True,

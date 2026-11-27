@@ -305,3 +305,26 @@ class FaltantesDeLosFlujosTests(BaseFlujo):
             'titulo_actividad': 'Elaboración de Exámenes', 'horas': 10, 'materia': materia_civil.pk, 'calendario': calendario_civil.pk,
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_el_informe_trae_la_planificacion_como_parte_i(self):
+        import io
+        from docx import Document
+        self._estado('en_ejecucion')
+        CargaHoraria.objects.bulk_create([CargaHoraria(
+            docente_id=self.fondo.docente_id, fondo=self.fondo, categoria='investigacion',
+            tipo_actividad='participacion_iic_cis', titulo_actividad='Instituto', horas=40, creado_por=self.dueno,
+        )])
+        self.client.force_authenticate(self.dueno)
+
+        word = self.client.get(f'/api/fondos-tiempo/{self.fondo.pk}/word-informe/')
+        self.assertEqual(word.status_code, status.HTTP_200_OK)
+        documento = Document(io.BytesIO(b''.join(word.streaming_content) if word.streaming else word.content))
+        textos = [p.text for p in documento.paragraphs]
+        self.assertIn('PARTE I: PLANIFICACIÓN', textos)
+        self.assertIn('PARTE II: EJECUCIÓN', textos)
+        celdas = [celda.text for tabla in documento.tables for fila in tabla.rows for celda in fila.cells]
+        self.assertIn('Investigación', celdas)
+        self.assertIn('40', celdas)
+
+        pdf = self.client.get(f'/api/fondos-tiempo/{self.fondo.pk}/pdf-informe/')
+        self.assertEqual(pdf.status_code, status.HTTP_200_OK)

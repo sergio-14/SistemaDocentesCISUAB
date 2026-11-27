@@ -15,7 +15,7 @@ import base64
 from html import escape
 from html.parser import HTMLParser
 from fondos.models import SECCIONES_INFORME, UNIDADES_FONDO, nombre_calendario_en_fondo
-from fondos.utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
+from fondos.utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME, planificacion_por_unidad
 from fondos.utils.informe_imagenes import leer_imagen as leer_imagen_informe
 
 # Verdana no es una de las 14 fuentes estandar de PDF: hay que registrarla a
@@ -1498,6 +1498,32 @@ class InformePDFGenerator:
         parser_intro.feed(textos['saludo_intro_html'])
         elementos.extend(parser_intro.obtener_flowables())
         elementos.append(Spacer(1, 0.5*cm))
+
+        # --- 3b. Parte I: Planificación (horas del fondo por unidad) y Parte II: Ejecución,
+        # como en los informes reales de la carrera (2024).
+        filas_plan, total_plan = planificacion_por_unidad(fondo)
+        elementos.append(Paragraph('PARTE I: PLANIFICACIÓN', estilo_titulo_seccion))
+        estilo_celda = ParagraphStyle('PlanCelda', parent=estilo_normal, alignment=0, spaceAfter=0)
+        estilo_num = ParagraphStyle('PlanNum', parent=estilo_celda, alignment=2)
+        datos_plan = [[Paragraph('<b>Unidad (Art. 12)</b>', estilo_celda), Paragraph('<b>Horas/año</b>', estilo_num),
+                       Paragraph('<b>%</b>', estilo_num)]]
+        datos_plan += [
+            [Paragraph(escape(nombre), estilo_celda), Paragraph(f'{horas}', estilo_num), Paragraph(f'{porcentaje:.1f}', estilo_num)]
+            for nombre, horas, porcentaje in filas_plan
+        ]
+        datos_plan.append([Paragraph('<b>Total</b>', estilo_celda), Paragraph(f'<b>{total_plan}</b>', estilo_num),
+                           Paragraph('<b>100.0</b>' if total_plan else '<b>0.0</b>', estilo_num)])
+        tabla_plan = Table(datos_plan, colWidths=[ancho_contenido - 6*cm, 3*cm, 3*cm])
+        tabla_plan.setStyle(TableStyle([
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#94a3b8')),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ]))
+        elementos.append(tabla_plan)
+        elementos.append(Spacer(1, 0.4*cm))
+        elementos.append(Paragraph('PARTE II: EJECUCIÓN', estilo_titulo_seccion))
 
         # --- 4. Las secciones narrativas (7 unidades + conclusiones) ---
         # Las opcionales se omiten por completo si el docente no escribió

@@ -27,12 +27,6 @@ const EyeIcon = (props) => (
   </svg>
 );
 
-const PencilIcon = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
-  </svg>
-);
-
 const ArchiveBoxIcon = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4" />
@@ -193,10 +187,6 @@ function ListaFondos() {
     setFondos((prev) => prev.filter((item) => item.id !== fondo.id));
     setFondoPorArchivar(null);
     toast.success(`Fondo ${fondo.gestion} de ${fondo.docente_nombre} archivado.`);
-  };
-
-  const puedeEditar = (fondo) => {
-    return puedeCrearFondoTiempo(user) && ['borrador', 'observado'].includes(fondo.estado);
   };
 
   // Archivar: superusuario, Director y Jefe de Estudios (de su carrera; lo exige el backend).
@@ -371,20 +361,11 @@ function ListaFondos() {
         <EyeIcon className="w-[18px] h-[18px]" />
         <span>Ver</span>
       </Link>
-      {puedeEditar(fondo) && (
-        <Link
-          to={`/fondo-tiempo/editar-fondo/${fondo.id}`}
-          className={`${BOTON} bg-azulado-100 hover:bg-azulado-200 text-blue-900 ring-1 ring-inset ring-azulado-300`}
-        >
-          <PencilIcon className="w-[18px] h-[18px]" />
-          <span>Editar</span>
-        </Link>
-      )}
       {puedeArchivar && ESTADOS_ARCHIVABLES.includes(fondo.estado) && (
         <button data-escritura
           type="button"
           onClick={() => setFondoPorArchivar(fondo)}
-          className={`${BOTON} bg-red-400 hover:bg-red-500 text-white`}
+          className={`${BOTON} bg-white text-red-700 ring-1 ring-inset ring-red-300 hover:bg-red-50`}
         >
           <ArchiveBoxIcon className="w-[18px] h-[18px]" />
           <span>Archivar</span>

@@ -927,6 +927,8 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                             )}
                         </div>
 
+                        {/* El Jefe solo asigna clases en aula: no elige sub-actividad. */}
+                        {modo !== 'materias' && (
                         <div>
                             <label className={labelCls}>Sub-actividad académica</label>
                             <CustomSelect
@@ -939,8 +941,9 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
                                 emptyText="No hay sub-actividades configuradas"
                             />
                         </div>
+                        )}
 
-                        {formData.tipo_actividad && (
+                        {(formData.tipo_actividad || modo === 'materias') && (
                             <div className="animate-campo-entrada">
                                 <label className={labelCls}>{modo === 'actividades' ? 'Materia asignada' : 'Materia (malla curricular)'}</label>
                                 {modo === 'actividades' ? (

@@ -299,7 +299,6 @@ function App() {
               <Route element={<div className="animate-page-enter"><ListaFondos /></div>}>
                 <Route index element={null} />
                 <Route path="nuevo-fondo" element={<FormularioFondo />} />
-                <Route path="editar-fondo/:id" element={<FormularioFondo editar={true} />} />
               </Route>
               
               {/* Las rutas hijas son relativas al padre */}

@@ -674,7 +674,7 @@ function DetalleFondo() {
               {
                 label: 'Dedicación',
                 valor: dedicacionDocente
-                  ? `${ABREVIATURA_DEDICACION[dedicacionDocente] || 'TH'} · ${fondo.antiguedad} años`
+                  ? `${ABREVIATURA_DEDICACION[dedicacionDocente] || 'TH'} · ${fondo.antiguedad} años al inicio de la gestión`
                   : '—',
               },
               { label: 'Gestión', valor: <span className="tabular-nums">{fondo.gestion}</span> },
@@ -1013,6 +1013,12 @@ function DetalleFondo() {
                   >
                     Reenviar al Director
                   </button>
+                )}
+
+                {(puedePresentarADirector || puedeReenviarADirector) && !puedeConfirmarPresentacion && (
+                  <p className="rounded-2xl bg-sky-50 px-4 py-3 text-xs leading-relaxed text-sky-900">
+                    <span className="font-semibold">Para presentarlo falta:</span> {motivoPresentacionBloqueada}.
+                  </p>
                 )}
 
                 {fondoPresentadoADirector && (

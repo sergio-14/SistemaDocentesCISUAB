@@ -47,6 +47,22 @@ export function MiFicha({ docenteId }) {
   return <Tarjeta titulo="Mi ficha" icono={GraduationCap}>{contenido}</Tarjeta>;
 }
 
+// Lo que le toca al docente con su fondo, según su estado (o null si nada).
+function queTeToca(fondo) {
+  const estado = estadoVisibleFondo(fondo);
+  if (estado === 'borrador') return 'Completa tu fondo y preséntalo al Director.';
+  if (estado === 'observado') return 'Corrige las observaciones y vuelve a presentarlo.';
+  if (estado === 'rechazado') return 'Fue rechazado: corrígelo y vuelve a presentarlo.';
+  if (estado === 'informe_observado') return 'Corrige tu informe y vuelve a presentarlo.';
+  if (estado === 'en_ejecucion' && fondo.estado_informe !== 'enviado') {
+    const plazo = fondo.plazo_informe
+      ? ` hasta el ${new Date(`${fondo.plazo_informe}T00:00:00`).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+      : '';
+    return `Redacta y presenta tu informe${plazo}.`;
+  }
+  return null;
+}
+
 export function MiFondoActual({ fondo, gestion }) {
   if (!fondo) {
     return <Tarjeta titulo="Mi fondo actual" icono={Clock}><SinDatos>Sin fondo en la gestión {gestion}</SinDatos></Tarjeta>;
@@ -63,6 +79,11 @@ export function MiFondoActual({ fondo, gestion }) {
         { label: 'Horas efectivas', valor: <span className="tabular-nums">{efectivas} h</span> },
       ]}
       />
+      {queTeToca(fondo) && (
+        <p className="mt-4 rounded-2xl bg-sky-50 px-4 py-2.5 text-sm text-sky-900">
+          <span className="font-semibold">Te toca:</span> {queTeToca(fondo)}
+        </p>
+      )}
       <div className="mt-4">
         <div className="mb-1.5 flex justify-between text-xs font-medium text-slate-600">
           <span>Progreso</span>
@@ -78,6 +99,63 @@ export function MiFondoActual({ fondo, gestion }) {
       </div>
     </Tarjeta>
   );
+}
+
+// Superusuario: fondos de Directores de Carrera que le toca revisar, evaluar o finalizar.
+export function PendientesSuperusuario({ fondos }) {
+  let contenido = <Cargando />;
+  if (fondos) {
+    contenido = fondos.length === 0 ? (
+      <SinDatos>No hay fondos de Directores por revisar</SinDatos>
+    ) : (
+      <Lista>
+        {fondos.slice(0, MAXIMO_PENDIENTES).map((fondo) => (
+          <FilaLista key={fondo.id}>
+            <div className="min-w-0">
+              <p className="font-semibold text-slate-800 truncate" title={fondo.docente_nombre}>{fondo.docente_nombre}</p>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <EstadoPill estado={estadoVisibleFondo(fondo)} />
+                <span className="text-xs text-slate-600">{fondo.carrera_nombre}</span>
+              </div>
+            </div>
+            <Link to={`/fondo-tiempo/fondo/${fondo.id}`} className={`${BOTON_CHICO} bg-blue-900 hover:bg-blue-950 text-white flex-shrink-0`}>
+              <Eye className="w-3.5 h-3.5" strokeWidth={1.75} />
+              <span>Ver</span>
+            </Link>
+          </FilaLista>
+        ))}
+        {fondos.length > MAXIMO_PENDIENTES && (
+          <FilaLista>
+            <span className="text-slate-600">y {fondos.length - MAXIMO_PENDIENTES} más</span>
+            <Link to="/fondo-tiempo" className="text-sm font-semibold text-blue-800 hover:underline">Ir al Dashboard</Link>
+          </FilaLista>
+        )}
+      </Lista>
+    );
+  }
+  return <Tarjeta titulo="Pendientes" icono={Inbox}>{contenido}</Tarjeta>;
+}
+
+// Superusuario: carreras activas sin Director (sus fondos presentados esperan revisión).
+export function CarrerasSinDirector({ carreras }) {
+  let contenido = <Cargando />;
+  if (carreras) {
+    contenido = carreras.length === 0 ? (
+      <SinDatos>Todas las carreras activas tienen Director</SinDatos>
+    ) : (
+      <Lista>
+        {carreras.map((carrera) => (
+          <FilaLista key={carrera.id}>
+            <span className="min-w-0 font-semibold text-slate-800 truncate" title={carrera.nombre}>{carrera.nombre}</span>
+            <span className="flex-shrink-0 text-xs text-slate-600 tabular-nums">
+              {carrera.fondos_esperando === 1 ? '1 fondo esperando' : `${carrera.fondos_esperando} fondos esperando`}
+            </span>
+          </FilaLista>
+        ))}
+      </Lista>
+    );
+  }
+  return <Tarjeta titulo="Carreras sin Director" icono={Inbox}>{contenido}</Tarjeta>;
 }
 
 export function ProximosPlazos({ plazos, gestion }) {

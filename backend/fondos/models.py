@@ -1125,6 +1125,19 @@ class FondoTiempo(models.Model):
             'fecha_presentacion': fecha.isoformat(),
         }]
 
+    def motivo_no_calificable_sin_informe(self, hoy):
+        """'' si el fondo se puede calificar "Incumplido" sin informe (en ejecución, plazo del
+        informe vencido y el informe sin presentar); si no, el motivo."""
+        if self.estado != 'en_ejecucion':
+            return 'Solo se califica sin informe un fondo en ejecución.'
+        _calendario, limite = self.plazo_informe()
+        if not limite or hoy <= limite:
+            return 'Todavía no venció el plazo del informe (fin de la gestión).'
+        informe = self.informes.filter(tipo='parcial').order_by('-fecha_elaboracion').first()
+        if informe and informe.estado == 'enviado':
+            return 'El docente ya presentó su informe: se evalúa el informe.'
+        return ''
+
     def tiene_director_que_revise(self):
         """True si alguien puede revisar el fondo: el del Director lo revisa el superusuario;
         el resto necesita un Director activo (usuario y asignación activos) en la carrera."""
@@ -1295,6 +1308,8 @@ class FondoTiempo(models.Model):
             ('en_ejecucion', 'informe_presentado'),
             # Evaluar el informe y finalizar el fondo son dos pasos.
             ('informe_presentado', 'informe_evaluado'),
+            # Art. 19: vencido el plazo sin informe, se califica "Incumplido" sin él.
+            ('en_ejecucion', 'informe_evaluado'),
             ('informe_evaluado', 'finalizado'),
             # El Director solicita correcciones al informe: vuelve a ejecucion
             # para que el docente pueda editarlo y reenviarlo.

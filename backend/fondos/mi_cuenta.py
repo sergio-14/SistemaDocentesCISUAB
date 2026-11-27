@@ -88,6 +88,36 @@ def _datos_docente(docente, hoy):
     }
 
 
+def _datos_superusuario(gestion):
+    """Lo que le toca al superusuario: los fondos de Directores de Carrera por revisar, por
+    evaluar o por finalizar, y las carreras activas sin Director (sus fondos no tienen quién
+    los revise)."""
+    from .models import AsignacionCarrera, Carrera
+    por_revisar = [
+        fondo for fondo in FondoTiempo.objects.filter(
+            archivado=False, estado__in=('presentado_director', 'informe_presentado', 'informe_evaluado'),
+        ).select_related('docente', 'carrera').order_by('gestion', 'id')
+        if fondo.es_de_director_de_su_carrera()
+    ]
+    con_director = AsignacionCarrera.objects.filter(
+        rol='director', activo=True, user__is_active=True,
+    ).values('carrera')
+    sin_director = Carrera.objects.filter(activo=True).exclude(pk__in=con_director).order_by('nombre')
+    return {
+        'fondos_por_revisar': FondoTiempoListSerializer(por_revisar, many=True).data,
+        'carreras_sin_director': [
+            {
+                'id': carrera.id,
+                'nombre': carrera.nombre,
+                'fondos_esperando': FondoTiempo.objects.filter(
+                    carrera=carrera, archivado=False, estado='presentado_director',
+                ).count(),
+            }
+            for carrera in sin_director
+        ],
+    }
+
+
 def datos_mi_cuenta(user, hoy=None):
     hoy = hoy or timezone.localdate()
     docente = Docente.objects.filter(user=user).first()
@@ -97,4 +127,5 @@ def datos_mi_cuenta(user, hoy=None):
         'cuenta_creada': user.date_joined,
         'designaciones': _designaciones(user),
         'docente': _datos_docente(docente, hoy) if docente else None,
+        'superusuario': _datos_superusuario(hoy.year) if user.is_superuser else None,
     }

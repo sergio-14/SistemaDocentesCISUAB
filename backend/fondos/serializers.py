@@ -10,7 +10,10 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import UNIDADES_FONDO, DocumentoActividad, actualizar_con_historial, clase_documento_actividad, nombre_calendario_en_fondo, fondo_de_la_carga, mensaje_sin_fondo, roles_del_docente_en_carrera
 from .models import Docente, DocenteCarrera, Carrera, FacultadCatalogo, Materia, FondoTiempo, PerfilUsuario, AsignacionCarrera, InformeFondo, ObservacionFondo, MensajeObservacion, HistorialFondo, CargaHoraria, DatosLaborales, ProgramaAnalitico
 from .role_context import get_active_assignment, get_active_careers_for_user, get_effective_profile, serialize_assignment
-from .permisos_fondo import es_docente_del_fondo, es_jefatura_del_fondo, puede_escribir_observaciones, puede_resolver_observaciones
+from .permisos_fondo import (
+    es_jefatura_del_fondo, es_revisor_del_fondo, jefatura_trabaja_el_fondo, puede_escribir_observaciones,
+    puede_resolver_observaciones, trabaja_el_fondo,
+)
 from .utils.informe_texto import construir_defaults_informe, CAMPOS_TEXTO_INFORME
 from .utils.informe_html import CAMPOS_HTML_RICO_INFORME, sanitizar_html_informe
 from .utils.informe_imagenes import firmar_imagenes_html
@@ -4381,6 +4384,10 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     puede_editar = serializers.SerializerMethodField()
     # El Jefe de Estudios asigna las materias (clases en aula).
     puede_asignar_materias = serializers.SerializerMethodField()
+    # El docente no tiene cuenta: Jefatura elabora y presenta su fondo.
+    jefatura_trabaja_el_fondo = serializers.SerializerMethodField()
+    # Art. 19: vencido el plazo sin informe, el revisor lo califica "Incumplido".
+    puede_calificar_sin_informe = serializers.SerializerMethodField()
     # El editor del informe se abre en solo lectura si es False.
     puede_editar_informe = serializers.SerializerMethodField()
     # Variantes de "Ejercicio del cargo" que el formulario de cargas ofrece.
@@ -4424,7 +4431,8 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             'categorias', 'informes', 'observaciones_detalladas',
             'informe_actual',
             # Permisos
-            'puede_editar', 'puede_asignar_materias', 'puede_editar_informe', 'tipos_ejercicio_cargo', 'puede_iniciar_ejecucion',
+            'puede_editar', 'puede_asignar_materias', 'jefatura_trabaja_el_fondo', 'puede_calificar_sin_informe',
+            'puede_editar_informe', 'tipos_ejercicio_cargo', 'puede_iniciar_ejecucion',
             'puede_escribir_observaciones', 'puede_resolver_observaciones',
             'es_fondo_propio', 'es_fondo_de_director', 'documento_decanatura', 'documento_decanatura_informe',
             'finalizado_el', 'evaluado_el', 'plazo_informe',
@@ -4476,7 +4484,17 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if not request or not getattr(request, 'user', None) or obj.archivado:
             return False
-        return obj.estado in ['borrador', 'observado'] and es_docente_del_fondo(request, obj)
+        return obj.estado in ['borrador', 'observado'] and trabaja_el_fondo(request, obj)
+
+    def get_jefatura_trabaja_el_fondo(self, obj):
+        request = self.context.get('request')
+        return bool(request and getattr(request, 'user', None) and jefatura_trabaja_el_fondo(request, obj))
+
+    def get_puede_calificar_sin_informe(self, obj):
+        request = self.context.get('request')
+        if not request or obj.archivado or obj.motivo_no_calificable_sin_informe(timezone.localdate()):
+            return False
+        return es_revisor_del_fondo(request, obj)
 
     def get_puede_asignar_materias(self, obj):
         """El Jefe de Estudios de la carrera asigna las materias (clases en aula) del fondo en

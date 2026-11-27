@@ -8,7 +8,8 @@ import ModalCentrado from '../common/ModalCentrado';
 import { Etiqueta } from '../fondos/ElementosFondo';
 import { Cargando, Datos, SinDatos, Tarjeta } from './Bloques';
 import {
-  CarrerasDondeDicto, MiDesignacion, MiFicha, MiFondoActual, Pendientes, ProximosPlazos, ResumenCarrera,
+  CarrerasDondeDicto, CarrerasSinDirector, MiDesignacion, MiFicha, MiFondoActual, Pendientes,
+  PendientesSuperusuario, ProximosPlazos, ResumenCarrera,
 } from './BloquesRol';
 import TarjetaPerfil from './TarjetaPerfil';
 
@@ -104,6 +105,15 @@ function ModalMiCuenta({ onClose, onProfileUpdate }) {
       </>
     );
     tresColumnas = true;
+  } else if (esSuperusuario) {
+    // Superusuario: los fondos de Directores que le toca revisar y las carreras sin Director.
+    bloques = (
+      <>
+        {datosCuenta(false)}
+        <PendientesSuperusuario fondos={cuenta.superusuario?.fondos_por_revisar} />
+        <CarrerasSinDirector carreras={cuenta.superusuario?.carreras_sin_director} />
+      </>
+    );
   } else if (!esSuperusuario && activeRole === 'iiisyp') {
     bloques = (
       <>

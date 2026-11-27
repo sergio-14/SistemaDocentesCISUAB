@@ -44,7 +44,7 @@ AVISOS = {
     'fondo_rechazado': {
         'tono': 'atencion',
         'jefe': ('Fondo de {docente} rechazado', 'Ver'),
-        'docente': ('Tu fondo fue rechazado', 'Ver'),
+        'docente': ('Tu fondo fue rechazado', 'Corregir'),
     },
     'fondo_aprobado': {
         'tono': 'exito',

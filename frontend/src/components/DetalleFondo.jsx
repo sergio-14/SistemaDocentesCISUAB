@@ -104,6 +104,8 @@ function DetalleFondo() {
   // Informe evaluado: cambiar la evaluación o finalizar el fondo (con el documento de la
   // Decanatura si es el fondo del Director, Art. 28).
   const [mostrarCambiarEvaluacion, setMostrarCambiarEvaluacion] = useState(false);
+  // Art. 19: vencido el plazo sin informe, el revisor lo califica "Incumplido".
+  const [mostrarCalificarSinInforme, setMostrarCalificarSinInforme] = useState(false);
   const [mostrarModalFinalizar, setMostrarModalFinalizar] = useState(false);
   const [documentoDecanaturaFinal, setDocumentoDecanaturaFinal] = useState(null);
   // Carga que se corrige en su fila de la tabla: solo horas (y descripción en "Otros").
@@ -137,13 +139,18 @@ function DetalleFondo() {
   // (puede_editar y puede_asignar_materias) con el rol activo.
   const esDocenteDueno = Boolean(fondo?.es_fondo_propio) && rolOperativo === 'docente';
   const puedeGestionarCarga = Boolean(fondo?.puede_editar || fondo?.puede_asignar_materias);
-  const modoCarga = fondo?.puede_editar ? 'actividades' : 'materias';
+  // Si el docente no tiene cuenta, Jefatura asigna las materias y elabora el resto ('todo').
+  const modoCarga = fondo?.puede_editar && fondo?.puede_asignar_materias
+    ? 'todo'
+    : (fondo?.puede_editar ? 'actividades' : 'materias');
+  const trabajaElFondo = esDocenteDueno || Boolean(fondo?.jefatura_trabaja_el_fondo);
   const soloLecturaPorRol = !puedeGestionarCarga;
   const puedePresentarADirector = fondo?.estado === 'borrador' && Boolean(fondo?.puede_editar);
   const puedeReenviarADirector = fondo?.estado === 'observado' && Boolean(fondo?.puede_editar);
-  const fondoPresentadoADirector = fondo?.estado === 'presentado_director' && esDocenteDueno;
-  // Un fondo rechazado vuelve a borrador para corregirlo (el docente dueño).
-  const puedeVolverABorrador = fondo?.estado === 'rechazado' && esDocenteDueno;
+  const fondoPresentadoADirector = fondo?.estado === 'presentado_director' && trabajaElFondo;
+  // Un fondo rechazado vuelve a borrador para corregirlo (el docente dueño o, si no tiene
+  // cuenta, Jefatura).
+  const puedeVolverABorrador = fondo?.estado === 'rechazado' && trabajaElFondo;
 
   useEffect(() => {
     estadoFondoRef.current = null;
@@ -1067,6 +1074,22 @@ function DetalleFondo() {
                   </p>
                 )}
 
+                {fondo.jefatura_trabaja_el_fondo && ['borrador', 'observado', 'rechazado'].includes(fondo.estado) && (
+                  <p className="rounded-2xl bg-sky-50 px-4 py-3 text-xs text-sky-900">
+                    El docente no tiene cuenta en el sistema: Jefatura de Estudios elabora y presenta su fondo.
+                  </p>
+                )}
+
+                {/* Vencido el plazo sin informe: el revisor lo califica "Incumplido" (Art. 19). */}
+                {fondo.puede_calificar_sin_informe && (
+                  <button
+                    onClick={() => setMostrarCalificarSinInforme(true)}
+                    className={`${ACCION} bg-white text-red-700 ring-1 ring-inset ring-red-300 hover:bg-red-50`}
+                  >
+                    Calificar sin informe
+                  </button>
+                )}
+
                 {/* Informe evaluado: el revisor finaliza el fondo o cambia la evaluación. */}
                 {fondo.estado === 'informe_evaluado' && esRevisorDelFondo && (
                   <>
@@ -1467,6 +1490,33 @@ function DetalleFondo() {
       )}
 
       {/* Cambiar la evaluación guardada (mientras el fondo no se finalice) */}
+      {fondo && mostrarCalificarSinInforme && (
+        <ModalConfirmar
+          tono="peligro"
+          etiqueta="Fondo de tiempo"
+          titulo="Calificar sin informe"
+          mensaje={<>Venció el plazo del informe y <strong className="text-blue-900">{fondo.docente?.nombre_completo || 'el docente'}</strong> no lo presentó.</>}
+          detalle={[
+            'Se califica "Incumplido" (Art. 19) y queda pendiente de finalizar',
+            'El docente ya no podrá presentar el informe de esta gestión',
+            'Se registra en el historial',
+          ]}
+          textoAccion="Calificar Incumplido"
+          textoTrabajando="Calificando..."
+          onConfirmar={async () => {
+            try {
+              await api.post(`/fondos-tiempo/${fondo.id}/calificar-sin-informe/`);
+              toast.success('Fondo calificado "Incumplido".');
+              setMostrarCalificarSinInforme(false);
+              await cargarDetalle({ silencioso: true });
+            } catch (err) {
+              throw new Error(getApiErrorMessage(err, 'No se pudo calificar el fondo.'));
+            }
+          }}
+          onCancelar={() => setMostrarCalificarSinInforme(false)}
+        />
+      )}
+
       {fondo && mostrarCambiarEvaluacion && (
         <FormularioEvaluarInforme
           fondoId={fondo.id}

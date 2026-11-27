@@ -40,6 +40,31 @@ def es_docente_del_fondo(request, fondo):
     return bool(perfil and perfil.rol == 'docente' and perfil.docente_id == fondo.docente_id)
 
 
+def docente_tiene_cuenta(fondo):
+    """True si el docente del fondo tiene una cuenta activa con la que trabaja como docente
+    (asignación activa de docente o perfil de docente)."""
+    from .models import AsignacionCarrera, PerfilUsuario, usuarios_del_docente
+    if not fondo.docente_id:
+        return False
+    ids = usuarios_del_docente(fondo.docente)
+    return (
+        AsignacionCarrera.objects.filter(user_id__in=ids, user__is_active=True, rol='docente', activo=True).exists()
+        or PerfilUsuario.objects.filter(user_id__in=ids, user__is_active=True, rol='docente').exists()
+    )
+
+
+def jefatura_trabaja_el_fondo(request, fondo):
+    """El docente que no tiene cuenta en el sistema no puede elaborar su fondo: lo elabora y lo
+    presenta el Jefe de Estudios de su carrera (Art. 9: Jefatura implanta el control)."""
+    return es_jefatura_del_fondo(request, fondo) and not docente_tiene_cuenta(fondo)
+
+
+def trabaja_el_fondo(request, fondo):
+    """Quien elabora el fondo (distribución, programas, documentos, presentarlo, corregirlo):
+    el docente dueño; si no tiene cuenta, el Jefe de Estudios de la carrera."""
+    return es_docente_del_fondo(request, fondo) or jefatura_trabaja_el_fondo(request, fondo)
+
+
 def es_revisor_del_fondo(request, fondo):
     """Quien aprueba, observa, evalúa y finaliza: nadie su propio fondo; el del Director de
     la carrera, el superusuario; el resto, el Director (rol activo) de la carrera."""

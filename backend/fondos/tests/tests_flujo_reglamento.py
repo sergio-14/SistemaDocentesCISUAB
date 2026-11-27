@@ -240,3 +240,44 @@ class FaltantesDeLosFlujosTests(BaseFlujo):
         response = self.client.get('/api/fondos-tiempo/')
         filas = response.data['results'] if isinstance(response.data, dict) else response.data
         return next(f for f in filas if f['id'] == self.fondo.pk)
+
+    def test_el_jefe_elabora_y_presenta_el_fondo_del_docente_sin_cuenta(self):
+        sin_cuenta = self.crear_docente('SINCUENTA')
+        fondo = FondoTiempo.objects.create(docente=sin_cuenta, carrera=self.carrera, gestion=2026)
+        self.client.force_authenticate(self.jefe)
+
+        item = self.client.post('/api/cargas-horarias/', {
+            'docente': sin_cuenta.pk, 'categoria': 'investigacion', 'tipo_actividad': 'participacion_iic_cis',
+            'titulo_actividad': 'Instituto', 'horas': 10, 'gestion': 2026,
+        }, format='json')
+        self.assertEqual(item.status_code, status.HTTP_201_CREATED, item.data)
+        presentar = self.client.patch(f'/api/fondos-tiempo/{fondo.pk}/presentar-a-director/')
+        self.assertNotEqual(presentar.status_code, status.HTTP_403_FORBIDDEN, presentar.data)
+        self.assertTrue(self.client.get(f'/api/fondos-tiempo/{fondo.pk}/').data['jefatura_trabaja_el_fondo'])
+
+    def test_el_director_califica_incumplido_sin_informe_vencido_el_plazo(self):
+        self._estado('en_ejecucion')
+        url = f'/api/fondos-tiempo/{self.fondo.pk}/calificar-sin-informe/'
+        self.client.force_authenticate(self.director)
+        with mock.patch('django.utils.timezone.localdate', return_value=date(2026, 12, 10)):
+            self.assertEqual(self.client.post(url).status_code, status.HTTP_400_BAD_REQUEST)
+        self.client.force_authenticate(self.dueno)
+        with mock.patch('django.utils.timezone.localdate', return_value=date(2026, 12, 20)):
+            self.assertIn(self.client.post(url).status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
+
+        self.client.force_authenticate(self.director)
+        with mock.patch('django.utils.timezone.localdate', return_value=date(2026, 12, 20)):
+            response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.fondo.refresh_from_db()
+        self.assertEqual(self.fondo.estado, 'informe_evaluado')
+        informe = self.fondo.informes.get(tipo='parcial')
+        self.assertEqual(informe.cumplimiento, 'incumplido')
+        self.assertIn('15/12/2026', informe.evaluacion_director)
+
+    def test_el_superusuario_ve_las_carreras_sin_director(self):
+        self.client.force_authenticate(self.superuser)
+        nombres = lambda: [c['nombre'] for c in self.client.get('/api/mi-cuenta/').data['superusuario']['carreras_sin_director']]
+        self.assertNotIn(self.carrera.nombre, nombres())
+        AsignacionCarrera.objects.filter(user=self.director, rol='director').update(activo=False)
+        self.assertIn(self.carrera.nombre, nombres())

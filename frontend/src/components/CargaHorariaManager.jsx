@@ -748,7 +748,8 @@ const CargaHorariaManager = ({ fondoId, docenteId, gestion, calendarios = [], on
         .filter(opt => modo !== 'materias' || opt.value === 'academica')
         .map(opt => ({ value: opt.value, label: opt.label }));
     const paraleloOptions = PARALELOS.map(p => ({ value: p, label: `Paralelo ${p}` }));
-    const calendarioOptions = calendarios.map(cal => ({ value: String(cal.id), label: `${cal.periodo_display} ${cal.gestion}` }));
+    // "nombre" trae la carrera cuando el calendario es de otra carrera (doble carrera).
+    const calendarioOptions = calendarios.map(cal => ({ value: String(cal.id), label: cal.nombre || `${cal.periodo_display} ${cal.gestion}` }));
     const semestreOptions = semestresDisponibles.map(s => ({ value: s.toString(), label: `${s}° Semestre` }));
     const selectedMateriaId = formData.materia?.toString() || '';
     // Una materia inactiva no se asigna en cargas nuevas (solo se conserva la ya asignada).

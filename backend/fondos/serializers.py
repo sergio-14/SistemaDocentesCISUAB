@@ -4407,6 +4407,8 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
     evaluado_el = serializers.SerializerMethodField()
     # Art. 28: hasta cuándo presentar el informe (fin del último calendario de la gestión).
     plazo_informe = serializers.SerializerMethodField()
+    # Calendarios para las sub-actividades: los de su carrera y los de sus materias en otra.
+    calendarios_materias = serializers.SerializerMethodField()
     # Arts. 15 y 18: presentado después de los plazos del calendario. Va tal cual
     # ([{plazo, calendario, fecha_limite, fecha_presentacion}]): el detalle lo muestra
     # como una etiqueta "Fuera de plazo" con su explicación al pasar el mouse.
@@ -4435,7 +4437,7 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
             'puede_editar_informe', 'tipos_ejercicio_cargo', 'puede_iniciar_ejecucion',
             'puede_escribir_observaciones', 'puede_resolver_observaciones',
             'es_fondo_propio', 'es_fondo_de_director', 'documento_decanatura', 'documento_decanatura_informe',
-            'finalizado_el', 'evaluado_el', 'plazo_informe',
+            'finalizado_el', 'evaluado_el', 'plazo_informe', 'calendarios_materias',
         ]
         read_only_fields = [
             'estado', 'horas_efectivas',
@@ -4475,6 +4477,19 @@ class FondoTiempoDetalleSerializer(serializers.ModelSerializer):
         return CalendarioAcademicoSerializer(
             obj.calendarios_de_la_gestion().order_by('fecha_inicio'), many=True,
         ).data
+
+    def get_calendarios_materias(self, obj):
+        """Calendarios donde el docente puede registrar sub-actividades: los de la gestión en
+        su carrera y los de las materias que dicta en otra carrera (doble carrera), con el
+        nombre de esa carrera para distinguirlos."""
+        ids = set(obj.calendarios_de_la_gestion().values_list('id', flat=True)) | set(
+            obj.cargas.filter(tipo_actividad='clases_aula', calendario__isnull=False).values_list('calendario', flat=True)
+        )
+        calendarios = CalendarioAcademico.objects.filter(pk__in=ids).select_related('carrera').order_by('fecha_inicio')
+        datos = CalendarioAcademicoSerializer(calendarios, many=True).data
+        for dato, calendario in zip(datos, calendarios):
+            dato['nombre'] = nombre_calendario_en_fondo(calendario, obj)
+        return datos
 
     def get_puede_editar(self, obj):
         """El docente dueño (rol activo de docente) elabora su fondo en borrador u observado:

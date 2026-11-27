@@ -916,7 +916,8 @@ function DetalleFondo() {
                   fondoId={fondo.id}
                   docenteId={fondo.docente?.id}
                   gestion={fondo.gestion}
-                  calendarios={fondo.calendarios}
+                  // El docente registra sub-actividades también de sus materias en otra carrera.
+                  calendarios={modoCarga === 'materias' ? fondo.calendarios : (fondo.calendarios_materias || fondo.calendarios)}
                   onCargaUpdate={handleActualizacionHoras}
                   readOnly={soloLecturaPorRol || !fondoEditable}
                   versionCargas={versionCargas}

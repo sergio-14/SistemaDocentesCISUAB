@@ -281,3 +281,27 @@ class FaltantesDeLosFlujosTests(BaseFlujo):
         self.assertNotIn(self.carrera.nombre, nombres())
         AsignacionCarrera.objects.filter(user=self.director, rol='director').update(activo=False)
         self.assertIn(self.carrera.nombre, nombres())
+
+    def test_el_docente_registra_sub_actividades_de_su_materia_en_otra_carrera(self):
+        calendario_civil = CalendarioAcademico.objects.create(
+            carrera=self.otra_carrera, gestion=2026, periodo='1', dias_feriados_gestion=3,
+            fecha_inicio=date(2026, 2, 1), fecha_fin=date(2026, 6, 30),
+            fecha_inicio_presentacion_proyectos=date(2026, 2, 1), fecha_limite_presentacion_proyectos=date(2026, 6, 30),
+        )
+        materia_civil = Materia.objects.create(nombre='Estática', sigla='EST-CIV', carrera=self.otra_carrera, semestre=2, horas_teoricas=2)
+        # El Jefe de Civil le asignó la materia (entra al fondo del docente en Sistemas).
+        CargaHoraria.objects.bulk_create([CargaHoraria(
+            docente_id=self.fondo.docente_id, fondo=self.fondo, categoria='academica', tipo_actividad='clases_aula',
+            materia=materia_civil, calendario=calendario_civil, horas=80, titulo_actividad='Estática', creado_por=self.jefe,
+        )])
+        self.client.force_authenticate(self.dueno)
+
+        calendarios = self.client.get(f'/api/fondos-tiempo/{self.fondo.pk}/').data['calendarios_materias']
+        civil = next(c for c in calendarios if c['id'] == calendario_civil.pk)
+        self.assertIn('Civil', civil['nombre'])
+
+        response = self.client.post('/api/cargas-horarias/', {
+            'docente': self.fondo.docente_id, 'categoria': 'academica', 'tipo_actividad': 'elaboracion_examenes',
+            'titulo_actividad': 'Elaboración de Exámenes', 'horas': 10, 'materia': materia_civil.pk, 'calendario': calendario_civil.pk,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)

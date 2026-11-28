@@ -380,7 +380,8 @@ export default function InformeCampoRico({ value, onChange, placeholder = 'Escri
         onKeyDown={handleKeyDown}
         onMouseUp={guardarSeleccion}
         onKeyUp={guardarSeleccion}
-        data-placeholder={placeholder}
+        // En solo lectura una sección vacía queda vacía: el ejemplo no es contenido.
+        data-placeholder={soloLectura ? undefined : placeholder}
         // [&_img]:inline-block: Tailwind Preflight pone `display:block` en
         // TODAS las <img> por defecto. Un elemento block-level no responde
         // a text-align (esa propiedad solo mueve contenido inline dentro de

@@ -318,6 +318,8 @@ function DetalleFondo() {
       toast.success(esReenvio ? 'Fondo reenviado al Director correctamente' : 'Fondo presentado al Director exitosamente');
       // Art. 8: sin Director activo en la carrera, el fondo espera hasta que se asigne uno.
       if (respuesta?.data?.aviso) toast(respuesta.data.aviso);
+      // Presentado ya no se edita: el backend recalcula los permisos (puede_editar).
+      await cargarDetalle({ silencioso: true });
     } catch (err) {
       console.error('Error al presentar:', err);
       console.error('Error response:', err.response?.data);

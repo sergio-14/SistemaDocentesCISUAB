@@ -206,9 +206,12 @@ class RecorridoCompletoTests(UsuariosBaseTestCase):
                    'Docente lo vuelve a presentar')
 
     def test_recorrido_del_docente_con_acceso_pausado(self):
-        self.usuario_docente.is_active = False
-        self.usuario_docente.save()
-        AsignacionCarrera.objects.filter(user=self.usuario_docente).update(activo=False)
+        # Como en el sistema: pausar el acceso también deja inactiva la ficha del docente.
+        self._como(self.superuser)
+        self._paso(self.client.post(f'/api/usuarios/{self.usuario_docente.pk}/toggle_activo/'), status.HTTP_200_OK,
+                   'Superusuario pausa el acceso del docente')
+        self.docente.refresh_from_db()
+        self.assertFalse(self.docente.activo)
         fondo, _ = self._fondo_listo(self.jefe, self.docente)
 
         self._como(self.director)

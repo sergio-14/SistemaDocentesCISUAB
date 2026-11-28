@@ -532,11 +532,11 @@ function ListaFondos() {
       ) : vista === 'lista' ? (
         // Cuadrícula en vez de <table>: el CSS del módulo POA da estilo a todas las tablas.
         // En escritorio se ve como tabla; en el celular cada fondo es un bloque apilado.
-        // Columnas con mínimo: a 1280 px con el sidebar abierto se achican hasta su mínimo y lo
-        // largo se corta con "…" (texto completo al pasar el cursor); en pantallas anchas
-        // tienen el ancho de siempre.
+        // Columnas con mínimo y proporción: el espacio sobrante va sobre todo al nombre del
+        // docente; a 1280 px con el sidebar abierto quedan en su mínimo y lo largo se corta
+        // con "…" (texto completo al pasar el cursor). Acciones: Ver y Archivar en una línea.
         <div key={`lista-${paginaActual}`} className={`${BLOQUE} p-2 sm:p-3`}>
-          <div className="hidden xl:grid grid-cols-[minmax(7.5rem,2fr)_minmax(6rem,1.5fr)_minmax(7.25rem,8rem)_minmax(6.25rem,10rem)_minmax(10.75rem,11rem)_minmax(11rem,15rem)] gap-4 px-3 pt-3 pb-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 [border-bottom:1px_solid_#B8C9E1]">
+          <div className="hidden xl:grid grid-cols-[minmax(7.5rem,2.4fr)_minmax(6rem,1.2fr)_minmax(7.25rem,0.8fr)_minmax(6.25rem,1fr)_minmax(10.75rem,1fr)_minmax(12.5rem,1.3fr)] gap-4 px-3 pt-3 pb-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 [border-bottom:1px_solid_#B8C9E1]">
             <span className="truncate" title="Docente">Docente</span>
             <span className="truncate" title="Descripción">Descripción</span>
             <span>Horas asignadas</span>
@@ -549,7 +549,7 @@ function ListaFondos() {
               <div
                 key={fondo.id}
                 style={entrada(indice).style}
-                className="animate-fondo-entrada grid grid-cols-1 xl:grid-cols-[minmax(7.5rem,2fr)_minmax(6rem,1.5fr)_minmax(7.25rem,8rem)_minmax(6.25rem,10rem)_minmax(10.75rem,11rem)_minmax(11rem,15rem)] items-center gap-x-4 gap-y-3 px-3 py-4 rounded-2xl hover:bg-azulado-100/70 transition-colors"
+                className="animate-fondo-entrada grid grid-cols-1 xl:grid-cols-[minmax(7.5rem,2.4fr)_minmax(6rem,1.2fr)_minmax(7.25rem,0.8fr)_minmax(6.25rem,1fr)_minmax(10.75rem,1fr)_minmax(12.5rem,1.3fr)] items-center gap-x-4 gap-y-3 px-3 py-4 rounded-2xl hover:bg-azulado-100/70 transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <Avatar nombre={fondo.docente_nombre} size="w-10 h-10 text-sm" />

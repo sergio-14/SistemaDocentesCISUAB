@@ -1349,11 +1349,6 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
         tipo_actividad = data.get('tipo_actividad', self.instance.tipo_actividad if self.instance else '')
         evidencias = data.get('evidencias', self.instance.evidencias if self.instance else '')
 
-        if docente and docente.activo is False:
-            raise serializers.ValidationError({
-                'docente': 'No se puede asignar carga horaria o materia a un docente inactivo.'
-            })
-
         # Materias: en un calendario (de ahí la gestión). Lo demás: horas por año del fondo, sin calendario.
         gestion = data.pop('gestion', None)
         if categoria == 'academica':
@@ -1367,9 +1362,18 @@ class CargaHorariaSerializer(serializers.ModelSerializer):
             if not gestion:
                 raise serializers.ValidationError({'gestion': 'Indique la gestión del Fondo de Tiempo.'})
 
-        fondo = None
+        fondo = fondo_de_la_carga(docente, gestion) if docente and gestion else None
+        # Docente inactivo (dado de baja o con el acceso pausado): no recibe carga, salvo en el fondo
+        # que la Jefatura elabora por el docente sin cuenta (Art. 9; ver jefatura_trabaja_el_fondo).
+        request = self.context.get('request')
+        if docente and docente.activo is False and not (
+            fondo and request and jefatura_trabaja_el_fondo(request, fondo)
+        ):
+            raise serializers.ValidationError({
+                'docente': 'No se puede asignar carga horaria o materia a un docente inactivo.'
+            })
+
         if docente and gestion:
-            fondo = fondo_de_la_carga(docente, gestion)
             if not fondo:
                 raise serializers.ValidationError({'docente': mensaje_sin_fondo(gestion)})
             data['fondo'] = fondo

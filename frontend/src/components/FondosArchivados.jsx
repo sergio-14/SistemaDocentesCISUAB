@@ -16,8 +16,9 @@ import { Avatar, EstadoPill, Etiqueta } from './fondos/ElementosFondo';
 
 const VISTA_ARCHIVADOS_KEY = 'archivados_vista';
 
-// Misma cuadrícula que la vista de lista del dashboard (sin la columna de progreso).
-const COLUMNAS = 'xl:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_8rem_11rem_15rem]';
+// Misma cuadrícula que la vista de lista del dashboard (sin la columna de progreso): proporción
+// con mínimo, el sobrante va al nombre; Ver y Restaurar en una línea.
+const COLUMNAS = 'xl:grid-cols-[minmax(7.5rem,2.4fr)_minmax(6rem,1.2fr)_minmax(7.25rem,0.8fr)_minmax(10.75rem,1fr)_minmax(12.75rem,1.3fr)]';
 
 // Del más nuevo al más antiguo por gestión; a igual gestión, por docente.
 const ordenArchivados = (a, b) => (
@@ -256,14 +257,14 @@ function FondosArchivados() {
                 <div className="flex items-center gap-3 min-w-0">
                   <Avatar nombre={fondo.docente_nombre} size="w-10 h-10 text-sm" />
                   <div className="min-w-0 flex-1">
-                    <div className="font-bold text-blue-900 truncate">{fondo.docente_nombre}</div>
+                    <div className="font-bold text-blue-900 truncate" title={fondo.docente_nombre}>{fondo.docente_nombre}</div>
                     {esSuperusuario && <div className="text-sm text-slate-600 truncate">{fondo.carrera_nombre}</div>}
                   </div>
                   <div className="xl:hidden"><EstadoPill estado={estadoVisibleFondo(fondo)} /></div>
                 </div>
                 <div className="flex flex-wrap gap-2 min-w-0">
                   <Etiqueta>{fondo.gestion}</Etiqueta>
-                  <span className="min-w-0 max-w-full truncate"><Etiqueta>{fondo.descripcion}</Etiqueta></span>
+                  <Etiqueta truncar>{fondo.descripcion}</Etiqueta>
                 </div>
                 <div className="flex items-baseline justify-between xl:block">
                   <span className="xl:hidden text-xs font-medium text-slate-600">Horas asignadas</span>

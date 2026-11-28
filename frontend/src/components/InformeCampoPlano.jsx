@@ -51,7 +51,8 @@ export default function InformeCampoPlano({ value, onChange, placeholder = '', c
       onInput={emitirCambio}
       onKeyDown={handleKeyDown}
       onPaste={handlePaste}
-      data-placeholder={placeholder}
+      // En solo lectura un campo vacío queda vacío: el ejemplo no es contenido.
+      data-placeholder={soloLectura ? undefined : placeholder}
       // El "display" base (inline-block vs block) se decide una sola vez
       // aca segun `multilinea`, nunca mezclado con la className del padre:
       // Tailwind no garantiza que una utilidad "block" pasada por props

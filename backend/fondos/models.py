@@ -2229,8 +2229,8 @@ class PerfilUsuario(models.Model):
             _imagen_a_data_uri(self.foto_perfil, self.foto_perfil_mime)
             or _descifrar_imagen_legado(self.foto_perfil_cifrada, self.foto_perfil_mime)
         )
-        # Sin foto propia no se usa el logo de la carrera: el frontend muestra la imagen
-        # predeterminada (el logo de la carrera queda solo para la carrera y sus documentos).
+        # Sin foto propia el frontend muestra el logo de la carrera activa (logos_carrera del
+        # usuario) o, sin carrera, la imagen predeterminada.
         return propia or None
 
 

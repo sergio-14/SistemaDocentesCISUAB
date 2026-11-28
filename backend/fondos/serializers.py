@@ -2834,17 +2834,33 @@ class UsuarioSerializer(serializers.ModelSerializer):
     asignacion_activa = serializers.SerializerMethodField()
     # Aviso "Falta crear la ficha de docente" (no bloquea al usuario).
     ficha_docente_pendiente = serializers.SerializerMethodField()
+    # Foto predeterminada: el logo de la carrera activa (solo en los datos del propio usuario).
+    logos_carrera = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'nombre_completo',
               'is_staff', 'is_superuser', 'is_active', 'date_joined', 'perfil',
               'ci', 'carrera_codigo', 'telefono', 'asignaciones',
-              'asignaciones_activas', 'asignacion_activa', 'ficha_docente_pendiente']
+              'asignaciones_activas', 'asignacion_activa', 'ficha_docente_pendiente', 'logos_carrera']
         read_only_fields = ['id', 'date_joined']
 
     def get_ficha_docente_pendiente(self, obj):
         return ficha_docente_pendiente(obj)
+
+    def get_logos_carrera(self, obj):
+        """{carrera_id: logo} de las carreras donde el usuario tiene un rol activo: sin foto propia,
+        se muestra el logo de la carrera activa (el que se cargó al crear la carrera). Solo en los
+        datos del propio usuario, para no cargar la lista de usuarios con imágenes."""
+        request = self.context.get('request')
+        if not request or request.user.id != obj.id:
+            return {}
+        carreras = {a.carrera for a in obj.asignaciones_carrera.filter(activo=True).select_related('carrera') if a.carrera}
+        perfil = getattr(obj, 'perfil', None)
+        if perfil and perfil.carrera:
+            carreras.add(perfil.carrera)
+        logos = {str(carrera.pk): carrera.get_logo_carrera_data_uri() for carrera in carreras}
+        return {carrera: logo for carrera, logo in logos.items() if logo}
 
 
     def get_perfil(self, obj):

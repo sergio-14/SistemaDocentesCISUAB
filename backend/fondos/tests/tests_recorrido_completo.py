@@ -240,3 +240,13 @@ class RecorridoCompletoTests(UsuariosBaseTestCase):
                    status.HTTP_200_OK, 'Director finaliza')
         self._paso(self.client.get(f'/api/carreras/{self.carrera.pk}/informe-gestion/?gestion=2026'), status.HTTP_200_OK,
                    'Informe de gestion con el Incumplido')
+
+    def test_sin_foto_propia_se_ve_el_logo_de_su_carrera(self):
+        self._como(self.usuario_docente)
+        logos = self.client.get('/api/usuario/').data['logos_carrera']
+        self.assertTrue(logos[str(self.carrera.pk)].startswith('data:image/'))
+        # La lista de usuarios no carga los logos.
+        self._como(self.director)
+        datos = self.client.get(f'/api/usuarios/{self.usuario_docente.pk}/').data
+        self.assertEqual(datos['logos_carrera'], {})
+

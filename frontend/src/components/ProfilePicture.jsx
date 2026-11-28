@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { uploadProfilePicture, deleteProfilePicture } from '../apis/api';
-import defaultProfileImg from '../assets/logoPre.jpg';
+import { fotoPredeterminada } from '../utils/fotoPerfil';
 import toast from 'react-hot-toast';
 
 // Avisa a otras pantallas (como la lista de usuarios) que la foto cambió.
 export const EVENTO_FOTO_PERFIL_ACTUALIZADA = 'foto-perfil-actualizada';
 
 const ProfilePicture = ({ user, onUpdate }) => {
-  // Inicializar con la imagen predeterminada importada
+  // Sin foto propia: el logo de la carrera activa o, sin carrera, la imagen predeterminada.
+  const defaultProfileImg = fotoPredeterminada(user);
   const [image, setImage] = useState(defaultProfileImg);
   const [isCustomImage, setIsCustomImage] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -23,7 +24,7 @@ const ProfilePicture = ({ user, onUpdate }) => {
       setImage(defaultProfileImg);
       setIsCustomImage(false);
     }
-  }, [user]);
+  }, [user, defaultProfileImg]);
 
   const handleImageChange = async (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -134,7 +135,8 @@ const ProfilePicture = ({ user, onUpdate }) => {
         <img
           src={image}
           alt="Perfil"
-          className="w-full h-full object-cover"
+          // La foto propia llena el círculo; un logo se ve entero.
+          className={`w-full h-full ${isCustomImage ? 'object-cover' : 'object-contain'}`}
           // Si la imagen falla, volvemos a la default
           onError={() => {
             if (image !== defaultProfileImg) {

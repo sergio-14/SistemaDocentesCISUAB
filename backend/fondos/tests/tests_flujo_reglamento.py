@@ -294,6 +294,12 @@ class FaltantesDeLosFlujosTests(BaseFlujo):
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
+        # "Materias asignadas" de la otra carrera: solo la clase, no la sub-actividad del docente.
+        self.client.force_authenticate(self.superuser)
+        listadas = self.client.get('/api/cargas-horarias/', {'otra_carrera': 1}).data
+        listadas = listadas.get('results', listadas) if isinstance(listadas, dict) else listadas
+        self.assertEqual([c['tipo_actividad'] for c in listadas if c['materia'] == materia_civil.pk], ['clases_aula'])
+
     def test_el_informe_trae_la_planificacion_como_parte_i(self):
         import io
         from docx import Document

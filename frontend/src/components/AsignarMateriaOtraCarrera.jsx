@@ -261,7 +261,7 @@ const AsignarMateriaOtraCarrera = ({ mostrarLista = false, filtro = '', modalAbi
                       onClick={() => setCargaPorQuitar(carga)}
                       disabled={!EDITABLE.includes(carga.fondo_estado)}
                       title={EDITABLE.includes(carga.fondo_estado) ? undefined : 'El fondo ya fue presentado: la materia no se puede quitar.'}
-                      className={`${BOTON_CHICO} bg-red-400 hover:bg-red-500 text-white disabled:bg-slate-200 disabled:text-slate-500 disabled:cursor-not-allowed`}
+                      className={`${BOTON_CHICO} bg-white text-red-700 ring-1 ring-inset ring-red-300 hover:bg-red-50 disabled:bg-slate-200 disabled:text-slate-500 disabled:ring-0 disabled:cursor-not-allowed`}
                     >
                       Quitar
                     </button>

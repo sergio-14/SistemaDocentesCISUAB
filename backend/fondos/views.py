@@ -1084,9 +1084,13 @@ class CargaHorariaViewSet(CarreraInactivaSoloLecturaMixin, viewsets.ModelViewSet
         queryset = super().get_queryset()
         # ?otra_carrera=1: materias asignadas a docentes de otra carrera (el calendario es de
         # una carrera y el fondo de otra); para el Jefe, las de los calendarios de su carrera.
+        # Solo las clases en aula: las sub-actividades que el docente registra sobre esa materia
+        # (exámenes, prácticas...) son suyas, no una asignación de la otra carrera.
         otra_carrera = self.request.query_params.get('otra_carrera') == '1'
         if otra_carrera:
-            queryset = queryset.filter(calendario__isnull=False).exclude(calendario__carrera=F('fondo__carrera'))
+            queryset = queryset.filter(calendario__isnull=False, tipo_actividad='clases_aula').exclude(
+                calendario__carrera=F('fondo__carrera'),
+            )
         # El superusuario ve todas (su perfil no tiene rol de carrera); no las modifica.
         if user.is_superuser:
             return queryset
